@@ -6,7 +6,7 @@
 |---|------|----------|--------|
 | 1 | `Schell_Geymdizayn.pdf` | Джесси Шелл — Геймдизайн. Как создать игры, которые нельзя оторвать | 4.7 МБ |
 | 2 | `Iskusstvo_Geymdizayna.pdf` | Искусство Геймдизайна | 5.1 МБ |
-| 3 | `Game_Mechanics_Advanced_Game_Design.pdf` | Game Mechanics - Advanced Game Design | 5.2 МБ |
+| 3 | `Game_Mechanics_Advanced_Game_Design.pdf` | Эрнест Адамс, Йорис Дорманс — Игровая механика. Продвинутый игровой дизайн (Game Mechanics: Advanced Game Design) | 15 МБ |
 | 4 | `Bri_Destins_Dumai_kak_geym_dizainer_2024.pdf` | Думай как гейм-дизайнер — Бри Дэстинс (2024) | 3.1 МБ |
 | 5 | `Michael_Sellers_Advanced_Game_Design.pdf` | Michael Sellers — Advanced Game Design | 9.3 МБ |
 | 6 | `Schreiber_Rogers_Game_Balance.pdf` | Schreiber, Rogers — Balance (Игровой баланс) | 8.1 МБ |

@@ -19,7 +19,9 @@
 | 13 | `LD_In_pursuit_of_better_levels.pdf` | LD — In pursuit of better levels | 130 МБ |
 | 14 | `Rollingz_Morris_Proektirovanie_i_arkhitektura_igr.pdf` | Проектирование и архитектура игр — Rollingz, Morris | 163 МБ |
 | 15 | `Scott_Rogers_Level_Up.pdf` | Scott Rogers — Level Up | 11 МБ |
+| 16 | `Tracy_Fullerton_Game_Design_Workshop_2024.pdf` | Tracy Fullerton — Game Design Workshop (5th Edition, 2024) | 203 МБ |
+| 17 | `Bond_Unity_i_Cs_2019.pdf` | Jeremy Gibson Bond — Introduction to Game Design, Prototyping, and Development (Unity и C#, 2019) | 100 МБ |
 
-**Всего**: 15 книг, ~542 МБ
+**Всего**: 17 книг, ~845 МБ
 
-> ⏳ **Ожидается с Яндекс.Диска**: `Tracy Fullerton — Game Design Workshop`, `Unity и C# — Бона Д.`
+> ✅ **Все книги загружены!**

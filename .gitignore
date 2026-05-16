@@ -1,0 +1,2 @@
+# Books are too large for Git - stored locally only
+docs/books/*.pdf

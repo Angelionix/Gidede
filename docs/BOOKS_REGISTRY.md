@@ -1,6 +1,6 @@
 # 📚 Реестр книг проекта Gidede
 
-> Все книги хранятся локально в `docs/books/` (не в Git — слишком большие)
+> Все книги хранятся в `docs/books/` в Git через **Git LFS** (Large File Storage)
 
 | # | Файл | Название | Размер |
 |---|------|----------|--------|
@@ -18,7 +18,8 @@
 | 12 | `Igrovoy_balans_nauka.pdf` | Игровой баланс. Геймдев, наука, точная наука | 96 МБ |
 | 13 | `LD_In_pursuit_of_better_levels.pdf` | LD — In pursuit of better levels | 130 МБ |
 | 14 | `Rollingz_Morris_Proektirovanie_i_arkhitektura_igr.pdf` | Проектирование и архитектура игр — Rollingz, Morris | 163 МБ |
+| 15 | `Scott_Rogers_Level_Up.pdf` | Scott Rogers — Level Up | 11 МБ |
 
-**Всего**: 14 книг, ~532 МБ
+**Всего**: 15 книг, ~542 МБ
 
-> ⚠️ **Отсутствует**: `Scott Rogers — Level Up`, `Unity и C# — Бона Д.`, `Tracy Fullerton — Game Design Workshop`
+> ⏳ **Ожидается с Яндекс.Диска**: `Tracy Fullerton — Game Design Workshop`, `Unity и C# — Бона Д.`

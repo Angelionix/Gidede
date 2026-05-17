@@ -1,9 +1,11 @@
 """
 Gidede — Prompt Executor
 Фаза 4.A.7: Ядро AI-интеграции
+Фаза 4.A.10: RAG-интеграция (обогащение промптов контекстом из базы знаний)
 
 Единый интерфейс вызова AI-промптов с:
 - Трёхслойной архитектурой (System + Context + Task)
+- RAG-обогащением контекста (Библия геймдизайна + книги)
 - Автоматической маршрутизацией
 - Кэшированием
 - Fallback-цепочками
@@ -262,6 +264,11 @@ class PromptExecutor:
         context_prompt = build_context_prompt(project_state)
         task_prompt = self._build_task_prompt(spec, inputs)
 
+        # 3.5 RAG-обогащение контекста (4.A.10)
+        rag_context = await self._enrich_with_rag(prompt_id, inputs, project_state)
+        if rag_context:
+            context_prompt = f"{context_prompt}\n\n{rag_context}"
+
         # 4. Маршрутизация
         route = self.router.route(
             task_type=task_type,
@@ -449,6 +456,121 @@ class PromptExecutor:
                 await session.commit()
         except Exception as e:
             logger.warning(f"Ошибка логирования AI-вызова: {e}")
+
+    async def _enrich_with_rag(
+        self,
+        prompt_id: str,
+        inputs: dict[str, Any],
+        project_state: Optional[dict] = None,
+    ) -> str:
+        """
+        RAG-обогащение: извлечь релевантный контекст из базы знаний
+        и добавить в промпт. Вызывается автоматически перед отправкой промпта в AI.
+
+        RAG активируется для промптов, которые требуют цитирования источников:
+        - Все промпты модулей concept, coreloop, mda, balance, economy, gdd
+        - AI-ассистент (Block 7) всегда использует RAG
+        - Классификация и оценка — без RAG (нет необходимости)
+
+        Returns:
+            Строка с RAG-контекстом или пустая строка
+        """
+        try:
+            from app.core.config import settings
+
+            if not settings.RAG_ENABLED:
+                return ""
+
+            # Определяем, нужен ли RAG для этого промпта
+            rag_prompts = {
+                # Concept Generator (Block 1)
+                "CLASSIFY_GENRE", "EXTRACT_AESTHETICS", "SUGGEST_DYNAMICS",
+                "SELECT_MECHANICS", "GENERATE_CORE_LOOPS", "GENERATE_USP",
+                # Core Loop Designer (Block 2)
+                "CLASSIFY_CORE_LOOP", "BUILD_LOOP_HIERARCHY",
+                "DIAGNOSE_PATHOLOGIES", "GENERATE_RECOMMENDATIONS",
+                # MDA Lab (Block 3)
+                "SUGGEST_MECHANICS_MDA", "SIMULATE_GAMEPLAY",
+                "APPLY_LENS_MDA", "CHECK_LUDONARRATIVE_MDA",
+                # Balance (Block 4)
+                "ESTIMATE_WEIGHTS", "EVALUATE_SITUATIONAL_VALUE",
+                "SUGGEST_INTRANSITIVE_CORRECTIONS", "ANALYZE_DISCREPANCY",
+                # Progression (Block 5)
+                "DESIGN_PROGRESSION_CURVES", "VALIDATE_PROGRESSION",
+                # Economy (Block 5)
+                "BUILD_ECONOMY_MODEL", "DIAGNOSE_ECONOMY",
+                # GDD (Block 6)
+                "GENERATE_GDD_SECTION", "CHECK_CONSISTENCY",
+                # AI Assistant (Block 7) — всегда RAG
+                "CHAT_ASSISTANT", "SUGGEST_NEXT_STEP",
+            }
+
+            if prompt_id not in rag_prompts:
+                return ""
+
+            # Формируем поисковый запрос
+            search_query = self._build_rag_query(prompt_id, inputs)
+
+            # Вызываем RAG-сервис
+            from app.core.rag_service import get_rag_service
+            rag_service = await get_rag_service()
+            return await rag_service.enrich_prompt(
+                query=search_query,
+                project_context=project_state,
+                max_context_tokens=2000,
+            )
+
+        except Exception as e:
+            logger.warning(f"RAG enrichment failed for {prompt_id}: {e}")
+            return ""
+
+    def _build_rag_query(self, prompt_id: str, inputs: dict) -> str:
+        """Построить поисковый запрос для RAG на основе prompt_id и входных данных."""
+        # Извлечь ключевые слова из inputs для более точного поиска
+        query_parts = []
+
+        # Маппинг prompt_id → тематический запрос
+        prompt_queries = {
+            "CLASSIFY_GENRE": "жанровая классификация таксономия",
+            "EXTRACT_AESTHETICS": "MDA эстетические ценности",
+            "SUGGEST_DYNAMICS": "MDA динамики механики",
+            "SELECT_MECHANICS": "механики игры выбор совместимость",
+            "GENERATE_CORE_LOOPS": "core loop цикл геймплея",
+            "GENERATE_USP": "уникальное торговое предложение",
+            "CLASSIFY_CORE_LOOP": "тип Core Loop Engine Economy Ecology",
+            "BUILD_LOOP_HIERARCHY": "иерархия петель микро мета",
+            "DIAGNOSE_PATHOLOGIES": "патологии Core Loop runaway deadlock",
+            "GENERATE_RECOMMENDATIONS": "рекомендации геймдизайн",
+            "SUGGEST_MECHANICS_MDA": "MDA механики динамики эстетика",
+            "SIMULATE_GAMEPLAY": "симуляция геймплея Machinations",
+            "APPLY_LENS_MDA": "линзы Шелла валидация",
+            "CHECK_LUDONARRATIVE_MDA": "лудонарративный диссонанс",
+            "ESTIMATE_WEIGHTS": "баланс веса атрибутов cost-power",
+            "EVALUATE_SITUATIONAL_VALUE": "ситуационная ценность баланс",
+            "SUGGEST_INTRANSITIVE_CORRECTIONS": "intransitive баланс коррекции",
+            "ANALYZE_DISCREPANCY": "дисбаланс анализ расхождение",
+            "DESIGN_PROGRESSION_CURVES": "кривые прогрессии уровни",
+            "VALIDATE_PROGRESSION": "валидация прогрессии гринд стена",
+            "BUILD_ECONOMY_MODEL": "экономическая модель ресурсы Machinations",
+            "DIAGNOSE_ECONOMY": "диагностика экономики патологии",
+            "GENERATE_GDD_SECTION": "GDD документация секции",
+            "CHECK_CONSISTENCY": "согласованность консистентность",
+            "CHAT_ASSISTANT": "геймдизайн",
+            "SUGGEST_NEXT_STEP": "следующий шаг рабочий процесс",
+        }
+
+        base_query = prompt_queries.get(prompt_id, prompt_id)
+        query_parts.append(base_query)
+
+        # Добавить контекст из входных данных
+        if "idea" in inputs:
+            query_parts.append(inputs["idea"][:100])
+        elif "genre" in inputs:
+            query_parts.append(str(inputs["genre"]))
+        elif "query" in inputs:
+            query_parts.append(str(inputs["query"])[:100])
+
+        return " ".join(query_parts)
 
     def get_provider_status(self) -> dict:
         """Статус всех провайдеров (для health check)."""

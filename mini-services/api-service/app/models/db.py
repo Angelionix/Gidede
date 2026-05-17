@@ -1,6 +1,7 @@
 """
 Gidede — ORM-модели SQLAlchemy для Project State
 Фаза 4.A.4: Схема PostgreSQL (Project State)
+Фаза 4.A.10: pgvector — таблица knowledge_chunks для RAG
 
 Модели основаны на спецификации алгоритма 3.10 (Этап 3: Модель данных Project State).
 Стратегия: реляционные поля для индексации + JSON-поля для гибкости.
@@ -17,6 +18,7 @@ Gidede — ORM-модели SQLAlchemy для Project State
 - project_gdds: Блок 6 — GDD Generator (GDDProfile из 3.7)
 - project_checklists: Блок 6 — Валидация (ChecklistResults из 3.8)
 - mechanics_db: Статическая БД механик (127 механик в 15 группах)
+- knowledge_chunks: RAG — чанки базы знаний с эмбеддингами (4.A.10)
 - prompt_logs: Логи вызовов AI-промптов
 """
 
@@ -606,6 +608,49 @@ class MechanicDB(Base):
 
     def __repr__(self):
         return f"<MechanicDB {self.mechanic_name} ({self.group_name})>"
+
+
+# ============================================================
+# KNOWLEDGE CHUNKS (RAG — база знаний с эмбеддингами, 4.A.10)
+# ============================================================
+
+class KnowledgeChunk(Base):
+    """
+    Чанки базы знаний для RAG (Retrieval-Augmented Generation).
+
+    Хранит фрагменты «Библии геймдизайна» (12 разделов) и ключевые фрагменты
+    из 17 книг по геймдизайну. Каждый чанк ~500 токенов с векторным
+    представлением (embedding) для косинусного поиска.
+
+    Реляционные поля:
+    - source_type — bible/book/algorithm
+    - source_name — название источника (bible_2_1_fundament, schell, и т.д.)
+    - chunk_index — порядковый номер чанка в источнике
+
+    Векторное поле:
+    - embedding — vector(1536) для pgvector (OpenAI text-embedding-3-small)
+    """
+    __tablename__ = "knowledge_chunks"
+
+    id = Column(String, primary_key=True, default=lambda: __import__("uuid").uuid4().hex)
+    source_type = Column(String(30), nullable=False, index=True)   # bible/book/algorithm
+    source_name = Column(String(255), nullable=False, index=True)  # bible_2_1_fundament, schell, и т.д.
+    chunk_index = Column(Integer, nullable=False)                  # Порядковый номер чанка
+    title = Column(String(500), nullable=True)                     # Заголовок/тема чанка
+    content = Column(Text, nullable=False)                          # Текст чанка (~500 токенов)
+    token_count = Column(Integer, nullable=True)                   # Количество токенов
+    metadata_json = Column(JSON, nullable=True)                    # Дополнительные метаданные
+    # embedding хранится отдельно через pgvector (не ORM-колонка, см. rag_service.py)
+
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+
+    __table_args__ = (
+        Index("ix_knowledge_source", "source_type", "source_name"),
+        Index("ix_knowledge_chunk_idx", "source_name", "chunk_index"),
+    )
+
+    def __repr__(self):
+        return f"<KnowledgeChunk {self.source_type}:{self.source_name} #{self.chunk_index}>"
 
 
 # ============================================================

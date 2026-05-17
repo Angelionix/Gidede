@@ -1,10 +1,11 @@
 # Gidede — Docker Compose для локальной разработки
 # Фаза 4.A.1: Инфраструктура и фундамент
+# Фаза 4.A.10: pgvector для RAG (эмбеддинги базы знаний)
 
 services:
-  # ===== PostgreSQL =====
+  # ===== PostgreSQL + pgvector =====
   postgres:
-    image: postgres:16-alpine
+    image: pgvector/pgvector:pg16
     container_name: gidede-postgres
     environment:
       POSTGRES_USER: gidede

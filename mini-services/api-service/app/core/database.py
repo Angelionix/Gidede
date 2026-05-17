@@ -1,11 +1,16 @@
 """
 Gidede — Настройка подключения к БД (SQLAlchemy + AsyncPG/Aiosqlite)
 Фаза 4.A.4: Схема PostgreSQL (Project State)
+Фаза 4.A.10: pgvector для RAG (эмбеддинги)
 """
 
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy import text
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 def get_database_url() -> str:
@@ -85,8 +90,15 @@ async def get_db() -> AsyncSession:
 
 
 async def init_db():
-    """Инициализация БД — создание таблиц (для dev без Alembic)."""
+    """Инициализация БД — создание таблиц (для dev без Alembic) + включение pgvector."""
     async with engine.begin() as conn:
+        # Включить расширение pgvector (только для PostgreSQL)
+        if not DATABASE_URL.startswith("sqlite"):
+            try:
+                await conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
+                logger.info("pgvector extension enabled")
+            except Exception as e:
+                logger.warning(f"Could not enable pgvector extension: {e}")
         await conn.run_sync(Base.metadata.create_all)
 
 

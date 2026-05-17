@@ -55,5 +55,17 @@ class Settings:
     AI_CACHE_ENABLED: bool = os.getenv("AI_CACHE_ENABLED", "true").lower() == "true"
     AI_CACHE_DEFAULT_TTL: int = int(os.getenv("AI_CACHE_DEFAULT_TTL", "600"))
 
+    # RAG / Embedding Configuration (4.A.10)
+    EMBEDDING_PROVIDER: str = os.getenv("EMBEDDING_PROVIDER", "openai")  # openai/zai/local
+    EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
+    EMBEDDING_DIMENSIONS: int = int(os.getenv("EMBEDDING_DIMENSIONS", "1536"))
+    EMBEDDING_API_KEY: str = os.getenv("EMBEDDING_API_KEY", "")  # Если пусто — используется OPENAI_API_KEY
+    EMBEDDING_BASE_URL: str = os.getenv("EMBEDDING_BASE_URL", "")  # Кастомный URL (для z.ai)
+    RAG_CHUNK_SIZE_TOKENS: int = int(os.getenv("RAG_CHUNK_SIZE_TOKENS", "500"))
+    RAG_CHUNK_OVERLAP_TOKENS: int = int(os.getenv("RAG_CHUNK_OVERLAP_TOKENS", "50"))
+    RAG_TOP_K: int = int(os.getenv("RAG_TOP_K", "5"))
+    RAG_SIMILARITY_THRESHOLD: float = float(os.getenv("RAG_SIMILARITY_THRESHOLD", "0.7"))
+    RAG_ENABLED: bool = os.getenv("RAG_ENABLED", "true").lower() == "true"
+
 
 settings = Settings()

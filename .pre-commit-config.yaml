@@ -1,0 +1,62 @@
+# Gidede — Pre-commit Hooks
+# Фаза 4.A.11: Локальная тестовая инфраструктура
+#
+# Установка:
+#   pip install pre-commit
+#   pre-commit install
+#
+# Запуск вручную:
+#   pre-commit run --all-files
+
+repos:
+  # === Python: Ruff (lint + format) ===
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.6
+    hooks:
+      - id: ruff
+        args: [--fix]
+        name: ruff (lint)
+      - id: ruff-format
+        name: ruff (format)
+
+  # === Python: type checking ===
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.14.1
+    hooks:
+      - id: mypy
+        name: mypy (type check)
+        additional_dependencies:
+          - types-requests
+          - pydantic
+        args: [--ignore-missing-imports, --no-strict-optional]
+        files: ^mini-services/api-service/app/
+
+  # === JavaScript/TypeScript: ESLint ===
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v9.17.0
+    hooks:
+      - id: eslint
+        name: eslint (lint)
+        files: \.[jt]sx?$
+        types: [file]
+
+  # === General: trailing whitespace, YAML, etc. ===
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        name: trim trailing whitespace
+      - id: end-of-file-fixer
+        name: fix end of files
+      - id: check-yaml
+        name: check YAML syntax
+        args: [--unsafe]
+      - id: check-json
+        name: check JSON syntax
+      - id: check-merge-conflict
+        name: check merge conflicts
+      - id: check-added-large-files
+        name: check large files
+        args: [--maxkb=500]
+      - id: detect-private-key
+        name: detect private keys

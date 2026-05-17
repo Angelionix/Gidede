@@ -18,6 +18,10 @@ dist/
 
 # Testing
 coverage/
+coverage_html/
+coverage.json
+test_report_*.txt
+*.test.db
 
 # Python
 __pycache__/
@@ -33,6 +37,7 @@ venv/
 env/
 *.db
 *.sqlite3
+.pytest_cache/
 
 # Environment
 .env

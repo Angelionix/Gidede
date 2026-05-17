@@ -1,19 +1,25 @@
 """
 Gidede — Prompt Cache
-Фаза 4.A.7: Кэширование результатов AI-промптов
+Фаза 4.A.7 + 4.A.9: Кэширование результатов AI-промптов
+
+Обновлено в 4.A.9: Использует RedisClient из app.core.redis_client
+для унифицированного доступа к Redis с connection pooling,
+автопереподключением и fallback на in-memory.
 
 Стратегия (из спецификации 3.9.4.3):
 - Ключ кэша = hash(system_prompt + context_prompt + task_prompt + inputs)
-- Хранилище: Redis (основное) → in-memory dict (fallback)
-- TTL: по спецификации для каждого промпта
+- Хранилище: RedisClient (основное) → in-memory dict (fallback)
+- TTL: по спецификации для каждого промпта (из PROMPT_REGISTRY)
 
-Кэшируемые промпты:
+Кэшируемые промпты (cacheable=True в PROMPT_REGISTRY):
 - CLASSIFY_GENRE: TTL 3600s (жанр не меняется)
 - EXTRACT_AESTHETICS: TTL 1800s
 - ESTIMATE_WEIGHTS: TTL 1800s
 - APPLY_LENS_*: TTL 900s
+- CHECK_PROGRESSION_AESTHETICS: TTL 900s
+- И другие (см. registry.py для полного списка)
 
-Некэшируемые промпты:
+Некэшируемые промпты (cacheable=False):
 - GENERATE_CORE_LOOPS, GENERATE_USP, и другие креативные
 """
 
@@ -23,65 +29,44 @@ import logging
 import time
 from typing import Optional, Any
 
+from app.prompts.registry import get_prompt_spec
+
 logger = logging.getLogger(__name__)
-
-# TTL для кэшируемых промптов (из спецификации 3.9.4.3)
-CACHE_TTL_RULES: dict[str, int] = {
-    "CLASSIFY_GENRE": 3600,                # 1 час — жанр не меняется
-    "EXTRACT_AESTHETICS": 1800,             # 30 мин — эстетика стабильна
-    "ESTIMATE_WEIGHTS": 1800,               # 30 мин
-    "EVALUATE_SITUATIONAL_VALUE": 1800,     # 30 мин
-    "CHECK_PROGRESSION_AESTHETICS": 900,    # 15 мин
-    "APPLY_LENS_MDA": 900,                  # 15 мин
-    "APPLY_LENS_VAL": 900,                  # 15 мин
-}
-
-# Промпты, которые НЕ кэшируются (креативные)
-NON_CACHEABLE = {
-    "GENERATE_CORE_LOOPS",
-    "GENERATE_USP",
-    "GENERATE_OUTER_LOOPS",
-    "GENERATE_META_LOOP",
-    "SUGGEST_DYNAMICS",
-    "SUGGEST_MECHANICS",
-    "SIMULATE_GAMEPLAY",
-    "SUGGEST_INTRANSITIVE_CORRECTIONS",
-    "GENERATE_CHARACTERS_SECTION",
-    "GENERATE_VISUAL_STYLE",
-    "ENRICH_SECTION",
-}
 
 
 class PromptCache:
     """
-    Кэш промптов с поддержкой Redis (основное) и in-memory (fallback).
+    Кэш промптов с поддержкой RedisClient (основное) и in-memory (fallback).
 
-    Ключ: gidede:prompt_cache:{hash}
+    Обновлено в 4.A.9: Интеграция с RedisClient из app.core.redis_client.
+    Если RedisClient доступен — использует его для хранения.
+    Иначе — fallback на in-memory dict.
+
+    Ключ: gidede:prompt_cache:{prompt_id}:{hash}
     """
 
     KEY_PREFIX = "gidede:prompt_cache:"
 
     def __init__(self, redis_url: Optional[str] = None):
-        self._redis = None
-        self._memory_cache: dict[str, tuple[Any, float]] = {}  # key -> (value, expires_at)
+        self._redis_client = None
         self._redis_url = redis_url
+        self._memory_cache: dict[str, tuple[Any, float]] = {}  # key -> (value, expires_at)
+        self._initialized = False
 
-        # Пробуем подключить Redis
-        if redis_url:
-            self._init_redis(redis_url)
+    async def initialize(self):
+        """Инициализация RedisClient (ленивая)."""
+        if self._initialized:
+            return
 
-    def _init_redis(self, redis_url: str):
-        """Инициализация Redis-подключения."""
         try:
-            import redis.asyncio as aioredis
-            self._redis = aioredis.from_url(redis_url, decode_responses=True)
-            logger.info(f"PromptCache: Redis подключён ({redis_url})")
-        except ImportError:
-            logger.warning("PromptCache: redis не установлен, используется in-memory cache")
-            self._redis = None
+            from app.core.redis_client import get_redis_client
+            self._redis_client = await get_redis_client()
+            self._initialized = True
+            logger.info("PromptCache: RedisClient подключён")
         except Exception as e:
-            logger.warning(f"PromptCache: ошибка подключения Redis — {e}")
-            self._redis = None
+            logger.warning(f"PromptCache: RedisClient недоступен, in-memory fallback — {e}")
+            self._redis_client = None
+            self._initialized = True
 
     def _compute_key(self, prompt_id: str, inputs: dict) -> str:
         """Вычисление ключа кэша."""
@@ -92,38 +77,53 @@ class PromptCache:
             ensure_ascii=False,
         )
         hash_val = hashlib.sha256(serialized.encode()).hexdigest()[:16]
-        return f"{self.KEY_PREFIX}{prompt_id}:{hash_val}"
+        return f"{prompt_id}:{hash_val}"
 
     def is_cacheable(self, prompt_id: str) -> bool:
-        """Можно ли кэшировать результат данного промпта."""
-        return prompt_id not in NON_CACHEABLE
+        """
+        Можно ли кэшировать результат данного промпта.
+        Использует данные из PROMPT_REGISTRY (4.A.8).
+        """
+        spec = get_prompt_spec(prompt_id)
+        if spec:
+            return spec.guarantees.cacheable
+        # Fallback для неизвестных промптов — кэшируем по умолчанию
+        return True
 
     def get_ttl(self, prompt_id: str) -> int:
-        """Получить TTL для промпта (в секундах)."""
-        return CACHE_TTL_RULES.get(prompt_id, 600)  # По умолчанию 10 минут
+        """
+        Получить TTL для промпта (в секундах).
+        Использует данные из PROMPT_REGISTRY (4.A.8).
+        """
+        spec = get_prompt_spec(prompt_id)
+        if spec and spec.guarantees.cache_ttl is not None:
+            return spec.guarantees.cache_ttl
+        # По умолчанию 10 минут
+        return 600
 
     async def get(self, prompt_id: str, inputs: dict) -> Optional[Any]:
         """Получить результат из кэша."""
-        key = self._compute_key(prompt_id, inputs)
+        cache_key = self._compute_key(prompt_id, inputs)
+        full_key = f"{self.KEY_PREFIX}{cache_key}"
 
-        # Пробуем Redis
-        if self._redis:
+        # Пробуем через RedisClient
+        if self._redis_client and self._redis_client.is_available:
             try:
-                cached = await self._redis.get(key)
-                if cached:
+                result = await self._redis_client.get_cache(cache_key)
+                if result is not None:
                     logger.debug(f"PromptCache: HIT (Redis) для {prompt_id}")
-                    return json.loads(cached)
+                    return result
             except Exception as e:
                 logger.warning(f"PromptCache: ошибка Redis GET — {e}")
 
         # Fallback на in-memory
-        if key in self._memory_cache:
-            value, expires_at = self._memory_cache[key]
+        if full_key in self._memory_cache:
+            value, expires_at = self._memory_cache[full_key]
             if time.time() < expires_at:
                 logger.debug(f"PromptCache: HIT (memory) для {prompt_id}")
                 return value
             else:
-                del self._memory_cache[key]
+                del self._memory_cache[full_key]
 
         return None
 
@@ -138,20 +138,21 @@ class PromptCache:
         if not self.is_cacheable(prompt_id):
             return
 
-        key = self._compute_key(prompt_id, inputs)
+        cache_key = self._compute_key(prompt_id, inputs)
+        full_key = f"{self.KEY_PREFIX}{cache_key}"
         ttl = ttl or self.get_ttl(prompt_id)
 
-        # Redis
-        if self._redis:
+        # Через RedisClient
+        if self._redis_client and self._redis_client.is_available:
             try:
-                await self._redis.setex(key, ttl, json.dumps(result, ensure_ascii=False))
+                await self._redis_client.set_cache(cache_key, result, ttl=ttl)
                 logger.debug(f"PromptCache: SET (Redis) для {prompt_id}, TTL={ttl}s")
                 return
             except Exception as e:
                 logger.warning(f"PromptCache: ошибка Redis SET — {e}")
 
         # In-memory fallback
-        self._memory_cache[key] = (result, time.time() + ttl)
+        self._memory_cache[full_key] = (result, time.time() + ttl)
         logger.debug(f"PromptCache: SET (memory) для {prompt_id}, TTL={ttl}s")
 
         # Очистка устаревших записей in-memory (раз в 100 записей)
@@ -160,30 +161,57 @@ class PromptCache:
 
     async def invalidate(self, prompt_id: str, inputs: dict) -> bool:
         """Инвалидация кэша для конкретного промпта."""
-        key = self._compute_key(prompt_id, inputs)
+        cache_key = self._compute_key(prompt_id, inputs)
+        full_key = f"{self.KEY_PREFIX}{cache_key}"
         deleted = False
 
-        if self._redis:
+        if self._redis_client and self._redis_client.is_available:
             try:
-                deleted = await self._redis.delete(key) > 0
+                deleted = await self._redis_client.delete_cache(cache_key)
             except Exception:
                 pass
 
-        if key in self._memory_cache:
-            del self._memory_cache[key]
+        if full_key in self._memory_cache:
+            del self._memory_cache[full_key]
             deleted = True
 
         return deleted
+
+    async def invalidate_project(self, project_id: str) -> int:
+        """
+        Инвалидация всего кэша, связанного с проектом.
+        Вызывается при изменении Project State.
+        """
+        count = 0
+
+        # Инвалидируем через Event Bus (уведомляем подписчиков)
+        if self._redis_client and self._redis_client.is_available:
+            try:
+                await self._redis_client.publish_event(
+                    project_id,
+                    {"event": "cache_invalidated", "reason": "project_state_changed"},
+                )
+            except Exception:
+                pass
+
+        # In-memory: удаляем все ключи, содержащие project_id
+        keys_to_delete = [
+            k for k in self._memory_cache
+            if project_id in k
+        ]
+        for k in keys_to_delete:
+            del self._memory_cache[k]
+            count += 1
+
+        return count
 
     async def clear_all(self) -> int:
         """Очистка всего кэша."""
         count = 0
 
-        if self._redis:
+        if self._redis_client and self._redis_client.is_available:
             try:
-                keys = await self._redis.keys(f"{self.KEY_PREFIX}*")
-                if keys:
-                    count = await self._redis.delete(*keys)
+                count = await self._redis_client.clear_cache()
             except Exception:
                 pass
 

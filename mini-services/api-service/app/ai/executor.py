@@ -133,24 +133,38 @@ def build_context_prompt(project_state: Optional[dict] = None) -> str:
 
 
 # ============================================================
-# Prompt Registry (заглушка для 4.A.8)
+# Prompt Registry (Фаза 4.A.8 — полный реестр из 31 промптов)
 # ============================================================
 
-# Минимальный реестр для тестирования
-PROMPT_SPECS: dict[str, dict] = {
-    "CLASSIFY_GENRE": {
-        "id": "CLASSIFY_GENRE",
-        "module": "concept",
-        "task_type": "classification",
-        "output_format": "json",
-        "output_schema": {
-            "type": "array",
-            "maxItems": 3,
+from app.prompts.registry import PROMPT_REGISTRY, get_prompt_spec
+from app.prompts.schemas import PromptSpec
+
+
+def _spec_to_dict(spec: PromptSpec) -> dict:
+    """Конвертировать PromptSpec в dict для совместимости."""
+    return {
+        "id": spec.id,
+        "module": spec.module.value,
+        "task_type": spec.task_type.value,
+        "output_format": spec.output_format.value,
+        "output_schema": spec.output_schema,
+        "system_prompt": spec.system_prompt,
+        "user_prompt_template": spec.user_prompt_template,
+        "model_requirements": {
+            "primary": {"provider": spec.model_requirements.primary.provider.value, "model": spec.model_requirements.primary.model},
+            "fallback": {"provider": spec.model_requirements.fallback.provider.value, "model": spec.model_requirements.fallback.model},
+            "temperature": spec.model_requirements.temperature,
+            "max_tokens": spec.model_requirements.max_tokens,
+            "response_format": spec.model_requirements.response_format.value,
         },
-        "system_prompt": "Ты — эксперт по жанровой классификации игр. Определи жанр на основе описания идеи пользователя. Используй таксономию Роджерса. Верни топ-3 жанра с оценкой уверенности (0-1).",
-        "user_prompt_template": "{idea}",
-    },
-}
+        "guarantees": {
+            "cacheable": spec.guarantees.cacheable,
+            "cache_ttl": spec.guarantees.cache_ttl,
+            "max_retries": spec.guarantees.max_retries,
+            "json_output": spec.guarantees.json_output,
+            "fallback_on_failure": spec.guarantees.fallback_on_failure,
+        },
+    }
 
 
 # ============================================================
@@ -208,12 +222,17 @@ class PromptExecutor:
         options = options or PromptExecutionOptions()
         start_time = time.time()
 
-        # 1. Получить спецификацию промпта
-        spec = PROMPT_SPECS.get(prompt_id, {
-            "id": prompt_id,
-            "task_type": "generation",
-            "output_format": "json",
-        })
+        # 1. Получить спецификацию промпта из полного реестра (4.A.8)
+        prompt_spec = get_prompt_spec(prompt_id)
+        if prompt_spec:
+            spec = _spec_to_dict(prompt_spec)
+        else:
+            # Fallback для неизвестных промптов
+            spec = {
+                "id": prompt_id,
+                "task_type": "generation",
+                "output_format": "json",
+            }
 
         task_type = spec.get("task_type", "generation")
         output_format = spec.get("output_format", "json")

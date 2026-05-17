@@ -2,6 +2,8 @@
 Gidede API Service — FastAPI Backend
 Фаза 4.A.4: Подключение БД
 Фаза 4.A.5: JWT авторизация
+Фаза 4.A.8: Полный реестр промптов (31 PromptSpec)
+Фаза 4.A.9: Redis: кэш, сессии, Pub/Sub
 """
 
 from contextlib import asynccontextmanager
@@ -12,6 +14,7 @@ import uvicorn
 from app.core.config import settings
 from app.core.logging_config import setup_logging
 from app.core.database import init_db, close_db
+from app.core.redis_client import get_redis_client, close_redis_client
 from app.api.v1.health import router as health_router
 from app.api.v1.concept import router as concept_router
 from app.api.v1.coreloop import router as coreloop_router
@@ -32,15 +35,28 @@ async def lifespan(app: FastAPI):
     """Управление жизненным циклом приложения."""
     # Startup
     await init_db()
+
+    # Инициализация Redis (4.A.9)
+    redis_client = await get_redis_client()
+    redis_health = await redis_client.health_check()
+    print(f"[Gidede] Redis: {redis_health['backend']} ({'OK' if redis_health['available'] else 'FALLBACK'})")
+
+    # Логирование реестра промптов (4.A.8)
+    from app.prompts.registry import get_registry_stats
+    stats = get_registry_stats()
+    print(f"[Gidede] Prompt Registry: {stats['total_prompts']} промптов загружено")
+
     yield
+
     # Shutdown
+    await close_redis_client()
     await close_db()
 
 
 app = FastAPI(
     title="Gidede API",
     description="AI-powered Game Design Assistant — Backend API",
-    version="0.3.0",
+    version="0.4.0",
     docs_url="/api/v1/docs",
     redoc_url="/api/v1/redoc",
     openapi_url="/api/v1/openapi.json",

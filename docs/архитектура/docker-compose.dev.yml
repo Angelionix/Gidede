@@ -1,0 +1,39 @@
+# Gidede — Docker Compose для локальной разработки
+# Фаза 4.A.1: Инфраструктура и фундамент
+
+services:
+  # ===== PostgreSQL =====
+  postgres:
+    image: postgres:16-alpine
+    container_name: gidede-postgres
+    environment:
+      POSTGRES_USER: gidede
+      POSTGRES_PASSWORD: gidede_dev
+      POSTGRES_DB: gidede
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gidede"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # ===== Redis =====
+  redis:
+    image: redis:7-alpine
+    container_name: gidede-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
+  redis_data:

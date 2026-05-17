@@ -32,6 +32,7 @@ import {
   Gamepad2,
   LogIn,
   LogOut,
+  FolderOpen,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 
@@ -166,6 +167,14 @@ export function GidedeSidebar() {
                   <Link href="/">
                     <Home className="h-4 w-4" />
                     <span>Главная</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/projects"}>
+                  <Link href="/projects">
+                    <FolderOpen className="h-4 w-4" />
+                    <span>Мои проекты</span>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

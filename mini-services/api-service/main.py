@@ -21,6 +21,7 @@ from app.api.v1.economy import router as economy_router
 from app.api.v1.gdd import router as gdd_router
 from app.api.v1.ai_assistant import router as ai_assistant_router
 from app.api.v1.auth import router as auth_router
+from app.api.v1.projects import router as projects_router
 
 # Настройка логирования
 setup_logging()
@@ -39,7 +40,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Gidede API",
     description="AI-powered Game Design Assistant — Backend API",
-    version="0.2.0",
+    version="0.3.0",
     docs_url="/api/v1/docs",
     redoc_url="/api/v1/redoc",
     openapi_url="/api/v1/openapi.json",
@@ -58,6 +59,7 @@ app.add_middleware(
 # === Роутеры ===
 app.include_router(health_router, prefix="/api/v1", tags=["Health"])
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["Auth"])
+app.include_router(projects_router, prefix="/api/v1/projects", tags=["Projects"])
 app.include_router(concept_router, prefix="/api/v1/concept", tags=["Concept Generator (Block 1)"])
 app.include_router(coreloop_router, prefix="/api/v1/coreloop", tags=["Core Loop Designer (Block 2)"])
 app.include_router(mda_router, prefix="/api/v1/mda", tags=["MDA Lab (Block 3)"])

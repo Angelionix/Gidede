@@ -1,10 +1,10 @@
 """
 Gidede — Pydantic схемы проектов
-Фаза 4.A.4: CRUD для проектов (Project State)
+Фаза 4.A.6: CRUD для проектов (Project State)
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, Any
 from datetime import datetime
 
 
@@ -49,6 +49,18 @@ class ProjectResponse(BaseModel):
     has_checklist: bool = False
 
     model_config = {"from_attributes": True}
+
+
+class ProjectDetailResponse(ProjectResponse):
+    """Детальный ответ с данными блоков проекта."""
+    concept_data: Optional[dict] = None
+    core_loop_data: Optional[dict] = None
+    mda_data: Optional[dict] = None
+    balance_data: Optional[dict] = None
+    progression_data: Optional[dict] = None
+    economy_data: Optional[dict] = None
+    gdd_data: Optional[dict] = None
+    checklist_data: Optional[dict] = None
 
 
 class ProjectListResponse(BaseModel):

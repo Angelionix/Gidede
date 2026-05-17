@@ -1,1 +1,90 @@
-docs/SECRETS.md
+# Dependencies
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+
+# Next.js
+.next/
+out/
+
+# Production
+build/
+dist/
+
+# Testing
+coverage/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+.eggs/
+*.egg
+venv/
+.venv/
+env/
+*.db
+*.sqlite3
+
+# Environment
+.env
+.env.local
+.env.*.local
+.env.production
+*.pem
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Debug
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+*.log
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
+
+# Vercel
+.vercel
+
+# Alembic
+alembic/versions/__pycache__/
+
+# Secrets
+SECRETS.md
+
+# Local development
+local-*
+.claude/
+.z-ai-config/
+dev.log
+dev.out.log
+server.log
+test/
+prompt/
+
+# Lock files (optional — uncomment if you don't want to track them)
+# bun.lock
+# package-lock.json
+
+# Skills
+/skills/

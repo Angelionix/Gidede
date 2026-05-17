@@ -1,0 +1,321 @@
+// Gidede — Prisma Schema
+// Фаза 4.A.4: Обновлённая схема данных (совместима с SQLAlchemy)
+// Используется Next.js для server-side рендеринга и SSR данных
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// USER — Пользователь системы
+// ============================================================
+
+model User {
+  id              String   @id @default(cuid())
+  email           String   @unique
+  name            String?
+  hashedPassword  String                   // bcrypt-хеш пароля
+  plan            String   @default("free") // free | pro
+  aiCallsCount    Int      @default(0)      // Счётчик AI-вызовов за день
+  aiCallsLimit    Int      @default(50)     // Лимит AI-вызовов (free: 50, pro: 500)
+  isActive        Boolean  @default(true)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  lastLoginAt     DateTime?
+
+  projects       Project[]
+  refreshTokens  RefreshToken[]
+
+  @@index([plan])
+  @@map("users")
+}
+
+// ============================================================
+// REFRESH TOKEN — Токены обновления JWT
+// ============================================================
+
+model RefreshToken {
+  id         String   @id @default(cuid())
+  userId     String
+  token      String   @unique
+  expiresAt  DateTime
+  createdAt  DateTime @default(now())
+  isRevoked  Boolean  @default(false)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+// ============================================================
+// PROJECT — Проект Game Design (Project State)
+// ============================================================
+
+model Project {
+  id                String   @id @default(cuid())
+  userId            String
+  name              String
+  description       String?
+  genre             String?
+  status            String   @default("draft") // draft | active | completed | archived
+  projectStage      String?                      // concept | core_loop | mda | balance | progression | economy | gdd | validation
+  completionPercent Int      @default(0)
+  version           Int      @default(1)
+  lastAlgorithmRun  String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  concept       ProjectConcept?
+  coreLoop      ProjectCoreLoop?
+  mdaProfile    ProjectMDAProfile?
+  balanceResult ProjectBalanceResult?
+  progression   ProjectProgression?
+  economy       ProjectEconomy?
+  gdd           ProjectGDD?
+  checklist     ProjectChecklist?
+
+  @@index([genre])
+  @@index([status])
+  @@index([projectStage])
+  @@map("projects")
+}
+
+// ============================================================
+// БЛОК 1: КОНЦЕПЦИЯ (алгоритм 3.1)
+// ============================================================
+
+model ProjectConcept {
+  id                  String   @id @default(cuid())
+  projectId           String   @unique
+  genre               String?
+  subgenre            String?
+  primaryAesthetic    String?
+  usp                 String?
+  inputData           String?  // JSON: ConceptInput
+  onePagerData        String?  // JSON: OnePager
+  aestheticProfile    String?  // JSON: AestheticProfile
+  dynamicsProfile     String?  // JSON: DynamicsProfile
+  mechanicSet         String?  // JSON: MechanicSet
+  validationReport    String?  // JSON: ValidationReport
+  uspCandidates       String?  // JSON: [{usp, triangle_check, differentiation}]
+  coreLoopCandidates  String?  // JSON: [{name, steps, loop_type, fun_check}]
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([genre])
+  @@index([primaryAesthetic])
+  @@map("project_concepts")
+}
+
+// ============================================================
+// БЛОК 2: CORE LOOP (алгоритм 3.2)
+// ============================================================
+
+model ProjectCoreLoop {
+  id                String   @id @default(cuid())
+  projectId         String   @unique
+  structuralType    String?   // Engine | Economy | Ecology
+  structuralSubtype String?   // braked/pure, multi_currency/single
+  stepCount         Int?
+  hierarchyDepth    Int?
+  pathologyCount    Int       @default(0)
+  inputData         String?   // JSON: CoreLoopInput
+  stepsData         String?   // JSON: CoreLoopStep[]
+  innerLoops        String?   // JSON: InnerLoop[]
+  outerLoops        String?   // JSON: OuterLoop[]
+  metaLoop          String?   // JSON: MetaLoop
+  loopHierarchy     String?   // JSON: LoopHierarchy
+  pathologies       String?   // JSON: PathologyReport
+  recommendations   String?   // JSON: Recommendation[]
+  validationData    String?   // JSON: Валидация
+  fullProfile       String?   // JSON: Полный CoreLoopProfile
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([structuralType])
+  @@map("project_core_loops")
+}
+
+// ============================================================
+// БЛОК 3: MDA (алгоритм 3.3)
+// ============================================================
+
+model ProjectMDAProfile {
+  id                String   @id @default(cuid())
+  projectId         String   @unique
+  primaryAesthetic  String?
+  secondaryAesthetic String?
+  overallMatch      Float?
+  iterationCount    Int       @default(0)
+  inputData         String?   // JSON: MDAGenerationInput
+  targetDynamics    String?   // JSON: DynamicsTarget
+  mechanicSet       String?   // JSON: StructuredMechanicSet
+  observedDynamics  String?   // JSON: string[]
+  predictedAesthetics String? // JSON: Record<AestheticType, number>
+  matchScores       String?   // JSON: Record<AestheticType, number>
+  lensValidation    String?   // JSON: LensValidation
+  bondValidation    String?   // JSON: BondValidation
+  ludonarrativeCheck String?  // JSON: LudonarrativeCheck
+  machinationsModel String?   // JSON: MachinationsGraph
+  simulationResults String?   // JSON: Simulation results
+  fullProfile       String?   // JSON: Полный MDAProfile
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([primaryAesthetic])
+  @@map("project_mda_profiles")
+}
+
+// ============================================================
+// БЛОК 4: БАЛАНС (алгоритм 3.4)
+// ============================================================
+
+model ProjectBalanceResult {
+  id                 String   @id @default(cuid())
+  projectId          String   @unique
+  balanceType        String?   // transitive | intransitive | mixed
+  overallBalanceScore Float?
+  imbalanceCount     Int?
+  elementCount       Int?
+  inputData          String?   // JSON: BalanceInput
+  elements           String?   // JSON: BalancedElement[]
+  costPowerCurves    String?   // JSON: CostPowerCurve[]
+  intransitiveMatrix String?   // JSON: PayoffMatrix
+  nashEquilibrium    String?   // JSON: NashEquilibrium
+  monteCarloResults  String?   // JSON: MonteCarloResult[]
+  machinationsResults String?  // JSON: Machinations
+  pathologies        String?   // JSON: BalancePathology[]
+  corrections        String?   // JSON: CorrectionProposal[]
+  situationalValues  String?   // JSON: SituationValue matrix
+  fullResult         String?   // JSON: Полный BalanceResult
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([balanceType])
+  @@map("project_balance_results")
+}
+
+// ============================================================
+// БЛОК 5: ПРОГРЕССИЯ (алгоритм 3.5)
+// ============================================================
+
+model ProjectProgression {
+  id                   String   @id @default(cuid())
+  projectId            String   @unique
+  totalLevels          Int?
+  tierCount            Int?
+  curveType            String?   // 7 типов кривых
+  targetDurationHours  Float?
+  inputData            String?   // JSON: ProgressionInput
+  macroModel           String?   // JSON: ProgressionMacroModel
+  tierModel            String?   // JSON: TierModel
+  curves               String?   // JSON: ProgressionCurves
+  contentPlan          String?   // JSON: ContentPlan
+  economyLink          String?   // JSON: ProgressionEconomyLink
+  validation           String?   // JSON: ProgressionValidation
+  fullProfile          String?   // JSON: Полный ProgressionProfile
+  createdAt            DateTime  @default(now())
+  updatedAt            DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([curveType])
+  @@map("project_progressions")
+}
+
+// ============================================================
+// БЛОК 5: ЭКОНОМИКА (алгоритм 3.6)
+// ============================================================
+
+model ProjectEconomy {
+  id                String   @id @default(cuid())
+  projectId         String   @unique
+  systemType        String?   // Engine | Economy | Ecology
+  resourceCount     Int?
+  hasPathology      Boolean  @default(false)
+  inputData         String?   // JSON: EconomyInput
+  resourceModel     String?   // JSON: ResourceModel
+  machinationsModel String?   // JSON: MachinationsGraph
+  conversionChains  String?   // JSON: ConversionChain[]
+  pathologies       String?   // JSON: EconomyPathology[]
+  corrections       String?   // JSON: EconomyCorrection[]
+  simulationResults String?   // JSON: SimulationResult
+  monetizationModel String?   // JSON: MonetizationSpec
+  fullProfile       String?   // JSON: Полный EconomyProfile
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([systemType])
+  @@map("project_economies")
+}
+
+// ============================================================
+// БЛОК 6: GDD (алгоритм 3.7)
+// ============================================================
+
+model ProjectGDD {
+  id                 String   @id @default(cuid())
+  projectId          String   @unique
+  format             String?   // one_sheet | ten_pager | full
+  sectionCount       Int?
+  completenessPercent Float?
+  inputData          String?   // JSON: GDDGenerationInput
+  sections           String?   // JSON: GDDSection[]
+  visualElements     String?   // JSON: Record<string, VisualElement>
+  consistencyIssues  String?   // JSON: ConsistencyIssue[]
+  completenessReport String?   // JSON: CompletenessReport
+  fullProfile        String?   // JSON: Полный GDDProfile
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([format])
+  @@map("project_gdds")
+}
+
+// ============================================================
+// БЛОК 6: ВАЛИДАЦИЯ (алгоритм 3.8)
+// ============================================================
+
+model ProjectChecklist {
+  id                String   @id @default(cuid())
+  projectId         String   @unique
+  overallScore      Float?
+  readinessLevel    String?   // draft | review | ready | production
+  criticalIssueCount Int     @default(0)
+  totalIssueCount   Int      @default(0)
+  inputData         String?   // JSON: ChecklistInput
+  mdaCheck          String?   // JSON: MDACheckResult
+  balanceCheck      String?   // JSON: BalanceCheckResult
+  narrativeCheck    String?   // JSON: NarrativeCheckResult
+  economyCheck      String?   // JSON: EconomyCheckResult
+  lensCheck         String?   // JSON: LensCheckResult
+  issues            String?   // JSON: ValidationIssue[]
+  remediationPlan   String?   // JSON: RemediationItem[]
+  fullResults       String?   // JSON: Полный ChecklistResults
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  project Project @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  @@index([readinessLevel])
+  @@map("project_checklists")
+}

@@ -1,8 +1,8 @@
 # Gidede — Документ тестирования
 
-> **Фаза**: 4.C.9 (Сквозной пайплайн: Блоки 1–5)
+> **Фаза**: 4.C.10 (Интеграционные тесты пайплайна)
 > **Дата**: 2026-05-19
-> **Версия**: 0.26.0
+> **Версия**: 0.27.0
 > **Статус**: Активный
 > **Подход**: Локальное тестирование + CI/CD (GitHub Actions)
 
@@ -10,7 +10,7 @@
 
 ## 1. Общая стратегия тестирования
 
-Тестирование Gidede проводится локально на ПК разработчика и через CI/CD пайплайн (GitHub Actions: `.github/workflows/ci.yml`). Автоматизированные программные тесты запускаются через скрипты, отчёты предоставляются вручную. Ручное тестирование UI проводится через браузер. Полное покрытие включает все реализованные модули: инфраструктуру (4.A), концепцию (4.B.1–4.B.5), Core Loop Designer (4.B.6–4.B.8), MDA Lab (4.B.9–4.B.11), сквозной пайплайн (4.B.12), баланс и симуляцию (4.C.1–4.C.4), прогрессию (4.C.5), экономику (4.C.6–4.C.7), UI экономики и прогрессии (4.C.8), а также скелетные эндпоинты будущих блоков.
+Тестирование Gidede проводится локально на ПК разработчика и через CI/CD пайплайн (GitHub Actions: `.github/workflows/ci.yml`). Автоматизированные программные тесты запускаются через скрипты, отчёты предоставляются вручную. Ручное тестирование UI проводится через браузер. Полное покрытие включает все реализованные модули: инфраструктуру (4.A), концепцию (4.B.1–4.B.5), Core Loop Designer (4.B.6–4.B.8), MDA Lab (4.B.9–4.B.11), сквозной пайплайн (4.B.12), баланс и симуляцию (4.C.1–4.C.4), прогрессию (4.C.5), экономику (4.C.6–4.C.7), UI экономики и прогрессии (4.C.8), сквозной пайплайн Блоков 1–5 (4.C.9), а также интеграционные тесты полного пайплайна (4.C.10).
 
 ### 1.1 Уровни тестирования
 
@@ -60,7 +60,7 @@ npx eslint src/            # TypeScript
 
 ## 2. Реальные автоматизированные тесты (текущее состояние)
 
-### 2.1 Backend — pytest (209 тестов в 9 файлах)
+### 2.1 Backend — pytest (231 тест в 10 файлах)
 
 ```
 mini-services/api-service/tests/
@@ -76,8 +76,11 @@ mini-services/api-service/tests/
 │                                   #   Machinations (77 тестов)
 ├── test_economy_service.py        # Economy Service — все 8 этапов
 │                                   #   алгоритма 3.6 (83 теста)
-└── test_pipeline_service.py       # Pipeline Service — сквозной пайплайн 1→5,
-                                    #   зависимости блоков, stale-каскад (29 тестов)
+├── test_pipeline_service.py       # Pipeline Service — сквозной пайплайн 1→5,
+│                                   #   зависимости блоков, stale-каскад (29 тестов)
+└── integration/
+    └── test_full_pipeline.py      # 4.C.10: Интеграционные тесты полного
+                                     #   пайплайна Блоки 1–5 (22 теста)
 ```
 
 #### 2.1.1 Инфраструктура (4.A)
@@ -235,6 +238,65 @@ mini-services/api-service/tests/
 |----|------|---------------|
 | PIPE-29 | `test_run_full_pipeline_endpoint_exists` | POST /run-full-pipeline/{project_id} доступен |
 
+#### 2.1.10 Integration Tests (4.C.10) — 22 теста
+
+**INT-01: Полный пайплайн «идея → экономика» с mock AI — 2 теста**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| INT-01 | `test_full_pipeline_produces_all_blocks` | Все 5 блоков заполнены после полного пайплайна, нет null-ошибок |
+| INT-02 | `test_pipeline_state_reflects_all_blocks` | PipelineState отражает заполненность всех 5 блоков |
+
+**INT-02: Целостность передачи данных между блоками — 5 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| INT-03 | `test_block2_receives_concept_data` | Блок 2 получает genre, mechanics, aesthetic_profile из Блока 1 |
+| INT-04 | `test_block3_receives_concept_and_coreloop_data` | Блок 3 получает idea, mechanics, core_loop_data из Блоков 1+2 |
+| INT-05 | `test_block4_receives_all_previous_data` | Блок 4 получает concept_data, core_loop_data, mda_data из Блоков 1-3 |
+| INT-06 | `test_block5_receives_progression_and_economy_inputs` | Блок 5 получает progression_input + economy_input из Блоков 1-4 |
+| INT-07 | `test_resources_extracted_from_core_loop_steps` | Ресурсы (ingredients, potions, gold) извлекаются из шагов Core Loop |
+
+**INT-03: Graceful degradation при частичном заполнении — 3 теста**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| INT-08 | `test_block4_with_only_concept` | Блок 4 работает только с данными Блока 1, warnings о Core Loop и MDA |
+| INT-09 | `test_block5_with_missing_balance` | Блок 5 без Блока 4 — progression_input + economy_input формируются |
+| INT-10 | `test_block5_with_only_concept` | Блок 5 с минимальными данными (только концепция) — 3 warnings |
+
+**INT-04: Cascade stale-обновления — 5 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| INT-11 | `test_concept_change_cascades_to_all` | Изменение Блока 1 → все Блоки 2-8 stale |
+| INT-12 | `test_coreloop_change_cascades_correctly` | Изменение Блока 2 → Блоки 3-8 stale (1 не stale) |
+| INT-13 | `test_mda_change_does_not_affect_earlier_blocks` | Изменение Блока 3 → Блоки 4-8 stale (1,2 не stale) |
+| INT-14 | `test_balance_change_affects_progression_and_gdd` | Изменение Блока 4 → Блоки 5, 6, 8 stale |
+| INT-15 | `test_progression_change_affects_gdd_only` | Изменение Блока 5 → Блоки 6, 8 stale |
+
+**INT-05: Pipeline prepare_input для каждого блока — 5 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| INT-16 | `test_prepare_block2_input` | CoreLoopInput: genre, mechanics, aesthetic_profile, core_loop_candidates |
+| INT-17 | `test_prepare_block3_input` | MDAInput: idea, genre, primary_aesthetic, existing_mechanics, core_loop_data |
+| INT-18 | `test_prepare_block4_input` | BalanceInput: genre, concept_data, core_loop_data, mda_data |
+| INT-19 | `test_prepare_block5_input` | ProgressionInput + EconomyInput: разделение данных для прогрессии и экономики |
+| INT-20 | `test_missing_concept_returns_error_for_block2` | Без концепции Блок 2 → статус missing_concept |
+
+**INT-06: Валидация формата выходных данных — 7 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| INT-21 | `test_concept_output_has_required_fields` | OnePager: genre, aesthetic_profile, mechanic_set, one_pager_data |
+| INT-22 | `test_coreloop_output_has_required_fields` | CoreLoopProfile: structural_type, steps_data, mechanics в шагах |
+| INT-23 | `test_mda_output_has_required_fields` | MDAProfile: primary_aesthetic, overall_match, mechanic_set, match_scores |
+| INT-24 | `test_balance_output_has_required_fields` | BalanceResult: balance_type, elements с name/cost/power/cp_ratio/status |
+| INT-25 | `test_progression_output_has_required_fields` | ProgressionProfile: total_levels, curves (4 кривые), tier_count |
+| INT-26 | `test_economy_output_has_required_fields` | EconomyProfile: system_type, resource_model (core + subsidiary) |
+| INT-27 | `test_balance_elements_status_values` | Статусы элементов в допустимом наборе: balanced/overpowered/underpowered/ideal_imbalance |
+
 ### 2.2 Frontend — vitest (9 тестов в 3 файлах)
 
 ```
@@ -299,7 +361,7 @@ src/__tests__/
 | UI-01 | Логин | 1. Открыть /login 2. Ввести email/password 3. Нажать Login | Редирект на главную страницу |
 | UI-02 | Регистрация | 1. Открыть /register 2. Заполнить форму 3. Нажать Register | Успешная регистрация, редирект на логин |
 | UI-03 | Навигация по блокам | 1. Кликнуть на каждый блок 1–8 в sidebar | Открывается соответствующая страница |
-| UI-04 | Отображение версии | 1. Проверить sidebar | Отображается текущая версия (0.26.0) |
+| UI-04 | Отображение версии | 1. Проверить sidebar | Отображается текущая версия (0.27.0) |
 
 ### 4.2 Блок 1: Генератор концепции
 
@@ -410,6 +472,7 @@ src/__tests__/
 | E2E-05 | Проектирование прогрессии | Настройка кривых, проверка валидации, просмотр контент-плана |
 | E2E-06 | Экономическое моделирование | Идентификация ресурсов → классификация → Machinations → диагностика → балансировка → симуляция |
 | E2E-07 | Сквозной пайплайн 1→5 | Ввод идеи → Концепция → Core Loop → MDA → Баланс → Прогрессия → Экономика за одну операцию (run-full-pipeline) |
+| E2E-08 | Интеграционный тест «Roguelike про алхимика» | Тест-кейс из 4.C.10: идея → все 5 блоков, проверка целостности данных, cascade stale |
 
 ---
 
@@ -419,9 +482,9 @@ src/__tests__/
 
 | Категория | Файлов | Тестов |
 |-----------|--------|--------|
-| Backend (pytest) | 9 | 209 |
+| Backend (pytest) | 10 | 231 |
 | Frontend (vitest) | 3 | 9 |
-| **Итого** | **12** | **218** |
+| **Итого** | **13** | **240** |
 
 ### 6.2 Плановые автоматизированные тесты
 
@@ -436,8 +499,8 @@ src/__tests__/
 | Категория | Кейс |
 |-----------|------|
 | UI-тесты | 65 |
-| E2E-сценарии | 6 |
-| **Итого** | **71** |
+| E2E-сценарии | 7 |
+| **Итого** | **72** |
 
 ### 6.4 Целевое покрытие (критерий C8 из ROADMAP)
 

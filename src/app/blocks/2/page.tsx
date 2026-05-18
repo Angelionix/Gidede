@@ -52,9 +52,12 @@ import {
   Flame,
   BrainCircuit,
   Wrench,
+  ArrowDownToLine,
+  GitBranch,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { usePipeline } from "@/hooks/use-pipeline";
 
 // ============================================================
 // Константы
@@ -832,6 +835,12 @@ export default function Block2Page() {
   const { apiFetch } = useAuth();
   const { toast } = useToast();
 
+  // --- Pipeline ---
+  const projectId = typeof window !== "undefined" ? localStorage.getItem("gidede_active_project") : null;
+  const pipeline = usePipeline(projectId);
+  const [pipelineLoaded, setPipelineLoaded] = useState(false);
+  const [isLoadingPipeline, setIsLoadingPipeline] = useState(false);
+
   // --- Form state ---
   const [form, setForm] = useState<CoreLoopFormState>({
     conceptId: "",
@@ -845,6 +854,45 @@ export default function Block2Page() {
   const [isDesigning, setIsDesigning] = useState(false);
   const [result, setResult] = useState<CoreLoopDesignResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // --- Pipeline auto-fill handler ---
+  const handleLoadFromPipeline = useCallback(async () => {
+    if (!projectId) {
+      toast({ title: "Нет активного проекта", description: "Выберите проект для загрузки данных из пайплайна", variant: "destructive" });
+      return;
+    }
+    setIsLoadingPipeline(true);
+    try {
+      const data = await pipeline.prepareInput(2);
+      if (!data) {
+        toast({ title: "Нет данных", description: "Не удалось загрузить данные из пайплайна. Убедитесь, что Блок 1 заполнен.", variant: "destructive" });
+        return;
+      }
+      const updates: Partial<CoreLoopFormState> = {};
+      if (data.concept_id) updates.conceptId = data.concept_id;
+      if (data.genre) updates.genre = data.genre;
+      if (Array.isArray(data.mechanics) && data.mechanics.length > 0) {
+        updates.mechanics = data.mechanics.join(", ");
+      }
+      if (Object.keys(updates).length > 0) {
+        setForm((prev) => ({ ...prev, ...updates }));
+        setPipelineLoaded(true);
+        toast({
+          title: "Данные загружены из пайплайна",
+          description: `Загружено: ${Object.keys(updates).map((k) => {
+            const labels: Record<string, string> = { conceptId: "ID концепции", mechanics: "Механики", genre: "Жанр" };
+            return labels[k] || k;
+          }).join(", ")}`,
+        });
+      } else {
+        toast({ title: "Нет данных для загрузки", description: "Пайплайн не содержит данных для этого блока" });
+      }
+    } catch {
+      toast({ title: "Ошибка загрузки", description: "Не удалось загрузить данные из пайплайна", variant: "destructive" });
+    } finally {
+      setIsLoadingPipeline(false);
+    }
+  }, [projectId, pipeline, toast]);
 
   // --- Validation ---
   const mechanicsLength = form.mechanics.trim().length;
@@ -905,6 +953,23 @@ export default function Block2Page() {
       const data = await response.json();
       setResult(data as CoreLoopDesignResult);
 
+      // Уведомляем pipeline об обновлении Блока 2
+      try {
+        const projectId = typeof window !== "undefined" ? localStorage.getItem("gidede_active_project") : null;
+        if (projectId) {
+          await apiFetch(
+            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/pipeline/notify-updated`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ project_id: projectId, block_id: 2, metadata: {} }),
+            }
+          );
+        }
+      } catch {
+        // Pipeline notification is non-critical
+      }
+
       toast({
         title: "Core Loop спроектирован",
         description: `Этапы: ${data.stages_completed?.join(", ") || "1-5"}. ${data.pathologies?.total_count || 0} патологий.`,
@@ -938,6 +1003,43 @@ export default function Block2Page() {
           Активен
         </Badge>
       </div>
+
+      {/* Pipeline Data Flow Indicator */}
+      {projectId && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/40 border">
+          <GitBranch className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Пайплайн:</span>
+          <div className="flex items-center gap-1">
+            <Badge variant="outline" className="text-[10px]">Блок 1</Badge>
+            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+            <Badge variant="secondary" className="text-[10px] font-bold">Блок 2 ←</Badge>
+            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+            <Badge variant="outline" className="text-[10px]">Блок 3</Badge>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            {pipelineLoaded && (
+              <Badge variant="outline" className="text-[10px] border-green-400 text-green-700 dark:text-green-400">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Данные из пайплайна
+              </Badge>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLoadFromPipeline}
+              disabled={isLoadingPipeline}
+              className="text-xs h-7"
+            >
+              {isLoadingPipeline ? (
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              ) : (
+                <ArrowDownToLine className="h-3 w-3 mr-1" />
+              )}
+              Загрузить из пайплайна
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Input Form */}
       <Card>

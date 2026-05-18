@@ -46,9 +46,12 @@ import {
   RotateCcw,
   Lightbulb,
   MessageSquare,
+  ArrowDownToLine,
+  GitBranch,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { usePipeline } from "@/hooks/use-pipeline";
 
 // ============================================================
 // Константы
@@ -1134,6 +1137,13 @@ export default function Block3Page() {
   const { apiFetch } = useAuth();
   const { toast } = useToast();
 
+  // --- Pipeline ---
+  const projectId = typeof window !== "undefined" ? localStorage.getItem("gidede_active_project") : null;
+  const pipeline = usePipeline(projectId);
+  const [pipelineLoaded, setPipelineLoaded] = useState(false);
+  const [isLoadingPipeline, setIsLoadingPipeline] = useState(false);
+  const [pipelineWarning, setPipelineWarning] = useState<string | null>(null);
+
   // --- Form state ---
   const [form, setForm] = useState<MDAFormState>({
     conceptId: "",
@@ -1155,6 +1165,56 @@ export default function Block3Page() {
   const [result, setResult] = useState<MDAAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("reverse");
+
+  // --- Pipeline auto-fill handler ---
+  const handleLoadFromPipeline = useCallback(async () => {
+    if (!projectId) {
+      toast({ title: "Нет активного проекта", description: "Выберите проект для загрузки данных из пайплайна", variant: "destructive" });
+      return;
+    }
+    setIsLoadingPipeline(true);
+    setPipelineWarning(null);
+    try {
+      const data = await pipeline.prepareInput(3);
+      if (!data) {
+        toast({ title: "Нет данных", description: "Не удалось загрузить данные из пайплайна. Убедитесь, что предыдущие блоки заполнены.", variant: "destructive" });
+        return;
+      }
+      const updates: Partial<MDAFormState> = {};
+      if (data.concept_id) updates.conceptId = data.concept_id;
+      if (data.genre) updates.genre = data.genre;
+      if (data.primary_aesthetic) updates.primaryAesthetic = data.primary_aesthetic;
+      if (data.secondary_aesthetic) updates.secondaryAesthetic = data.secondary_aesthetic;
+      if (data.tertiary_aesthetic) updates.tertiaryAesthetic = data.tertiary_aesthetic;
+      if (data.idea) updates.idea = data.idea;
+      if (Array.isArray(data.existing_mechanics) && data.existing_mechanics.length > 0) {
+        updates.existingMechanics = data.existing_mechanics.join(", ");
+      }
+      if (data.warning) {
+        setPipelineWarning(data.warning);
+      }
+      if (data.has_core_loop === false) {
+        setPipelineWarning("Блок 2 (Core Loop) ещё не заполнен. Результаты могут быть неполными.");
+      }
+      if (Object.keys(updates).length > 0) {
+        setForm((prev) => ({ ...prev, ...updates }));
+        setPipelineLoaded(true);
+        toast({
+          title: "Данные загружены из пайплайна",
+          description: `Загружено: ${Object.keys(updates).map((k) => {
+            const labels: Record<string, string> = { conceptId: "ID концепции", genre: "Жанр", primaryAesthetic: "Основная эстетика", secondaryAesthetic: "Вторичная эстетика", tertiaryAesthetic: "Третичная эстетика", idea: "Идея", existingMechanics: "Механики" };
+            return labels[k] || k;
+          }).join(", ")}`,
+        });
+      } else {
+        toast({ title: "Нет данных для загрузки", description: "Пайплайн не содержит данных для этого блока" });
+      }
+    } catch {
+      toast({ title: "Ошибка загрузки", description: "Не удалось загрузить данные из пайплайна", variant: "destructive" });
+    } finally {
+      setIsLoadingPipeline(false);
+    }
+  }, [projectId, pipeline, toast]);
 
   // --- Validation ---
   const isFormValid = form.primaryAesthetic !== "" && form.genre !== "";
@@ -1222,6 +1282,23 @@ export default function Block3Page() {
       const data = await response.json();
       setResult(data as MDAAnalysisResult);
 
+      // Уведомляем pipeline об обновлении Блока 3
+      try {
+        const projectId = typeof window !== "undefined" ? localStorage.getItem("gidede_active_project") : null;
+        if (projectId) {
+          await apiFetch(
+            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/pipeline/notify-updated`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ project_id: projectId, block_id: 3, metadata: {} }),
+            }
+          );
+        }
+      } catch {
+        // Pipeline notification is non-critical
+      }
+
       toast({
         title: "MDA-анализ завершён",
         description: `Этапы: ${data.stages_completed?.join(", ") || "1-3"}. ${data.latency_ms || 0} мс.`,
@@ -1256,6 +1333,43 @@ export default function Block3Page() {
         </Badge>
       </div>
 
+      {/* Pipeline Data Flow Indicator */}
+      {projectId && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/40 border">
+          <GitBranch className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Пайплайн:</span>
+          <div className="flex items-center gap-1">
+            <Badge variant="outline" className="text-[10px]">Блок 1</Badge>
+            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+            <Badge variant="outline" className="text-[10px]">Блок 2</Badge>
+            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+            <Badge variant="secondary" className="text-[10px] font-bold">Блок 3 ←</Badge>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            {pipelineLoaded && (
+              <Badge variant="outline" className="text-[10px] border-green-400 text-green-700 dark:text-green-400">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Данные из пайплайна
+              </Badge>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLoadFromPipeline}
+              disabled={isLoadingPipeline}
+              className="text-xs h-7"
+            >
+              {isLoadingPipeline ? (
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              ) : (
+                <ArrowDownToLine className="h-3 w-3 mr-1" />
+              )}
+              Загрузить из пайплайна
+            </Button>
+          </div>
+        </div>
+      )}
+
       {/* Input Form */}
       <Card>
         <CardHeader>
@@ -1265,6 +1379,14 @@ export default function Block3Page() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* Pipeline warning */}
+          {pipelineWarning && (
+            <div className="flex items-start gap-2 text-xs rounded-md bg-yellow-50 dark:bg-yellow-950/20 border border-yellow-200 dark:border-yellow-800 p-2">
+              <AlertTriangle className="h-3.5 w-3.5 text-yellow-500 mt-0.5 shrink-0" />
+              <span>{pipelineWarning}</span>
+            </div>
+          )}
+
           {/* Concept ID */}
           <div className="space-y-1.5">
             <Label htmlFor="conceptId" className="text-sm">ID концепции (из Блока 1)</Label>

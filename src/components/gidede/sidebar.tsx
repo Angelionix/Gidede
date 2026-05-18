@@ -33,88 +33,69 @@ import {
   LogIn,
   LogOut,
   FolderOpen,
+  CheckCircle2,
+  Circle,
+  AlertTriangle,
+  Loader2,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
+import { ProgressSidebar } from "@/components/gidede/progress-sidebar";
+import { usePipeline } from "@/hooks/use-pipeline";
+import type { BlockStatus } from "@/hooks/use-pipeline";
+
+// ============================================================
+// СТАТИЧЕСКАЯ КОНФИГУРАЦИЯ БЛОКОВ
+// ============================================================
 
 const blocks = [
-  {
-    id: 1,
-    name: "Генератор концепции",
-    icon: Lightbulb,
-    href: "/blocks/1",
-    status: "active" as const,
-    algorithm: "3.1",
-  },
-  {
-    id: 2,
-    name: "Core Loop Designer",
-    icon: RefreshCw,
-    href: "/blocks/2",
-    status: "active" as const,
-    algorithm: "3.2",
-  },
-  {
-    id: 3,
-    name: "MDA Lab",
-    icon: FlaskConical,
-    href: "/blocks/3",
-    status: "active" as const,
-    algorithm: "3.3",
-  },
-  {
-    id: 4,
-    name: "Баланс и симуляция",
-    icon: Scale,
-    href: "/blocks/4",
-    status: "skeleton" as const,
-    algorithm: "3.4",
-  },
-  {
-    id: 5,
-    name: "Экономика и прогрессия",
-    icon: TrendingUp,
-    href: "/blocks/5",
-    status: "skeleton" as const,
-    algorithm: "3.5–3.6",
-  },
-  {
-    id: 6,
-    name: "GDD Generator",
-    icon: FileText,
-    href: "/blocks/6",
-    status: "skeleton" as const,
-    algorithm: "3.7–3.8",
-  },
-  {
-    id: 7,
-    name: "AI-ассистент",
-    icon: Bot,
-    href: "/blocks/7",
-    status: "skeleton" as const,
-    algorithm: "3.9",
-  },
-  {
-    id: 8,
-    name: "Интеграция GBE",
-    icon: Puzzle,
-    href: "/blocks/8",
-    status: "planned" as const,
-    algorithm: "—",
-  },
+  { id: 1, name: "Генератор концепции", icon: Lightbulb, href: "/blocks/1", status: "active" as const, algorithm: "3.1" },
+  { id: 2, name: "Core Loop Designer", icon: RefreshCw, href: "/blocks/2", status: "active" as const, algorithm: "3.2" },
+  { id: 3, name: "MDA Lab", icon: FlaskConical, href: "/blocks/3", status: "active" as const, algorithm: "3.3" },
+  { id: 4, name: "Баланс и симуляция", icon: Scale, href: "/blocks/4", status: "skeleton" as const, algorithm: "3.4" },
+  { id: 5, name: "Экономика и прогрессия", icon: TrendingUp, href: "/blocks/5", status: "skeleton" as const, algorithm: "3.5–3.6" },
+  { id: 6, name: "GDD Generator", icon: FileText, href: "/blocks/6", status: "skeleton" as const, algorithm: "3.7–3.8" },
+  { id: 7, name: "AI-ассистент", icon: Bot, href: "/blocks/7", status: "skeleton" as const, algorithm: "3.9" },
+  { id: 8, name: "Интеграция GBE", icon: Puzzle, href: "/blocks/8", status: "planned" as const, algorithm: "—" },
 ];
 
-const statusColors: Record<string, string> = {
+// ============================================================
+// СТАТУСЫ РЕАЛИЗАЦИИ (dev-статус) vs RUNTIME-СТАТУС (pipeline)
+// ============================================================
+
+const devStatusColors: Record<string, string> = {
   skeleton: "bg-yellow-500/20 text-yellow-700 dark:text-yellow-400",
   planned: "bg-gray-500/20 text-gray-500",
   active: "bg-green-500/20 text-green-700 dark:text-green-400",
   complete: "bg-emerald-500/20 text-emerald-700 dark:text-emerald-400",
 };
 
-const statusLabels: Record<string, string> = {
+const devStatusLabels: Record<string, string> = {
   skeleton: "Скелет",
   planned: "План",
   active: "Активен",
   complete: "Готов",
+};
+
+// Runtime-статусы из pipeline (когда проект активен)
+const runtimeStatusIcons: Record<BlockStatus, typeof CheckCircle2> = {
+  empty: Circle,
+  in_progress: Loader2,
+  completed: CheckCircle2,
+  stale: AlertTriangle,
+};
+
+const runtimeStatusColors: Record<BlockStatus, string> = {
+  empty: "text-muted-foreground",
+  in_progress: "text-blue-600 dark:text-blue-400",
+  completed: "text-emerald-600 dark:text-emerald-400",
+  stale: "text-amber-600 dark:text-amber-400",
+};
+
+const runtimeStatusLabels: Record<BlockStatus, string> = {
+  empty: "Пусто",
+  in_progress: "В процессе",
+  completed: "Готов",
+  stale: "Устарел",
 };
 
 const planLabels: Record<string, string> = {
@@ -129,9 +110,30 @@ const planColors: Record<string, string> = {
   enterprise: "bg-amber-500 text-white",
 };
 
+// ============================================================
+// ОСНОВНОЙ КОМПОНЕНТ
+// ============================================================
+
 export function GidedeSidebar() {
   const pathname = usePathname();
   const { user, isAuthenticated, isLoading, logout } = useAuth();
+
+  // Pipeline-состояние — используем projectId из URL или localStorage
+  // Для простоты берём последний активный проект из localStorage
+  const [activeProjectId, setActiveProjectId] = import.meta.env ? undefined : undefined;
+  const projectId = typeof window !== "undefined"
+    ? localStorage.getItem("gidede_active_project") || null
+    : null;
+
+  const { state: pipelineState } = usePipeline(projectId);
+
+  // Маппинг block_id → runtime-статус
+  const pipelineBlockMap = new Map<number, { status: BlockStatus; is_filled: boolean }>();
+  if (pipelineState?.blocks) {
+    for (const b of pipelineState.blocks) {
+      pipelineBlockMap.set(b.block_id, { status: b.status, is_filled: b.is_filled });
+    }
+  }
 
   const initials = user?.name
     ? user.name
@@ -182,30 +184,84 @@ export function GidedeSidebar() {
           </SidebarGroupContent>
         </SidebarGroup>
 
-        {/* Блоки */}
+        {/* Pipeline Progress — показываем, если есть активный проект */}
+        {pipelineState && (
+          <SidebarGroup>
+            <SidebarGroupLabel>Прогресс пайплайна</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <ProgressSidebar
+                blocks={pipelineState.blocks}
+                completionPercent={pipelineState.completion_percent}
+                nextBlock={pipelineState.next_block}
+              />
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+
+        {/* Функциональные блоки */}
         <SidebarGroup>
           <SidebarGroupLabel>Функциональные блоки</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {blocks.map((block) => (
-                <SidebarMenuItem key={block.id}>
-                  <SidebarMenuButton
-                    asChild
-                    isActive={pathname === block.href}
-                  >
-                    <Link href={block.href}>
-                      <block.icon className="h-4 w-4" />
-                      <span className="flex-1 truncate">{block.name}</span>
-                      <Badge
-                        variant="outline"
-                        className={`text-[10px] px-1 py-0 ${statusColors[block.status]}`}
+              {blocks.map((block) => {
+                // Определяем, какой статус показывать
+                const runtimeInfo = pipelineBlockMap.get(block.id);
+                const useRuntime = runtimeInfo && pipelineState;
+
+                // Runtime-статус (если есть проект)
+                if (useRuntime && runtimeInfo) {
+                  const RuntimeIcon = runtimeStatusIcons[runtimeInfo.status];
+                  const rtColor = runtimeStatusColors[runtimeInfo.status];
+                  const rtLabel = runtimeStatusLabels[runtimeInfo.status];
+                  const isStale = runtimeInfo.status === "stale";
+
+                  return (
+                    <SidebarMenuItem key={block.id}>
+                      <SidebarMenuButton
+                        asChild
+                        isActive={pathname === block.href}
                       >
-                        {statusLabels[block.status]}
-                      </Badge>
-                    </Link>
-                  </SidebarMenuButton>
-                </SidebarMenuItem>
-              ))}
+                        <Link href={block.href} className={isStale ? "animate-pulse" : ""}>
+                          <span className="relative">
+                            <block.icon className="h-4 w-4" />
+                            <RuntimeIcon
+                              className={`h-2.5 w-2.5 absolute -bottom-0.5 -right-0.5 ${rtColor} ${runtimeInfo.status === "in_progress" ? "animate-spin" : ""}`}
+                            />
+                          </span>
+                          <span className="flex-1 truncate">{block.name}</span>
+                          <Badge
+                            variant="outline"
+                            className={`text-[10px] px-1 py-0 ${rtColor}`}
+                          >
+                            {rtLabel}
+                          </Badge>
+                        </Link>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                }
+
+                // Dev-статус (статический, без активного проекта)
+                return (
+                  <SidebarMenuItem key={block.id}>
+                    <SidebarMenuButton
+                      asChild
+                      isActive={pathname === block.href}
+                    >
+                      <Link href={block.href}>
+                        <block.icon className="h-4 w-4" />
+                        <span className="flex-1 truncate">{block.name}</span>
+                        <Badge
+                          variant="outline"
+                          className={`text-[10px] px-1 py-0 ${devStatusColors[block.status]}`}
+                        >
+                          {devStatusLabels[block.status]}
+                        </Badge>
+                      </Link>
+                    </SidebarMenuButton>
+                  </SidebarMenuItem>
+                );
+              })}
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
@@ -289,7 +345,7 @@ export function GidedeSidebar() {
         )}
 
         <p className="text-xs text-muted-foreground px-2 pt-1">
-          Фаза 4.B • v0.12.0
+          Фаза 4.B • v0.14.0
         </p>
       </SidebarFooter>
     </Sidebar>

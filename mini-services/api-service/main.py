@@ -27,6 +27,7 @@ from app.api.v1.ai_assistant import router as ai_assistant_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.projects import router as projects_router
 from app.api.v1.rag import router as rag_router
+from app.api.v1.pipeline import router as pipeline_router
 
 # Настройка логирования
 setup_logging()
@@ -97,6 +98,7 @@ app.include_router(economy_router, prefix="/api/v1/economy", tags=["Economy & Pr
 app.include_router(gdd_router, prefix="/api/v1/gdd", tags=["GDD Generator (Block 6)"])
 app.include_router(ai_assistant_router, prefix="/api/v1/ai", tags=["AI Assistant (Block 7)"])
 app.include_router(rag_router, prefix="/api/v1/rag", tags=["RAG Knowledge Base (4.A.10)"])
+app.include_router(pipeline_router, prefix="/api/v1/pipeline", tags=["Pipeline (4.B.12)"])
 
 
 if __name__ == "__main__":

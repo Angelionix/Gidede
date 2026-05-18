@@ -52,9 +52,13 @@ import {
   CheckCircle2,
   XCircle,
   Eye,
+  Play,
+  GitBranch,
+  Rocket,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { usePipeline } from "@/hooks/use-pipeline";
 import {
   AestheticProfile,
   DynamicsProfile,
@@ -925,6 +929,11 @@ export default function Block1Page() {
   const { apiFetch } = useAuth();
   const { toast } = useToast();
 
+  // --- Pipeline ---
+  const projectId = typeof window !== "undefined" ? localStorage.getItem("gidede_active_project") : null;
+  const pipeline = usePipeline(projectId);
+  const [isRunningPipeline, setIsRunningPipeline] = useState(false);
+
   // --- Состояние формы ---
   const [form, setForm] = useState<ConceptFormState>({
     idea: "",
@@ -955,6 +964,72 @@ export default function Block1Page() {
   const isIdeaValid = ideaLength >= 10 && ideaLength <= 1000;
   const isMotivationsValid = form.targetMotivations.length >= 1;
   const isFormValid = isIdeaValid && isMotivationsValid;
+
+  // --- Запуск полного пайплайна 1→2→3 ---
+  const handleRunFullPipeline = useCallback(async () => {
+    if (!isFormValid) return;
+    if (!projectId) {
+      toast({ title: "Нет активного проекта", description: "Выберите проект в сайдбаре", variant: "destructive" });
+      return;
+    }
+
+    setIsRunningPipeline(true);
+    setError(null);
+    setCurrentStage("Запуск полного пайплайна 1→2→3...");
+
+    try {
+      const payload = {
+        idea: form.idea.trim(),
+        genre: form.genreMode === "auto" ? null : form.genre,
+        target_audience: form.targetMotivations.length > 0
+          ? { primary: form.targetMotivations, experience: form.experienceLevel }
+          : null,
+        platform: form.platforms.length > 0 ? form.platforms : null,
+        constraints: {
+          team_size: form.budget === "solo" ? 1 : form.budget === "small" ? 3 : form.budget === "medium" ? 10 : 20,
+          budget: form.budget === "solo" || form.budget === "small" ? "low" : form.budget === "medium" ? "medium" : "high",
+        },
+        reference_games: form.referenceGames ? form.referenceGames.split(",").map((g: string) => g.trim()).filter(Boolean) : null,
+        forbidden_mechanics: form.forbiddenMechanics.length > 0 ? form.forbiddenMechanics : null,
+      };
+
+      const response = await apiFetch(
+        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/pipeline/run-pipeline/${projectId}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ concept_input: payload }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.detail || `Ошибка сервера: ${response.status}`);
+      }
+
+      const data = await response.json();
+      setCurrentStage(null);
+
+      // Если вернулся результат концепции, показываем его
+      if (data.concept_result) {
+        setResult(data.concept_result as ConceptGenerationResult);
+      }
+
+      await pipeline.fetchState();
+
+      toast({
+        title: "Полный пайплайн завершён",
+        description: `Блоки 1→2→3 выполнены. ${data.stages_completed?.length || 3} этапа.`,
+      });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Ошибка запуска пайплайна";
+      setError(message);
+      toast({ title: "Ошибка пайплайна", description: message, variant: "destructive" });
+      setCurrentStage(null);
+    } finally {
+      setIsRunningPipeline(false);
+    }
+  }, [form, isFormValid, projectId, apiFetch, pipeline, toast]);
 
   // --- Обработчики формы ---
   const updateField = useCallback(
@@ -1081,6 +1156,23 @@ export default function Block1Page() {
 
       setCurrentStage(null);
       setResult(response);
+
+      // Уведомляем pipeline об обновлении Блока 1
+      try {
+        const projectId = typeof window !== "undefined" ? localStorage.getItem("gidede_active_project") : null;
+        if (projectId) {
+          await apiFetch(
+            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/pipeline/notify-updated`,
+            {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ project_id: projectId, block_id: 1, metadata: { concept_id: response.id } }),
+            }
+          );
+        }
+      } catch {
+        // Pipeline notification is non-critical
+      }
     } catch (err) {
       setError(
         err instanceof Error
@@ -1123,6 +1215,37 @@ export default function Block1Page() {
           {result ? "Реализация 4.B.1–4.B.5" : "Реализация 4.B.1"}
         </Badge>
       </div>
+
+      {/* Pipeline Data Flow Indicator */}
+      {projectId && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/40 border">
+          <GitBranch className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Пайплайн:</span>
+          <div className="flex items-center gap-1">
+            <Badge variant="secondary" className="text-[10px] font-bold">Блок 1 ←</Badge>
+            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+            <Badge variant="outline" className="text-[10px]">Блок 2</Badge>
+            <ArrowRight className="h-3 w-3 text-muted-foreground" />
+            <Badge variant="outline" className="text-[10px]">Блок 3</Badge>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleRunFullPipeline}
+              disabled={isRunningPipeline || !isFormValid}
+              className="text-xs h-7"
+            >
+              {isRunningPipeline ? (
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              ) : (
+                <Rocket className="h-3 w-3 mr-1" />
+              )}
+              Запустить пайплайн 1→2→3
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* === ФОРМА ВВОДА === */}
       <Card>

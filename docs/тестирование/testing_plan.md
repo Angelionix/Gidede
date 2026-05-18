@@ -1,8 +1,8 @@
 # Gidede — Документ тестирования
 
-> **Фаза**: 4.B.5–4.B.11 (полное покрытие)  
+> **Фаза**: 4.B.5–4.B.12 (полное покрытие)  
 > **Дата**: 2026-05-18  
-> **Версия**: 0.11.0  
+> **Версия**: 0.14.0  
 > **Статус**: Активный  
 > **Подход**: Локальное тестирование (без GitHub Actions)
 
@@ -10,7 +10,7 @@
 
 ## 1. Общая стратегия тестирования
 
-Тестирование Gidede проводится локально на ПК разработчика. Автоматизированные программные тесты запускаются через скрипты, отчёты предоставляются вручную. Ручное тестирование UI проводится через браузер. Полное покрытие включает все реализованные модули: инфраструктуру (4.A), концепцию (4.B.1–4.B.5), Core Loop Designer (4.B.6–4.B.8), а также скелетные эндпоинты будущих блоков.
+Тестирование Gidede проводится локально на ПК разработчика. Автоматизированные программные тесты запускаются через скрипты, отчёты предоставляются вручную. Ручное тестирование UI проводится через браузер. Полное покрытие включает все реализованные модули: инфраструктуру (4.A), концепцию (4.B.1–4.B.5), Core Loop Designer (4.B.6–4.B.8), MDA Lab (4.B.9–4.B.11), сквозной пайплайн (4.B.12), а также скелетные эндпоинты будущих блоков.
 
 ### 1.1 Уровни тестирования
 
@@ -84,8 +84,10 @@ mini-services/api-service/tests/
 ├── test_mda_service_stage_5.py    # ★ НОВОЕ: MDA Линзы Шелла (4.B.10)
 ├── test_mda_service_stage_6.py    # ★ НОВОЕ: MDA Матрица Бонда (4.B.10)
 ├── test_mda_service_full.py       # ★ НОВОЕ: MDA полный пайплайн 1–6 (4.B.10)
-├── test_mda_api_full.py           # ★ НОВОЕ: API MDA полный анализ (4.B.10)
-└── test_jwt_secret.py             # ★ НОВОЕ: JWT secret property (TD-017)
+├── test_mda_api_full.py           # API MDA полный анализ (4.B.10)
+├── test_jwt_secret.py             # JWT secret property (TD-017)
+├── test_pipeline_service.py       # ★ НОВОЕ: Pipeline Service — сквозной пайплайн (4.B.12)
+└── test_pipeline_api.py           # ★ НОВОЕ: API Pipeline endpoints (4.B.12)
 ```
 
 #### Фикстуры (conftest.py)
@@ -563,7 +565,8 @@ src/__tests__/
 ├── concept-form.test.tsx          # Форма ввода концепции (Блок 1)
 ├── concept-result.test.tsx        # Компоненты отображения результата (Блок 1)
 ├── coreloop-designer.test.tsx     # ★ НОВОЕ: Core Loop Designer (Блок 2)
-├── mda-lab-ui.test.tsx            # ★ НОВОЕ: MDA Lab UI — вкладки и панели (Блок 3, 4.B.11)
+├── mda-lab-ui.test.tsx            # MDA Lab UI — вкладки и панели (Блок 3, 4.B.11)
+├── pipeline.test.tsx              # ★ НОВОЕ: Pipeline hook + ProgressSidebar (4.B.12)
 └── sidebar.test.tsx               # Навигация и прогресс
 ```
 
@@ -1309,6 +1312,41 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 
 ---
 
+
+##### Pipeline Service (4.B.12)
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-291 | test_pipeline_get_state | GET /pipeline/state - состояние пайплайна |
+| B-292 | test_pipeline_get_state_empty | Все блоки empty для нового проекта |
+| B-293 | test_pipeline_prepare_input_block_2 | prepare-input для Блока 2 из Блока 1 |
+| B-294 | test_pipeline_prepare_input_block_2_missing | missing_concept если Блок 1 не заполнен |
+| B-295 | test_pipeline_prepare_input_block_3 | prepare-input для Блока 3 из Блоков 1-2 |
+| B-296 | test_pipeline_prepare_input_block_3_missing | missing_concept если Блок 1 не заполнен |
+| B-297 | test_pipeline_prepare_input_block_3_warning | Предупреждение если Блок 2 не заполнен |
+| B-298 | test_pipeline_notify_updated_1 | notify-updated block 1 помечает 2-8 stale |
+| B-299 | test_pipeline_notify_updated_2 | notify-updated block 2 помечает 3-8 stale |
+| B-300 | test_pipeline_notify_updated_3 | notify-updated block 3 помечает 4-8 stale |
+| B-301 | test_pipeline_clear_stale | DELETE stale - снятие stale-статуса |
+| B-302 | test_pipeline_run_full | POST run-pipeline - полный пайплайн 1-2-3 |
+| B-303 | test_pipeline_run_full_result | concept_result в результате пайплайна |
+| B-304 | test_pipeline_stale_downstream | STALE_DOWNSTREAM корректно |
+| B-305 | test_pipeline_block_deps | BLOCK_DEPENDENCIES корректно |
+| B-306 | test_pipeline_redis_event | Событие в Redis Event Bus |
+| B-307 | test_pipeline_completion | Корректный completion_percent |
+
+##### Pipeline API (4.B.12)
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-308 | test_api_pipeline_state | GET /api/v1/pipeline/state |
+| B-309 | test_api_pipeline_state_404 | 404 для несуществующего проекта |
+| B-310 | test_api_pipeline_prepare_input | GET /api/v1/pipeline/prepare-input |
+| B-311 | test_api_pipeline_notify_updated | POST /api/v1/pipeline/notify-updated |
+| B-312 | test_api_pipeline_run_pipeline | POST /api/v1/pipeline/run-pipeline |
+| B-313 | test_api_pipeline_clear_stale | DELETE /api/v1/pipeline/stale |
+
+---
 ## 8. Pre-commit хуки
 
 ### 8.1 Установка

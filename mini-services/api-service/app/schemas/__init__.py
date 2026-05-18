@@ -3,6 +3,7 @@ Gidede — Pydantic схемы для валидации API
 Фаза 4.A.4–4.A.5: Схемы Project State + Auth
 Фаза 4.B.6: Схемы Core Loop Designer
 Фаза 4.C.1–4.C.3: Схемы Balance Service
+Фаза 4.C.5: Схемы Progression Service
 """
 
 from app.schemas.auth import (
@@ -30,6 +31,16 @@ from app.schemas.balance import (
     AggregatedSimData, QualityAssessment, MachinationsSimResult,
     BalanceResult,
 )
+from app.schemas.progression import (
+    ProgressionInput, ProgressionConstraints,
+    ProgressionMacroModel,
+    TierInfo, TierModel,
+    CurveSpec, ProgressionCurves,
+    ContentTierPlan, UnlockEntry, PerceivedDifficultyEntry,
+    ContentPlan,
+    ProgressionValidation,
+    ProgressionProfile,
+)
 
 __all__ = [
     "UserRegister", "UserLogin", "UserResponse", "TokenResponse",
@@ -49,4 +60,12 @@ __all__ = [
     "MachinationsSimConfig", "EconomyRunSnapshot",
     "AggregatedSimData", "QualityAssessment", "MachinationsSimResult",
     "BalanceResult",
+    "ProgressionInput", "ProgressionConstraints",
+    "ProgressionMacroModel",
+    "TierInfo", "TierModel",
+    "CurveSpec", "ProgressionCurves",
+    "ContentTierPlan", "UnlockEntry", "PerceivedDifficultyEntry",
+    "ContentPlan",
+    "ProgressionValidation",
+    "ProgressionProfile",
 ]

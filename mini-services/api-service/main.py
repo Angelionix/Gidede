@@ -21,6 +21,7 @@ from app.api.v1.concept import router as concept_router
 from app.api.v1.coreloop import router as coreloop_router
 from app.api.v1.mda import router as mda_router
 from app.api.v1.balance import router as balance_router
+from app.api.v1.progression import router as progression_router
 from app.api.v1.economy import router as economy_router
 from app.api.v1.gdd import router as gdd_router
 from app.api.v1.ai_assistant import router as ai_assistant_router
@@ -94,7 +95,8 @@ app.include_router(concept_router, prefix="/api/v1/concept", tags=["Concept Gene
 app.include_router(coreloop_router, prefix="/api/v1/coreloop", tags=["Core Loop Designer (Block 2)"])
 app.include_router(mda_router, prefix="/api/v1/mda", tags=["MDA Lab (Block 3)"])
 app.include_router(balance_router, prefix="/api/v1/balance", tags=["Balance & Simulation (Block 4)"])
-app.include_router(economy_router, prefix="/api/v1/economy", tags=["Economy & Progression (Block 5)"])
+app.include_router(progression_router, prefix="/api/v1/progression", tags=["Progression (Block 5)"])
+app.include_router(economy_router, prefix="/api/v1/economy", tags=["Economy (Block 5)"])
 app.include_router(gdd_router, prefix="/api/v1/gdd", tags=["GDD Generator (Block 6)"])
 app.include_router(ai_assistant_router, prefix="/api/v1/ai", tags=["AI Assistant (Block 7)"])
 app.include_router(rag_router, prefix="/api/v1/rag", tags=["RAG Knowledge Base (4.A.10)"])

@@ -9,4 +9,7 @@ from app.services.coreloop_service import CoreLoopService
 # Block 4: Balance & Simulation (4.C.1–4.C.3 — Этапы 1–7 + Q-фактор + симуляция)
 from app.services.balance_service import BalanceService
 
-__all__ = ["ConceptService", "CoreLoopService", "BalanceService"]
+# Block 5: Progression (4.C.5 — Этапы 1–4 алгоритма 3.5)
+from app.services.progression_service import ProgressionService
+
+__all__ = ["ConceptService", "CoreLoopService", "BalanceService", "ProgressionService"]

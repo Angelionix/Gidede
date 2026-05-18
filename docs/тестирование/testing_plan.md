@@ -1,8 +1,8 @@
 # Gidede — Документ тестирования
 
-> **Фаза**: 4.C.4+ (техдолг + инфраструктура)
+> **Фаза**: 4.C.5 (прогрессия)
 > **Дата**: 2026-05-19  
-> **Версия**: 0.20.0  
+> **Версия**: 0.21.0  
 > **Статус**: Активный  
 > **Подход**: Локальное тестирование + CI/CD (GitHub Actions)
 
@@ -10,7 +10,7 @@
 
 ## 1. Общая стратегия тестирования
 
-Тестирование Gidede проводится локально на ПК разработчика и через CI/CD пайплайн (GitHub Actions: `.github/workflows/ci.yml`). Автоматизированные программные тесты запускаются через скрипты, отчёты предоставляются вручную. Ручное тестирование UI проводится через браузер. Полное покрытие включает все реализованные модули: инфраструктуру (4.A), концепцию (4.B.1–4.B.5), Core Loop Designer (4.B.6–4.B.8), MDA Lab (4.B.9–4.B.11), сквозной пайплайн (4.B.12), баланс и симуляцию (4.C.1–4.C.4), а также скелетные эндпоинты будущих блоков.
+Тестирование Gidede проводится локально на ПК разработчика и через CI/CD пайплайн (GitHub Actions: `.github/workflows/ci.yml`). Автоматизированные программные тесты запускаются через скрипты, отчёты предоставляются вручную. Ручное тестирование UI проводится через браузер. Полное покрытие включает все реализованные модули: инфраструктуру (4.A), концепцию (4.B.1–4.B.5), Core Loop Designer (4.B.6–4.B.8), MDA Lab (4.B.9–4.B.11), сквозной пайплайн (4.B.12), баланс и симуляцию (4.C.1–4.C.4), прогрессию (4.C.5), а также скелетные эндпоинты будущих блоков.
 
 ### 1.1 Уровни тестирования
 
@@ -88,7 +88,8 @@ mini-services/api-service/tests/
 ├── test_jwt_secret.py             # JWT secret property (TD-017)
 ├── test_pipeline_service.py       # ★ НОВОЕ: Pipeline Service — сквозной пайплайн (4.B.12)
 ├── test_pipeline_api.py           # ★ НОВОЕ: API Pipeline endpoints (4.B.12)
-└── test_balance_service.py        # ★ НОВОЕ: Balance Service — транзитивный, нетранзитивный, ситуационный, Q-фактор, Monte Carlo, Machinations (4.C.1–4.C.3)
+├── test_balance_service.py        # ★ НОВОЕ: Balance Service — транзитивный, нетранзитивный, ситуационный, Q-фактор, Monte Carlo, Machinations (4.C.1–4.C.3)
+└── test_progression_service.py    # ★ НОВОЕ: Progression Service — макро-параметры, tiers, кривые, контент-план, полный пайплайн (4.C.5)
 ```
 
 #### Фикстуры (conftest.py)
@@ -125,6 +126,12 @@ mini-services/api-service/tests/
 | `sample_machinations_result` | ★ Тестовый MachinationsSimResult |
 | `sample_stability_analysis` | ★ Тестовый StabilityAnalysis |
 | `sample_balance_result` | ★ Тестовый BalanceResult (полный пайплайн) |
+| `sample_progression_input` | ★ Тестовый ProgressionInput (genre=rpg, duration=40h, 30 levels) |
+| `sample_progression_macro_model` | ★ Тестовый ProgressionMacroModel |
+| `sample_tier_model` | ★ Тестовый TierModel (3 tiers) |
+| `sample_progression_curves` | ★ Тестовый ProgressionCurves (4 curves) |
+| `sample_content_plan` | ★ Тестовый ContentPlan |
+| `sample_progression_profile` | ★ Тестовый ProgressionProfile (полный пайплайн) |
 
 #### Тест-кейсы Backend
 
@@ -1219,6 +1226,60 @@ src/__tests__/
 | 3 | Нажать «Перейти к блоку» | Переход на страницу Блока 2 |
 | 4 | Снять stale-статус | DELETE /pipeline/stale, статус снимается |
 
+#### UI-53: Страница /blocks/5 — отображение (Блок 5, 4.C.5) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | Открыть /blocks/5 | Страница «Экономика и прогрессия» загружается |
+
+#### UI-54: Форма ввода — все поля (Блок 5, 4.C.5) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | Проверить наличие полей | Поля: genre, duration, levels, type, pacing, monetization |
+
+#### UI-55: Кнопка «Запустить» → POST /progression/design (Блок 5, 4.C.5) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | Заполнить форму и нажать «Запустить» | Запрос POST /progression/design отправляется, результат отображается |
+
+#### UI-56: Результат — макро-параметры (Блок 5, 4.C.5) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | После получения результата | Отображение duration, levels, progressionType, contentRequirements |
+
+#### UI-57: Результат — tiers (Блок 5, 4.C.5) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | После получения результата | Таблица tiers с level_range, scale, mechanic, balance_type |
+
+#### UI-58: Результат — кривые (Блок 5, 4.C.5) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | После получения результата | Графики 4 кривых (XP, Power, Cost, Difficulty) |
+
+#### UI-59: Результат — контент-план (Блок 5, 4.C.5) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | После получения результата | Таблица контента по tier-ам |
+
+#### UI-60: Результат — разблокировки (Блок 5, 4.C.5) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | После получения результата | Дерево разблокировок по уровням |
+
+#### UI-61: Результат — валидация (Блок 5, 4.C.5) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | После получения результата | Список issues с severity (critical/warning/info) |
+
 #### UI-15: MDA Lab (Блок 3, скелет)
 
 | Шаг | Действие | Ожидаемый результат |
@@ -1485,7 +1546,13 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 | ★ Balance Service (Machinations 4.C.3) | 10 | — | ★ Новое |
 | ★ Balance Service (Устойчивость 4.C.3) | 6 | — | ★ Новое |
 | ★ Balance Service (API MC+Mach 4.C.3) | 6 | — | ★ Новое |
-| **Итого** | **396** | **baseline** | |
+| ★ Progression Service (Макро-параметры 4.C.5) | 16 | — | ★ Новое |
+| ★ Progression Service (Tiers 4.C.5) | 11 | — | ★ Новое |
+| ★ Progression Service (Кривые 4.C.5) | 15 | — | ★ Новое |
+| ★ Progression Service (Контент-план 4.C.5) | 13 | — | ★ Новое |
+| ★ Progression Service (Полный пайплайн 4.C.5) | 13 | — | ★ Новое |
+| ★ Progression Service (API 4.C.5) | 7 | — | ★ Новое |
+| **Итого** | **471+** | **baseline** | |
 
 ### 6.2 Frontend — покрытие по модулям
 
@@ -1502,7 +1569,7 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 | MDA Lab (4.B.11) | 20 | — | ✅ |
 | ★ Pipeline-компоненты (4.B.12) | 10 | — | ★ Новое |
 | ★ Баланс и симуляция (4.C.3–4.C.4) | 5 | — | ★ Новое |
-| **Итого** | **73** | **baseline** | |
+| **Итого** | **85+** | **baseline** | |
 
 ### 6.3 Ручные UI-тесты
 
@@ -1555,7 +1622,16 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 | ★ Pipeline — автозаполнение | 4 | ★ Новое |
 | ★ Pipeline — запуск пайплайна | 4 | ★ Новое |
 | ★ Pipeline — stale-уведомления | 4 | ★ Новое |
-| **Итого** | **254** | |
+| ★ Прогрессия — Страница /blocks/5 | 1 | ★ Новое |
+| ★ Прогрессия — Форма ввода | 1 | ★ Новое |
+| ★ Прогрессия — Кнопка запуска | 1 | ★ Новое |
+| ★ Прогрессия — Макро-параметры | 1 | ★ Новое |
+| ★ Прогрессия — Tiers | 1 | ★ Новое |
+| ★ Прогрессия — Кривые | 1 | ★ Новое |
+| ★ Прогрессия — Контент-план | 1 | ★ Новое |
+| ★ Прогрессия — Разблокировки | 1 | ★ Новое |
+| ★ Прогрессия — Валидация | 1 | ★ Новое |
+| **Итого** | **161+** | |
 
 ### 6.4 E2E-сценарии
 
@@ -1566,7 +1642,7 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 | Core Loop Designer | 13 | ✅ |
 | ★ Балансировка и симуляция | 14 | ★ Новое |
 | ★ Сквозной пайплайн 1→2→3 | 9 | ★ Новое |
-| **Итого** | **58** | |
+| **Итого** | **45+** | |
 
 ### 6.5 Целевое покрытие (критерий C8 из ROADMAP)
 
@@ -1809,6 +1885,111 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 | B-394 | test_api_balance_machinations | POST /api/v1/balance/machinations — граф, качество, патологии |
 | B-395 | test_api_balance_machinations_unauthorized | 401 без авторизации |
 | B-396 | test_api_balance_analyze_full | POST /api/v1/balance/analyze — полный пайплайн Этапов 1–7 с MC + Machinations |
+
+##### Progression Service — Этап 1: Макро-параметры (4.C.5) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-397 | `test_calculate_macro_params_default` | Макро-параметры по умолчанию (genre=rpg → 50h, 25 levels) |
+| B-398 | `test_calculate_macro_params_custom_duration` | Пользовательская targetDuration |
+| B-399 | `test_calculate_macro_params_custom_levels` | Пользовательское targetLevels |
+| B-400 | `test_genre_duration_map_all_22_genres` | Все 22 жанра имеют маппинг длительности |
+| B-401 | `test_pacing_map_relaxed` | Pacing=relaxed → 0.3 переходов/час |
+| B-402 | `test_pacing_map_intense` | Pacing=intense → 1.0 переходов/час |
+| B-403 | `test_genre_progression_type_rpg` | RPG → s_curve |
+| B-404 | `test_genre_progression_type_action` | Action → linear |
+| B-405 | `test_genre_progression_type_roguelike` | Roguelike → intermittent |
+| B-406 | `test_emergence_ratio_engine` | Engine core loop → высокий emergence_ratio |
+| B-407 | `test_emergence_ratio_ecology` | Ecology core loop → низкий emergence_ratio |
+| B-408 | `test_lock_key_model_rpg` | RPG → metroidvania |
+| B-409 | `test_lock_key_model_strategy` | Strategy → emergent |
+| B-410 | `test_content_requirements_calculation` | Контент-требования рассчитаны корректно |
+| B-411 | `test_calculate_macro_params_ai_enrichment` | AI-обогащение через PLAN_PROGRESSION_MACROS |
+| B-412 | `test_calculate_macro_params_ai_fallback` | Fallback на эвристики при недоступности AI |
+
+##### Progression Service — Этап 2: Планирование tiers (4.C.5) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-413 | `test_plan_tiers_3_tiers` | 25 уровней → 3 tiers |
+| B-414 | `test_plan_tiers_2_tiers` | 10 уровней → 2 tiers |
+| B-415 | `test_plan_tiers_5_tiers` | 100 уровней → 5 tiers |
+| B-416 | `test_plan_tiers_distribution_3` | 3 tiers → распределение [0.2, 0.3, 0.5] |
+| B-417 | `test_plan_tiers_early_shorter` | Ранние tiers короче поздних |
+| B-418 | `test_plan_tiers_dd_scales` | D&D масштабы: Локальный → Региональный → Мировой |
+| B-419 | `test_plan_tiers_balance_type_early_transitive` | Ранние tiers → transitive баланс |
+| B-420 | `test_plan_tiers_balance_type_late_intransitive` | Поздние tiers → intransitive баланс |
+| B-421 | `test_plan_tiers_resource_state_engine` | Engine → scarcity/growth/abundance/escalation |
+| B-422 | `test_plan_tiers_resource_state_economy` | Economy → scarcity/unfolding/complexity/endgame |
+| B-423 | `test_plan_tiers_transition_map` | Карта переходов между этапами |
+
+##### Progression Service — Этап 3: Кривые прогрессии (4.C.5) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-424 | `test_build_curves_xp_exponential` | XP-кривая exponential: y = C × b^x |
+| B-425 | `test_build_curves_xp_triangular` | XP-кривая triangular: y = (x²-x)/2 |
+| B-426 | `test_build_curves_xp_linear` | XP-кривая linear |
+| B-427 | `test_build_curves_power_linear` | Power-кривая linear: Power = Base + Rate × n |
+| B-428 | `test_build_curves_power_polynomial` | Power-кривая polynomial: Power = Base + Rate × n^exp |
+| B-429 | `test_build_curves_power_logistic` | Power-кривая logistic (S-кривая) |
+| B-430 | `test_build_curves_cost_proportional` | Cost = Power × Multiplier |
+| B-431 | `test_build_curves_cost_multiplier_f2p` | F2P multiplier > 1 (давление донат) |
+| B-432 | `test_build_curves_cost_multiplier_pve` | PvE multiplier < 1 (профицит → рост) |
+| B-433 | `test_build_curves_difficulty_schreiber` | Формула воспринимаемой сложности Шрайбера |
+| B-434 | `test_build_curves_consistency_check` | Проверка согласованности доход/затраты |
+| B-435 | `test_build_curves_consistency_warning_frustration` | Warning при затратах >> доходе |
+| B-436 | `test_build_curves_consistency_warning_boredom` | Warning при доходе >> затратах |
+| B-437 | `test_build_curves_ai_enrichment` | AI-обогащение через GENERATE_PROGRESSION_CURVES |
+| B-438 | `test_build_curves_ai_fallback` | Fallback на формализованные кривые |
+
+##### Progression Service — Этап 4: Контент-план (4.C.5) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-439 | `test_generate_content_plan_tier_plans` | Контент-план для каждого tier |
+| B-440 | `test_generate_content_plan_enemies` | Враги по tier (count, power_range) |
+| B-441 | `test_generate_content_plan_rewards` | Награды по tier (items, rarity_distribution) |
+| B-442 | `test_generate_content_plan_abilities` | Способности: ранние 1-2 за уровень, поздние 0-1 |
+| B-443 | `test_generate_content_plan_milestones` | Ключевые события (босс, новая область, механика) |
+| B-444 | `test_generate_content_plan_pacing` | Pacing: нарастание → пик → награда → передышка |
+| B-445 | `test_generate_content_plan_unlock_tree` | Дерево разблокировок: 1-2 за уровень |
+| B-446 | `test_generate_content_plan_no_empty_levels` | Нет пустых уровней без разблокировок |
+| B-447 | `test_generate_content_plan_core_mechanics_level_1` | Ключевые механики Core Loop доступны с уровня 1 |
+| B-448 | `test_generate_content_plan_perceived_difficulty` | Таблица воспринимаемой сложности |
+| B-449 | `test_generate_content_plan_tier_boundary_spike` | Скачок сложности на границах tiers |
+| B-450 | `test_generate_content_plan_ai_enrichment` | AI-обогащение через GENERATE_CONTENT_PLAN |
+| B-451 | `test_generate_content_plan_ai_fallback` | Fallback на формализованный контент |
+
+##### Progression Service — Полный пайплайн (4.C.5) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-452 | `test_progression_design_full` | Полный пайплайн Этапов 1–4 |
+| B-453 | `test_progression_design_full_macro_model` | ProgressionMacroModel заполнен |
+| B-454 | `test_progression_design_full_tier_model` | TierModel заполнен |
+| B-455 | `test_progression_design_full_curves` | ProgressionCurves содержит 4 кривые |
+| B-456 | `test_progression_design_full_content_plan` | ContentPlan заполнен |
+| B-457 | `test_progression_design_full_validation` | ProgressionValidation заполнен |
+| B-458 | `test_progression_design_full_stages_completed` | stages_completed = [1,2,3,4] |
+| B-459 | `test_progression_design_full_summary` | Summary содержит формулы XP, Power, Cost |
+| B-460 | `test_progression_design_validation_grind` | Обнаружение гринда (циклы > maxGrindTolerance) |
+| B-461 | `test_progression_design_validation_wall` | Обнаружение стен (скачок сложности > 0.3) |
+| B-462 | `test_progression_design_validation_empty_levels` | Обнаружение пустых уровней |
+| B-463 | `test_progression_design_full_latency_ms` | latency_ms записан |
+| B-464 | `test_progression_design_full_models_used` | models_used содержит промпты |
+
+##### API-эндпоинты Progression (4.C.5) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-465 | `test_api_progression_design` | POST /api/v1/progression/design — полный ProgressionProfile |
+| B-466 | `test_api_progression_design_unauthorized` | 401 без авторизации |
+| B-467 | `test_api_progression_macro_params` | POST /api/v1/progression/macro-params — Этап 1 |
+| B-468 | `test_api_progression_plan_tiers` | POST /api/v1/progression/plan-tiers — Этап 2 |
+| B-469 | `test_api_progression_build_curves` | POST /api/v1/progression/build-curves — Этап 3 |
+| B-470 | `test_api_progression_content_plan` | POST /api/v1/progression/content-plan — Этап 4 |
+| B-471 | `test_api_progression_get_project` | GET /api/v1/progression/{project_id} — stub |
 
 ---
 ## 8. Pre-commit хуки

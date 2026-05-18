@@ -9,6 +9,84 @@
 
 ---
 
+## [0.21.0] — 2026-05-19
+
+### Добавлено
+
+#### Продвинутые модули (Фаза 4.C, Блок 5 Backend — Прогрессия)
+- Блок 5: Backend — Алгоритм прогрессии (Этапы 1–4) — 4.C.5
+  - **Этап 1: Определение макро-параметров прогрессии** (3.5.3)
+    - Жанровая эвристика длительности (22 жанра → часы)
+    - Pacing-based уровень расчёта (relaxed/balanced/intense → переходов/час)
+    - Расчёт контент-требований (content_stages, enemy_configs, meaningful_choices)
+    - Жанровая эвристика типа кривой (7 типов: linear, exponential, diminishing, s_curve, intermittent, custom)
+    - Оценка emergence_ratio из Core Loop + MDA профиля (0.0–1.0)
+    - Определение lock-key модели по жанру (linear/metroidvania/dynamic/emergent/hybrid)
+    - AI-обогащение через PLAN_PROGRESSION_MACROS промпт (fallback на эвристики)
+  - **Этап 2: Определение этапов (tiers) прогрессии** (3.5.4)
+    - Расчёт числа этапов (2–5, оптимально 3-4)
+    - Неравномерное распределение уровней (ранние короче, поздние длиннее)
+    - Характеристика каждого tier (D&D масштабы: Локальный → Региональный → Мировой → Мультивселенский)
+    - Доминантная механика по жанру и tier
+    - Тип баланса: ранние tiers — transitive, поздние — intransitive
+    - Ресурсная динамика по типологии Селлерса (Engine/Economy/Ecology)
+    - Карта переходов между этапами
+  - **Этап 3: Построение кривых прогрессии** (3.5.5)
+    - XP → Уровень: exponential (y = C × b^x), triangular (y = (x²-x)/2), linear
+    - Уровень → Мощность: linear, polynomial (Power = Base + Rate × n^exp), logistic (S-кривая)
+    - Уровень → Стоимость: пропорциональна мощности с multiplier (F2P > 1, PvP ≈ 1, PvE < 1)
+    - Сложность: формула воспринимаемой сложности Шрайбера (Cv + Cs) - (Pv + Ps)
+    - Проверка согласованности кривых (доход vs затраты, предупреждения при дисбалансе)
+    - AI-обогащение через GENERATE_PROGRESSION_CURVES промпт
+  - **Этап 4: Генерация контент-плана** (3.5.6)
+    - Контент-требования по tier (enemies, rewards, abilities, milestones, pacing)
+    - Дерево разблокировок (unlock_tree): 1-2 механики за уровень, без пустых уровней
+    - Таблица воспринимаемой сложности по уровням (tier boundary spikes)
+    - Типы разблокировок: mechanic, area, ability, resource, narrative
+    - AI-обогащение через GENERATE_CONTENT_PLAN промпт
+  - **Полный пайплайн progression_design_full()** — Этапы 1-4 + базовая валидация
+    - Проверка на гринд (циклы > maxGrindTolerance)
+    - Проверка на стены (скачки сложности > 0.3)
+    - Проверка на пустые уровни (без разблокировок)
+    - Сборка ProgressionProfile с summary формулами
+
+#### Схемы данных (Блок 5 — Прогрессия)
+- `ProgressionConstraints` — ограничения прогрессии (maxGrindTolerance=5, minRewardInterval=3, flowTarget, contentBudget)
+- `ProgressionInput` — входные данные (concept, coreLoop, mdaProfile, balanceResult, targetDuration, targetLevels, progressionType, monetizationModel, constraints)
+- `ProgressionMacroModel` — макро-параметры (duration, levels, progressionType, contentRequirements, emergenceRatio, lockKeyModel)
+- `TierInfo` — этап прогрессии (index, level_range, level_count, scale, dominant_mechanic, balance_type, difficulty_curve, resource_state, transition_trigger)
+- `TierModel` — модель этапов (tiers, num_tiers, total_levels, transition_map)
+- `CurveSpec` — спецификация кривой (type, formula, parameters)
+- `ProgressionCurves` — 4 кривые (xp_to_level, level_to_power, level_to_cost, difficulty)
+- `ContentTierPlan` — контент-план для tier (enemies, rewards, abilities, milestones, pacing)
+- `UnlockEntry` — разблокировка (level, unlock_name, unlock_type, description)
+- `PerceivedDifficultyEntry` — воспринимаемая сложность (level, target_perceived_difficulty, recommended_enemy_power, is_tier_boundary)
+- `ContentPlan` — полный контент-план (tier_plans, unlock_tree, perceived_difficulty_table, total_content_requirements)
+- `ProgressionValidation` — валидация (issues, suggestions, critical/warning/info counts, overall_score)
+- `ProgressionProfile` — итоговый профиль (все этапы + summary + economyInput stub)
+
+#### API
+- POST `/api/v1/progression/macro-params` — Этап 1: макро-параметры прогрессии
+- POST `/api/v1/progression/plan-tiers` — Этап 2: разбиение на tiers
+- POST `/api/v1/progression/build-curves` — Этап 3: кривые прогрессии
+- POST `/api/v1/progression/content-plan` — Этап 4: контент-план
+- POST `/api/v1/progression/design` — полный пайплайн (Этапы 1–4)
+- GET `/api/v1/progression/{project_id}` — получение сохранённой прогрессии (stub)
+
+#### Промпты
+- `PLAN_PROGRESSION_MACROS` — AI-обогащение макро-параметров (Блок 5)
+- `GENERATE_PROGRESSION_CURVES` — AI-обогащение кривых прогрессии (Блок 5)
+- `GENERATE_CONTENT_PLAN` — AI-генерация контент-плана (Блок 5)
+
+### Изменено
+- Версия обновлена с 0.20.0 до 0.21.0
+- `services/__init__.py` — добавлен экспорт ProgressionService
+- `api/v1/__init__.py` — добавлен progression_router
+- `main.py` — добавлен progression_router с префиксом `/api/v1/progression`
+- `economy.py` — удалены stub-эндпоинты прогрессии (перенесены в progression.py)
+
+---
+
 ## [0.20.0] — 2026-05-19
 
 ### Добавлено

@@ -50,53 +50,13 @@ async def create_project(
     db.add(project)
 
     # Автоматическое создание пустых записей для всех блоков
-    concept = ProjectConcept(
-        id=uuid.uuid4().hex,
-        project_id=project_id,
-    )
-    db.add(concept)
-
-    core_loop = ProjectCoreLoop(
-        id=uuid.uuid4().hex,
-        project_id=project_id,
-    )
-    db.add(core_loop)
-
-    mda_profile = ProjectMDAProfile(
-        id=uuid.uuid4().hex,
-        project_id=project_id,
-    )
-    db.add(mda_profile)
-
-    balance_result = ProjectBalanceResult(
-        id=uuid.uuid4().hex,
-        project_id=project_id,
-    )
-    db.add(balance_result)
-
-    progression = ProjectProgression(
-        id=uuid.uuid4().hex,
-        project_id=project_id,
-    )
-    db.add(progression)
-
-    economy = ProjectEconomy(
-        id=uuid.uuid4().hex,
-        project_id=project_id,
-    )
-    db.add(economy)
-
-    gdd = ProjectGDD(
-        id=uuid.uuid4().hex,
-        project_id=project_id,
-    )
-    db.add(gdd)
-
-    checklist = ProjectChecklist(
-        id=uuid.uuid4().hex,
-        project_id=project_id,
-    )
-    db.add(checklist)
+    BLOCK_MODELS = [
+        ProjectConcept, ProjectCoreLoop, ProjectMDAProfile,
+        ProjectBalanceResult, ProjectProgression, ProjectEconomy,
+        ProjectGDD, ProjectChecklist,
+    ]
+    for Model in BLOCK_MODELS:
+        db.add(Model(id=uuid.uuid4().hex, project_id=project_id))
 
     await db.flush()
     return project

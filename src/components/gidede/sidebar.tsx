@@ -19,14 +19,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
-  Lightbulb,
-  RefreshCw,
-  FlaskConical,
-  Scale,
-  TrendingUp,
-  FileText,
-  Bot,
-  Puzzle,
   Home,
   Settings,
   Gamepad2,
@@ -42,21 +34,7 @@ import { useAuth } from "@/lib/auth";
 import { ProgressSidebar } from "@/components/gidede/progress-sidebar";
 import { usePipeline } from "@/hooks/use-pipeline";
 import type { BlockStatus } from "@/hooks/use-pipeline";
-
-// ============================================================
-// СТАТИЧЕСКАЯ КОНФИГУРАЦИЯ БЛОКОВ
-// ============================================================
-
-const blocks = [
-  { id: 1, name: "Генератор концепции", icon: Lightbulb, href: "/blocks/1", status: "active" as const, algorithm: "3.1" },
-  { id: 2, name: "Core Loop Designer", icon: RefreshCw, href: "/blocks/2", status: "active" as const, algorithm: "3.2" },
-  { id: 3, name: "MDA Lab", icon: FlaskConical, href: "/blocks/3", status: "active" as const, algorithm: "3.3" },
-  { id: 4, name: "Баланс и симуляция", icon: Scale, href: "/blocks/4", status: "skeleton" as const, algorithm: "3.4" },
-  { id: 5, name: "Экономика и прогрессия", icon: TrendingUp, href: "/blocks/5", status: "skeleton" as const, algorithm: "3.5–3.6" },
-  { id: 6, name: "GDD Generator", icon: FileText, href: "/blocks/6", status: "skeleton" as const, algorithm: "3.7–3.8" },
-  { id: 7, name: "AI-ассистент", icon: Bot, href: "/blocks/7", status: "skeleton" as const, algorithm: "3.9" },
-  { id: 8, name: "Интеграция GBE", icon: Puzzle, href: "/blocks/8", status: "planned" as const, algorithm: "—" },
-];
+import { BLOCKS } from "@/config/blocks";
 
 // ============================================================
 // СТАТУСЫ РЕАЛИЗАЦИИ (dev-статус) vs RUNTIME-СТАТУС (pipeline)
@@ -203,7 +181,7 @@ export function GidedeSidebar() {
           <SidebarGroupLabel>Функциональные блоки</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {blocks.map((block) => {
+              {BLOCKS.map((block) => {
                 // Определяем, какой статус показывать
                 const runtimeInfo = pipelineBlockMap.get(block.id);
                 const useRuntime = runtimeInfo && pipelineState;

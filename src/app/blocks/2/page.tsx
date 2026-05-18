@@ -58,6 +58,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { usePipeline } from "@/hooks/use-pipeline";
+import { apiRoutes } from "@/config/api";
 
 // ============================================================
 // Константы
@@ -958,7 +959,7 @@ export default function Block2Page() {
         const projectId = typeof window !== "undefined" ? localStorage.getItem("gidede_active_project") : null;
         if (projectId) {
           await apiFetch(
-            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/pipeline/notify-updated`,
+            apiRoutes.pipeline.notify(),
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },

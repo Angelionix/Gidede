@@ -19,8 +19,11 @@ from datetime import datetime, timezone
 from app.core.database import get_db
 from app.core.security import (
     verify_password, create_access_token, create_refresh_token,
+    decode_token,
+)
+from app.core.user_service import (
     store_refresh_token, validate_refresh_token, revoke_refresh_token,
-    get_user_by_email, create_user, decode_token,
+    get_user_by_email, create_user,
 )
 from app.core.auth_middleware import get_current_active_user
 from app.core.config import settings

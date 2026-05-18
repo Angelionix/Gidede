@@ -35,6 +35,7 @@ from __future__ import annotations
 import json
 import logging
 import time
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Optional
@@ -80,39 +81,71 @@ class PipelineEvent(str, Enum):
 
 
 # ============================================================
-# ЗАВИСИМОСТИ МЕЖДУ БЛОКАМИ
+# БЛОК КОНФИГУРАЦИЯ — РЕЕСТР (OCP)
 # ============================================================
 
-# Какой блок от какого зависит
-BLOCK_DEPENDENCIES: dict[int, list[int]] = {
-    1: [],        # Блок 1 ни от кого не зависит
-    2: [1],       # Блок 2 зависит от Блока 1
-    3: [1, 2],    # Блок 3 зависит от Блоков 1 и 2
-    4: [1, 2, 3], # Блок 4 зависит от Блоков 1, 2, 3
-    5: [1, 2, 3, 4],  # Блок 5 зависит от Блоков 1-4
-    6: [1, 2, 3, 4, 5],  # Блок 6 зависит от всех предыдущих
-    7: [1, 2, 3],  # AI-ассистент зависит от Блоков 1-3
-    8: [1, 2, 3, 4, 5, 6],  # GBE Integration
-}
+@dataclass
+class BlockConfig:
+    """Конфигурация одного блока пайплайна — единый источник истины."""
+    id: int
+    name: str
+    flag_key: str
+    stage: str
+    event: Optional[PipelineEvent] = None
+    dependencies: list[int] = field(default_factory=list)
+    stale_downstream: list[int] = field(default_factory=list)
+    relation_attr: str = ""
 
-# Какое событие генерирует каждый блок
-BLOCK_EVENTS: dict[int, PipelineEvent] = {
-    1: PipelineEvent.CONCEPT_UPDATED,
-    2: PipelineEvent.CORE_LOOP_UPDATED,
-    3: PipelineEvent.MDA_UPDATED,
-    4: PipelineEvent.BALANCE_UPDATED,
-    5: PipelineEvent.PROGRESSION_UPDATED,  # или ECONOMY_UPDATED
-    6: PipelineEvent.GDD_UPDATED,
-}
 
-# Какие блоки становятся stale при обновлении блока-источника
-STALE_DOWNSTREAM: dict[int, list[int]] = {
-    1: [2, 3, 4, 5, 6, 7, 8],  # Обновление концепции → все зависимые stale
-    2: [3, 4, 5, 6, 7, 8],      # Обновление Core Loop → зависимые stale
-    3: [4, 5, 6, 7, 8],          # Обновление MDA → зависимые stale
-    4: [5, 6, 8],                 # Обновление баланса → зависимые stale
-    5: [6, 8],                    # Обновление прогрессии → зависимые stale
-    6: [8],                       # Обновление GDD → GBE stale
+BLOCK_REGISTRY: dict[int, BlockConfig] = {
+    1: BlockConfig(
+        id=1, name="Генератор концепции", flag_key="has_concept",
+        stage="concept", event=PipelineEvent.CONCEPT_UPDATED,
+        dependencies=[], stale_downstream=[2, 3, 4, 5, 6, 7, 8],
+        relation_attr="concept",
+    ),
+    2: BlockConfig(
+        id=2, name="Core Loop Designer", flag_key="has_core_loop",
+        stage="core_loop", event=PipelineEvent.CORE_LOOP_UPDATED,
+        dependencies=[1], stale_downstream=[3, 4, 5, 6, 7, 8],
+        relation_attr="core_loop",
+    ),
+    3: BlockConfig(
+        id=3, name="MDA Lab", flag_key="has_mda",
+        stage="mda", event=PipelineEvent.MDA_UPDATED,
+        dependencies=[1, 2], stale_downstream=[4, 5, 6, 7, 8],
+        relation_attr="mda_profile",
+    ),
+    4: BlockConfig(
+        id=4, name="Баланс и симуляция", flag_key="has_balance",
+        stage="balance", event=PipelineEvent.BALANCE_UPDATED,
+        dependencies=[1, 2, 3], stale_downstream=[5, 6, 8],
+        relation_attr="balance_result",
+    ),
+    5: BlockConfig(
+        id=5, name="Экономика и прогрессия", flag_key="has_progression",
+        stage="progression", event=PipelineEvent.PROGRESSION_UPDATED,
+        dependencies=[1, 2, 3, 4], stale_downstream=[6, 8],
+        relation_attr="progression",
+    ),
+    6: BlockConfig(
+        id=6, name="GDD Generator", flag_key="has_gdd",
+        stage="gdd", event=PipelineEvent.GDD_UPDATED,
+        dependencies=[1, 2, 3, 4, 5], stale_downstream=[8],
+        relation_attr="gdd",
+    ),
+    7: BlockConfig(
+        id=7, name="AI-ассистент", flag_key="has_checklist",
+        stage="gdd", event=None,
+        dependencies=[1, 2, 3], stale_downstream=[],
+        relation_attr="checklist",
+    ),
+    8: BlockConfig(
+        id=8, name="Интеграция GBE", flag_key="has_checklist",
+        stage="gdd", event=None,
+        dependencies=[1, 2, 3, 4, 5, 6], stale_downstream=[],
+        relation_attr="checklist",
+    ),
 }
 
 
@@ -193,16 +226,7 @@ class PipelineState:
 # ОСНОВНОЙ СЕРВИС
 # ============================================================
 
-BLOCK_NAMES = {
-    1: "Генератор концепции",
-    2: "Core Loop Designer",
-    3: "MDA Lab",
-    4: "Баланс и симуляция",
-    5: "Экономика и прогрессия",
-    6: "GDD Generator",
-    7: "AI-ассистент",
-    8: "Интеграция GBE",
-}
+
 
 
 class PipelineService:
@@ -254,7 +278,8 @@ class PipelineService:
         # Строим прогресс по блокам
         blocks = []
         for block_id in range(1, 9):
-            flag_key = self._flag_key(block_id)
+            cfg = BLOCK_REGISTRY.get(block_id)
+            flag_key = cfg.flag_key if cfg else ""
             is_filled = flags.get(flag_key, False)
 
             # Определяем статус
@@ -277,7 +302,7 @@ class PipelineService:
 
             blocks.append(BlockProgress(
                 block_id=block_id,
-                name=BLOCK_NAMES.get(block_id, f"Блок {block_id}"),
+                name=cfg.name if cfg else f"Блок {block_id}",
                 status=status,
                 is_filled=is_filled,
                 updated_at=updated_at,
@@ -690,7 +715,8 @@ class PipelineService:
         2. Помечает зависимые блоки как stale
         3. Возвращает список stale-блоков
         """
-        event_type = BLOCK_EVENTS.get(block_id)
+        cfg = BLOCK_REGISTRY.get(block_id)
+        event_type = cfg.event if cfg else None
         if not event_type:
             return {"status": "ignored", "message": f"Блок {block_id} не генерирует событий"}
 
@@ -713,12 +739,12 @@ class PipelineService:
                 logger.warning(f"Failed to publish pipeline event: {e}")
 
         # Помечаем зависимые блоки как stale
-        downstream = STALE_DOWNSTREAM.get(block_id, [])
+        downstream = cfg.stale_downstream if cfg else []
         stale_marked = []
         now_iso = datetime.now(timezone.utc).isoformat()
 
         for dep_block_id in downstream:
-            reason = f"{BLOCK_NAMES.get(block_id, f'Блок {block_id}')} обновлён"
+            reason = f"{cfg.name if cfg else f'Блок {block_id}'} обновлён"
             await self._mark_block_stale(project_id, dep_block_id, reason, now_iso)
             stale_marked.append(dep_block_id)
 
@@ -808,18 +834,8 @@ class PipelineService:
 
     async def _update_project_stage(self, project_id: str, block_id: int) -> None:
         """Обновить project_stage проекта."""
-        stage_map = {
-            1: "concept",
-            2: "core_loop",
-            3: "mda",
-            4: "balance",
-            5: "progression",
-            6: "gdd",
-            7: "gdd",  # AI assistant не меняет stage
-            8: "gdd",
-        }
-        stage = stage_map.get(block_id)
-        if not stage:
+        cfg = BLOCK_REGISTRY.get(block_id)
+        if not cfg or not cfg.stage:
             return
 
         try:
@@ -827,8 +843,8 @@ class PipelineService:
             result = await self.db.execute(stmt)
             project = result.scalar_one_or_none()
             if project:
-                project.project_stage = stage
-                project.last_algorithm_run = BLOCK_NAMES.get(block_id, f"Block {block_id}")
+                project.project_stage = cfg.stage
+                project.last_algorithm_run = cfg.name
                 await self.db.flush()
         except Exception as e:
             logger.warning(f"Failed to update project stage: {e}")
@@ -839,31 +855,15 @@ class PipelineService:
 
     def _flag_key(self, block_id: int) -> str:
         """Маппинг block_id → ключ флага в compute_block_flags()."""
-        flag_map = {
-            1: "has_concept",
-            2: "has_core_loop",
-            3: "has_mda",
-            4: "has_balance",
-            5: "has_progression",
-            6: "has_gdd",
-            7: "has_checklist",  # AI assistant → checklist для простоты
-            8: "has_checklist",
-        }
-        return flag_map.get(block_id, "")
+        cfg = BLOCK_REGISTRY.get(block_id)
+        return cfg.flag_key if cfg else ""
 
     def _get_block_updated_at(self, project: Project, block_id: int) -> Optional[str]:
         """Получить время последнего обновления блока."""
-        block_map = {
-            1: project.concept,
-            2: project.core_loop,
-            3: project.mda_profile,
-            4: project.balance_result,
-            5: project.progression,
-            6: project.gdd,
-            7: project.checklist,
-            8: project.checklist,
-        }
-        block = block_map.get(block_id)
+        cfg = BLOCK_REGISTRY.get(block_id)
+        if not cfg or not cfg.relation_attr:
+            return None
+        block = getattr(project, cfg.relation_attr, None)
         if block and hasattr(block, "updated_at") and block.updated_at:
             return str(block.updated_at)
         return None

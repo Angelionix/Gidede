@@ -59,6 +59,7 @@ import {
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { usePipeline } from "@/hooks/use-pipeline";
+import { apiRoutes } from "@/config/api";
 import {
   AestheticProfile,
   DynamicsProfile,
@@ -994,7 +995,7 @@ export default function Block1Page() {
       };
 
       const response = await apiFetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/pipeline/run-pipeline/${projectId}`,
+        apiRoutes.pipeline.runPartial(projectId),
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -1162,7 +1163,7 @@ export default function Block1Page() {
         const projectId = typeof window !== "undefined" ? localStorage.getItem("gidede_active_project") : null;
         if (projectId) {
           await apiFetch(
-            `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/pipeline/notify-updated`,
+            apiRoutes.pipeline.notify(),
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },

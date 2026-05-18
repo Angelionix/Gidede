@@ -79,7 +79,7 @@ import { usePipeline } from "@/hooks/use-pipeline";
 // Constants
 // ============================================================
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+import { API_BASE_URL, apiRoutes } from "@/config/api";
 
 const GENRES = [
   { value: "action", label: "Action" },

@@ -10,14 +10,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Lightbulb,
-  RefreshCw,
-  FlaskConical,
-  Scale,
-  TrendingUp,
-  FileText,
-  Bot,
-  Puzzle,
   Gamepad2,
   ArrowRight,
   CheckCircle2,
@@ -25,105 +17,24 @@ import {
   Construction,
 } from "lucide-react";
 import Link from "next/link";
+import { BLOCKS } from "@/config/blocks";
+import type { BlockDevStatus } from "@/config/blocks";
 
-const blocks = [
-  {
-    id: 1,
-    name: "Генератор концепции",
-    description:
-      "Превращает абстрактную идею в структурированную концепцию: жанр, эстетика, механики, Core Loop, USP.",
-    icon: Lightbulb,
-    href: "/blocks/1",
-    status: "active" as const,
-    algorithm: "Алгоритм 3.1",
-  },
-  {
-    id: 2,
-    name: "Core Loop Designer",
-    description:
-      "Визуальный конструктор основного игрового цикла. Иерархия петель, диагностика патологий, валидация.",
-    icon: RefreshCw,
-    href: "/blocks/2",
-    status: "active" as const,
-    algorithm: "Алгоритм 3.2",
-  },
-  {
-    id: 3,
-    name: "MDA Lab",
-    description:
-      "Интерактивная среда для работы с MDA-фреймворком: Reverse MDA, Classic MDA, линзы Шелла, матрица Бонда.",
-    icon: FlaskConical,
-    href: "/blocks/3",
-    status: "active" as const,
-    algorithm: "Алгоритм 3.3",
-  },
-  {
-    id: 4,
-    name: "Баланс и симуляция",
-    description:
-      "Transitive/intransitive анализ, Monte Carlo симуляция, Machinations-визуализация экономики.",
-    icon: Scale,
-    href: "/blocks/4",
-    status: "skeleton" as const,
-    algorithm: "Алгоритм 3.4",
-  },
-  {
-    id: 5,
-    name: "Экономика и прогрессия",
-    description:
-      "Конструктор внутренней экономики на основе Machinations. Кривые прогрессии, контент-план.",
-    icon: TrendingUp,
-    href: "/blocks/5",
-    status: "skeleton" as const,
-    algorithm: "Алгоритмы 3.5–3.6",
-  },
-  {
-    id: 6,
-    name: "GDD Generator",
-    description:
-      "Генерация дизайн-документов по шаблонам (38 секций Роджерса). 5 типов чек-листов валидации.",
-    icon: FileText,
-    href: "/blocks/6",
-    status: "skeleton" as const,
-    algorithm: "Алгоритмы 3.7–3.8",
-  },
-  {
-    id: 7,
-    name: "AI-ассистент",
-    description:
-      "Контекстно-осведомлённый чат-бот. Знает проект, цитирует книги, предлагает рекомендации.",
-    icon: Bot,
-    href: "/blocks/7",
-    status: "skeleton" as const,
-    algorithm: "Спецификация 3.9",
-  },
-  {
-    id: 8,
-    name: "Интеграция GBE",
-    description:
-      "API Bridge для GDCombine. Blueprint-синхронизация, Linter-правила, шаблоны документов.",
-    icon: Puzzle,
-    href: "/blocks/8",
-    status: "planned" as const,
-    algorithm: "—",
-  },
-];
-
-const statusIcon = {
+const statusIcon: Record<BlockDevStatus | "complete", typeof CheckCircle2> = {
   skeleton: Construction,
   planned: Circle,
   active: CheckCircle2,
   complete: CheckCircle2,
 };
 
-const statusText = {
+const statusText: Record<BlockDevStatus | "complete", string> = {
   skeleton: "Скелет API",
   planned: "Запланирован",
   active: "В разработке",
   complete: "Реализован",
 };
 
-const statusColor = {
+const statusColor: Record<BlockDevStatus | "complete", string> = {
   skeleton: "text-yellow-600",
   planned: "text-gray-400",
   active: "text-blue-600",
@@ -193,14 +104,15 @@ export default function Home() {
       {/* Блоки */}
       <h2 className="text-xl font-semibold mb-4">Функциональные блоки</h2>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {blocks.map((block) => {
+        {BLOCKS.map((block) => {
           const StatusIcon = statusIcon[block.status];
+          const BlockIcon = block.icon;
           return (
             <Card key={block.id} className="hover:shadow-md transition-shadow">
               <CardHeader className="pb-2">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2">
-                    <block.icon className="h-5 w-5 text-primary" />
+                    <BlockIcon className="h-5 w-5 text-primary" />
                     <CardTitle className="text-base">{block.name}</CardTitle>
                   </div>
                   <Badge
@@ -212,7 +124,7 @@ export default function Home() {
                   </Badge>
                 </div>
                 <CardDescription className="text-xs mt-1">
-                  {block.algorithm}
+                  Алгоритм {block.algorithm}
                 </CardDescription>
               </CardHeader>
               <CardContent>

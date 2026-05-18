@@ -1,8 +1,9 @@
 """Конфигурация API-сервиса Gidede."""
 
-import os
 from pathlib import Path
 from typing import List
+
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 def _read_version() -> str:
@@ -13,14 +14,20 @@ def _read_version() -> str:
     return "0.2.0"
 
 
-class Settings:
+class Settings(BaseSettings):
     """Настройки приложения из переменных окружения."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
 
     # Приложение
     APP_NAME: str = "Gidede API"
     VERSION: str = _read_version()
-    DEBUG: bool = os.getenv("NODE_ENV", "development") == "development"
-    PORT: int = int(os.getenv("API_SERVICE_PORT", "3030"))
+    DEBUG: bool = False
+    PORT: int = 3030
 
     # CORS
     CORS_ORIGINS: List[str] = [
@@ -29,33 +36,33 @@ class Settings:
     ]
 
     # AI API Keys
-    OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
-    ANTHROPIC_API_KEY: str = os.getenv("ANTHROPIC_API_KEY", "")
+    OPENAI_API_KEY: str = ""
+    ANTHROPIC_API_KEY: str = ""
 
     # z.ai (основной провайдер)
-    ZAI_API_KEY: str = os.getenv("ZAI_API_KEY", "")
-    ZAI_BASE_URL: str = os.getenv("ZAI_BASE_URL", "https://api.z.ai/v1")
+    ZAI_API_KEY: str = ""
+    ZAI_BASE_URL: str = "https://api.z.ai/v1"
 
     # Ollama (локальные/облачные модели)
-    OLLAMA_BASE_URL: str = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
-    OLLAMA_API_KEY: str = os.getenv("OLLAMA_API_KEY", "")
-    OLLAMA_DEFAULT_MODEL: str = os.getenv("OLLAMA_DEFAULT_MODEL", "llama3")
-    OLLAMA_CLOUD_MODE: bool = os.getenv("OLLAMA_CLOUD_MODE", "false").lower() == "true"
-    OLLAMA_TIMEOUT: int = int(os.getenv("OLLAMA_TIMEOUT", "120"))
+    OLLAMA_BASE_URL: str = "http://localhost:11434"
+    OLLAMA_API_KEY: str = ""
+    OLLAMA_DEFAULT_MODEL: str = "llama3"
+    OLLAMA_CLOUD_MODE: bool = False
+    OLLAMA_TIMEOUT: int = 120
 
     # Redis
-    REDIS_URL: str = os.getenv("REDIS_URL", "redis://localhost:6379")
+    REDIS_URL: str = "redis://localhost:6379"
 
     # Database
-    DATABASE_URL: str = os.getenv("POSTGRES_URL", "postgresql://gidede:gidede_dev@localhost:5432/gidede")
+    DATABASE_URL: str = "postgresql://gidede:gidede_dev@localhost:5432/gidede"
 
     # JWT Auth (Фаза 4.A.5)
     # TD-017: В production JWT_SECRET_KEY ОБЯЗАТЕЛЬНО задавать через env-переменную.
     # Значение по умолчанию — только для локальной разработки!
-    JWT_SECRET_KEY: str = os.getenv("JWT_SECRET_KEY", "")
+    JWT_SECRET_KEY: str = ""
     JWT_ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
-    REFRESH_TOKEN_EXPIRE_DAYS: int = int(os.getenv("REFRESH_TOKEN_EXPIRE_DAYS", "7"))
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
     # Автоматическая генерация dev-ключа при отсутствии env-переменной
     @property
@@ -84,21 +91,21 @@ class Settings:
     PRO_AI_CALLS_LIMIT: int = 500     # Лимит AI-вызовов для pro плана (в день)
 
     # AI Service Configuration
-    AI_DEFAULT_PROVIDER: str = os.getenv("AI_DEFAULT_PROVIDER", "auto")  # auto/zai/ollama/openai/anthropic
-    AI_CACHE_ENABLED: bool = os.getenv("AI_CACHE_ENABLED", "true").lower() == "true"
-    AI_CACHE_DEFAULT_TTL: int = int(os.getenv("AI_CACHE_DEFAULT_TTL", "600"))
+    AI_DEFAULT_PROVIDER: str = "auto"  # auto/zai/ollama/openai/anthropic
+    AI_CACHE_ENABLED: bool = True
+    AI_CACHE_DEFAULT_TTL: int = 600
 
     # RAG / Embedding Configuration (4.A.10)
-    EMBEDDING_PROVIDER: str = os.getenv("EMBEDDING_PROVIDER", "openai")  # openai/zai/local
-    EMBEDDING_MODEL: str = os.getenv("EMBEDDING_MODEL", "text-embedding-3-small")
-    EMBEDDING_DIMENSIONS: int = int(os.getenv("EMBEDDING_DIMENSIONS", "1536"))
-    EMBEDDING_API_KEY: str = os.getenv("EMBEDDING_API_KEY", "")  # Если пусто — используется OPENAI_API_KEY
-    EMBEDDING_BASE_URL: str = os.getenv("EMBEDDING_BASE_URL", "")  # Кастомный URL (для z.ai)
-    RAG_CHUNK_SIZE_TOKENS: int = int(os.getenv("RAG_CHUNK_SIZE_TOKENS", "500"))
-    RAG_CHUNK_OVERLAP_TOKENS: int = int(os.getenv("RAG_CHUNK_OVERLAP_TOKENS", "50"))
-    RAG_TOP_K: int = int(os.getenv("RAG_TOP_K", "5"))
-    RAG_SIMILARITY_THRESHOLD: float = float(os.getenv("RAG_SIMILARITY_THRESHOLD", "0.7"))
-    RAG_ENABLED: bool = os.getenv("RAG_ENABLED", "true").lower() == "true"
+    EMBEDDING_PROVIDER: str = "openai"  # openai/zai/local
+    EMBEDDING_MODEL: str = "text-embedding-3-small"
+    EMBEDDING_DIMENSIONS: int = 1536
+    EMBEDDING_API_KEY: str = ""  # Если пусто — используется OPENAI_API_KEY
+    EMBEDDING_BASE_URL: str = ""  # Кастомный URL (для z.ai)
+    RAG_CHUNK_SIZE_TOKENS: int = 500
+    RAG_CHUNK_OVERLAP_TOKENS: int = 50
+    RAG_TOP_K: int = 5
+    RAG_SIMILARITY_THRESHOLD: float = 0.7
+    RAG_ENABLED: bool = True
 
 
 settings = Settings()

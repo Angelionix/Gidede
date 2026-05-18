@@ -227,6 +227,10 @@ class RedisClient:
     # 1. КЭШ ПРОМПТОВ
     # ============================================================
 
+    def _resolve_key(self, key: str, prefix: str) -> str:
+        """Resolve a cache key by adding prefix if not already present."""
+        return f"{prefix}{key}" if not key.startswith(prefix) else key
+
     async def get_cache(self, key: str) -> Optional[Any]:
         """
         Получить значение из кэша.
@@ -237,9 +241,7 @@ class RedisClient:
         Returns:
             Распарсенное значение или None
         """
-        full_key = f"{CACHE_PREFIX}{key}" if not key.startswith(CACHE_PREFIX) else key
-
-        # Пробуем Redis
+        full_key = self._resolve_key(key, CACHE_PREFIX)
         if self._available and self._redis:
             try:
                 cached = await self._redis.get(full_key)
@@ -275,7 +277,7 @@ class RedisClient:
         Returns:
             True если успешно
         """
-        full_key = f"{CACHE_PREFIX}{key}" if not key.startswith(CACHE_PREFIX) else key
+        full_key = self._resolve_key(key, CACHE_PREFIX)
 
         # Redis
         if self._available and self._redis:
@@ -300,7 +302,7 @@ class RedisClient:
 
     async def delete_cache(self, key: str) -> bool:
         """Удалить значение из кэша."""
-        full_key = f"{CACHE_PREFIX}{key}" if not key.startswith(CACHE_PREFIX) else key
+        full_key = self._resolve_key(key, CACHE_PREFIX)
         deleted = False
 
         if self._available and self._redis:

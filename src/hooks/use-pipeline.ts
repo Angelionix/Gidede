@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useAuth } from "@/lib/auth";
+import { apiRoutes } from "@/config/api";
 
 // ============================================================
 // ТИПЫ
@@ -59,7 +60,7 @@ export function usePipeline(projectId: string | null) {
 
     try {
       const res = await apiFetch(
-        `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/pipeline/state/${projectId}`
+        apiRoutes.pipeline.state(projectId)
       );
 
       if (!res.ok) {
@@ -88,7 +89,7 @@ export function usePipeline(projectId: string | null) {
 
       try {
         const res = await apiFetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/pipeline/prepare-input/${projectId}/${blockId}`
+          apiRoutes.pipeline.prepare(projectId, blockId)
         );
 
         if (!res.ok) {
@@ -111,7 +112,7 @@ export function usePipeline(projectId: string | null) {
 
       try {
         const res = await apiFetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/pipeline/notify-updated`,
+          apiRoutes.pipeline.notify(),
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -148,7 +149,7 @@ export function usePipeline(projectId: string | null) {
 
       try {
         const res = await apiFetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/pipeline/stale/${projectId}/${blockId}`,
+          apiRoutes.pipeline.stale(projectId, blockId),
           { method: "DELETE" }
         );
 
@@ -201,7 +202,7 @@ export function usePipeline(projectId: string | null) {
 
       try {
         const res = await apiFetch(
-          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/pipeline/run-full-pipeline/${projectId}`,
+          apiRoutes.pipeline.runPipeline(projectId),
           {
             method: "POST",
             headers: { "Content-Type": "application/json" },

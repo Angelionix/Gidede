@@ -22,15 +22,36 @@ Gidede — ORM-модели SQLAlchemy для Project State
 - prompt_logs: Логи вызовов AI-промптов
 """
 
+import uuid
+from datetime import datetime, timezone
+import enum
+
 from sqlalchemy import (
     Column, String, Text, Integer, Float, Boolean, DateTime, ForeignKey,
     Index, Enum as SQLEnum, JSON, Date,
 )
 from sqlalchemy.orm import relationship
-from datetime import datetime, timezone
-import enum
 
 from app.core.database import Base
+
+
+# ============================================================
+# MIXINS & BASE MODEL
+# ============================================================
+
+class TimestampMixin:
+    """Миксин с общими полями created_at и updated_at."""
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+
+
+class BaseModel(Base):
+    """Базовая модель с id, created_at и updated_at."""
+    __abstract__ = True
+
+    id = Column(String, primary_key=True, default=lambda: uuid.uuid4().hex)
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
 
 # ============================================================
@@ -67,11 +88,10 @@ class ProjectStage(str, enum.Enum):
 # USER
 # ============================================================
 
-class User(Base):
+class User(BaseModel):
     """Пользователь системы Gidede."""
     __tablename__ = "users"
 
-    id = Column(String, primary_key=True, default=lambda: __import__("uuid").uuid4().hex)
     email = Column(String(255), unique=True, nullable=False, index=True)
     name = Column(String(255), nullable=True)
     hashed_password = Column(String(255), nullable=False)
@@ -79,8 +99,6 @@ class User(Base):
     ai_calls_count = Column(Integer, nullable=False, default=0)
     ai_calls_limit = Column(Integer, nullable=False, default=50)  # free: 50/day, pro: 500/day
     is_active = Column(Boolean, nullable=False, default=True)
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     last_login_at = Column(DateTime, nullable=True)
 
     # Связи
@@ -91,15 +109,14 @@ class User(Base):
         return f"<User {self.email} ({self.plan})>"
 
 
-class RefreshToken(Base):
+class RefreshToken(Base, TimestampMixin):
     """Refresh-токены для JWT авторизации."""
     __tablename__ = "refresh_tokens"
 
-    id = Column(String, primary_key=True, default=lambda: __import__("uuid").uuid4().hex)
+    id = Column(String, primary_key=True, default=lambda: uuid.uuid4().hex)
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     token = Column(String(512), unique=True, nullable=False, index=True)
     expires_at = Column(DateTime, nullable=False)
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
     is_revoked = Column(Boolean, nullable=False, default=False)
 
     # Связи
@@ -113,14 +130,13 @@ class RefreshToken(Base):
 # PROJECT (Project State — основная таблица)
 # ============================================================
 
-class Project(Base):
+class Project(BaseModel):
     """
     Проект Game Design — единый источник истины (Project State).
     Основная таблица, связывающая все данные блоков.
     """
     __tablename__ = "projects"
 
-    id = Column(String, primary_key=True, default=lambda: __import__("uuid").uuid4().hex)
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     name = Column(String(255), nullable=False)
     description = Column(Text, nullable=True)
@@ -130,8 +146,6 @@ class Project(Base):
     completion_percent = Column(Integer, nullable=False, default=0)
     version = Column(Integer, nullable=False, default=1)
     last_algorithm_run = Column(String(50), nullable=True)
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
 
     # Связи
     user = relationship("User", back_populates="projects")
@@ -152,7 +166,7 @@ class Project(Base):
 # БЛОК 1: КОНЦЕПЦИЯ (алгоритм 3.1)
 # ============================================================
 
-class ProjectConcept(Base):
+class ProjectConcept(BaseModel):
     """
     Блок 1: Генератор концепции.
     Хранит OnePager из алгоритма 3.1.
@@ -172,7 +186,6 @@ class ProjectConcept(Base):
     """
     __tablename__ = "project_concepts"
 
-    id = Column(String, primary_key=True, default=lambda: __import__("uuid").uuid4().hex)
     project_id = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     # Реляционные поля для индексации
@@ -191,9 +204,6 @@ class ProjectConcept(Base):
     usp_candidates = Column(JSON, nullable=True)        # [{usp, triangle_check, differentiation}]
     core_loop_candidates = Column(JSON, nullable=True)  # [{name, steps, loop_type, fun_check}]
 
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
     # Связи
     project = relationship("Project", back_populates="concept")
 
@@ -205,7 +215,7 @@ class ProjectConcept(Base):
 # БЛОК 2: CORE LOOP (алгоритм 3.2)
 # ============================================================
 
-class ProjectCoreLoop(Base):
+class ProjectCoreLoop(BaseModel):
     """
     Блок 2: Core Loop Designer.
     Хранит CoreLoopProfile из алгоритма 3.2.
@@ -222,7 +232,6 @@ class ProjectCoreLoop(Base):
     """
     __tablename__ = "project_core_loops"
 
-    id = Column(String, primary_key=True, default=lambda: __import__("uuid").uuid4().hex)
     project_id = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     # Реляционные поля для индексации
@@ -244,9 +253,6 @@ class ProjectCoreLoop(Base):
     validation_data = Column(JSON, nullable=True)      # Валидация (30 сек + чек-листы)
     full_profile = Column(JSON, nullable=True)         # Полный CoreLoopProfile
 
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
     # Связи
     project = relationship("Project", back_populates="core_loop")
 
@@ -258,7 +264,7 @@ class ProjectCoreLoop(Base):
 # БЛОК 3: MDA (алгоритм 3.3)
 # ============================================================
 
-class ProjectMDAProfile(Base):
+class ProjectMDAProfile(BaseModel):
     """
     Блок 3: MDA Lab.
     Хранит MDAProfile из алгоритма 3.3.
@@ -279,7 +285,6 @@ class ProjectMDAProfile(Base):
     """
     __tablename__ = "project_mda_profiles"
 
-    id = Column(String, primary_key=True, default=lambda: __import__("uuid").uuid4().hex)
     project_id = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     # Реляционные поля для индексации
@@ -302,9 +307,6 @@ class ProjectMDAProfile(Base):
     simulation_results = Column(JSON, nullable=True)    # Симуляция геймплея
     full_profile = Column(JSON, nullable=True)          # Полный MDAProfile
 
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
     # Связи
     project = relationship("Project", back_populates="mda_profile")
 
@@ -316,7 +318,7 @@ class ProjectMDAProfile(Base):
 # БЛОК 4: БАЛАНС (алгоритм 3.4)
 # ============================================================
 
-class ProjectBalanceResult(Base):
+class ProjectBalanceResult(BaseModel):
     """
     Блок 4: Баланс и симуляция.
     Хранит BalanceResult из алгоритма 3.4.
@@ -338,7 +340,6 @@ class ProjectBalanceResult(Base):
     """
     __tablename__ = "project_balance_results"
 
-    id = Column(String, primary_key=True, default=lambda: __import__("uuid").uuid4().hex)
     project_id = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     # Реляционные поля для индексации
@@ -360,9 +361,6 @@ class ProjectBalanceResult(Base):
     situational_values = Column(JSON, nullable=True)        # SituationValue matrix
     full_result = Column(JSON, nullable=True)               # Полный BalanceResult
 
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
     # Связи
     project = relationship("Project", back_populates="balance_result")
 
@@ -374,7 +372,7 @@ class ProjectBalanceResult(Base):
 # БЛОК 5: ПРОГРЕССИЯ (алгоритм 3.5)
 # ============================================================
 
-class ProjectProgression(Base):
+class ProjectProgression(BaseModel):
     """
     Блок 5: Прогрессия.
     Хранит ProgressionProfile из алгоритма 3.5.
@@ -394,7 +392,6 @@ class ProjectProgression(Base):
     """
     __tablename__ = "project_progressions"
 
-    id = Column(String, primary_key=True, default=lambda: __import__("uuid").uuid4().hex)
     project_id = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     # Реляционные поля для индексации
@@ -413,9 +410,6 @@ class ProjectProgression(Base):
     validation = Column(JSON, nullable=True)            # ProgressionValidation
     full_profile = Column(JSON, nullable=True)          # Полный ProgressionProfile
 
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
     # Связи
     project = relationship("Project", back_populates="progression")
 
@@ -427,7 +421,7 @@ class ProjectProgression(Base):
 # БЛОК 5: ЭКОНОМИКА (алгоритм 3.6)
 # ============================================================
 
-class ProjectEconomy(Base):
+class ProjectEconomy(BaseModel):
     """
     Блок 5: Экономическое моделирование.
     Хранит EconomyProfile из алгоритма 3.6.
@@ -448,7 +442,6 @@ class ProjectEconomy(Base):
     """
     __tablename__ = "project_economies"
 
-    id = Column(String, primary_key=True, default=lambda: __import__("uuid").uuid4().hex)
     project_id = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     # Реляционные поля для индексации
@@ -467,9 +460,6 @@ class ProjectEconomy(Base):
     monetization_model = Column(JSON, nullable=True)    # MonetizationSpec
     full_profile = Column(JSON, nullable=True)          # Полный EconomyProfile
 
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
     # Связи
     project = relationship("Project", back_populates="economy")
 
@@ -481,7 +471,7 @@ class ProjectEconomy(Base):
 # БЛОК 6: GDD (алгоритм 3.7)
 # ============================================================
 
-class ProjectGDD(Base):
+class ProjectGDD(BaseModel):
     """
     Блок 6: GDD Generator.
     Хранит GDDProfile из алгоритма 3.7.
@@ -499,7 +489,6 @@ class ProjectGDD(Base):
     """
     __tablename__ = "project_gdds"
 
-    id = Column(String, primary_key=True, default=lambda: __import__("uuid").uuid4().hex)
     project_id = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     # Реляционные поля для индексации
@@ -515,9 +504,6 @@ class ProjectGDD(Base):
     completeness_report = Column(JSON, nullable=True)   # CompletenessReport
     full_profile = Column(JSON, nullable=True)          # Полный GDDProfile
 
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
     # Связи
     project = relationship("Project", back_populates="gdd")
 
@@ -529,7 +515,7 @@ class ProjectGDD(Base):
 # БЛОК 6: ВАЛИДАЦИЯ (алгоритм 3.8)
 # ============================================================
 
-class ProjectChecklist(Base):
+class ProjectChecklist(BaseModel):
     """
     Блок 6: Валидация и чек-листы.
     Хранит ChecklistResults из алгоритма 3.8.
@@ -550,7 +536,6 @@ class ProjectChecklist(Base):
     """
     __tablename__ = "project_checklists"
 
-    id = Column(String, primary_key=True, default=lambda: __import__("uuid").uuid4().hex)
     project_id = Column(String, ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
 
     # Реляционные поля для индексации
@@ -570,9 +555,6 @@ class ProjectChecklist(Base):
     remediation_plan = Column(JSON, nullable=True)      # RemediationItem[]
     full_results = Column(JSON, nullable=True)          # Полный ChecklistResults
 
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
-
     # Связи
     project = relationship("Project", back_populates="checklist")
 
@@ -584,14 +566,13 @@ class ProjectChecklist(Base):
 # MECHANICS DB (статическая справочная таблица)
 # ============================================================
 
-class MechanicDB(Base):
+class MechanicDB(BaseModel):
     """
     Статическая БД механик — 127 механик в 15 группах (SW.BAND).
     Используется в Блоках 1, 3, 5 для подбора механик.
     """
     __tablename__ = "mechanics_db"
 
-    id = Column(String, primary_key=True, default=lambda: __import__("uuid").uuid4().hex)
     group_name = Column(String(100), nullable=False, index=True)      # Группа (15 групп)
     mechanic_name = Column(String(255), nullable=False)                # Название механики
     description = Column(Text, nullable=True)                          # Описание
@@ -614,7 +595,7 @@ class MechanicDB(Base):
 # KNOWLEDGE CHUNKS (RAG — база знаний с эмбеддингами, 4.A.10)
 # ============================================================
 
-class KnowledgeChunk(Base):
+class KnowledgeChunk(Base, TimestampMixin):
     """
     Чанки базы знаний для RAG (Retrieval-Augmented Generation).
 
@@ -632,7 +613,10 @@ class KnowledgeChunk(Base):
     """
     __tablename__ = "knowledge_chunks"
 
-    id = Column(String, primary_key=True, default=lambda: __import__("uuid").uuid4().hex)
+    # Override updated_at — KnowledgeChunk only has created_at
+    updated_at = None
+
+    id = Column(String, primary_key=True, default=lambda: uuid.uuid4().hex)
     source_type = Column(String(30), nullable=False, index=True)   # bible/book/algorithm
     source_name = Column(String(255), nullable=False, index=True)  # bible_2_1_fundament, schell, и т.д.
     chunk_index = Column(Integer, nullable=False)                  # Порядковый номер чанка
@@ -641,8 +625,6 @@ class KnowledgeChunk(Base):
     token_count = Column(Integer, nullable=True)                   # Количество токенов
     metadata_json = Column(JSON, nullable=True)                    # Дополнительные метаданные
     # embedding хранится отдельно через pgvector (не ORM-колонка, см. rag_service.py)
-
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
 
     __table_args__ = (
         Index("ix_knowledge_source", "source_type", "source_name"),
@@ -657,14 +639,13 @@ class KnowledgeChunk(Base):
 # PROMPT LOGS (логирование вызовов AI)
 # ============================================================
 
-class PromptLog(Base):
+class PromptLog(BaseModel):
     """
     Логи вызовов AI-промптов.
     Используется для мониторинга, анализа стоимости и A/B тестирования.
     """
     __tablename__ = "prompt_logs"
 
-    id = Column(String, primary_key=True, default=lambda: __import__("uuid").uuid4().hex)
     user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
     project_id = Column(String, ForeignKey("projects.id", ondelete="SET NULL"), nullable=True, index=True)
     prompt_id = Column(String(100), nullable=False, index=True)     # CLASSIFY_GENRE и т.д.
@@ -679,6 +660,7 @@ class PromptLog(Base):
     cost_usd = Column(Float, nullable=True)
     success = Column(Boolean, nullable=False, default=True)
     error_message = Column(Text, nullable=True)
+    # Override created_at to add index
     created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc), index=True)
 
     __table_args__ = (

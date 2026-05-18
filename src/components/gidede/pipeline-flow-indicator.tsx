@@ -4,20 +4,13 @@ import React from "react";
 import { Badge } from "@/components/ui/badge";
 import { ArrowRight, CheckCircle2, Loader2, Circle, AlertTriangle } from "lucide-react";
 import { usePipeline, type BlockStatus } from "@/hooks/use-pipeline";
+import { BLOCKS } from "@/config/blocks";
 
 interface PipelineFlowIndicatorProps {
   currentBlock: number;
   /** Максимальный отображаемый блок (по умолчанию 5, было 3) */
   maxBlock?: number;
 }
-
-const BLOCK_LABELS = [
-  { id: 1, name: "Блок 1" },
-  { id: 2, name: "Блок 2" },
-  { id: 3, name: "Блок 3" },
-  { id: 4, name: "Блок 4" },
-  { id: 5, name: "Блок 5" },
-];
 
 function StatusIcon({ status }: { status: BlockStatus | undefined }) {
   switch (status) {

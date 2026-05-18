@@ -3,14 +3,6 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  Lightbulb,
-  RefreshCw,
-  FlaskConical,
-  Scale,
-  TrendingUp,
-  FileText,
-  Bot,
-  Puzzle,
   CheckCircle2,
   Circle,
   AlertTriangle,
@@ -24,21 +16,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import type { BlockProgress, BlockStatus } from "@/hooks/use-pipeline";
-
-// ============================================================
-// КОНФИГУРАЦИЯ БЛОКОВ
-// ============================================================
-
-const blockConfig = [
-  { id: 1, name: "Генератор концепции", icon: Lightbulb, href: "/blocks/1", algorithm: "3.1" },
-  { id: 2, name: "Core Loop Designer", icon: RefreshCw, href: "/blocks/2", algorithm: "3.2" },
-  { id: 3, name: "MDA Lab", icon: FlaskConical, href: "/blocks/3", algorithm: "3.3" },
-  { id: 4, name: "Баланс и симуляция", icon: Scale, href: "/blocks/4", algorithm: "3.4" },
-  { id: 5, name: "Экономика и прогрессия", icon: TrendingUp, href: "/blocks/5", algorithm: "3.5–3.6" },
-  { id: 6, name: "GDD Generator", icon: FileText, href: "/blocks/6", algorithm: "3.7–3.8" },
-  { id: 7, name: "AI-ассистент", icon: Bot, href: "/blocks/7", algorithm: "3.9" },
-  { id: 8, name: "Интеграция GBE", icon: Puzzle, href: "/blocks/8", algorithm: "—" },
-];
+import { BLOCKS } from "@/config/blocks";
 
 // ============================================================
 // СТАТУС ИНДИКАТОРЫ
@@ -124,7 +102,7 @@ export function ProgressSidebar({
         </div>
 
         {/* Список блоков */}
-        {blockConfig.map((block) => {
+        {BLOCKS.map((block) => {
           const progress = blockMap.get(block.id);
           const status: BlockStatus = progress?.status || "empty";
           const config = statusConfig[status];

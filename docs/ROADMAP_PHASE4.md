@@ -195,7 +195,7 @@
 
 ---
 
-#### 4.A.12 — Shared-модели и типы (TypeScript + Python)
+#### 4.A.12 — Shared-модели и типы (TypeScript + Python) ✅
 
 **Описание**: Создать директорию `/shared` с общими типами данных, которые используются и на frontend, и на backend. Определить TypeScript-интерфейсы: `ConceptInput`, `OnePager`, `AestheticProfile`, `DynamicsProfile`, `MechanicSet`, `CoreLoopProfile`, `MDAProfile`, `BalanceResult`, `ProgressionProfile`, `EconomyProfile`, `GDDProfile`, `ChecklistResult`, `ProjectState`. Сгенерировать Python Pydantic-модели из тех же спецификаций. Реализовать валидацию на обоих концах. Создать скрипт для синхронизации типов между TypeScript и Python.
 

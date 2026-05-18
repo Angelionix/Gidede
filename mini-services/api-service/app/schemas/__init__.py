@@ -2,7 +2,7 @@
 Gidede — Pydantic схемы для валидации API
 Фаза 4.A.4–4.A.5: Схемы Project State + Auth
 Фаза 4.B.6: Схемы Core Loop Designer
-Фаза 4.C.1–4.C.2: Схемы Balance Service
+Фаза 4.C.1–4.C.3: Схемы Balance Service
 """
 
 from app.schemas.auth import (
@@ -22,6 +22,12 @@ from app.schemas.balance import (
     IntransitiveResult, StrategyBalanceScore, RPSCycle,
     SituationalResult, Situation, VersatilityInfo,
     QFactorResult, QFactorObject,
+    StabilityAnalysis,
+    SimulationConfig, MatchupData, NumberFormatReport, MonteCarloResult,
+    MachinationsNode, MachinationsResourceFlow, MachinationsStateConnection,
+    MachinationsFeedbackLoop, MachinationsGraph,
+    MachinationsSimConfig, EconomyRunSnapshot,
+    AggregatedSimData, QualityAssessment, MachinationsSimResult,
     BalanceResult,
 )
 
@@ -36,5 +42,11 @@ __all__ = [
     "IntransitiveResult", "StrategyBalanceScore", "RPSCycle",
     "SituationalResult", "Situation", "VersatilityInfo",
     "QFactorResult", "QFactorObject",
+    "StabilityAnalysis",
+    "SimulationConfig", "MatchupData", "NumberFormatReport", "MonteCarloResult",
+    "MachinationsNode", "MachinationsResourceFlow", "MachinationsStateConnection",
+    "MachinationsFeedbackLoop", "MachinationsGraph",
+    "MachinationsSimConfig", "EconomyRunSnapshot",
+    "AggregatedSimData", "QualityAssessment", "MachinationsSimResult",
     "BalanceResult",
 ]

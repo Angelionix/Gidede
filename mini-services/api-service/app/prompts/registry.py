@@ -1,6 +1,6 @@
 """
 Gidede — Prompt Registry (PROMPT_REGISTRY)
-Фаза 4.A.8: Реестр всех 34 AI-промптов
+Фаза 4.A.8: Реестр всех 35 AI-промптов
 
 Спецификация 3.9.2: Полный каталог промптов из алгоритмов 3.1–3.8.
 Спецификация 3.9.3: Формализация интерфейсов каждого промпта.
@@ -16,13 +16,13 @@ Gidede — Prompt Registry (PROMPT_REGISTRY)
 - estimated — оценка стоимости и латентности
 
 Статистика:
-- Всего промптов: 34
+- Всего промптов: 35
 - Креативные (Sonnet/GPT-4): 18 (58%)
 - Рутинные (Haiku/GPT-3.5): 13 (42%)
 - Блок 1 (Концепция): 7
 - Блок 2 (Core Loop): 4
 - Блок 3 (MDA): 5
-- Блок 4 (Баланс): 5
+- Блок 4 (Баланс): 6
 - Блок 5 (Экономика/Прогрессия): 6
 - Блок 6 (GDD/Валидация): 7
 """
@@ -984,7 +984,7 @@ CHECK_LUDONARRATIVE_MDA = PromptSpec(
 
 
 # ============================================================
-# БЛОК 4: БАЛАНС (алгоритм 3.4) — 5 промптов
+# БЛОК 4: БАЛАНС (алгоритм 3.4) — 6 промптов
 # ============================================================
 
 ESTIMATE_WEIGHTS = PromptSpec(
@@ -1136,43 +1136,54 @@ ANALYZE_DISCREPANCY = PromptSpec(
     taskType=PromptTaskType.ANALYSIS,
     inputs=[
         PromptInput(name="formal_ranking", type="array", required=True,
-                    description="Формальное ранжирование элементов"),
-        PromptInput(name="sim_ranking", type="array", required=True,
-                    description="Ранжирование из симуляции"),
+                    description="Формальный ранг объектов (по cost-power анализу)"),
+        PromptInput(name="simulation_ranking", type="array", required=True,
+                    description="Ранг объектов по Monte Carlo-симуляции"),
+        PromptInput(name="win_rates", type="object", required=True,
+                    description="Win rates из симуляции"),
+        PromptInput(name="correlation", type="number", required=True,
+                    description="Корреляция Спирмена между ранжированиями"),
     ],
     outputFormat=OutputFormat.JSON,
     outputSchema={
         "type": "object",
         "properties": {
-            "likely_cause": {"type": "string"},
-            "recommended_action": {"type": "string"},
+            "discrepancy_type": {"type": "string"},
+            "affected_objects": {"type": "array"},
+            "analysis": {"type": "string"},
+            "recommendations": {"type": "array"},
         },
-        "required": ["likely_cause", "recommended_action"],
+        "required": ["discrepancy_type", "affected_objects", "analysis", "recommendations"],
     },
-    system_prompt="""Ты — эксперт по анализу расхождений в балансировке. Сравни формальное ранжирование с результатами симуляции.
+    system_prompt="""Ты — эксперт по анализу расхождений между формальными моделями балансировки и стохастическими симуляциями.
 
-Частые причины расхождений:
-1. Синергии между элементами (не учтены в формальной модели)
-2. Ситуационная ценность (разные ситуации по-разному оценивают элементы)
-3. Стохастичность (рандом влияет на результат)
-4. Нелинейные взаимодействия
+Когда формальный анализ (cost-power кривые) расходится с результатами Monte Carlo-симуляции, это указывает на:
+1. Нелинейные взаимодействия между атрибутами (синергии/анти-синергии)
+2. Скрытые механические преимущества (скорость атаки, дальность, AoE)
+3. Ситуационную ценность, не учтённую в формальной модели
+4. Эффект «стоимости Шрайбера»: усиление может снизить частоту использования
 
-Рекомендуй конкретное действие для устранения расхождения.
+Для каждого расхождения:
+- Определи тип: nonlinear/situational/hidden_advantage/schreiber_cost
+- Укажи затронутые объекты
+- Объясни причину расхождения
+- Предложи коррекцию формальной модели или объектных параметров
+
 Формат: строго JSON.""",
-    user_prompt_template="Формальное ранжирование: {formal_ranking}\nРезультат симуляции: {sim_ranking}",
+    user_prompt_template="Формальный ранг: {formal_ranking}\nРанг симуляции: {simulation_ranking}\nWin rates: {win_rates}\nКорреляция Спирмена: {correlation}",
     modelRequirements=ModelRequirements(
         primary=_POWERFUL_MODEL,
         fallback=_POWERFUL_FALLBACK,
         min_context_window=4096,
         temperature=0.5,
-        max_tokens=1000,
+        max_tokens=1500,
         response_format=OutputFormat.JSON,
     ),
     guarantees=PromptGuarantees(
         deterministic=False, json_output=True, max_retries=2,
-        fallback_on_failure=True, cacheable=False, cache_ttl=None,
+        fallback_on_failure=True, cacheable=True, cache_ttl=1800,
     ),
-    estimated=EstimatedMetrics(input_tokens=500, output_tokens=700, cost_min=0.008, cost_max=0.04, latency_min_ms=2000, latency_max_ms=8000),
+    estimated=EstimatedMetrics(input_tokens=600, output_tokens=800, cost_min=0.008, cost_max=0.05, latency_min_ms=2000, latency_max_ms=10000),
 )
 
 SELECT_BEST_CORRECTION = PromptSpec(
@@ -1948,7 +1959,7 @@ GENERATE_REMEDIATION = PromptSpec(
 
 
 # ============================================================
-# PROMPT REGISTRY — все 34 промптов
+# PROMPT REGISTRY — все 35 промптов
 # ============================================================
 
 PROMPT_REGISTRY: dict[str, PromptSpec] = {
@@ -1974,7 +1985,7 @@ PROMPT_REGISTRY: dict[str, PromptSpec] = {
     "APPLY_LENS_MDA": APPLY_LENS_MDA,
     "CHECK_LUDONARRATIVE_MDA": CHECK_LUDONARRATIVE_MDA,
 
-    # Блок 4: Баланс (5)
+    # Блок 4: Баланс (6)
     "ESTIMATE_WEIGHTS": ESTIMATE_WEIGHTS,
     "EVALUATE_SITUATIONAL_VALUE": EVALUATE_SITUATIONAL_VALUE,
     "SUGGEST_INTRANSITIVE_CORRECTIONS": SUGGEST_INTRANSITIVE_CORRECTIONS,

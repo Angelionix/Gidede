@@ -43,6 +43,7 @@ Gidede — Balance Service
 import time
 import logging
 import math
+import random
 from typing import Any, Optional
 
 from app.ai.executor import PromptExecutor, PromptResult, PromptExecutionOptions
@@ -63,6 +64,21 @@ from app.schemas.balance import (
     QFactorResult,
     QFactorObject,
     BalanceResult,
+    StabilityAnalysis,
+    SimulationConfig,
+    MatchupData,
+    NumberFormatReport,
+    MonteCarloResult,
+    MachinationsNode,
+    MachinationsResourceFlow,
+    MachinationsStateConnection,
+    MachinationsFeedbackLoop,
+    MachinationsGraph,
+    MachinationsSimConfig,
+    EconomyRunSnapshot,
+    AggregatedSimData,
+    QualityAssessment,
+    MachinationsSimResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -239,6 +255,28 @@ ELEMENTAL_ADVANTAGES: dict[str, str] = {
     "poison": "holy",
 }
 
+# Monte Carlo-симуляция: пороговые значения (алгоритм 3.4.9)
+WIN_RATE_SPREAD_GOOD = 0.15      # < 0.15 → GOOD
+WIN_RATE_SPREAD_MODERATE = 0.30  # < 0.30 → MODERATE, >= 0.30 → POOR
+SPEARMAN_CORRELATION_WARNING = 0.5  # < 0.5 → расхождение с формальным анализом
+
+# Machinations: default игрок-архетипы (алгоритм 3.6.9)
+DEFAULT_ARTIFICIAL_PLAYERS = [
+    {"name": "optimal", "strategy": "maximize_progression"},
+    {"name": "casual", "strategy": "random_balanced"},
+    {"name": "minmaxer", "strategy": "exploit_best_cycle"},
+    {"name": "explorer", "strategy": "try_all_options"},
+]
+
+# Adams/Dormans structural patterns for Machinations graph
+ADAMS_DORMANS_PATTERNS = [
+    "Static Engine", "Dynamic Engine", "Converter Engine",
+    "Engine Building", "Static Friction", "Dynamic Friction",
+    "Stopping Mechanism", "Attrition", "Escalating Challenge",
+    "Escalating Complexity", "Arms Race", "Play-Style Reinforcement",
+    "Multiple Feedback", "Trade", "Worker Placement", "Slow Cycle",
+]
+
 
 # ============================================================
 # Balance Service
@@ -247,7 +285,7 @@ ELEMENTAL_ADVANTAGES: dict[str, str] = {
 class BalanceService:
     """
     Блок 4: Анализ баланса.
-    Реализует алгоритм 3.4 — Этапы 1–5 + Q-фактор.
+    Реализует алгоритм 3.4 — Этапы 1–5 + Q-фактор + Этапы 6-7 (симуляции).
 
     Методы:
     - classify_balance_task() — Этап 1: классификация задачи балансировки
@@ -256,7 +294,11 @@ class BalanceService:
     - intransitive_balance() — Этап 4: нетранзитивный анализ (RPS-структуры)
     - situational_balance() — Этап 5: ситуационный анализ (контекстная ценность)
     - calculate_q_factor() — Q-фактор: выявление избыточных компонентов
-    - balance_full() — полный пайплайн Этапов 1–5 + Q-фактор
+    - monte_carlo_simulate() — Этап 6: Monte Carlo-симуляция (стохастическая валидация)
+    - build_machinations_graph() — Этап 7a: построение Machinations-графа экономики
+    - machinations_simulate() — Этап 7b: Machinations-симуляция экономики
+    - analyze_simulation_stability() — комбинированный анализ устойчивости (MC + Machinations)
+    - balance_full() — полный пайплайн Этапов 1–7 + Q-фактор
     """
 
     def __init__(self, executor: PromptExecutor):
@@ -1969,9 +2011,11 @@ class BalanceService:
         run_intransitive: bool = True,
         run_situational: bool = True,
         run_q_factor: bool = True,
+        run_monte_carlo: bool = True,
+        run_machinations: bool = True,
     ) -> BalanceResult:
         """
-        Полный пайплайн балансировки — Этапы 1–5 + Q-фактор алгоритма 3.4.
+        Полный пайплайн балансировки — Этапы 1–7 + Q-фактор алгоритма 3.4.
 
         Выполняет последовательно:
         1. Классификацию задачи балансировки → BalanceMap
@@ -1980,6 +2024,8 @@ class BalanceService:
         4. Нетранзитивный анализ → IntransitiveResult (если run_intransitive)
         5. Ситуационный анализ → SituationalResult (если run_situational)
         Q. Q-фактор анализ → QFactorResult (если run_q_factor)
+        6. Monte Carlo-симуляция → MonteCarloResult (если run_monte_carlo)
+        7. Machinations-симуляция → MachinationsSimResult (если run_machinations)
 
         Returns:
             BalanceResult с результатами всех этапов
@@ -1993,6 +2039,8 @@ class BalanceService:
         intransitive_result: Optional[IntransitiveResult] = None
         situational_result: Optional[SituationalResult] = None
         q_factor_result: Optional[QFactorResult] = None
+        monte_carlo_result: Optional[MonteCarloResult] = None
+        machinations_result: Optional[MachinationsSimResult] = None
 
         # === Этап 1: Классификация ===
         balance_map = await self.classify_balance_task(
@@ -2088,8 +2136,7 @@ class BalanceService:
                     input_data=input_data,
                     transitive_result=transitive_result,
                 )
-                # Q-фактор не получает номер этапа, но отмечаем как выполненный
-                stages_completed.append(6)  # Используем 6 для Q-фактора
+                # Q-фактор — отдельный подэтап, номер не назначаем
                 all_warnings.extend(q_factor_result.warnings)
                 all_suggestions.extend(q_factor_result.suggestions)
 
@@ -2101,20 +2148,73 @@ class BalanceService:
                 logger.error(f"[Pipeline] Q-factor analysis failed: {e}")
                 all_warnings.append(f"Q-фактор анализ не удалось выполнить: {e}")
 
+        # === Этап 6: Monte Carlo-симуляция ===
+        if run_monte_carlo and transitive_result is not None and len(input_data.objects) >= 2:
+            try:
+                monte_carlo_result = await self.monte_carlo_simulate(
+                    input_data=input_data,
+                    transitive_result=transitive_result,
+                    balance_map=balance_map,
+                    project_state=project_state,
+                )
+                stages_completed.append(6)
+                all_warnings.extend(monte_carlo_result.warnings)
+                all_suggestions.extend(monte_carlo_result.suggestions)
+
+                logger.info(
+                    f"[Pipeline] Stage 6 (Monte Carlo) completed: "
+                    f"verdict={monte_carlo_result.balance_verdict}, "
+                    f"spread={monte_carlo_result.win_rate_spread:.3f}"
+                )
+            except Exception as e:
+                logger.error(f"[Pipeline] Stage 6 (Monte Carlo) failed: {e}")
+                all_warnings.append(f"Monte Carlo-симуляция не удалась: {e}")
+
+        # === Этап 7: Machinations-симуляция ===
+        if run_machinations and transitive_result is not None and len(input_data.objects) >= 2:
+            try:
+                machinations_graph = self.build_machinations_graph(
+                    input_data=input_data,
+                    balance_map=balance_map,
+                    transitive_result=transitive_result,
+                )
+                machinations_result = self.machinations_simulate(graph=machinations_graph)
+                stages_completed.append(7)
+                all_warnings.extend(machinations_result.recommendations)
+                all_suggestions.extend(machinations_result.recommendations)
+
+                logger.info(
+                    f"[Pipeline] Stage 7 (Machinations) completed: "
+                    f"runs={machinations_result.runs}, "
+                    f"pathologies={len(machinations_result.detected_pathologies)}"
+                )
+            except Exception as e:
+                logger.error(f"[Pipeline] Stage 7 (Machinations) failed: {e}")
+                all_warnings.append(f"Machinations-симуляция не удалась: {e}")
+
+        # === Обновление анализа устойчивости с учётом симуляций ===
+        stability = self.analyze_simulation_stability(
+            monte_carlo_result=monte_carlo_result,
+            machinations_result=machinations_result,
+        )
+
         latency_ms = int((time.time() - pipeline_start) * 1000)
 
         logger.info(
             f"[Pipeline] Full balance completed in {latency_ms}ms. "
             f"Stages: {stages_completed}, "
-            f"Stability: {stability_result.get('overall_stability', 'unknown')}"
+            f"Stability: {stability.overall_stability}"
         )
 
         return BalanceResult(
             balance_map=balance_map,
             transitive_result=transitive_result,
+            stability=stability,
             intransitive_result=intransitive_result,
             situational_result=situational_result,
             q_factor_result=q_factor_result,
+            monte_carlo_result=monte_carlo_result,
+            machinations_result=machinations_result,
             stages_completed=stages_completed,
             latency_ms=latency_ms,
             models_used=models_used,
@@ -2173,3 +2273,1137 @@ class BalanceService:
                 })
 
         return loops
+
+    # ========================================================
+    # Этап 6: Monte Carlo-симуляция (алгоритм 3.4.9)
+    # ========================================================
+
+    async def monte_carlo_simulate(
+        self,
+        input_data: BalanceInput,
+        transitive_result: TransitiveResult,
+        balance_map: BalanceMap,
+        config: Optional[SimulationConfig] = None,
+        project_state: Optional[dict] = None,
+    ) -> MonteCarloResult:
+        """
+        Этап 6: Monte Carlo-симуляция — стохастическая валидация баланса.
+
+        Алгоритм 3.4.9:
+        1. Запустить N итераций случайных 1v1 боёв
+        2. Собрать win_rates, durations, matchup-матрицу
+        3. Определить balance_verdict по win_rate_spread
+        4. Кросс-валидация с формальным ранжированием (Spearman)
+        5. Анализ формата чисел (Гэзэуэй/Кн. 9)
+        6. Генерация warnings и suggestions
+
+        Returns:
+            MonteCarloResult с результатами стохастической валидации
+        """
+        start = time.time()
+        cfg = config or SimulationConfig()
+        random.seed(cfg.random_seed)
+
+        objects = input_data.objects
+        n = len(objects)
+
+        if n < 2:
+            return MonteCarloResult(
+                config=cfg,
+                balance_verdict="GOOD",
+                warnings=["Недостаточно объектов для Monte Carlo-симуляции (нужно ≥ 2)."],
+                suggestions=["Добавьте объекты для симуляции."],
+            )
+
+        # === Шаг 6.1: Запуск итераций боёв ===
+        wins: dict[str, int] = {obj.name: 0 for obj in objects}
+        total_matches: dict[str, int] = {obj.name: 0 for obj in objects}
+        total_durations: dict[str, float] = {obj.name: 0.0 for obj in objects}
+        draws_count = 0
+
+        # Pairwise matchup results: (name_a, name_b) → MatchupData
+        matchup_data: dict[str, dict[str, MatchupData]] = {
+            obj.name: {} for obj in objects
+        }
+
+        num_iterations = min(cfg.num_iterations, 50000)  # Ограничение для производительности
+
+        for _ in range(num_iterations):
+            # Случайно выбираем двух объектов
+            idx_a = random.randint(0, n - 1)
+            idx_b = random.randint(0, n - 1)
+            while idx_b == idx_a:
+                idx_b = random.randint(0, n - 1)
+
+            obj_a = objects[idx_a]
+            obj_b = objects[idx_b]
+
+            # Симуляция 1v1 боя
+            hp_a = obj_a.attributes.get("hp", obj_a.attributes.get("health", 100.0))
+            hp_b = obj_b.attributes.get("hp", obj_b.attributes.get("health", 100.0))
+            dmg_a = obj_a.attributes.get("damage", obj_a.attributes.get("attack", 10.0))
+            dmg_b = obj_b.attributes.get("damage", obj_b.attributes.get("attack", 10.0))
+            spd_a = obj_a.attributes.get("speed", obj_a.attributes.get("agility", 5.0))
+            spd_b = obj_b.attributes.get("speed", obj_b.attributes.get("agility", 5.0))
+            def_a = obj_a.attributes.get("defense", obj_a.attributes.get("armor", 0.0))
+            def_b = obj_b.attributes.get("defense", obj_b.attributes.get("armor", 0.0))
+
+            # Случайные параметры: крит и уклонение
+            crit_chance = random.uniform(0.05, 0.15)
+            evasion_chance = random.uniform(0.05, 0.10)
+
+            tick = 0
+            max_ticks = 200  # Защита от бесконечного боя
+            winner = None  # "a", "b", или None (draw)
+
+            current_hp_a = hp_a
+            current_hp_b = hp_b
+
+            while tick < max_ticks:
+                tick += 1
+
+                # Атака A → B
+                actual_dmg_a = dmg_a * (1 + random.uniform(-0.2, 0.2))
+                if random.random() < crit_chance:
+                    actual_dmg_a *= 1.5  # Критический удар
+                if random.random() < evasion_chance:
+                    actual_dmg_a = 0.0  # Уклонение
+                # Применяем защиту
+                actual_dmg_a = max(actual_dmg_a - def_b * 0.5, 0.0)
+                # Учитываем скорость: более быстрый наносит доп. урон
+                if spd_a > spd_b:
+                    actual_dmg_a *= 1.0 + (spd_a - spd_b) / (spd_a + spd_b + 1e-10) * 0.2
+                current_hp_b -= actual_dmg_a
+
+                # Атака B → A
+                actual_dmg_b = dmg_b * (1 + random.uniform(-0.2, 0.2))
+                if random.random() < crit_chance:
+                    actual_dmg_b *= 1.5
+                if random.random() < evasion_chance:
+                    actual_dmg_b = 0.0
+                actual_dmg_b = max(actual_dmg_b - def_a * 0.5, 0.0)
+                if spd_b > spd_a:
+                    actual_dmg_b *= 1.0 + (spd_b - spd_a) / (spd_a + spd_b + 1e-10) * 0.2
+                current_hp_a -= actual_dmg_b
+
+                # Проверка конца боя
+                if current_hp_a <= 0 and current_hp_b <= 0:
+                    winner = None  # Ничья
+                    break
+                elif current_hp_b <= 0:
+                    winner = "a"
+                    break
+                elif current_hp_a <= 0:
+                    winner = "b"
+                    break
+
+            if winner is None:
+                draws_count += 1
+            elif winner == "a":
+                wins[obj_a.name] += 1
+            else:
+                wins[obj_b.name] += 1
+
+            total_matches[obj_a.name] += 1
+            total_matches[obj_b.name] += 1
+            total_durations[obj_a.name] += tick
+            total_durations[obj_b.name] += tick
+
+            # Обновляем matchup-данные
+            matchup_key_ab = (obj_a.name, obj_b.name)
+            matchup_key_ba = (obj_b.name, obj_a.name)
+
+            for key, won_side in [(matchup_key_ab, winner), (matchup_key_ba, winner)]:
+                src, tgt = key
+                if tgt not in matchup_data[src]:
+                    matchup_data[src][tgt] = MatchupData()
+                md = matchup_data[src][tgt]
+                md.avg_duration = (md.avg_duration * (md.wins_a + md.wins_b + md.draws) + tick) / (
+                    md.wins_a + md.wins_b + md.draws + 1
+                )
+                if won_side is None:
+                    md.draws += 1
+                elif (src == obj_a.name and won_side == "a") or (src == obj_b.name and won_side == "b"):
+                    md.wins_a += 1
+                else:
+                    md.wins_b += 1
+
+        # === Шаг 6.2: Расчёт win_rates ===
+        win_rates: dict[str, float] = {}
+        avg_duration: dict[str, float] = {}
+        for obj in objects:
+            name = obj.name
+            matches = total_matches[name]
+            win_rates[name] = round(wins[name] / matches, 4) if matches > 0 else 0.0
+            avg_duration[name] = round(total_durations[name] / matches, 2) if matches > 0 else 0.0
+
+        # === Шаг 6.3: Win rate spread и balance_verdict ===
+        if win_rates:
+            wr_values = list(win_rates.values())
+            win_rate_spread = round(max(wr_values) - min(wr_values), 4)
+        else:
+            win_rate_spread = 0.0
+
+        if win_rate_spread < WIN_RATE_SPREAD_GOOD:
+            balance_verdict = "GOOD"
+        elif win_rate_spread < WIN_RATE_SPREAD_MODERATE:
+            balance_verdict = "MODERATE"
+        else:
+            balance_verdict = "POOR"
+
+        # === Шаг 6.4: Кросс-валидация с формальным ранжированием (Spearman) ===
+        ranking_correlation = self._compute_spearman_correlation(
+            transitive_result, win_rates, objects
+        )
+
+        # === Шаг 6.5: Анализ формата чисел ===
+        number_format = self._analyze_number_format(objects)
+
+        # === Шаг 6.6: Генерация warnings и suggestions ===
+        warnings: list[str] = []
+        suggestions: list[str] = []
+
+        if balance_verdict == "POOR":
+            warnings.append(
+                f"Win rate spread = {win_rate_spread:.2f} (POOR). "
+                f"Значительный дисбаланс между объектами."
+            )
+            # Находим лучшие/худшие
+            if win_rates:
+                best = max(win_rates, key=win_rates.get)  # type: ignore[arg-type]
+                worst = min(win_rates, key=win_rates.get)  # type: ignore[arg-type]
+                suggestions.append(
+                    f"'{best}' доминирует (win rate {win_rates[best]:.1%}). "
+                    f"Ослабить или повысить стоимость."
+                )
+                suggestions.append(
+                    f"'{worst}' слишком слаб (win rate {win_rates[worst]:.1%}). "
+                    f"Усилить или снизить стоимость."
+                )
+        elif balance_verdict == "MODERATE":
+            warnings.append(
+                f"Win rate spread = {win_rate_spread:.2f} (MODERATE). "
+                f"Умеренный дисбаланс — возможна коррекция."
+            )
+        else:
+            warnings.append(
+                f"Win rate spread = {win_rate_spread:.2f} (GOOD). "
+                f"Баланс в пределах нормы."
+            )
+
+        if ranking_correlation < SPEARMAN_CORRELATION_WARNING:
+            warnings.append(
+                f"Корреляция Спирмена = {ranking_correlation:.3f} (< {SPEARMAN_CORRELATION_WARNING}). "
+                f"Расхождение между формальным анализом и симуляцией."
+            )
+            suggestions.append(
+                "Формальный и симуляционный ранги расходятся. "
+                "Возможно, атрибуты не полностью отражают боевую эффективность. "
+                "Рассмотрите добавление скрытых параметров или пересмотр весов."
+            )
+
+        if draws_count > num_iterations * 0.1:
+            warnings.append(
+                f"Высокий процент ничьих: {draws_count}/{num_iterations} "
+                f"({draws_count / num_iterations:.1%}). "
+                f"Объекты могут быть слишком похожи."
+            )
+
+        if not suggestions:
+            suggestions.append("Симуляция подтверждает формальный анализ баланса.")
+
+        # Сериализация matchup_matrix (MatchupData → dict)
+        matchup_matrix: dict[str, dict[str, dict]] = {}
+        for src_name, targets in matchup_data.items():
+            matchup_matrix[src_name] = {}
+            for tgt_name, md in targets.items():
+                matchup_matrix[src_name][tgt_name] = md.model_dump()
+
+        result = MonteCarloResult(
+            config=cfg,
+            win_rates=win_rates,
+            avg_duration=avg_duration,
+            matchup_matrix=matchup_matrix,
+            win_rate_spread=win_rate_spread,
+            ranking_correlation=ranking_correlation,
+            number_format=number_format,
+            balance_verdict=balance_verdict,
+            warnings=warnings,
+            suggestions=suggestions,
+        )
+
+        logger.info(
+            f"[Stage 6] Monte Carlo simulation: "
+            f"{num_iterations} iterations, verdict={balance_verdict}, "
+            f"spread={win_rate_spread:.3f}, "
+            f"spearman={ranking_correlation:.3f} "
+            f"({time.time() - start:.2f}s)"
+        )
+        return result
+
+    def _compute_spearman_correlation(
+        self,
+        transitive_result: TransitiveResult,
+        win_rates: dict[str, float],
+        objects: list[BalanceObject],
+    ) -> float:
+        """
+        Вычисление корреляции Спирмена между формальным ранжированием
+        (по power из transitive_result) и ранжированием по win_rate из симуляции.
+        """
+        # Формальный ранг: сортируем объекты по power (убывание)
+        formal_powers: dict[str, float] = {}
+        for report in transitive_result.objects:
+            formal_powers[report.name] = report.power
+
+        # Общие имена
+        common_names = [obj.name for obj in objects if obj.name in formal_powers and obj.name in win_rates]
+        if len(common_names) < 2:
+            return 1.0  # Недостаточно данных для корреляции
+
+        # Формальные ранги
+        sorted_formal = sorted(common_names, key=lambda n: formal_powers[n], reverse=True)
+        formal_ranks = {name: i + 1 for i, name in enumerate(sorted_formal)}
+
+        # Ранги по win_rate
+        sorted_sim = sorted(common_names, key=lambda n: win_rates[n], reverse=True)
+        sim_ranks = {name: i + 1 for i, name in enumerate(sorted_sim)}
+
+        # Spearman rank correlation: 1 - (6 * Σd²) / (n * (n² - 1))
+        n = len(common_names)
+        sum_d_sq = sum(
+            (formal_ranks[name] - sim_ranks[name]) ** 2
+            for name in common_names
+        )
+        if n <= 1:
+            return 1.0
+        denominator = n * (n * n - 1)
+        if denominator == 0:
+            return 1.0
+        correlation = 1.0 - (6.0 * sum_d_sq) / denominator
+        return round(max(-1.0, min(1.0, correlation)), 4)
+
+    def _analyze_number_format(
+        self,
+        objects: list[BalanceObject],
+    ) -> NumberFormatReport:
+        """
+        Анализ формата чисел (Гэзэуэй/Кн. 9).
+
+        «Лёгкие» числа (кратные 5/10) воспринимаются спокойно.
+        «Тяжёлые» числа (некруглые) создают напряжение.
+        """
+        light_numbers: list[str] = []
+        heavy_numbers: list[str] = []
+
+        for obj in objects:
+            for attr, value in obj.attributes.items():
+                label = f"{obj.name}.{attr}={value}"
+                if isinstance(value, (int, float)):
+                    if value != 0 and (value % 5 == 0 or value % 10 == 0):
+                        light_numbers.append(label)
+                    elif value != 0 and value != int(value):
+                        heavy_numbers.append(label)
+                    elif value != 0 and int(value) % 5 != 0:
+                        heavy_numbers.append(label)
+
+            # Стоимость
+            if obj.cost is not None:
+                label = f"{obj.name}.cost={obj.cost}"
+                if obj.cost % 5 == 0 or obj.cost % 10 == 0:
+                    light_numbers.append(label)
+                else:
+                    heavy_numbers.append(label)
+
+        light_count = len(light_numbers)
+        heavy_count = len(heavy_numbers)
+        total = light_count + heavy_count
+
+        if total > 0:
+            light_ratio = light_count / total
+            if light_ratio > 0.7:
+                assessment = "Преобладают «лёгкие» числа — спокойное восприятие, подходит для казуальных игр."
+            elif light_ratio > 0.4:
+                assessment = "Смешанный формат чисел — сбалансированное восприятие."
+            else:
+                assessment = "Преобладают «тяжёлые» числа — ощущение сложности и напряжения, подходит для хардкорных игр."
+        else:
+            assessment = "Недостаточно числовых данных для анализа."
+
+        return NumberFormatReport(
+            light_numbers=light_numbers,
+            heavy_numbers=heavy_numbers,
+            assessment=assessment,
+        )
+
+    # ========================================================
+    # Этап 7a: Построение Machinations-графа (алгоритм 3.6.5)
+    # ========================================================
+
+    def build_machinations_graph(
+        self,
+        input_data: BalanceInput,
+        balance_map: BalanceMap,
+        transitive_result: Optional[TransitiveResult] = None,
+    ) -> MachinationsGraph:
+        """
+        Этап 7a: Построение Machinations-графа внутренней экономики игры.
+
+        Алгоритм 3.6.5:
+        1. Создать Pool-узлы для каждого ресурса
+        2. Создать Source-узлы для faucets
+        3. Создать Drain-узлы для sinks
+        4. Создать Converter-узлы для conversion chains
+        5. Обнаружить feedback loops через state connections
+        6. Определить economic_type
+        7. Обнаружить структурные паттерны Adams/Dormans
+
+        Returns:
+            MachinationsGraph — полный направленный граф экономики
+        """
+        start = time.time()
+        nodes: list[MachinationsNode] = []
+        flows: list[MachinationsResourceFlow] = []
+        state_conns: list[MachinationsStateConnection] = []
+        feedback_loops: list[MachinationsFeedbackLoop] = []
+
+        resources = input_data.resources if input_data.resources else []
+
+        # === Шаг 7a.1: Pool-узлы для каждого ресурса ===
+        for res in resources:
+            node_id = f"pool_{res}"
+            # Начальное значение из первого объекта, использующего этот ресурс
+            initial = 0.0
+            for obj in input_data.objects:
+                if res in obj.attributes:
+                    initial = max(initial, obj.attributes[res] * 10)
+
+            nodes.append(MachinationsNode(
+                id=node_id,
+                name=res,
+                node_type="pool",
+                initial_value=round(initial, 2),
+                capacity=initial * 5 if initial > 0 else None,
+                is_core=(res == balance_map.anchor),
+            ))
+
+        # Если ресурсов нет — создаём базовые pool-узлы из атрибутов объектов
+        if not resources:
+            seen_resources: set[str] = set()
+            for obj in input_data.objects:
+                for attr in obj.attributes:
+                    if attr not in seen_resources:
+                        seen_resources.add(attr)
+                        node_id = f"pool_{attr}"
+                        initial = obj.attributes[attr] * 5
+                        nodes.append(MachinationsNode(
+                            id=node_id,
+                            name=attr,
+                            node_type="pool",
+                            initial_value=round(initial, 2),
+                            capacity=initial * 10 if initial > 0 else None,
+                            is_core=(attr == balance_map.anchor),
+                        ))
+            resources = list(seen_resources)
+
+        # === Шаг 7a.2: Source-узлы (faucets) ===
+        for res in resources:
+            source_id = f"source_{res}"
+            nodes.append(MachinationsNode(
+                id=source_id,
+                name=f"Source: {res}",
+                node_type="source",
+                rate=1.0,
+                activation="automatic",
+            ))
+            # Поток: source → pool
+            pool_id = f"pool_{res}"
+            flows.append(MachinationsResourceFlow(
+                source_id=source_id,
+                target_id=pool_id,
+                resource=res,
+                rate=1.0,
+                flow_type="automatic",
+            ))
+
+        # === Шаг 7a.3: Drain-узлы (sinks) ===
+        for res in resources:
+            drain_id = f"drain_{res}"
+            nodes.append(MachinationsNode(
+                id=drain_id,
+                name=f"Drain: {res}",
+                node_type="drain",
+                rate=0.5,
+            ))
+            # Поток: pool → drain
+            pool_id = f"pool_{res}"
+            flows.append(MachinationsResourceFlow(
+                source_id=pool_id,
+                target_id=drain_id,
+                resource=res,
+                rate=0.5,
+                flow_type="automatic",
+            ))
+
+        # === Шаг 7a.4: Converter-узлы для conversion chains ===
+        # Если ресурсов ≥ 2, создаём конвертеры между парами
+        for i in range(len(resources) - 1):
+            conv_id = f"converter_{i}"
+            res_in = resources[i]
+            res_out = resources[i + 1]
+            nodes.append(MachinationsNode(
+                id=conv_id,
+                name=f"Converter: {res_in} → {res_out}",
+                node_type="converter",
+                inputs=[res_in],
+                outputs=[res_out],
+                efficiency=0.8,
+                activation="interactive",
+            ))
+            # Поток: pool_in → converter
+            flows.append(MachinationsResourceFlow(
+                source_id=f"pool_{res_in}",
+                target_id=conv_id,
+                resource=res_in,
+                rate=1.0,
+                flow_type="interactive",
+            ))
+            # Поток: converter → pool_out
+            flows.append(MachinationsResourceFlow(
+                source_id=conv_id,
+                target_id=f"pool_{res_out}",
+                resource=res_out,
+                rate=0.8,
+                flow_type="interactive",
+            ))
+
+        # === Шаг 7a.5: Обнаружение feedback loops ===
+        # Упрощённая эвристика: если есть цепочка pool→converter→pool,
+        # это потенциальная feedback loop
+        for i in range(len(resources) - 1):
+            loop_nodes = [f"pool_{resources[i]}", f"converter_{i}", f"pool_{resources[i + 1]}"]
+            # Проверяем, возвращается ли цепочка к первому ресурсу
+            if i == len(resources) - 2 and len(resources) > 2:
+                # Замыкаем цикл
+                loop_nodes.append(f"pool_{resources[0]}")
+                feedback_loops.append(MachinationsFeedbackLoop(
+                    nodes=loop_nodes,
+                    loop_type="reinforcing",
+                    strength=0.5,
+                ))
+
+        # Добавляем state connections для feedback
+        for fl in feedback_loops:
+            if len(fl.nodes) >= 2:
+                state_conns.append(MachinationsStateConnection(
+                    source_id=fl.nodes[0],
+                    target_id=fl.nodes[1],
+                    modifier="+" if fl.loop_type == "reinforcing" else "-",
+                    formula=f"rate * (1 + pool_level / 100)",
+                ))
+
+        # === Шаг 7a.6: Определение economic_type ===
+        source_count = sum(1 for n in nodes if n.node_type == "source")
+        drain_count = sum(1 for n in nodes if n.node_type == "drain")
+        converter_count = sum(1 for n in nodes if n.node_type == "converter")
+        pool_count = sum(1 for n in nodes if n.node_type == "pool")
+
+        reinforcing_loops = sum(1 for fl in feedback_loops if fl.loop_type == "reinforcing")
+        balancing_loops = sum(1 for fl in feedback_loops if fl.loop_type == "balancing")
+
+        if source_count > drain_count and reinforcing_loops > balancing_loops:
+            economic_type = "engine"
+        elif source_count <= drain_count and balancing_loops > reinforcing_loops:
+            economic_type = "ecology"
+        elif converter_count > 0 and source_count > 0 and drain_count > 0:
+            economic_type = "economy"
+        else:
+            economic_type = "hybrid"
+
+        # === Шаг 7a.7: Обнаружение структурных паттернов Adams/Dormans ===
+        detected_patterns: list[str] = []
+
+        # Упрощённая эвристика на основе состава узлов
+        if source_count > 0 and converter_count == 0 and pool_count > 0:
+            detected_patterns.append("Static Engine")
+        if source_count > 0 and converter_count > 0:
+            detected_patterns.append("Dynamic Engine")
+        if converter_count >= 2:
+            detected_patterns.append("Converter Engine")
+        if reinforcing_loops > 0 and converter_count > 0:
+            detected_patterns.append("Engine Building")
+        if drain_count > 0 and source_count == 0:
+            detected_patterns.append("Static Friction")
+        if drain_count > 0 and converter_count > 0:
+            detected_patterns.append("Dynamic Friction")
+        if drain_count > source_count:
+            detected_patterns.append("Stopping Mechanism")
+        if drain_count > 0 and reinforcing_loops == 0:
+            detected_patterns.append("Attrition")
+        if reinforcing_loops > 0 and pool_count > 2:
+            detected_patterns.append("Escalating Challenge")
+        if converter_count > 1 and reinforcing_loops > 0:
+            detected_patterns.append("Escalating Complexity")
+        if reinforcing_loops > 1:
+            detected_patterns.append("Arms Race")
+        if balancing_loops > 0 and reinforcing_loops > 0:
+            detected_patterns.append("Play-Style Reinforcement")
+
+        # Если паттернов не обнаружено — добавляем дефолтный
+        if not detected_patterns:
+            detected_patterns.append("Static Engine")
+
+        graph = MachinationsGraph(
+            nodes=nodes,
+            resource_flows=flows,
+            state_connections=state_conns,
+            feedback_loops=feedback_loops,
+            resource_count=len(resources),
+            node_count=len(nodes),
+            flow_count=len(flows),
+            economic_type=economic_type,
+            structural_patterns=detected_patterns,
+        )
+
+        logger.info(
+            f"[Stage 7a] Machinations graph built: "
+            f"{len(nodes)} nodes, {len(flows)} flows, "
+            f"type={economic_type}, "
+            f"patterns={detected_patterns} "
+            f"({time.time() - start:.2f}s)"
+        )
+        return graph
+
+    # ========================================================
+    # Этап 7b: Machinations-симуляция (алгоритм 3.6.9)
+    # ========================================================
+
+    def machinations_simulate(
+        self,
+        graph: MachinationsGraph,
+        config: Optional[MachinationsSimConfig] = None,
+    ) -> MachinationsSimResult:
+        """
+        Этап 7b: Machinations-симуляция внутренней экономики.
+
+        Алгоритм 3.6.9:
+        1. Инициализировать состояние ресурсов из Pool-узлов
+        2. Запустить N прогонов с разными стратегиями
+        3. Каждый прогон: T тиков с обработкой sources, drains, converters
+        4. Записывать снепшоты через каждые recording_interval тиков
+        5. Детектировать runaway и stall
+        6. Агрегировать результаты по всем прогонам
+        7. Оценка качества (QualityAssessment)
+
+        Returns:
+            MachinationsSimResult с агрегированными данными симуляции
+        """
+        start = time.time()
+        cfg = config or MachinationsSimConfig()
+
+        # Устанавливаем artificial players если не заданы
+        if not cfg.artificial_players:
+            cfg.artificial_players = DEFAULT_ARTIFICIAL_PLAYERS.copy()
+
+        # Ограничиваем количество прогонов для производительности
+        num_runs = min(cfg.num_runs, 10)
+        ticks = min(cfg.ticks, 5000)
+        recording_interval = cfg.recording_interval
+
+        # === Инициализация: извлекаем Pool-узлы ===
+        pool_nodes = [n for n in graph.nodes if n.node_type == "pool"]
+        source_nodes = [n for n in graph.nodes if n.node_type == "source"]
+        drain_nodes = [n for n in graph.nodes if n.node_type == "drain"]
+        converter_nodes = [n for n in graph.nodes if n.node_type == "converter"]
+
+        # Начальное состояние ресурсов
+        initial_state: dict[str, float] = {}
+        for node in pool_nodes:
+            initial_state[node.name] = node.initial_value
+
+        if not initial_state:
+            # Fallback: если нет pool-узлов с ресурсами
+            initial_state = {"default_resource": 100.0}
+
+        # === Запуск прогонов ===
+        all_snapshots: list[list[EconomyRunSnapshot]] = []
+        runaway_flags: list[bool] = []
+        stall_flags: list[bool] = []
+        final_levels: dict[str, int] = {}  # player → level
+
+        for run_idx in range(num_runs):
+            # Выбираем стратегию игрока
+            player = cfg.artificial_players[run_idx % len(cfg.artificial_players)]
+            player_name = player.get("name", f"player_{run_idx}")
+            strategy = player.get("strategy", "random_balanced")
+
+            # Инициализируем состояние
+            resource_state = dict(initial_state)
+            level = 1
+            run_snapshots: list[EconomyRunSnapshot] = []
+            is_runaway = False
+            is_stall = False
+
+            for tick in range(1, ticks + 1):
+                actions_taken: list[str] = []
+
+                # Выбор действия на основе стратегии
+                action = self._select_player_action(
+                    strategy, resource_state, source_nodes, drain_nodes, converter_nodes
+                )
+                if action:
+                    actions_taken.append(action)
+
+                # Обработка автоматических Source-узлов
+                for src_node in source_nodes:
+                    if src_node.activation == "automatic" and src_node.rate:
+                        target_pool = src_node.name.replace("Source: ", "")
+                        if target_pool in resource_state:
+                            resource_state[target_pool] += src_node.rate
+
+                # Обработка автоматических Drain-узлов
+                for drn_node in drain_nodes:
+                    if drn_node.rate:
+                        source_pool = drn_node.name.replace("Drain: ", "")
+                        if source_pool in resource_state:
+                            resource_state[source_pool] -= drn_node.rate
+
+                # Обработка Converter-узлов (только если активированы игроком или автоматически)
+                for conv_node in converter_nodes:
+                    if conv_node.activation == "automatic" or (action and "convert" in action.lower()):
+                        if conv_node.inputs and conv_node.outputs:
+                            in_res = conv_node.inputs[0]
+                            out_res = conv_node.outputs[0]
+                            efficiency = conv_node.efficiency or 0.8
+                            if in_res in resource_state and resource_state[in_res] >= 1.0:
+                                resource_state[in_res] -= 1.0
+                                if out_res in resource_state:
+                                    resource_state[out_res] += efficiency
+                                else:
+                                    resource_state[out_res] = efficiency
+
+                # Enforce bounds: clamp to [0, capacity]
+                for pool_node in pool_nodes:
+                    name = pool_node.name
+                    if name in resource_state:
+                        resource_state[name] = max(0.0, resource_state[name])
+                        if pool_node.capacity is not None:
+                            resource_state[name] = min(resource_state[name], pool_node.capacity)
+
+                # Детекция runaway: любой ресурс > 10 * initial
+                for res_name, value in resource_state.items():
+                    init_val = initial_state.get(res_name, 0.0)
+                    if init_val > 0 and value > 10 * init_val:
+                        is_runaway = True
+
+                # Детекция stall: любой ресурс < 0.1 * initial
+                for res_name, value in resource_state.items():
+                    init_val = initial_state.get(res_name, 0.0)
+                    if init_val > 0 and value < 0.1 * init_val:
+                        is_stall = True
+
+                # Прогрессия: каждый 100 тиков — уровень
+                if tick % 100 == 0:
+                    level += 1
+
+                # Запись снепшота
+                if tick % recording_interval == 0:
+                    run_snapshots.append(EconomyRunSnapshot(
+                        tick=tick,
+                        resources={k: round(v, 2) for k, v in resource_state.items()},
+                        level=level,
+                        actions_taken=actions_taken,
+                    ))
+
+            runaway_flags.append(is_runaway)
+            stall_flags.append(is_stall)
+            final_levels[player_name] = level
+            all_snapshots.append(run_snapshots)
+
+        # === Агрегация результатов ===
+        # avg_resource_curves: усредняем по прогонам
+        resource_names = list(initial_state.keys())
+        avg_resource_curves: dict[str, list[float]] = {res: [] for res in resource_names}
+        resource_ranges: dict[str, dict] = {
+            res: {"min": float("inf"), "max": float("-inf")} for res in resource_names
+        }
+
+        # Собираем все значения по интервалам
+        interval_data: dict[str, list[list[float]]] = {res: [] for res in resource_names}
+        for run_snapshots in all_snapshots:
+            for res in resource_names:
+                values = [snap.resources.get(res, 0.0) for snap in run_snapshots]
+                interval_data[res].append(values)
+
+        # Усредняем
+        for res in resource_names:
+            all_series = interval_data[res]
+            if all_series:
+                max_len = max(len(s) for s in all_series)
+                for i in range(max_len):
+                    vals = [s[i] for s in all_series if i < len(s)]
+                    avg = sum(vals) / len(vals) if vals else 0.0
+                    avg_resource_curves[res].append(round(avg, 2))
+
+                    # Обновляем min/max
+                    if vals:
+                        resource_ranges[res]["min"] = min(resource_ranges[res]["min"], min(vals))
+                        resource_ranges[res]["max"] = max(resource_ranges[res]["max"], max(vals))
+
+        # Убираем inf из ranges
+        for res in resource_names:
+            if resource_ranges[res]["min"] == float("inf"):
+                resource_ranges[res]["min"] = 0.0
+            if resource_ranges[res]["max"] == float("-inf"):
+                resource_ranges[res]["max"] = 0.0
+
+        runaway_frequency = sum(1 for f in runaway_flags if f) / num_runs if num_runs > 0 else 0.0
+        stall_frequency = sum(1 for f in stall_flags if f) / num_runs if num_runs > 0 else 0.0
+        stability_index = round(1.0 - (runaway_frequency + stall_frequency) / 2.0, 4)
+
+        # Build gap: ratio optimal vs casual progression
+        optimal_level = final_levels.get("optimal", 1)
+        casual_level = final_levels.get("casual", 1)
+        build_gap = round(optimal_level / max(casual_level, 1), 2)
+
+        aggregated = AggregatedSimData(
+            avg_resource_curves=avg_resource_curves,
+            resource_ranges=resource_ranges,
+            runaway_frequency=round(runaway_frequency, 4),
+            stall_frequency=round(stall_frequency, 4),
+            build_gap=build_gap,
+            stability_index=stability_index,
+        )
+
+        # === Оценка качества ===
+        resources_in_bounds = all(
+            resource_ranges[res]["min"] >= 0
+            and (resource_ranges[res]["max"] <= (pool_nodes[i].capacity or float("inf")))
+            for i, res in enumerate(resource_names)
+            if i < len(pool_nodes)
+        )
+
+        no_runaway_for_minmaxer = runaway_frequency < 0.1
+        no_stall_for_casual = stall_frequency < 0.1
+        build_gap_acceptable = build_gap < 3.0
+        economy_stable = stability_index > 0.7
+
+        critical_issues: list[str] = []
+        quality_warnings: list[str] = []
+
+        if not no_runaway_for_minmaxer:
+            critical_issues.append(
+                f"Runaway при оптимальной стратегии: частота {runaway_frequency:.1%} (> 10%)."
+            )
+        if not no_stall_for_casual:
+            critical_issues.append(
+                f"Stall при казуальной стратегии: частота {stall_frequency:.1%} (> 10%)."
+            )
+        if not build_gap_acceptable:
+            quality_warnings.append(
+                f"Разрыв билдов слишком велик: {build_gap:.1f}× (> 3.0×)."
+            )
+        if not economy_stable:
+            quality_warnings.append(
+                f"Экономика нестабильна: индекс {stability_index:.2f} (< 0.7)."
+            )
+
+        overall_pass = (
+            resources_in_bounds
+            and no_runaway_for_minmaxer
+            and no_stall_for_casual
+            and build_gap_acceptable
+            and economy_stable
+        )
+
+        quality = QualityAssessment(
+            resources_in_bounds=resources_in_bounds,
+            no_runaway_for_minmaxer=no_runaway_for_minmaxer,
+            no_stall_for_casual=no_stall_for_casual,
+            build_gap_acceptable=build_gap_acceptable,
+            economy_stable=economy_stable,
+            overall_pass=overall_pass,
+            critical_issues=critical_issues,
+            warnings=quality_warnings,
+        )
+
+        # === Детекция патологий ===
+        detected_pathologies: list[str] = []
+        if runaway_frequency > 0.3:
+            detected_pathologies.append("runaway")
+        if stall_frequency > 0.3:
+            detected_pathologies.append("stall")
+        if runaway_frequency > 0.1 and stall_frequency > 0.1:
+            detected_pathologies.append("oscillation")
+        if stall_frequency > 0.5:
+            detected_pathologies.append("deadlock")
+
+        # Проверка инфляции: ресурсы постоянно растут
+        for res in resource_names:
+            curve = avg_resource_curves.get(res, [])
+            if len(curve) >= 4:
+                if all(curve[i] > curve[i - 1] for i in range(1, len(curve))):
+                    if "inflation" not in detected_pathologies:
+                        detected_pathologies.append("inflation")
+
+        # Проверка стагнации: ресурсы не меняются
+        for res in resource_names:
+            curve = avg_resource_curves.get(res, [])
+            if len(curve) >= 4:
+                if all(abs(curve[i] - curve[0]) < 0.01 for i in range(1, len(curve))):
+                    if "stagnation" not in detected_pathologies:
+                        detected_pathologies.append("stagnation")
+
+        # === Рекомендации ===
+        recommendations: list[str] = []
+        if "runaway" in detected_pathologies:
+            recommendations.append(
+                "Обнаружен runaway: добавить убывающую доходность (diminishing returns) "
+                "или порог насыщения для ресурсов."
+            )
+        if "stall" in detected_pathologies:
+            recommendations.append(
+                "Обнаружен stall: увеличить скорость генерации ресурсов (source rate) "
+                "или уменьшить потребление (drain rate)."
+            )
+        if "oscillation" in detected_pathologies:
+            recommendations.append(
+                "Обнаружена осцилляция: сбалансировать reinforcing и balancing feedback."
+            )
+        if "inflation" in detected_pathologies:
+            recommendations.append(
+                "Обнаружена инфляция: добавить sink-механики или повысить drain rate."
+            )
+        if "stagnation" in detected_pathologies:
+            recommendations.append(
+                "Обнаружена стагнация: добавить конвертеры или интерактивные механики "
+                "для стимуляции экономики."
+            )
+        if not build_gap_acceptable:
+            recommendations.append(
+                f"Разрыв optimal/casual = {build_gap:.1f}× — рассмотрите сглаживание кривой прогрессии."
+            )
+
+        if not recommendations:
+            recommendations.append("Экономика стабильна. Коррекция не требуется.")
+
+        # Собираем снепшоты типичного прогона (первый с каждой стратегией)
+        representative_snapshots: list[EconomyRunSnapshot] = []
+        for run_snapshots in all_snapshots[:4]:
+            representative_snapshots.extend(run_snapshots)
+
+        result = MachinationsSimResult(
+            config=cfg,
+            graph=graph,
+            runs=num_runs,
+            aggregated=aggregated,
+            quality=quality,
+            snapshots=representative_snapshots,
+            detected_pathologies=detected_pathologies,
+            recommendations=recommendations,
+        )
+
+        logger.info(
+            f"[Stage 7b] Machinations simulation: "
+            f"{num_runs} runs × {ticks} ticks, "
+            f"stability_index={stability_index:.3f}, "
+            f"pathologies={detected_pathologies} "
+            f"({time.time() - start:.2f}s)"
+        )
+        return result
+
+    def _select_player_action(
+        self,
+        strategy: str,
+        resource_state: dict[str, float],
+        source_nodes: list[MachinationsNode],
+        drain_nodes: list[MachinationsNode],
+        converter_nodes: list[MachinationsNode],
+    ) -> str:
+        """Выбор действия на основе стратегии игрока-архетипа."""
+        if strategy == "maximize_progression":
+            # Optimal: всегда конвертируем, если можно
+            if converter_nodes:
+                conv = converter_nodes[0]
+                return f"convert_{conv.inputs[0] if conv.inputs else 'unknown'}"
+            return "wait"
+
+        elif strategy == "random_balanced":
+            # Casual: случайное действие
+            actions = ["wait"]
+            if converter_nodes:
+                actions.append(f"convert_{converter_nodes[0].name}")
+            return random.choice(actions)
+
+        elif strategy == "exploit_best_cycle":
+            # Minmaxer: конвертируем ресурс с максимальным запасом
+            if converter_nodes and resource_state:
+                best_res = max(resource_state, key=resource_state.get)  # type: ignore[arg-type]
+                return f"convert_{best_res}"
+            return "wait"
+
+        elif strategy == "try_all_options":
+            # Explorer: пробует разные конвертеры
+            if converter_nodes:
+                conv = random.choice(converter_nodes)
+                return f"convert_{conv.name}"
+            return "wait"
+
+        return "wait"
+
+    # ========================================================
+    # Комбинированный анализ устойчивости (MC + Machinations)
+    # ========================================================
+
+    def analyze_simulation_stability(
+        self,
+        monte_carlo_result: Optional[MonteCarloResult] = None,
+        machinations_result: Optional[MachinationsSimResult] = None,
+    ) -> StabilityAnalysis:
+        """
+        Комбинированный анализ устойчивости на основе результатов
+        Monte Carlo и Machinations симуляций.
+
+        Объединяет:
+        - Monte Carlo verdict → stability assessment
+        - Machinations quality → pathology risks
+        - Генерация комбинированных рекомендаций
+
+        Returns:
+            StabilityAnalysis с общей оценкой устойчивости
+        """
+        start = time.time()
+
+        # Определяем общую устойчивость
+        overall_stability = "stable"
+        pathology_risks: list[str] = []
+        analysis_items: list[dict] = []
+        recommendations: list[str] = []
+        positive_loops = 0
+        negative_loops = 0
+
+        # === Анализ Monte Carlo ===
+        if monte_carlo_result is not None:
+            mc_verdict = monte_carlo_result.balance_verdict
+            mc_spread = monte_carlo_result.win_rate_spread
+            mc_correlation = monte_carlo_result.ranking_correlation
+
+            if mc_verdict == "POOR":
+                mc_stability = "unstable"
+                pathology_risks.append("runaway")  # Доминантная стратегия
+            elif mc_verdict == "MODERATE":
+                mc_stability = "conditionally_stable"
+                pathology_risks.append("oscillation")
+            else:
+                mc_stability = "stable"
+
+            analysis_items.append({
+                "source": "monte_carlo",
+                "verdict": mc_verdict,
+                "stability": mc_stability,
+                "win_rate_spread": mc_spread,
+                "ranking_correlation": mc_correlation,
+            })
+
+            # Если корреляция с формальным анализом низкая — предупреждение
+            if mc_correlation < SPEARMAN_CORRELATION_WARNING:
+                recommendations.append(
+                    f"Monte Carlo: низкая корреляция с формальным анализом "
+                    f"(ρ = {mc_correlation:.3f}). Пересмотрите веса атрибутов."
+                )
+
+            # Рекомендации на основе вердикта
+            if mc_verdict == "POOR":
+                recommendations.append(
+                    f"Monte Carlo: win rate spread = {mc_spread:.2f} (POOR). "
+                    f"Требуется значительная коррекция баланса."
+                )
+                positive_loops += 1  # Усиливающая петля дисбаланса
+            elif mc_verdict == "MODERATE":
+                recommendations.append(
+                    f"Monte Carlo: win rate spread = {mc_spread:.2f} (MODERATE). "
+                    f"Рекомендуется точечная коррекция."
+                )
+
+        # === Анализ Machinations ===
+        if machinations_result is not None:
+            mach_pathologies = machinations_result.detected_pathologies
+            mach_quality = machinations_result.quality
+
+            if mach_quality is not None:
+                if not mach_quality.economy_stable:
+                    mach_stability = "unstable"
+                elif mach_quality.critical_issues:
+                    mach_stability = "conditionally_stable"
+                else:
+                    mach_stability = "stable"
+
+                analysis_items.append({
+                    "source": "machinations",
+                    "stability": mach_stability,
+                    "stability_index": machinations_result.aggregated.stability_index if machinations_result.aggregated else 0.0,
+                    "runaway_frequency": machinations_result.aggregated.runaway_frequency if machinations_result.aggregated else 0.0,
+                    "stall_frequency": machinations_result.aggregated.stall_frequency if machinations_result.aggregated else 0.0,
+                    "build_gap": machinations_result.aggregated.build_gap if machinations_result.aggregated else 0.0,
+                })
+
+                # Добавляем патологии
+                for pathology in mach_pathologies:
+                    if pathology not in pathology_risks:
+                        pathology_risks.append(pathology)
+
+                # Machinations feedback loops
+                if machinations_result.graph and machinations_result.graph.feedback_loops:
+                    for fl in machinations_result.graph.feedback_loops:
+                        if fl.loop_type == "reinforcing":
+                            positive_loops += 1
+                        else:
+                            negative_loops += 1
+
+                # Рекомендации из Machinations
+                recommendations.extend(machinations_result.recommendations)
+
+        # === Комбинированная оценка устойчивости ===
+        stability_scores = {
+            "stable": 0,
+            "conditionally_stable": 0,
+            "unstable": 0,
+        }
+        for item in analysis_items:
+            s = item.get("stability", "stable")
+            stability_scores[s] = stability_scores.get(s, 0) + 1
+
+        # Если любой источник unstable → overall unstable
+        if stability_scores.get("unstable", 0) > 0:
+            overall_stability = "unstable"
+        elif stability_scores.get("conditionally_stable", 0) > 0:
+            overall_stability = "conditionally_stable"
+        else:
+            overall_stability = "stable"
+
+        # Если нет данных от симуляций — используем default stable
+        if not analysis_items:
+            overall_stability = "stable"
+            pathology_risks = []
+            recommendations.append(
+                "Симуляции не выполнялись. Рекомендуется запустить Monte Carlo и Machinations "
+                "для более полной оценки устойчивости."
+            )
+
+        result = StabilityAnalysis(
+            overall_stability=overall_stability,
+            pathology_risks=pathology_risks,
+            analysis=analysis_items,
+            positive_loops=positive_loops,
+            negative_loops=negative_loops,
+            recommendations=recommendations,
+        )
+
+        logger.info(
+            f"[Stability] Combined analysis: "
+            f"stability={overall_stability}, "
+            f"risks={pathology_risks}, "
+            f"+loops={positive_loops}, -loops={negative_loops} "
+            f"({time.time() - start:.2f}s)"
+        )
+        return result

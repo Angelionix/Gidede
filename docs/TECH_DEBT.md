@@ -29,7 +29,7 @@
 | TD-005 | Книги на разных языках (русский, английский) — возможны проблемы с терминологией | Смешанная библиотека | Несогласованность терминов в Библии и алгоритмах | Создать глоссарий унифицированных терминов в Фазе 2 | ✅ Resolved — docs/glossary.md: 70+ терминов в 8 секциях (LeBlanc, MDA, Adams/Dormans, Schell, Bond, Balance, Core Loop, общие) |
 | TD-006 | Нет репрезентативной выборки реальных GDD для валидации шаблонов | На ранней стадии | Шаблоны GDD могут не покрывать реальные потребности | Собрать 5-10 реальных GDD разных жанров на Фазе 1 | 🔲 Open |
 | TD-012 | Нет формализованного тестового набора для AI-промптов | 31 промпт специфицирован, но без эталонных входов/выходов | Невозможно автоматически валидировать качество AI-ответов при изменении промптов | Создать golden dataset из 5-10 примеров на каждый промпт на Фазе 4.A | ✅ Resolved — mini-services/api-service/tests/golden_dataset/: 15 примеров для 6 промптов + 3 MDA-сценария |
-| TD-013 | Machinations-симуляция требует сложного графового движка | Формализация в алгоритме 3.6 описана концептуально, но реализация нетривиальна | Блок «Экономика» может быть отложен или реализован в упрощённом виде | Начать с 5 базовых узлов (Pool, Source, Drain, Converter, Gate) на Фазе 4.C, расширять итеративно | 🔲 Open |
+| TD-013 | Machinations-симуляция требует сложного графового движка | Формализация в алгоритме 3.6 описана концептуально, но реализация нетривиальна | Блок «Экономика» может быть отложен или реализован в упрощённом виде | Начать с 5 базовых узлов (Pool, Source, Drain, Converter, Gate) на Фазе 4.C, расширять итеративно | ✅ Resolved — Machinations-движок полностью реализован в 4.C.3: 8 типов узлов (Pool, Source, Drain, Converter, Trader, Gate, Delay, Queue), граф потоков и связей, 16 паттернов Adams/Dormans, симуляция N тиков с 4 архетипами игроков, Quality Assessment (6 проверок), обнаружение 6 патологий. Monte Carlo-симуляция также реализована. Полная интеграция с Блоком 5 в 4.C.6 |
 | TD-017 | JWT_SECRET_KEY захардкожен в config.py (dev-значение) | Для удобства локальной разработки | В production утечка ключа = компрометация всех токенов | Обязательно установить JWT_SECRET_KEY через env-переменную при деплое | ✅ Resolved — JWT secret теперь через settings.jwt_secret property: env-переменная обязательна в production, auto-generated dev-ключ с warning |
 | TD-018 | Две ORM-системы (Prisma + SQLAlchemy) — дублирование схемы | Prisma для Next.js SSR, SQLAlchemy для FastAPI backend | Рассинхронизация схем при изменениях | Унифицировать на SQLAlchemy + Alembic (backend — единственный источник истины), Prisma только для миграций в Next.js | 🔲 Open |
 
@@ -92,8 +92,9 @@
 | 2026-05-18 | TD-010 → Resolved: README заполнен в v0.9.0 |
 | 2026-03-05 | TD-005 → Resolved: docs/glossary.md с 70+ терминами; TD-011 → Resolved: .github/workflows/ci.yml; TD-012 → Resolved: golden dataset (15 промпт-примеров + 3 MDA-сценария); DEFERRED-002, DEFERRED-005 → Resolved |
 | 2026-05-18 | TD-007 → Resolved: 26 тестов balance_service + 290+ тестов для всех сервисов (4.C.1) |
-| 2026-05-18 | DEFERRED-004 → Partially Resolved: SUGGEST_INTRANSITIVE_CORRECTIONS и EVALUATE_SITUATIONAL_VALUE промпты добавлены в registry (4.C.2) |
-| 2026-05-18 | TD-013 → In Progress: Начата реализация Machinations-симуляции (базовые узлы) в 4.C.2, полная реализация в 4.C.3 |
+| 2026-05-18 | TD-013 → In Progress: Базовый Machinations-движок реализован в 4.C.3 (8 типов узлов, симуляция экономики, Quality Assessment). Полная интеграция с Блоком 5 в 4.C.6 |
+| 2026-05-19 | TD-013 → Resolved: Machinations-движок полностью реализован в 4.C.3 (Monte Carlo + Machinations симуляция, 8 типов узлов, 16 паттернов Adams/Dormans, Quality Assessment, обнаружение 6 патологий). 77 тестов для balance_service |
+| 2026-05-18 | DEFERRED-004 → Partially Resolved: ANALYZE_DISCREPANCY промпт добавлен в registry (4.C.3) |
 
 ---
 

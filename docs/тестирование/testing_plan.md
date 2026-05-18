@@ -1,8 +1,8 @@
 # Gidede — Документ тестирования
 
-> **Фаза**: 4.C.2 (Блок 4: Intransitive-анализ и ситуационный баланс)  
-> **Дата**: 2026-05-18  
-> **Версия**: 0.16.0  
+> **Фаза**: 4.C.3 (Блок 4: Симуляция Monte Carlo + Machinations)  
+> **Дата**: 2026-05-19  
+> **Версия**: 0.18.0  
 > **Статус**: Активный  
 > **Подход**: Локальное тестирование (без GitHub Actions)
 
@@ -10,7 +10,7 @@
 
 ## 1. Общая стратегия тестирования
 
-Тестирование Gidede проводится локально на ПК разработчика. Автоматизированные программные тесты запускаются через скрипты, отчёты предоставляются вручную. Ручное тестирование UI проводится через браузер. Полное покрытие включает все реализованные модули: инфраструктуру (4.A), концепцию (4.B.1–4.B.5), Core Loop Designer (4.B.6–4.B.8), MDA Lab (4.B.9–4.B.11), сквозной пайплайн (4.B.12), а также скелетные эндпоинты будущих блоков.
+Тестирование Gidede проводится локально на ПК разработчика. Автоматизированные программные тесты запускаются через скрипты, отчёты предоставляются вручную. Ручное тестирование UI проводится через браузер. Полное покрытие включает все реализованные модули: инфраструктуру (4.A), концепцию (4.B.1–4.B.5), Core Loop Designer (4.B.6–4.B.8), MDA Lab (4.B.9–4.B.11), сквозной пайплайн (4.B.12), баланс и симуляцию (4.C.1–4.C.3), а также скелетные эндпоинты будущих блоков.
 
 ### 1.1 Уровни тестирования
 
@@ -87,7 +87,8 @@ mini-services/api-service/tests/
 ├── test_mda_api_full.py           # API MDA полный анализ (4.B.10)
 ├── test_jwt_secret.py             # JWT secret property (TD-017)
 ├── test_pipeline_service.py       # ★ НОВОЕ: Pipeline Service — сквозной пайплайн (4.B.12)
-└── test_pipeline_api.py           # ★ НОВОЕ: API Pipeline endpoints (4.B.12)
+├── test_pipeline_api.py           # ★ НОВОЕ: API Pipeline endpoints (4.B.12)
+└── test_balance_service.py        # ★ НОВОЕ: Balance Service — транзитивный, нетранзитивный, ситуационный, Q-фактор, Monte Carlo, Machinations (4.C.1–4.C.3)
 ```
 
 #### Фикстуры (conftest.py)
@@ -114,6 +115,16 @@ mini-services/api-service/tests/
 | `sample_core_loop_validation` | ★ Тестовый CoreLoopValidationResult |
 | `sample_recommendations` | Тестовый список рекомендаций |
 | `sample_coreloop_design_result` | ★ Тестовый результат POST /coreloop/design |
+| `sample_balance_input` | ★ Тестовый BalanceInput (объекты, ресурсы, жанр) |
+| `sample_balance_objects` | ★ Список из 5 тестовых BalanceObject (персонажи/оружие) |
+| `sample_transitive_result` | ★ Тестовый TransitiveResult |
+| `sample_intransitive_result` | ★ Тестовый IntransitiveResult |
+| `sample_situational_result` | ★ Тестовый SituationalResult |
+| `sample_q_factor_result` | ★ Тестовый QFactorResult |
+| `sample_monte_carlo_result` | ★ Тестовый MonteCarloResult |
+| `sample_machinations_result` | ★ Тестовый MachinationsSimResult |
+| `sample_stability_analysis` | ★ Тестовый StabilityAnalysis |
+| `sample_balance_result` | ★ Тестовый BalanceResult (полный пайплайн) |
 
 #### Тест-кейсы Backend
 
@@ -151,7 +162,7 @@ mini-services/api-service/tests/
 
 | ID | Тест | Что проверяет |
 |----|------|---------------|
-| B-16 | `test_all_34_prompts_registered` | Все 34 промпта в реестре |
+| B-16 | `test_all_35_prompts_registered` | Все 35 промптов в реестре |
 | B-17 | `test_prompt_spec_has_required_fields` | Структура PromptSpec (id, module, inputs, outputSchema) |
 | B-18 | `test_classify_genre_prompt` | Промпт CLASSIFY_GENRE корректен |
 | B-19 | `test_extract_aesthetics_prompt` | Промпт EXTRACT_AESTHETICS корректен |
@@ -660,6 +671,31 @@ src/__tests__/
 | F-74 | ★ BondMatrixPanel: согласованность | Row consistency и col consistency с цветовой индикацией |
 | F-75 | ★ BondMatrixPanel: лудонарративная проверка | Результат: Гармония/Ирония/Диссонанс с иконкой и описанием |
 
+##### Pipeline-компоненты (4.B.12) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| F-76 | ★ ProgressSidebar: рендер | Компонент рендерится с прогресс-баром и статусами блоков |
+| F-77 | ★ ProgressSidebar: статусы | Статус каждого блока с цветокодированием (empty/in_progress/completed/stale) |
+| F-78 | ★ ProgressSidebar: рекомендация | Индикатор «Рекомендуется заполнить следующим» |
+| F-79 | ★ PipelineNotifications: рендер | Компонент рендерит уведомления об устаревших данных |
+| F-80 | ★ PipelineNotifications: предупреждения | Предупреждение вида «Концепция обновлена. Рекомендуется пересчитать Core Loop» |
+| F-81 | ★ usePipeline: fetchState | Хук возвращает состояние пайплайна |
+| F-82 | ★ usePipeline: prepareInput | Хук возвращает подготовленные входные данные для блока |
+| F-83 | ★ usePipeline: notifyUpdated | Хук отправляет уведомление об обновлении блока |
+| F-84 | ★ Pipeline Data Flow Indicator: Блок 1 | Индикатор «Блок 1 ← → Блок 2 → Блок 3» с кнопкой запуска пайплайна |
+| F-85 | ★ Pipeline Data Flow Indicator: Блок 2/3 | Индикатор с кнопкой «Загрузить из пайплайна» |
+
+##### Баланс и симуляция (4.C.3 — планируется UI в 4.C.4) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| F-86 | ★ BalancePage: рендер | Страница /blocks/4 рендерится (скелет или плейсхолдер) |
+| F-87 | ★ TransitiveTable: колонки | Колонки: Элемент, Cost, Power, C/P Ratio, Статус |
+| F-88 | ★ PayoffMatrix: тепловая карта | Интерактивная таблица N×N с цветовой тепловой картой |
+| F-89 | ★ SimulationCharts: win rate | Графики win rate по элементам (Recharts) |
+| F-90 | ★ MachinationsView: граф | Визуализация графа ресурсов с анимацией потока |
+
 ---
 
 ## 3. Ручные UI-тесты
@@ -1031,6 +1067,139 @@ src/__tests__/
 | 11 | Просмотреть вкладку «Матрица Бонда» | Матрица 4×3, согласованность, лудонарратив |
 | 12 | Проверить мета-информацию | stages_completed = [1,2,3,4,5,6] |
 
+#### UI-40: Балансировка — Транзитивный анализ (Блок 4, 4.C.1) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | POST /api/v1/balance/transitive с объектами | TransitiveResult с reports, warnings, suggestions |
+| 2 | Проверить cost-power кривые | Модель кривой (identity/shifted_identity/progression) определена |
+| 3 | Проверить объекты | Каждый объект имеет power, effective_cost, cp_ratio, distance_from_curve, status |
+| 4 | Проверить цветовую индикацию | Зелёный (balanced), жёлтый (ideal imbalance), красный (over/underpowered) |
+| 5 | Проверить warnings | Предупреждения для пере-/недооценённых объектов |
+| 6 | Проверить suggestions | Конкретные предложения коррекции |
+
+#### UI-41: Балансировка — Нетранзитивный анализ (Блок 4, 4.C.2) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | POST /api/v1/balance/intransitive с объектами | IntransitiveResult с payoff_matrix, nash_equilibrium |
+| 2 | Проверить payoff-матрицу | Антисимметричная матрица N×N с цветовой тепловой картой |
+| 3 | Проверить равновесие Нэша | Сумма вероятностей ≈ 1.0, все ≥ 0 |
+| 4 | Проверить RPS-циклы | Обнаруженные нетранзитивные циклы A > B > C > A |
+| 5 | Проверить доминантную стратегию | Доля доминанта, AI-коррекции при max_share > 50% |
+| 6 | Проверить метрики баланса | entropy, max_share, gini |
+
+#### UI-42: Балансировка — Ситуационный анализ (Блок 4, 4.C.2) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | POST /api/v1/balance/situational с объектами | SituationalResult с situations, situational_values |
+| 2 | Проверить жанровые ситуации | RPG (5), Action (5), Strategy (4), или default |
+| 3 | Проверить матрицу ценности | Объекты × Ситуации, цветовая индикация EV |
+| 4 | Проверить универсальность | universal/specialized классификация по spread |
+| 5 | Проверить мёртвые зоны | Объекты, не доминирующие ни в одной ситуации |
+| 6 | Проверить стоимость переключения | low/medium/high по жанру |
+
+#### UI-43: Балансировка — Q-фактор (Блок 4, 4.C.2) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | POST /api/v1/balance/qfactor с объектами | QFactorResult с redundant_objects, attribute_dominance |
+| 2 | Проверить доминантные атрибуты | Каждый объект имеет dominant_attributes |
+| 3 | Проверить избыточные объекты | Объекты с is_redundant=true и redundancy_score |
+| 4 | Проверить маппинг атрибутов | attribute_dominance: атрибут → доминирующий объект |
+
+#### UI-44: Monte Carlo-симуляция (Блок 4, 4.C.3) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | POST /api/v1/balance/monte-carlo с объектами | MonteCarloResult с win_rates, spread, verdict |
+| 2 | Проверить win_rates | Процент побед по каждому объекту |
+| 3 | Проверить вердикт | GOOD/MODERATE/POOR на основе win rate spread |
+| 4 | Проверить matchup_matrix | Попарные результаты всех пар объектов |
+| 5 | Проверить корреляцию | Корреляция Спирмена с формальным ранжированием |
+| 6 | Проверить расхождение | ANALYZE_DISCREPANCY промпт при низкой корреляции |
+
+#### UI-45: Machinations-симуляция (Блок 4, 4.C.3) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | POST /api/v1/balance/machinations с ресурсами | MachinationsSimResult с graph, aggregated, quality, pathologies |
+| 2 | Проверить граф | 8 типов узлов (Pool, Source, Drain, Converter, Trader, Gate, Delay, Queue) |
+| 3 | Проверить потоки | Сплошные стрелки ресурсов и пунктирные связи состояния |
+| 4 | Проверить петли ОС | Reinforcing и balancing loops |
+| 5 | Проверить симуляцию | Архетипы игроков, resource_curves по тикам |
+| 6 | Проверить качество | Quality Assessment: 6 проверок, stability_index, build_gap |
+| 7 | Проверить патологии | Обнаружение 6 патологий экономики |
+
+#### UI-46: Полный анализ балансировки (Блок 4, 4.C.1–4.C.3) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | POST /api/v1/balance/analyze с run_monte_carlo=True, run_machinations=True | BalanceResult с 7 этапами |
+| 2 | Проверить stages_completed | [1,2,3,4,5,6,7] — все этапы пройдены |
+| 3 | Проверить transitive_result | Cost-power кривые, warnings, suggestions |
+| 4 | Проверить intransitive_result | Payoff-матрица, Нэш, RPS-циклы |
+| 5 | Проверить situational_result | EV, универсальность, мёртвые зоны |
+| 6 | Проверить q_factor_result | Избыточные объекты, доминантные атрибуты |
+| 7 | Проверить monte_carlo_result | Win rates, вердикт, корреляция |
+| 8 | Проверить machinations_result | Граф, качество, патологии |
+| 9 | Проверить stability | StabilityAnalysis: overall_stability, pathology_risks |
+
+#### UI-47: Анализ устойчивости (Блок 4, 4.C.3) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | После MC + Machinations симуляции | StabilityAnalysis с overall_stability |
+| 2 | Проверить overall_stability | stable / conditionally_stable / unstable |
+| 3 | Проверить pathology_risks | Риски по каждой патологии (0–1) |
+| 4 | Проверить recommendations | Рекомендации по устранению нестабильности |
+
+#### UI-48: Эмоциональное восприятие чисел (Блок 4, 4.C.3) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | После MC-симуляции | NumberFormatReport в monte_carlo_result |
+| 2 | Проверить лёгкие числа | Кратные 5/10 числа помечены как «лёгкие» |
+| 3 | Проверить тяжёлые числа | Некруглые числа помечены как «тяжёлые» |
+| 4 | Проверить assessment | Общая оценка восприятия чисел в игре |
+
+#### UI-49: Pipeline — состояние пайплайна (4.B.12) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | GET /api/v1/pipeline/state/{project_id} | Статусы блоков, stale-уведомления, прогресс |
+| 2 | Проверить статусы блоков | empty/in_progress/completed/stale для каждого блока |
+| 3 | Проверить completion_percent | Процент заполненности проекта |
+| 4 | Проверить recommended_next | Рекомендация следующего блока |
+
+#### UI-50: Pipeline — автозаполнение (4.B.12) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | Нажать «Загрузить из пайплайна» на Блоке 2 | Поля заполняются данными из Блока 1 |
+| 2 | Нажать «Загрузить из пайплайна» на Блоке 3 | Поля заполняются данными из Блоков 1-2 |
+| 3 | Проверить зелёный бейдж «Данные из пайплайна» | Индикатор успешной загрузки |
+| 4 | Попробовать загрузить без заполненного Блока 1 | Предупреждение «Блок 1 не заполнен» |
+
+#### UI-51: Pipeline — запуск полного пайплайна (4.B.12) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | Нажать «Запустить пайплайн 1→2→3» | Индикатор загрузки |
+| 2 | Дождаться завершения | Результат концепции + обновлённое состояние пайплайна |
+| 3 | Проверить sidebar | Блоки 1-3 обновлены до «completed» |
+| 4 | Проверить toast-уведомление | «Пайплайн завершён» |
+
+#### UI-52: Pipeline — stale-уведомления (4.B.12) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | Обновить данные Блока 1 | Блоки 2-8 помечаются как stale |
+| 2 | Проверить PipelineNotifications | Предупреждение «Концепция обновлена. Рекомендуется пересчитать Core Loop» |
+| 3 | Нажать «Перейти к блоку» | Переход на страницу Блока 2 |
+| 4 | Снять stale-статус | DELETE /pipeline/stale, статус снимается |
+
 #### UI-15: MDA Lab (Блок 3, скелет)
 
 | Шаг | Действие | Ожидаемый результат |
@@ -1187,6 +1356,39 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 | 12 | Проверить recommendations | ★ Формализованные + AI-рекомендации |
 | 13 | Проверить stages_completed | ★ [1,2,3,4,5] |
 
+### E2E-04: Балансировка и симуляция (Блок 4, 4.C.1–4.C.3) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | Зарегистрироваться и залогиниться | Аккаунт создан |
+| 2 | Сгенерировать концепцию (Блок 1) | OnePager с данными |
+| 3 | Проектировать Core Loop (Блок 2) | CoreLoopProfile |
+| 4 | Запустить MDA-анализ (Блок 3) | MDAProfile |
+| 5 | Открыть /blocks/4 | Страница балансировки |
+| 6 | Ввести игровые объекты с атрибутами и стоимостью | Форма заполнена |
+| 7 | Запустить транзитивный анализ | Cost-power кривые, пере-/недооценённые объекты |
+| 8 | Запустить нетранзитивный анализ | Payoff-матрица, Нэш, RPS-циклы |
+| 9 | Запустить ситуационный анализ | EV, универсальность, мёртвые зоны |
+| 10 | Запустить Q-фактор | Избыточные объекты, доминантные атрибуты |
+| 11 | Запустить Monte Carlo-симуляцию | Win rates, вердикт, корреляция |
+| 12 | Запустить Machinations-симуляцию | Граф, качество, патологии |
+| 13 | Проверить анализ устойчивости | overall_stability, pathology_risks |
+| 14 | Проверить stages_completed | [1,2,3,4,5,6,7] |
+
+### E2E-05: Сквозной пайплайн (Блоки 1–3) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | Зарегистрироваться и залогиниться | Аккаунт создан |
+| 2 | Создать проект | Проект в списке |
+| 3 | Нажать «Запустить пайплайн 1→2→3» | Загрузка |
+| 4 | Проверить результат концепции | OnePager с genre, эстетиками, механиками |
+| 5 | Проверить sidebar | Блоки 1-3 «completed» |
+| 6 | Открыть Блок 2 | Данные из пайплайна предзаполнены |
+| 7 | Открыть Блок 3 | Данные из пайплайна предзаполнены |
+| 8 | Обновить данные Блока 1 | Блоки 2-3 stale |
+| 9 | Проверить уведомление | «Концепция обновлена. Рекомендуется пересчитать Core Loop» |
+
 ---
 
 ## 6. Сводка покрытия тестами
@@ -1210,11 +1412,39 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 | CoreLoop Service (Этап 1) | 11 | — | ✅ |
 | CoreLoop Service (Этап 2) | 10 | — | ✅ |
 | CoreLoop Service (Этап 3) | 12 | — | ✅ |
-| ★ CoreLoop Service (Этап 4: Валидация) | 19 | — | ★ Новое |
-| ★ CoreLoop Service (Этап 5: Рекомендации) | 11 | — | ★ Новое |
-| ★ CoreLoop полный пайплайн | 7 | — | ★ Новое |
-| ★ API CoreLoop | 6 | — | ★ Новое |
-| **Итого** | **168** | **baseline** | |
+| CoreLoop Service (Этап 4: Валидация) | 19 | — | ✅ |
+| CoreLoop Service (Этап 5: Рекомендации) | 11 | — | ✅ |
+| CoreLoop полный пайплайн | 7 | — | ✅ |
+| API CoreLoop | 6 | — | ✅ |
+| JWT Secret Property | 3 | — | ✅ |
+| MDA Service (Этап 1) | 11 | — | ✅ |
+| MDA Service (Этап 2) | 12 | — | ✅ |
+| MDA Service (Этап 3) | 18 | — | ✅ |
+| MDA Service (Полный 1–3) | 6 | — | ✅ |
+| API MDA Lab | 5 | — | ✅ |
+| MDA Service (Этап 4) | 16 | — | ✅ |
+| MDA Service (Этап 5) | 17 | — | ✅ |
+| MDA Service (Этап 6) | 19 | — | ✅ |
+| MDA Service (Полный 1–6) | 10 | — | ✅ |
+| API MDA Lab (Полный) | 5 | — | ✅ |
+| Pipeline Service | 17 | — | ✅ |
+| Pipeline API | 6 | — | ✅ |
+| Balance Service (Классификация) | 3 | — | ✅ |
+| Balance Service (Транзитивный) | 8 | — | ✅ |
+| Balance Service (Стабильность) | 3 | — | ✅ |
+| Balance Service (Полный пайплайн 4.C.1) | 3 | — | ✅ |
+| Balance Service (API 4.C.1) | 2 | — | ✅ |
+| Balance Service (Вспомогательные) | 7 | — | ✅ |
+| Balance Service (Нетранзитивный 4.C.2) | 7 | — | ✅ |
+| Balance Service (Ситуационный 4.C.2) | 7 | — | ✅ |
+| Balance Service (Q-фактор 4.C.2) | 6 | — | ✅ |
+| Balance Service (Полный пайплайн 4.C.2) | 4 | — | ✅ |
+| Balance Service (API 4.C.2) | 3 | — | ✅ |
+| ★ Balance Service (Monte Carlo 4.C.3) | 8 | — | ★ Новое |
+| ★ Balance Service (Machinations 4.C.3) | 10 | — | ★ Новое |
+| ★ Balance Service (Устойчивость 4.C.3) | 6 | — | ★ Новое |
+| ★ Balance Service (API MC+Mach 4.C.3) | 6 | — | ★ Новое |
+| **Итого** | **396** | **baseline** | |
 
 ### 6.2 Frontend — покрытие по модулям
 
@@ -1226,8 +1456,12 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 | Sidebar | 3 | — | ✅ |
 | Главная страница | 2 | — | ✅ |
 | Форма концепции | 2 | — | ✅ |
-| ★ Компоненты результата (4.B.5) | 7 | — | ★ Новое |
-| **Итого** | **22** | **baseline** | |
+| Компоненты результата (4.B.5) | 7 | — | ✅ |
+| Core Loop Designer (4.B.8) | 16 | — | ✅ |
+| MDA Lab (4.B.11) | 20 | — | ✅ |
+| ★ Pipeline-компоненты (4.B.12) | 10 | — | ★ Новое |
+| ★ Баланс и симуляция (4.C.3–4.C.4) | 5 | — | ★ Новое |
+| **Итого** | **73** | **baseline** | |
 
 ### 6.3 Ручные UI-тесты
 
@@ -1239,19 +1473,48 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 | Генератор концепции (ввод) | 7 | ✅ |
 | Валидация концепции | 7 | ✅ |
 | One-Pager | 11 | ✅ |
-| ★ Результат — OnePagerCard | 6 | ★ Новое |
-| ★ Результат — AestheticProfileView | 3 | ★ Новое |
-| ★ Результат — MechanicSetView | 5 | ★ Новое |
-| ★ Результат — CoreLoopCandidates | 4 | ★ Новое |
-| ★ Результат — USPCandidates | 4 | ★ Новое |
-| ★ Результат — ValidationReportView | 5 | ★ Новое |
-| ★ Core Loop Designer (API) | 5 | ★ Новое |
-| Скелетные блоки (3–7) | 10 | ✅ |
+| Результат — OnePagerCard | 6 | ✅ |
+| Результат — AestheticProfileView | 3 | ✅ |
+| Результат — MechanicSetView | 5 | ✅ |
+| Результат — CoreLoopCandidates | 4 | ✅ |
+| Результат — USPCandidates | 4 | ✅ |
+| Результат — ValidationReportView | 5 | ✅ |
+| Core Loop Designer (API) | 5 | ✅ |
+| Core Loop Designer (UI) | 15 | ✅ |
+| MDA Lab (Backend) | 9 | ✅ |
+| MDA Lab (UI) | 9 | ✅ |
+| MDA Lab (Classic MDA + валидация) | 11 | ✅ |
+| MDALabPage (рендер и навигация) | 7 | ✅ |
+| MDALabPage (форма) | 8 | ✅ |
+| MDALabPage (full_analysis) | 5 | ✅ |
+| ReverseMDAPanel | 6 | ✅ |
+| ClassicMDAPanel | 6 | ✅ |
+| LensAuditPanel | 7 | ✅ |
+| BondMatrixPanel | 7 | ✅ |
+| MDALabPage (API интеграция) | 7 | ✅ |
+| MDALabPage (обработка ошибок) | 4 | ✅ |
+| MDALabPage (предупреждения) | 4 | ✅ |
+| MDALabPage (мета-информация) | 5 | ✅ |
+| MDALabPage (E2E) | 12 | ✅ |
+| Скелетные блоки (4–7) | 8 | ✅ |
 | Запланированные (8) | 2 | ✅ |
 | Responsive | 4 | ✅ |
 | Обработка ошибок | 4 | ✅ |
 | Главная страница | 4 | ✅ |
-| **Итого** | **102** | |
+| ★ Балансировка — Транзитивный анализ | 6 | ★ Новое |
+| ★ Балансировка — Нетранзитивный анализ | 6 | ★ Новое |
+| ★ Балансировка — Ситуационный анализ | 6 | ★ Новое |
+| ★ Балансировка — Q-фактор | 4 | ★ Новое |
+| ★ Monte Carlo-симуляция | 6 | ★ Новое |
+| ★ Machinations-симуляция | 7 | ★ Новое |
+| ★ Полный анализ балансировки | 9 | ★ Новое |
+| ★ Анализ устойчивости | 4 | ★ Новое |
+| ★ Эмоциональное восприятие чисел | 4 | ★ Новое |
+| ★ Pipeline — состояние | 4 | ★ Новое |
+| ★ Pipeline — автозаполнение | 4 | ★ Новое |
+| ★ Pipeline — запуск пайплайна | 4 | ★ Новое |
+| ★ Pipeline — stale-уведомления | 4 | ★ Новое |
+| **Итого** | **254** | |
 
 ### 6.4 E2E-сценарии
 
@@ -1259,8 +1522,10 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 |----------|-------|--------|
 | Полный пайплайн генерации | 17 | ✅ |
 | Повторная валидация | 5 | ✅ |
-| ★ Core Loop Designer (Этапы 1–3) | 10 | ★ Новое |
-| **Итого** | **32** | |
+| Core Loop Designer | 13 | ✅ |
+| ★ Балансировка и симуляция | 14 | ★ Новое |
+| ★ Сквозной пайплайн 1→2→3 | 9 | ★ Новое |
+| **Итого** | **58** | |
 
 ### 6.5 Целевое покрытие (критерий C8 из ROADMAP)
 
@@ -1453,6 +1718,56 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 | B-364 | test_api_balance_intransitive | POST /api/v1/balance/intransitive — payoff-матрица, Нэш, RPS |
 | B-365 | test_api_balance_situational | POST /api/v1/balance/situational — EV, универсальность |
 | B-366 | test_api_balance_qfactor | POST /api/v1/balance/qfactor — избыточные объекты |
+
+##### Balance Service — Monte Carlo-симуляция (4.C.3) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-367 | test_monte_carlo_simulate_basic | Базовая Monte Carlo-симуляция с 3+ объектами (N ≥ 1000 итераций) |
+| B-368 | test_monte_carlo_win_rates | Расчёт win_rates для каждого объекта (сумма ≈ 1.0 для 1v1) |
+| B-369 | test_monte_carlo_spread_verdict | Win rate spread → вердикт GOOD (<0.15), MODERATE (<0.30), POOR (>=0.30) |
+| B-370 | test_monte_carlo_matchup_matrix | Попарные результаты (wins_a, wins_b, draws, avg_duration) |
+| B-371 | test_monte_carlo_cross_validation | Кросс-валидация с формальным ранжированием (корреляция Спирмена) |
+| B-372 | test_monte_carlo_discrepancy_analysis | Анализ расхождения через ANALYZE_DISCREPANCY при корреляции < 0.5 |
+| B-373 | test_monte_carlo_number_format_report | Оценка эмоционального восприятия чисел (лёгкие/тяжёлые) |
+| B-374 | test_monte_carlo_random_seed | Воспроизводимость результатов при фиксированном random_seed |
+
+##### Balance Service — Machinations-симуляция (4.C.3) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-375 | test_machinations_graph_build | Построение Machinations-графа из ресурсов (8 типов узлов) |
+| B-376 | test_machinations_resource_flows | Потоки ресурсов (сплошные стрелки) и связи состояния (пунктирные) |
+| B-377 | test_machinations_feedback_loops | Обнаружение петель обратной связи (reinforcing/balancing) |
+| B-378 | test_machinations_economy_type | Определение типа экономики (engine/economy/ecology/hybrid) |
+| B-379 | test_machinations_adams_patterns | Обнаружение 16 структурных паттернов Adams/Dormans |
+| B-380 | test_machinations_simulate_ticks | Симуляция N тиков с 4 архетипами игроков |
+| B-381 | test_machinations_stability_index | Индекс стабильности (stability_index > 0.7 = стабильно) |
+| B-382 | test_machinations_build_gap | Разрыв билдов (build_gap < 3.0× = приемлемо) |
+| B-383 | test_machinations_quality_assessment | Quality Assessment: 6 проверок + critical_issues |
+| B-384 | test_machinations_pathology_detection | Обнаружение 6 патологий: runaway, deadlock, stall, oscillation, inflation, stagnation |
+
+##### Balance Service — Комбинированный анализ устойчивости (4.C.3) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-385 | test_combined_stability_stable | Комбинация MC + Machinations → overall_stability=stable |
+| B-386 | test_combined_stability_conditionally_stable | Условная стабильность при смешанных результатах |
+| B-387 | test_combined_stability_unstable | Нестабильность при критических патологиях в обоих анализах |
+| B-388 | test_stability_analysis_type | StabilityAnalysis — Pydantic-модель вместо raw dict |
+| B-389 | test_balance_full_with_monte_carlo | Полный пайплайн с run_monte_carlo=True |
+| B-390 | test_balance_full_with_machinations | Полный пайплайн с run_machinations=True |
+
+##### Balance Service — API Monte Carlo и Machinations (4.C.3) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-391 | test_api_balance_monte_carlo | POST /api/v1/balance/monte-carlo — win_rates, вердикт, корреляция |
+| B-392 | test_api_balance_monte_carlo_unauthorized | 401 без авторизации |
+| B-393 | test_api_balance_monte_carlo_invalid_input | 400 при невалидных данных |
+| B-394 | test_api_balance_machinations | POST /api/v1/balance/machinations — граф, качество, патологии |
+| B-395 | test_api_balance_machinations_unauthorized | 401 без авторизации |
+| B-396 | test_api_balance_analyze_full | POST /api/v1/balance/analyze — полный пайплайн Этапов 1–7 с MC + Machinations |
 
 ---
 ## 8. Pre-commit хуки

@@ -1,13 +1,15 @@
 """
 Блок 4: Баланс и симуляция — API endpoints.
-Фаза 4.C.1–4.C.2: Полная реализация Этапов 1–5 + Q-фактор алгоритма 3.4.
+Фаза 4.C.1–4.C.3: Полная реализация Этапов 1–5 + Q-фактор + симуляции алгоритма 3.4.
 
 Endpoints:
 - POST /transitive — transitive-анализ баланса (Этап 2)
 - POST /intransitive — нетранзитивный анализ (Этап 3)
 - POST /situational — ситуационный анализ (Этап 4)
 - POST /qfactor — Q-фактор анализ
-- POST /analyze — полный анализ баланса (Этапы 1–5 + Q-фактор)
+- POST /monte-carlo — Monte Carlo-симуляция баланса (алгоритм 3.4.9, 4.C.3)
+- POST /machinations — Machinations-симуляция экономики (алгоритм 3.6, 4.C.3)
+- POST /analyze — полный анализ баланса (Этапы 1–5 + Q-фактор + симуляции)
 - GET /{project_id} — получить результаты балансировки для проекта
 """
 
@@ -28,6 +30,11 @@ from app.schemas.balance import (
     IntransitiveResult,
     SituationalResult,
     QFactorResult,
+    SimulationConfig,
+    MonteCarloResult,
+    MachinationsGraph,
+    MachinationsSimConfig,
+    MachinationsSimResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -98,6 +105,56 @@ class QFactorRequest(BaseModel):
     genre: str = Field("", description="Жанр игры")
 
 
+class MonteCarloRequest(BaseModel):
+    """Входные данные для Monte Carlo-симуляции."""
+    objects: List[BalanceObjectRequest] = Field(
+        ..., description="Список объектов для симуляции",
+    )
+    game_mode: str = Field("PvP", description="PvP/PvE/PvPvE")
+    genre: str = Field("", description="Жанр игры")
+    num_iterations: int = Field(10000, description="Количество итераций")
+    random_seed: int = Field(42, description="Seed для воспроизводимости")
+    matchup_format: str = Field("1v1", description="1v1/team")
+
+
+class MachinationsRequest(BaseModel):
+    """Входные данные для Machinations-симуляции."""
+    objects: List[BalanceObjectRequest] = Field(
+        ..., description="Список объектов",
+    )
+    resources: List[dict] = Field(
+        default_factory=list, description="Ресурсные профили",
+    )
+    game_mode: str = Field("PvE", description="PvP/PvE/PvPvE")
+    genre: str = Field("", description="Жанр игры")
+    ticks: int = Field(1000, description="Количество тиков симуляции")
+    num_runs: int = Field(100, description="Количество прогонов")
+    recording_interval: int = Field(100, description="Интервал записи снепшота")
+
+
+class MonteCarloResponse(BaseModel):
+    """Результат Monte Carlo-симуляции."""
+    config: dict
+    win_rates: dict[str, float]
+    avg_duration: dict[str, float]
+    matchup_matrix: dict[str, dict[str, dict]]
+    win_rate_spread: float
+    ranking_correlation: float
+    balance_verdict: str
+    warnings: List[str]
+    suggestions: List[str]
+
+
+class MachinationsResponse(BaseModel):
+    """Результат Machinations-симуляции."""
+    graph: Optional[dict] = None
+    runs: int = 0
+    aggregated: Optional[dict] = None
+    quality: Optional[dict] = None
+    detected_pathologies: List[str] = []
+    recommendations: List[str] = []
+
+
 class FullBalanceRequest(BaseModel):
     """Входные данные для полного анализа баланса (алгоритм 3.4, Этапы 1–5 + Q)."""
     objects: List[BalanceObjectRequest] = Field(
@@ -116,6 +173,8 @@ class FullBalanceRequest(BaseModel):
     run_intransitive: bool = Field(True, description="Запустить нетранзитивный анализ")
     run_situational: bool = Field(True, description="Запустить ситуационный анализ")
     run_q_factor: bool = Field(True, description="Запустить Q-фактор анализ")
+    run_monte_carlo: bool = Field(True, description="Запустить Monte Carlo-симуляцию")
+    run_machinations: bool = Field(True, description="Запустить Machinations-симуляцию")
 
 
 class TransitiveBalanceResponse(BaseModel):
@@ -178,6 +237,8 @@ class FullBalanceResponse(BaseModel):
     situational_result: Optional[dict] = None
     q_factor_result: Optional[dict] = None
     stability: Optional[dict] = None
+    monte_carlo_result: Optional[dict] = None
+    machinations_result: Optional[dict] = None
     stages_completed: List[int] = []
     latency_ms: int = 0
     models_used: List[str] = []
@@ -581,15 +642,9 @@ async def analyze_balance(
             run_intransitive=input_data.run_intransitive,
             run_situational=input_data.run_situational,
             run_q_factor=input_data.run_q_factor,
+            run_monte_carlo=input_data.run_monte_carlo,
+            run_machinations=input_data.run_machinations,
         )
-
-        # Извлекаем stability из warnings (Stage 3)
-        stability = None
-        if result.balance_map:
-            feedback_loops = service._extract_feedback_loops(
-                input_data.mda_profile, result.balance_map,
-            )
-            stability = service.analyze_stability(feedback_loops)
 
         result_id = uuid.uuid4().hex
 
@@ -600,7 +655,9 @@ async def analyze_balance(
             intransitive_result=result.intransitive_result.model_dump() if result.intransitive_result else None,
             situational_result=result.situational_result.model_dump() if result.situational_result else None,
             q_factor_result=result.q_factor_result.model_dump() if result.q_factor_result else None,
-            stability=stability,
+            stability=result.stability.model_dump() if result.stability else None,
+            monte_carlo_result=result.monte_carlo_result.model_dump() if result.monte_carlo_result else None,
+            machinations_result=result.machinations_result.model_dump() if result.machinations_result else None,
             stages_completed=result.stages_completed,
             latency_ms=result.latency_ms,
             models_used=result.models_used,
@@ -618,6 +675,147 @@ async def analyze_balance(
         raise HTTPException(status_code=503, detail="AI-сервис временно недоступен. Попробуйте позже.")
     except Exception as e:
         logger.error(f"Unexpected error in balance analysis: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
+
+
+@router.post("/monte-carlo", response_model=MonteCarloResponse)
+async def monte_carlo_simulation(
+    input_data: MonteCarloRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Monte Carlo-симуляция баланса (алгоритм 3.4.9, 4.C.3).
+
+    Выполняет:
+    1. Моделирование N боёв со стохастическими параметрами
+    2. Агрегацию win rate, средней длительности, парных сравнений
+    3. Сравнение с формальным ранжированием (корреляция Спирмена)
+    4. Оценку эмоционального восприятия чисел
+
+    Возвращает MonteCarloResult с вердиктом GOOD/MODERATE/POOR.
+    """
+    user_id = current_user.id
+    logger.info(f"Monte Carlo simulation for user {user_id}")
+
+    try:
+        service = await get_balance_service()
+
+        balance_input = _build_balance_input(
+            input_data.objects,
+            game_mode=input_data.game_mode,
+            genre=input_data.genre,
+        )
+
+        # Сначала нужен transitive-анализ для формального ранжирования
+        balance_map = await service.classify_balance_task(input_data=balance_input)
+        transitive_result = await service.transitive_balance(
+            input_data=balance_input, balance_map=balance_map,
+        )
+
+        sim_config = SimulationConfig(
+            num_iterations=input_data.num_iterations,
+            matchup_format=input_data.matchup_format,
+            random_seed=input_data.random_seed,
+        )
+
+        result = await service.monte_carlo_simulate(
+            input_data=balance_input,
+            transitive_result=transitive_result,
+            balance_map=balance_map,
+            config=sim_config,
+        )
+
+        response = MonteCarloResponse(
+            config=result.config.model_dump(),
+            win_rates=result.win_rates,
+            avg_duration=result.avg_duration,
+            matchup_matrix=result.matchup_matrix,
+            win_rate_spread=result.win_rate_spread,
+            ranking_correlation=result.ranking_correlation,
+            balance_verdict=result.balance_verdict,
+            warnings=result.warnings,
+            suggestions=result.suggestions,
+        )
+
+        return response
+
+    except ValueError as e:
+        logger.error(f"Validation error in Monte Carlo: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error in Monte Carlo: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
+
+
+@router.post("/machinations", response_model=MachinationsResponse)
+async def machinations_simulation(
+    input_data: MachinationsRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Machinations-симуляция экономики (алгоритм 3.6, 4.C.3).
+
+    Выполняет:
+    1. Построение Machinations-графа из ресурсов
+    2. Симуляцию N тиков с разными стратегиями игроков
+    3. Агрегацию результатов (runaway/stall частота, stability index)
+    4. Оценку качества экономики
+
+    Возвращает MachinationsSimResult с оценкой качества и патологиями.
+    """
+    user_id = current_user.id
+    logger.info(f"Machinations simulation for user {user_id}")
+
+    try:
+        service = await get_balance_service()
+
+        balance_input = BalanceInput(
+            objects=_convert_objects(input_data.objects),
+            resources=input_data.resources,
+            game_mode=input_data.game_mode,
+            genre=input_data.genre,
+        )
+
+        balance_map = await service.classify_balance_task(input_data=balance_input)
+        transitive_result = await service.transitive_balance(
+            input_data=balance_input, balance_map=balance_map,
+        )
+
+        # Построение графа
+        graph = service.build_machinations_graph(
+            input_data=balance_input,
+            balance_map=balance_map,
+            transitive_result=transitive_result,
+        )
+
+        # Симуляция
+        sim_config = MachinationsSimConfig(
+            ticks=input_data.ticks,
+            num_runs=input_data.num_runs,
+            recording_interval=input_data.recording_interval,
+        )
+
+        result = service.machinations_simulate(
+            graph=graph,
+            config=sim_config,
+        )
+
+        response = MachinationsResponse(
+            graph=result.graph.model_dump() if result.graph else None,
+            runs=result.runs,
+            aggregated=result.aggregated.model_dump() if result.aggregated else None,
+            quality=result.quality.model_dump() if result.quality else None,
+            detected_pathologies=result.detected_pathologies,
+            recommendations=result.recommendations,
+        )
+
+        return response
+
+    except ValueError as e:
+        logger.error(f"Validation error in Machinations: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error in Machinations: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
 
 

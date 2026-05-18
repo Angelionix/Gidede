@@ -9,6 +9,105 @@
 
 ---
 
+## [0.18.0] — 2026-05-19
+
+### Добавлено
+
+#### Тестовая документация — полное покрытие (4.C.3 + pipeline + все блоки)
+- Актуализирован полный перечень программных и UI тестов для всего функционала
+- Добавлены тест-кейсы для Monte Carlo-симуляции (4.C.3): B-367–B-374
+- Добавлены тест-кейсы для Machinations-симуляции (4.C.3): B-375–B-384
+- Добавлены тест-кейсы для комбинированного анализа устойчивости (4.C.3): B-385–B-390
+- Добавлены тест-кейсы для API Monte Carlo и Machinations (4.C.3): B-391–B-396
+- Добавлены UI-тесты для Балансировки и симуляции (Блок 4): UI-40–UI-48
+- Добавлены UI-тесты для Pipeline (сквозной пайплайн): UI-49–UI-52
+- Добавлены frontend-тесты для Pipeline-компонентов: F-76–F-85
+- Обновлена сводка покрытия тестами (backend: 396+, frontend: 85+, UI: 134+, E2E: 45+)
+
+### Изменено
+- Версия обновлена с 0.17.0 до 0.18.0
+- `testing_plan.md` — полная актуализация: добавлены все тесты для 4.C.3, обновлены сводки, добавлены фикстуры для Balance Service
+- TD-013 → Resolved: Machinations-движок полностью реализован в 4.C.3
+
+### Техдолг
+- TD-013 → Resolved: Machinations-симуляция полностью реализована (8 типов узлов, 16 паттернов Adams/Dormans, Monte Carlo + Machinations симуляция, Quality Assessment, обнаружение 6 патологий)
+
+---
+
+## [0.17.0] — 2026-05-18
+
+### Добавлено
+
+#### Продвинутые модули (Фаза 4.C, Блок 4 Backend — симуляция)
+- Блок 4: Backend — Симуляция (Monte Carlo + Machinations) — 4.C.3
+  - **Этап 6: Monte Carlo-симуляция** (3.4.9)
+    - Моделирование N боёв/сессий (N ≥ 1000) со стохастическими параметрами
+    - Симуляция 1v1 боя: HP, damage, speed, defense + случайность (crit chance 5-15%, evasion 5-10%)
+    - Агрегация: win_rates, avg_duration, matchup_matrix (попарные результаты)
+    - Win rate spread: MAX - MIN → вердикт GOOD (<0.15), MODERATE (<0.30), POOR (>=0.30)
+    - Кросс-валидация с формальным ранжированием (корреляция Спирмена)
+    - Анализ расхождения через ANALYZE_DISCREPANCY промпт при корреляции < 0.5
+    - Оценка эмоционального восприятия чисел (Гэзэуэй/Кн. 9): «лёгкие» (кратные 5/10) vs «тяжёлые»
+  - **Этап 7: Machinations-симуляция** (3.6.5, 3.6.9)
+    - Построение Machinations-графа из ресурсов (Pool, Source, Drain, Converter, Trader, Gate)
+    - Потоки ресурсов (сплошные стрелки) и связи состояния (пунктирные стрелки)
+    - Обнаружение петель обратной связи (reinforcing/balancing)
+    - Определение типа экономики (engine/economy/ecology/hybrid)
+    - Обнаружение 16 структурных паттернов Adams/Dormans
+    - Симуляция N тиков с 4 архетипами игроков (optimal, casual, minmaxer, explorer)
+    - Агрегация: avg_resource_curves, resource_ranges, runaway/stall frequency
+    - Индекс стабильности (stability_index > 0.7 = стабильно)
+    - Разрыв билдов (build_gap < 3.0× = приемлемо)
+    - Quality Assessment: 6 проверок (resources_in_bounds, no_runaway, no_stall, build_gap, economy_stable)
+    - Обнаружение патологий: runaway, deadlock, stall, oscillation, inflation, stagnation
+  - **Комбинированный анализ устойчивости**
+    - StabilityAnalysis — типизированная Pydantic-модель (вместо raw dict)
+    - Комбинация результатов Monte Carlo + Machinations
+    - Определение overall_stability: stable/conditionally_stable/unstable
+
+#### Схемы данных (Блок 4 — Симуляция)
+- `StabilityAnalysis` — результат анализа устойчивости (overall_stability, pathology_risks, analysis, recommendations)
+- `SimulationConfig` — конфигурация MC-симуляции (num_iterations, matchup_format, random_seed)
+- `MatchupData` — парный результат MC (wins_a, wins_b, draws, avg_duration)
+- `NumberFormatReport` — эмоциональное восприятие чисел (light/heavy_numbers, assessment)
+- `MonteCarloResult` — результат MC-симуляции (win_rates, spread, correlation, verdict)
+- `MachinationsNode` — узел графа (pool/source/drain/converter/trader/gate/delay/queue)
+- `MachinationsResourceFlow` — поток ресурсов (source_id, target_id, resource, rate)
+- `MachinationsStateConnection` — связь состояния (modifier, formula)
+- `MachinationsFeedbackLoop` — обратная связь (nodes, loop_type, strength)
+- `MachinationsGraph` — полный граф (nodes, flows, connections, patterns)
+- `MachinationsSimConfig` — конфигурация Machinations-симуляции (ticks, num_runs, players)
+- `EconomyRunSnapshot` — снепшот экономики (tick, resources, level, actions)
+- `AggregatedSimData` — агрегированные данные (curves, ranges, runaway/stall frequency, stability_index)
+- `QualityAssessment` — оценка качества экономики (6 проверок + critical_issues)
+- `MachinationsSimResult` — результат Machinations-симуляции (graph, aggregated, quality, pathologies)
+- `BalanceResult` — расширен: добавлены поля stability, monte_carlo_result, machinations_result
+
+#### API
+- POST `/api/v1/balance/monte-carlo` — Monte Carlo-симуляция баланса (win rates, вердикт, корреляция)
+- POST `/api/v1/balance/machinations` — Machinations-симуляция экономики (граф, качество, патологии)
+- POST `/api/v1/balance/analyze` — обновлён: полный пайплайн Этапов 1–7 + Q-фактор с параметрами run_monte_carlo, run_machinations
+
+#### Промпты
+- `ANALYZE_DISCREPANCY` — анализ расхождения формального и симуляционного ранжирования (Блок 4, итого 6 промптов)
+
+#### Тесты
+- 24 теста для симуляций: Monte Carlo (8), Machinations Graph (5), Machinations Simulation (5), Combined Stability (3), Full Pipeline (3)
+
+### Изменено
+- `balance_service.py` — расширен с Этапов 1–5 + Q-фактор до Этапов 1–7 + Q-фактор
+- `balance_full()` — добавлены параметры run_monte_carlo, run_machinations; добавлены Этапы 6–7
+- `analyze_stability()` — теперь возвращает типизированную StabilityAnalysis вместо raw dict
+- `BalanceResult` — поле `stability` теперь StabilityAnalysis (вместо Optional[dict]); добавлены monte_carlo_result, machinations_result
+- `services/__init__.py` — обновлён комментарий: 4.C.1–4.C.3
+- `schemas/__init__.py` — добавлен экспорт 16 новых balance schemas
+- Версия обновлена с 0.16.0 до 0.17.0
+
+### Техдолг
+- TD-013 → In Progress: Machinations-симуляция реализована в 4.C.3; полная интеграция с экономикой (Блок 5) в 4.C.6
+
+---
+
 ## [0.16.0] — 2026-05-18
 
 ### Добавлено

@@ -1,3 +1,9 @@
+[project]
+name = "gidede-api-service"
+version = "0.1.0"
+description = "Gidede — AI-powered Game Design Assistant (Backend API)"
+requires-python = ">=3.12"
+
 [tool.ruff]
 target-version = "py312"
 line-length = 120

@@ -1,7 +1,16 @@
 """Конфигурация API-сервиса Gidede."""
 
 import os
+from pathlib import Path
 from typing import List
+
+
+def _read_version() -> str:
+    """Читает версию из файла VERSION в корне монорепозитория."""
+    version_file = Path(__file__).resolve().parent.parent.parent.parent.parent / "VERSION"
+    if version_file.exists():
+        return version_file.read_text().strip()
+    return "0.1.0"
 
 
 class Settings:
@@ -9,7 +18,7 @@ class Settings:
 
     # Приложение
     APP_NAME: str = "Gidede API"
-    VERSION: str = "0.3.0"
+    VERSION: str = _read_version()
     DEBUG: bool = os.getenv("NODE_ENV", "development") == "development"
     PORT: int = int(os.getenv("API_SERVICE_PORT", "3030"))
 

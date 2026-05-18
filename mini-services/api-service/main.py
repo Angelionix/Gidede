@@ -69,7 +69,7 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Gidede API",
     description="AI-powered Game Design Assistant — Backend API",
-    version="0.5.0",
+    version=settings.VERSION,
     docs_url="/api/v1/docs",
     redoc_url="/api/v1/redoc",
     openapi_url="/api/v1/openapi.json",

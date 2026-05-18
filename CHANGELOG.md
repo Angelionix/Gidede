@@ -9,6 +9,67 @@
 
 ---
 
+## [0.11.0] — 2026-05-18
+
+### Добавлено
+
+#### Основные модули (Фаза 4.B, Блок 3 Backend)
+- Блок 3: Backend — MDA аналитический проход и валидация (Этапы 4–6) — 4.B.10
+  - **Этап 4: Classic MDA — аналитический проход** (3.3.6)
+    - Моделирование геймплея через SIMULATE_GAMEPLAY промпт (Machinations-модель)
+    - Формализованный fallback при недоступности AI
+    - Вывод динамик из симулированного геймплея
+    - Вывод эстетики из наблюдаемых динамик (обратная таблица DYNAMICS_TO_AESTHETICS)
+    - Сравнение с целевой эстетикой и проверка сходимости (convergenceThreshold=0.8)
+    - Итеративная коррекция при несходимости (до maxIterations=3)
+    - Проверка устойчивости симуляции (runaway/deadlock/stall/oscillation)
+  - **Этап 5: Валидация через Линзы Шелла** (3.3.7)
+    - Выбор 9 приоритетных линз: Тетрада (#9), Единство (#11), Резонанс (#12), Эмерджентность (#30), Пространство действий (#31), Треугольность (#40), Доминантная стратегия (#41), Кривая интереса (#69), Свобода vs управляемость (#74)
+    - AI-оценка через APPLY_LENS_MDA промпт для каждой линзы
+    - Формализованный fallback-оценка для каждой линзы при недоступности AI
+    - Агрегация результатов: critical (<0.4), warnings (0.4–0.7), passed (>=0.7)
+    - Общий score как среднее по всем линзам
+  - **Этап 6: Матрица 4×3 Бонда + лудонарративный анализ** (3.3.8)
+    - Заполнение матрицы 4×3 (Механика/История/Эстетика/Технология × Фиксированный/Динамический/Культурный)
+    - Проверка горизонтальной согласованности (в каждой строке все 4 элемента)
+    - Проверка вертикальной согласованности (Фиксированный → Динамический → Культурный)
+    - Обнаружение лудонарративного диссонанса через CHECK_LUDONARRATIVE_MDA промпт
+    - Результат: Гармония / Ирония / Диссонанс
+    - Формализованный fallback при недоступности AI
+
+#### Схемы данных (MDA Lab — Этапы 4–6)
+- `GameplaySequenceStep` — шаг моделируемого геймплея (action, mechanics_used, resources)
+- `ResourceFlow` — поток ресурсов (source, target, resource, flow_type)
+- `FeedbackLoop` — петля обратной связи (positive/negative, stability)
+- `StabilityCheck` — проверка устойчивости симуляции (stable, pathology, correction)
+- `ClassicMDAResult` — результат Classic MDA прохода (observed_dynamics, predicted_aesthetics, match_scores, overall_match, converged)
+- `LensResult` — результат применения одной линзы Шелла (lens_id, score, issues, suggestions)
+- `LensValidation` — агрегация результатов 9 линз (critical_issues, warnings, overall_score)
+- `BondMatrixCell` — ячейка матрицы 4×3 Бонда (element, level, content)
+- `RowConsistency` — горизонтальная согласованность матрицы (level, score, dissonances)
+- `ColumnConsistency` — вертикальная согласованность матрицы (element, score, description)
+- `LudonarrativeCheck` — результат лудонарративного анализа (result, description, correction)
+- `BondValidation` — итоговый результат матрицы Бонда (matrix, row/col_consistency, ludonarrative, overall_consistency)
+
+#### API
+- POST `/api/v1/mda/analyze` — обновлён: добавлен параметр `full_analysis` (default: True)
+  - full_analysis=True: полный пайплайн Этапов 1–6
+  - full_analysis=False: только Этапы 1–3 (Reverse MDA)
+- MDAProfile расширен: добавлены поля classic_mda_result, lens_validation, bond_validation
+- stages_completed теперь [1,2,3,4,5,6] при полном анализе
+
+### Изменено
+- `mda_service.py` — расширен с Этапов 1–3 до Этапов 1–6
+- Добавлен метод `classic_mda_pass()` — Этап 4
+- Добавлен метод `validate_lenses()` — Этап 5
+- Добавлен метод `validate_bond_matrix()` — Этап 6
+- Добавлен метод `analyze_full()` — полный пайплайн Этапов 1–6
+- `mda.py` (schemas) — расширены модели для Этапов 4–6
+- `MDAProfile` — добавлены поля: classic_mda_result, lens_validation, bond_validation
+- Версия обновлена с 0.10.0 до 0.11.0
+
+---
+
 ## [0.9.0] — 2026-05-18
 
 ### Добавлено

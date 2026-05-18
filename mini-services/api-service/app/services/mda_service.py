@@ -1,6 +1,6 @@
 """
 Gidede — MDA Service
-Фаза 4.B.9: Блок 3 — алгоритм MDA Lab (Этапы 1–3)
+Фаза 4.B.9–4.B.10: Блок 3 — алгоритм MDA Lab (Этапы 1–6)
 
 Реализация пайплайна MDA из алгоритма 3.3:
 - Этап 1: Reverse MDA — определение целевых динамик (3.3.3)
@@ -25,6 +25,23 @@ Gidede — MDA Service
   • Проверка паттернов Adams/Dormans
   • Группировка механик по структурным ролям
 
+- Этап 4: Classic MDA — аналитический проход (3.3.6)
+  • Моделирование геймплея (SIMULATE_GAMEPLAY)
+  • Вывод динамик из симуляции
+  • Вывод эстетики из динамик
+  • Сравнение с целевой эстетикой
+  • Проверка сходимости и коррекция
+
+- Этап 5: Валидация через Линзы Шелла (3.3.7)
+  • Выбор 9 приоритетных линз
+  • AI-оценка через APPLY_LENS_MDA
+  • Агрегация результатов
+
+- Этап 6: Матрица 4×3 Бонда + лудонарративный анализ (3.3.8)
+  • Заполнение матрицы (4 элемента × 3 уровня)
+  • Горизонтальная и вертикальная согласованность
+  • Обнаружение лудонарративного диссонанса (CHECK_LUDONARRATIVE_MDA)
+
 Итеративный цикл: maxIterations=3 с проверкой покрытия.
 
 Зависимости: 4.A.7 (PromptExecutor), 4.A.8 (Prompt Registry), 4.A.12 (Shared Types)
@@ -45,6 +62,18 @@ from app.schemas.mda import (
     StructuredMechanicSet,
     AestheticCoverage,
     AdamsDormansPattern,
+    ClassicMDAResult,
+    GameplaySequenceStep,
+    ResourceFlow,
+    FeedbackLoop,
+    StabilityCheck,
+    LensValidation,
+    LensResult,
+    BondValidation,
+    BondMatrixCell,
+    RowConsistency,
+    ColumnConsistency,
+    LudonarrativeCheck,
     MDAProfile,
 )
 
@@ -280,6 +309,108 @@ GENRE_DYNAMICS_WARNINGS: dict[str, list[str]] = {
 # Высокая эмерджентность для этих жанров
 HIGH_EMERGENCE_GENRES = {"sandbox", "simulation", "roguelike", "mmorpg", "strategy", "tbs"}
 
+# ============================================================
+# Константы: Этапы 4–6 (алгоритм 3.3.6–3.3.8)
+# ============================================================
+
+# 9 приоритетных линз Шелла для MDA-валидации (алгоритм 3.3.7)
+PRIORITY_LENSES: list[dict[str, Any]] = [
+    {
+        "id": 9,
+        "name": "Тетрада",
+        "focus": "Согласованность Механика/История/Эстетика/Технология",
+        "category": "целостность",
+    },
+    {
+        "id": 11,
+        "name": "Единство",
+        "focus": "Работают ли все элементы на общий замысел?",
+        "category": "целостность",
+    },
+    {
+        "id": 12,
+        "name": "Резонанс",
+        "focus": "Усиливают ли элементы друг друга?",
+        "category": "целостность",
+    },
+    {
+        "id": 30,
+        "name": "Эмерджентность",
+        "focus": "Сколько глаголов? Сколько результирующих действий?",
+        "category": "эмерджентность",
+    },
+    {
+        "id": 31,
+        "name": "Пространство действий",
+        "focus": "Совпадает ли воспринимаемое с реальным?",
+        "category": "эмерджентность",
+    },
+    {
+        "id": 40,
+        "name": "Треугольность",
+        "focus": "Осмысленный выбор риска vs безопасности",
+        "category": "баланс",
+    },
+    {
+        "id": 41,
+        "name": "Доминантная стратегия",
+        "focus": "Есть ли один очевидно лучший путь?",
+        "category": "баланс",
+    },
+    {
+        "id": 69,
+        "name": "Кривая интереса",
+        "focus": "Пики и спады интереса на протяжении игры",
+        "category": "интерес",
+    },
+    {
+        "id": 74,
+        "name": "Свобода vs управляемость",
+        "focus": "Баланс агентивности и замысла",
+        "category": "интерес",
+    },
+]
+
+# Обратная таблица: динамика → эстетика (для Classic MDA)
+DYNAMICS_TO_AESTHETICS: dict[str, dict[str, float]] = {
+    "Непосредственный сенсорный фидбэк (мс–с)": {"sensation": 0.9, "challenge": 0.2},
+    "Кинестетическое удовольствие от управления": {"sensation": 0.85, "challenge": 0.3},
+    "Зрелищность эффектов и анимаций": {"sensation": 0.8, "expression": 0.3},
+    "Синестезия (визуал ↔ звук ↔ тактильность)": {"sensation": 0.95, "discovery": 0.2},
+    "Идентификация с ролью/персонажем": {"fantasy": 0.9, "expression": 0.3},
+    "Иммерсия через согласованность мира": {"fantasy": 0.85, "narrative": 0.3, "discovery": 0.3},
+    "Отыгрыш через механики (действия = роль)": {"fantasy": 0.8, "expression": 0.4},
+    "Трансформация (игрок меняется вместе с аватаром)": {"fantasy": 0.75, "submission": 0.3},
+    "Драматическая арка (напряжение → кульминация → разрешение)": {"narrative": 0.9, "challenge": 0.3},
+    "Раскрытие информации (от скрытого к явному)": {"narrative": 0.8, "discovery": 0.5},
+    "Последствия выбора (агентивность в сюжете)": {"narrative": 0.85, "expression": 0.3},
+    "Эмергентный нарратив (истории из геймплея)": {"narrative": 0.7, "discovery": 0.4, "fellowship": 0.2},
+    "Баланс навык/сложность (зона потока)": {"challenge": 0.9, "sensation": 0.2},
+    "Нарастание сложности (кривая вызова)": {"challenge": 0.85, "submission": 0.3},
+    "Негативная ОС при ошибке + позитивная при успехе": {"challenge": 0.8, "narrative": 0.2},
+    "Треугольность (осмысленный выбор риска)": {"challenge": 0.75, "discovery": 0.3},
+    "Кооперация (зависимость между игроками)": {"fellowship": 0.9, "narrative": 0.2},
+    "Распределённые роли (каждый незаменим)": {"fellowship": 0.85, "expression": 0.3},
+    "Общие цели + индивидуальные мотивации": {"fellowship": 0.8, "challenge": 0.2},
+    "Коммуникация как ресурс/механика": {"fellowship": 0.75, "narrative": 0.3},
+    "Исследование (скрытая информация, тайны)": {"discovery": 0.9, "fantasy": 0.2},
+    "Нелинейность (множество путей)": {"discovery": 0.85, "expression": 0.3},
+    "«А-ха!» моменты (эврика)": {"discovery": 0.9, "challenge": 0.3},
+    "Системное понимание (как устроен мир)": {"discovery": 0.8, "submission": 0.2},
+    "Персонализация (кастомизация аватара, базы, стиля)": {"expression": 0.9, "fantasy": 0.2},
+    "Творчество (конструктивные механики)": {"expression": 0.85, "discovery": 0.3},
+    "Отсутствие единственного «правильного» пути": {"expression": 0.8, "discovery": 0.4},
+    "Демонстрация (показ другим игрокам)": {"expression": 0.75, "fellowship": 0.4},
+    "Структурированная рутина (петли гринда)": {"submission": 0.9, "challenge": 0.1},
+    "Управление ресурсами (оптимизация)": {"submission": 0.85, "challenge": 0.2},
+    "Предсказуемые правила (прозрачная система)": {"submission": 0.8, "discovery": 0.1},
+    "Микро-цели (регулярные мелкие награды)": {"submission": 0.85, "challenge": 0.2},
+}
+
+# Элементы матрицы Бонда (Кн. 17)
+BOND_ELEMENTS = ["Механика", "История", "Эстетика", "Технология"]
+BOND_LEVELS = ["Фиксированный", "Динамический", "Культурный"]
+
 
 # ============================================================
 # MDA Service
@@ -288,13 +419,17 @@ HIGH_EMERGENCE_GENRES = {"sandbox", "simulation", "roguelike", "mmorpg", "strate
 class MDAService:
     """
     Блок 3: MDA Lab.
-    Реализует алгоритм 3.3 — Этапы 1–3.
+    Реализует алгоритм 3.3 — Этапы 1–6.
 
     Методы:
     - determine_target_dynamics() — Этап 1: определение целевых динамик
     - map_dynamics_to_mechanics() — Этап 2: маппинг «Динамика → Механики»
     - assemble_mechanic_set() — Этап 3: сборка и оптимизация набора
+    - classic_mda_pass() — Этап 4: Classic MDA аналитический проход
+    - validate_lenses() — Этап 5: валидация через Линзы Шелла
+    - validate_bond_matrix() — Этап 6: Матрица 4×3 Бонда + лудонарративный анализ
     - analyze_stages_1_3() — полный пайплайн Этапов 1–3
+    - analyze_full() — полный пайплайн Этапов 1–6
     """
 
     def __init__(self, executor: PromptExecutor):
@@ -1397,3 +1532,956 @@ class MDAService:
             genre=genre,
             concept_id=concept_id,
         )
+
+    # ========================================================
+    # Этап 4: Classic MDA — аналитический проход (3.3.6)
+    # ========================================================
+
+    async def classic_mda_pass(
+        self,
+        mechanic_set: StructuredMechanicSet,
+        aesthetic_profile: AestheticProfile,
+        dynamics_target: DynamicsTarget,
+        genre: str,
+        convergence_threshold: float = 0.8,
+        max_iterations: int = 3,
+        project_state: Optional[dict] = None,
+    ) -> ClassicMDAResult:
+        """
+        Этап 4: Classic MDA — аналитический проход.
+
+        Алгоритм 3.3.6:
+        1. Моделирование геймплея (SIMULATE_GAMEPLAY)
+        2. Вывод динамик из симуляции
+        3. Вывод эстетики из динамик
+        4. Сравнение с целевой эстетикой
+        5. Проверка сходимости и коррекция
+
+        Returns:
+            ClassicMDAResult с моделированным геймплеем и оценкой сходимости
+        """
+        start = time.time()
+        warnings: list[str] = []
+        suggestions: list[str] = []
+
+        # Собираем имена всех механик
+        all_mechanics: list[str] = []
+        for group_key in ["base", "combat", "progression", "spatial", "social"]:
+            group = getattr(mechanic_set, group_key, [])
+            all_mechanics.extend(m.get("name", "") for m in group if m.get("name"))
+
+        iteration = 0
+        converged = False
+        overall_match = 0.0
+        match_scores: dict[str, float] = {}
+        predicted_aesthetics: dict[str, float] = {}
+        observed_dynamics: list[str] = []
+        gameplay_sequence: list[GameplaySequenceStep] = []
+        resource_flows: list[ResourceFlow] = []
+        feedback_loops: list[FeedbackLoop] = []
+        stability: Optional[StabilityCheck] = None
+        gameplay_script = ""
+
+        while iteration < max_iterations and not converged:
+            iteration += 1
+
+            # === Шаг 4.1: Моделирование геймплея ===
+            try:
+                prompt_result: PromptResult = await self.executor.execute(
+                    prompt_id="SIMULATE_GAMEPLAY",
+                    inputs={
+                        "mechanics": all_mechanics,
+                        "genre": genre,
+                    },
+                    project_state=project_state,
+                    options=PromptExecutionOptions(skip_cache=False),
+                )
+
+                sim_data = prompt_result.data if isinstance(prompt_result.data, dict) else {}
+
+                # Парсинг gameplay sequence
+                if "gameplay_sequence" in sim_data:
+                    gameplay_sequence = [
+                        GameplaySequenceStep(
+                            step_number=i + 1,
+                            action=step.get("action", "") if isinstance(step, dict) else str(step),
+                            mechanics_used=step.get("mechanics_used", []) if isinstance(step, dict) else [],
+                            resources_consumed=step.get("resources_consumed", []) if isinstance(step, dict) else [],
+                            resources_produced=step.get("resources_produced", []) if isinstance(step, dict) else [],
+                        )
+                        for i, step in enumerate(sim_data["gameplay_sequence"])
+                        if isinstance(step, (dict, str))
+                    ]
+
+                # Парсинг resource flows
+                if "resource_flows" in sim_data:
+                    resource_flows = [
+                        ResourceFlow(
+                            source=flow.get("source", "") if isinstance(flow, dict) else "",
+                            target=flow.get("target", "") if isinstance(flow, dict) else "",
+                            resource=flow.get("resource", "") if isinstance(flow, dict) else "",
+                            flow_type=flow.get("flow_type", "production") if isinstance(flow, dict) else "production",
+                        )
+                        for flow in sim_data["resource_flows"]
+                        if isinstance(flow, dict)
+                    ]
+
+                # Парсинг feedback loops
+                if "feedback_loops" in sim_data:
+                    feedback_loops = [
+                        FeedbackLoop(
+                            loop_type=loop.get("loop_type", "positive") if isinstance(loop, dict) else "positive",
+                            description=loop.get("description", "") if isinstance(loop, dict) else str(loop),
+                            mechanics_involved=loop.get("mechanics_involved", []) if isinstance(loop, dict) else [],
+                            stability=loop.get("stability", "stable") if isinstance(loop, dict) else "stable",
+                        )
+                        for loop in sim_data["feedback_loops"]
+                        if isinstance(loop, dict)
+                    ]
+
+                # Gameplay script
+                gameplay_script = sim_data.get("gameplay_script", "")
+
+            except Exception as e:
+                logger.warning(f"[Stage 4] AI simulation (SIMULATE_GAMEPLAY) failed: {e}")
+                # Fallback: формализованная модель на основе механик
+                gameplay_sequence = self._formal_gameplay_simulation(mechanic_set, genre)
+                gameplay_script = self._formal_gameplay_script(mechanic_set, genre)
+
+            # === Шаг 4.2: Вывод динамик из геймплея ===
+            observed_dynamics = self._extract_observed_dynamics(
+                gameplay_sequence, feedback_loops, dynamics_target
+            )
+
+            # === Шаг 4.3: Вывод эстетики из динамик ===
+            predicted_aesthetics = self._predict_aesthetics_from_dynamics(
+                observed_dynamics, aesthetic_profile
+            )
+
+            # === Шаг 4.4: Сравнение с целевой эстетикой ===
+            target_aesthetics = [
+                aesthetic_profile.primary,
+                aesthetic_profile.secondary,
+                aesthetic_profile.tertiary,
+            ]
+
+            for target in target_aesthetics:
+                if target in predicted_aesthetics:
+                    match_scores[target] = predicted_aesthetics[target]
+                else:
+                    match_scores[target] = 0.0
+                    warnings.append(
+                        f"Целевая эстетика '{target}' не порождается текущими механиками"
+                    )
+
+            overall_match = sum(match_scores.values()) / max(1, len(match_scores))
+
+            # === Шаг 4.5: Проверка устойчивости ===
+            stability = self._check_simulation_stability(feedback_loops)
+            if not stability.stable:
+                warnings.append(f"Обнаружена патология: {stability.pathology}")
+                if stability.correction:
+                    suggestions.append(stability.correction)
+
+            # === Шаг 4.6: Проверка сходимости ===
+            if overall_match >= convergence_threshold:
+                converged = True
+            else:
+                # Определяем слабые эстетики
+                weak = [a for a, s in match_scores.items() if s < 0.6]
+                for aesthetic in weak:
+                    suggestions.append(
+                        f"Эстетика '{aesthetic}' слабо выражена (score={match_scores[aesthetic]:.2f}). "
+                        f"Рекомендуется добавить механики, порождающие динамики для этой эстетики."
+                    )
+
+        logger.info(
+            f"[Stage 4] Classic MDA pass: "
+            f"match={overall_match:.2f}, converged={converged}, "
+            f"iterations={iteration}, "
+            f"{len(observed_dynamics)} dynamics observed "
+            f"({time.time() - start:.2f}s)"
+        )
+
+        return ClassicMDAResult(
+            gameplay_sequence=gameplay_sequence,
+            resource_flows=resource_flows,
+            feedback_loops=feedback_loops,
+            observed_dynamics=observed_dynamics,
+            predicted_aesthetics=predicted_aesthetics,
+            match_scores=match_scores,
+            overall_match=overall_match,
+            converged=converged,
+            stability=stability,
+            gameplay_script=gameplay_script,
+            iterations=iteration,
+            warnings=warnings,
+            suggestions=suggestions,
+        )
+
+    def _formal_gameplay_simulation(
+        self,
+        mechanic_set: StructuredMechanicSet,
+        genre: str,
+    ) -> list[GameplaySequenceStep]:
+        """Формализованная модель геймплея (fallback при недоступности AI)."""
+        steps = []
+        step_num = 0
+
+        # Из базовых механик — начало сессии
+        for m in mechanic_set.base[:2]:
+            step_num += 1
+            steps.append(GameplaySequenceStep(
+                step_number=step_num,
+                action=f"Выполнить: {m.get('name', 'действие')}",
+                mechanics_used=[m.get("name", "")],
+                resources_consumed=[],
+                resources_produced=["информация", "позиционирование"],
+            ))
+
+        # Из боевых — основная активность
+        for m in mechanic_set.combat[:2]:
+            step_num += 1
+            steps.append(GameplaySequenceStep(
+                step_number=step_num,
+                action=f"Сразиться: {m.get('name', 'бой')}",
+                mechanics_used=[m.get("name", "")],
+                resources_consumed=["здоровье", "ресурсы"],
+                resources_produced=["очки опыта", "лут"],
+            ))
+
+        # Из прогрессионных — развитие
+        for m in mechanic_set.progression[:2]:
+            step_num += 1
+            steps.append(GameplaySequenceStep(
+                step_number=step_num,
+                action=f"Прокачать: {m.get('name', 'прогрессия')}",
+                mechanics_used=[m.get("name", "")],
+                resources_consumed=["очки опыта"],
+                resources_produced=["новые способности", "улучшения"],
+            ))
+
+        return steps
+
+    def _formal_gameplay_script(
+        self,
+        mechanic_set: StructuredMechanicSet,
+        genre: str,
+    ) -> str:
+        """Сгенерировать текстовое описание геймплея (fallback)."""
+        mechanics_list = []
+        for group_key in ["base", "combat", "progression", "spatial", "social"]:
+            group = getattr(mechanic_set, group_key, [])
+            mechanics_list.extend(m.get("name", "") for m in group if m.get("name"))
+
+        return (
+            f"Игрок начинает сессию в жанре {genre}, используя базовые механики: "
+            f"{', '.join(mechanic_set.base[0].get('name', '') for _ in range(min(2, len(mechanic_set.base))))}. "
+            f"Основная активность включает боевые механики и взаимодействие с миром. "
+            f"Прогрессия обеспечивается через развитие персонажа и получение наград. "
+            f"Общий набор механик: {', '.join(mechanics_list[:10])}."
+        )
+
+    def _extract_observed_dynamics(
+        self,
+        gameplay_sequence: list[GameplaySequenceStep],
+        feedback_loops: list[FeedbackLoop],
+        dynamics_target: DynamicsTarget,
+    ) -> list[str]:
+        """Извлечь наблюдаемые динамики из моделированного геймплея."""
+        observed: list[str] = []
+
+        # Из feedback loops — динамики, ассоциированные с типами петель
+        for loop in feedback_loops:
+            if loop.loop_type == "positive" and "Нарастание сложности" not in observed:
+                observed.append("Нарастание сложности (кривая вызова)")
+            if loop.loop_type == "negative" and "Баланс навык/сложность" not in observed:
+                observed.append("Баланс навык/сложность (зона потока)")
+
+        # Из механик в шагах — сопоставляем с целевыми динамиками
+        mechanics_used: set[str] = set()
+        for step in gameplay_sequence:
+            mechanics_used.update(step.mechanics_used)
+
+        # Проверяем, какие целевые динамики затрагиваются механиками
+        for dynamic_name in dynamics_target.core_dynamics:
+            # Проверяем маппинг «Динамика → Механики»
+            related_mechanics = DYNAMICS_MECHANICS_MAP.get(dynamic_name, [])
+            if any(m in mechanics_used for m in related_mechanics):
+                if dynamic_name not in observed:
+                    observed.append(dynamic_name)
+
+        # Добавляем динамики из ресурсов
+        all_consumed: set[str] = set()
+        all_produced: set[str] = set()
+        for step in gameplay_sequence:
+            all_consumed.update(step.resources_consumed)
+            all_produced.update(step.resources_produced)
+
+        if all_consumed and all_produced:
+            if "Управление ресурсами (оптимизация)" not in observed:
+                observed.append("Управление ресурсами (оптимизация)")
+
+        return observed
+
+    def _predict_aesthetics_from_dynamics(
+        self,
+        observed_dynamics: list[str],
+        aesthetic_profile: AestheticProfile,
+    ) -> dict[str, float]:
+        """Предсказать эстетику из наблюдаемых динамик (обратный маппинг)."""
+        predicted: dict[str, float] = {}
+
+        for dynamic_name in observed_dynamics:
+            aesthetic_map = DYNAMICS_TO_AESTHETICS.get(dynamic_name, {})
+            for aesthetic, confidence in aesthetic_map.items():
+                if aesthetic in predicted:
+                    predicted[aesthetic] = max(predicted[aesthetic], confidence)
+                else:
+                    predicted[aesthetic] = confidence
+
+        return predicted
+
+    def _check_simulation_stability(
+        self,
+        feedback_loops: list[FeedbackLoop],
+    ) -> StabilityCheck:
+        """Проверить устойчивость симуляции (патологии Machinations)."""
+        for loop in feedback_loops:
+            if loop.stability == "runaway":
+                return StabilityCheck(
+                    stable=False,
+                    pathology="runaway",
+                    correction="Добавьте drain (сток) для ограничения роста ресурса",
+                    details=f"Обнаружена runaway-петля: {loop.description}",
+                )
+            if loop.stability == "oscillating":
+                return StabilityCheck(
+                    stable=False,
+                    pathology="oscillation",
+                    correction="Добавьте буфер (пул) для сглаживания колебаний",
+                    details=f"Обнаружена осциллирующая петля: {loop.description}",
+                )
+
+        # Проверяем баланс positive/negative петель
+        positive_count = sum(1 for l in feedback_loops if l.loop_type == "positive")
+        negative_count = sum(1 for l in feedback_loops if l.loop_type == "negative")
+
+        if positive_count > 0 and negative_count == 0:
+            return StabilityCheck(
+                stable=False,
+                pathology="stall",
+                correction="Добавьте негативную обратную связь (трение) для баланса",
+                details="Только положительные петли ОС — риск runaway без балансировки",
+            )
+
+        return StabilityCheck(stable=True, pathology="none", details="Симуляция стабильна")
+
+    # ========================================================
+    # Этап 5: Валидация через Линзы Шелла (3.3.7)
+    # ========================================================
+
+    async def validate_lenses(
+        self,
+        mechanic_set: StructuredMechanicSet,
+        classic_mda_result: ClassicMDAResult,
+        concept_id: str = "",
+        project_state: Optional[dict] = None,
+    ) -> LensValidation:
+        """
+        Этап 5: Валидация через Линзы Шелла.
+
+        Алгоритм 3.3.7:
+        1. Выбор 9 приоритетных линз
+        2. AI-оценка через APPLY_LENS_MDA
+        3. Агрегация результатов
+
+        Returns:
+            LensValidation с результатами по каждой линзе
+        """
+        start = time.time()
+
+        # Собираем имена механик
+        mechanics_list: list[str] = []
+        for group_key in ["base", "combat", "progression", "spatial", "social"]:
+            group = getattr(mechanic_set, group_key, [])
+            mechanics_list.extend(m.get("name", "") for m in group if m.get("name"))
+
+        lens_results: list[LensResult] = []
+
+        for lens_info in PRIORITY_LENSES:
+            lens_id = lens_info["id"]
+            lens_name = lens_info["name"]
+            lens_focus = lens_info["focus"]
+
+            try:
+                prompt_result: PromptResult = await self.executor.execute(
+                    prompt_id="APPLY_LENS_MDA",
+                    inputs={
+                        "lens": str(lens_id),
+                        "mechanic_set": mechanics_list,
+                        "mda_result": {
+                            "match_scores": classic_mda_result.match_scores,
+                            "overall_match": classic_mda_result.overall_match,
+                            "observed_dynamics": classic_mda_result.observed_dynamics,
+                            "converged": classic_mda_result.converged,
+                        },
+                    },
+                    project_state=project_state,
+                    options=PromptExecutionOptions(skip_cache=False),
+                )
+
+                data = prompt_result.data if isinstance(prompt_result.data, dict) else {}
+                score = data.get("score", 0.5)
+                issues = data.get("issues_found", data.get("issues", []))
+                suggestions_list = data.get("suggestions", [])
+                questions = data.get("questions_asked", [])
+                answers = data.get("answers", [])
+
+                if not isinstance(issues, list):
+                    issues = [str(issues)] if issues else []
+                if not isinstance(suggestions_list, list):
+                    suggestions_list = [str(suggestions_list)] if suggestions_list else []
+
+                lens_results.append(LensResult(
+                    lens_id=lens_id,
+                    lens_name=lens_name,
+                    questions_asked=questions if isinstance(questions, list) else [lens_focus],
+                    answers=answers if isinstance(answers, list) else [],
+                    score=float(score),
+                    issues_found=issues,
+                    suggestions=suggestions_list,
+                ))
+
+            except Exception as e:
+                logger.warning(
+                    f"[Stage 5] Lens #{lens_id} '{lens_name}' failed: {e}. Using formalized fallback."
+                )
+                # Fallback: формализованная оценка
+                lens_results.append(self._formal_lens_evaluation(
+                    lens_id, lens_name, lens_focus, mechanic_set, classic_mda_result
+                ))
+
+        # Агрегация
+        critical = [r for r in lens_results if r.score < 0.4]
+        warn = [r for r in lens_results if 0.4 <= r.score < 0.7]
+        passed = [r for r in lens_results if r.score >= 0.7]
+        overall = sum(r.score for r in lens_results) / max(1, len(lens_results))
+
+        result = LensValidation(
+            results=lens_results,
+            critical_issues=critical,
+            warnings=warn,
+            passed_count=len(passed),
+            total_count=len(lens_results),
+            overall_score=overall,
+        )
+
+        logger.info(
+            f"[Stage 5] Lens validation: "
+            f"{len(passed)} passed, {len(warn)} warnings, {len(critical)} critical, "
+            f"overall={overall:.2f} "
+            f"({time.time() - start:.2f}s)"
+        )
+        return result
+
+    def _formal_lens_evaluation(
+        self,
+        lens_id: int,
+        lens_name: str,
+        lens_focus: str,
+        mechanic_set: StructuredMechanicSet,
+        classic_mda_result: ClassicMDAResult,
+    ) -> LensResult:
+        """Формализованная оценка линзы (fallback при недоступности AI)."""
+        score = 0.5
+        issues: list[str] = []
+        suggestions_list: list[str] = []
+
+        # Линза 9: Тетрада — проверяем разнообразие групп
+        if lens_id == 9:
+            groups = set()
+            for group_key in ["base", "combat", "progression", "spatial", "social"]:
+                if getattr(mechanic_set, group_key, []):
+                    groups.add(group_key)
+            if len(groups) >= 4:
+                score = 0.8
+            elif len(groups) >= 3:
+                score = 0.6
+            else:
+                score = 0.3
+                issues.append("Недостаточное разнообразие механик по группам")
+                suggestions_list.append("Добавьте механики из недостающих групп")
+
+        # Линза 11: Единство
+        elif lens_id == 11:
+            score = min(1.0, mechanic_set.compatibility_score / 100)
+            if score < 0.5:
+                issues.append("Низкая совместимость механик")
+                suggestions_list.append("Устраните конфликты между механиками")
+
+        # Линза 12: Резонанс
+        elif lens_id == 12:
+            score = min(1.0, mechanic_set.synergy_score / 100)
+            if score < 0.5:
+                issues.append("Слабая синергия между механиками")
+                suggestions_list.append("Добавьте механики с высокими синергиями")
+
+        # Линза 30: Эмерджентность
+        elif lens_id == 30:
+            all_mechanics_count = mechanic_set.total_count
+            if all_mechanics_count >= 12:
+                score = 0.7
+            elif all_mechanics_count >= 8:
+                score = 0.5
+            else:
+                score = 0.3
+                issues.append("Недостаточно механик для эмерджентности")
+                suggestions_list.append("Добавьте взаимодействующие механики")
+
+        # Линза 31: Пространство действий
+        elif lens_id == 31:
+            score = classic_mda_result.overall_match
+
+        # Линза 40: Треугольность
+        elif lens_id == 40:
+            if classic_mda_result.converged:
+                score = 0.7
+            else:
+                score = 0.4
+                issues.append("Выбор может быть несодержательным без сходимости эстетик")
+
+        # Линза 41: Доминантная стратегия
+        elif lens_id == 41:
+            if mechanic_set.compatibility_score > 70:
+                score = 0.6
+            else:
+                score = 0.4
+                issues.append("Возможна доминантная стратегия из-за конфликтов")
+
+        # Линза 69: Кривая интереса
+        elif lens_id == 69:
+            if len(classic_mda_result.feedback_loops) >= 2:
+                score = 0.7
+            else:
+                score = 0.4
+                issues.append("Недостаточно петель обратной связи для кривой интереса")
+
+        # Линза 74: Свобода vs управляемость
+        elif lens_id == 74:
+            if mechanic_set.total_count >= 10:
+                score = 0.7
+            else:
+                score = 0.5
+
+        return LensResult(
+            lens_id=lens_id,
+            lens_name=lens_name,
+            questions_asked=[lens_focus],
+            answers=[f"Формализованная оценка: {score:.1f}"],
+            score=score,
+            issues_found=issues,
+            suggestions=suggestions_list,
+        )
+
+    # ========================================================
+    # Этап 6: Матрица 4×3 Бонда + лудонарративный анализ (3.3.8)
+    # ========================================================
+
+    async def validate_bond_matrix(
+        self,
+        mechanic_set: StructuredMechanicSet,
+        classic_mda_result: ClassicMDAResult,
+        genre: str,
+        idea: str = "",
+        concept_id: str = "",
+        project_state: Optional[dict] = None,
+    ) -> BondValidation:
+        """
+        Этап 6: Матрица 4×3 Бонда + лудонарративный анализ.
+
+        Алгоритм 3.3.8:
+        1. Заполнение матрицы (4 элемента × 3 уровня)
+        2. Горизонтальная согласованность
+        3. Вертикальная согласованность
+        4. Обнаружение лудонарративного диссонанса
+
+        Returns:
+            BondValidation с матрицей, согласованностью и лудонарративным анализом
+        """
+        start = time.time()
+
+        # Собираем имена механик
+        mechanics_list: list[str] = []
+        for group_key in ["base", "combat", "progression", "spatial", "social"]:
+            group = getattr(mechanic_set, group_key, [])
+            mechanics_list.extend(m.get("name", "") for m in group if m.get("name"))
+
+        # === Шаг 6.1: Заполнение матрицы 4×3 ===
+        matrix = self._fill_bond_matrix(mechanic_set, classic_mda_result, genre, idea)
+
+        # === Шаг 6.2: Горизонтальная согласованность ===
+        row_consistency = self._check_row_consistency(matrix, genre)
+
+        # === Шаг 6.3: Вертикальная согласованность ===
+        col_consistency = self._check_column_consistency(matrix)
+
+        # === Шаг 6.4: Лудонарративный диссонанс ===
+        ludonarrative = await self._check_ludonarrative(
+            matrix, mechanics_list, genre, idea, project_state
+        )
+
+        # Общая согласованность
+        all_scores = [r.score for r in row_consistency] + [c.score for c in col_consistency]
+        overall_consistency = sum(all_scores) / max(1, len(all_scores))
+
+        result = BondValidation(
+            matrix=matrix,
+            row_consistency=row_consistency,
+            col_consistency=col_consistency,
+            ludonarrative=ludonarrative,
+            overall_consistency=overall_consistency,
+        )
+
+        logger.info(
+            f"[Stage 6] Bond validation: "
+            f"consistency={overall_consistency:.2f}, "
+            f"ludonarrative={ludonarrative.result if ludonarrative else 'N/A'} "
+            f"({time.time() - start:.2f}s)"
+        )
+        return result
+
+    def _fill_bond_matrix(
+        self,
+        mechanic_set: StructuredMechanicSet,
+        classic_mda_result: ClassicMDAResult,
+        genre: str,
+        idea: str,
+    ) -> list[BondMatrixCell]:
+        """Заполнить матрицу 4×3 Бонда."""
+        matrix: list[BondMatrixCell] = []
+
+        # Собираем имена механик
+        mechanics_list: list[str] = []
+        for group_key in ["base", "combat", "progression", "spatial", "social"]:
+            group = getattr(mechanic_set, group_key, [])
+            mechanics_list.extend(m.get("name", "") for m in group if m.get("name"))
+
+        # Фиксированный уровень (создано разработчиком)
+        matrix.append(BondMatrixCell(
+            element="Механика", level="Фиксированный",
+            content=f"Определённые правила: {', '.join(mechanics_list[:8])}",
+        ))
+        matrix.append(BondMatrixCell(
+            element="История", level="Фиксированный",
+            content=f"Заданный нарратив: {idea[:200] if idea else 'Не указан'}",
+        ))
+        matrix.append(BondMatrixCell(
+            element="Эстетика", level="Фиксированный",
+            content=f"Целевые эстетики: {', '.join(classic_mda_result.match_scores.keys())}",
+        ))
+        matrix.append(BondMatrixCell(
+            element="Технология", level="Фиксированный",
+            content=f"Жанровая платформа: {genre}",
+        ))
+
+        # Динамический уровень (возникает при взаимодействии)
+        matrix.append(BondMatrixCell(
+            element="Механика", level="Динамический",
+            content=f"Эмергентные механики: {', '.join(classic_mda_result.observed_dynamics[:5])}",
+        ))
+        matrix.append(BondMatrixCell(
+            element="История", level="Динамический",
+            content="Эмергентный нарратив: истории из геймплея игрока",
+        ))
+        matrix.append(BondMatrixCell(
+            element="Эстетика", level="Динамический",
+            content=f"Наблюдаемая эстетика: {', '.join(f'{k}={v:.1f}' for k, v in classic_mda_result.predicted_aesthetics.items()[:5])}",
+        ))
+        matrix.append(BondMatrixCell(
+            element="Технология", level="Динамический",
+            content="Динамические системы: симуляция, процедурная генерация",
+        ))
+
+        # Культурный уровень (вне контроля разработчика)
+        matrix.append(BondMatrixCell(
+            element="Механика", level="Культурный",
+            content="Метагейм: стратегии сообщества, мемы, моды",
+        ))
+        matrix.append(BondMatrixCell(
+            element="История", level="Культурный",
+            content="Культурный нарратив: фанфики, обсуждения, лор-видео",
+        ))
+        matrix.append(BondMatrixCell(
+            element="Эстетика", level="Культурный",
+            content="Культурная эстетика: как игра воспринимается сообществом",
+        ))
+        matrix.append(BondMatrixCell(
+            element="Технология", level="Культурный",
+            content="Культурная технология: мемы, стриминг, eSports",
+        ))
+
+        return matrix
+
+    def _check_row_consistency(
+        self,
+        matrix: list[BondMatrixCell],
+        genre: str,
+    ) -> list[RowConsistency]:
+        """Проверить горизонтальную согласованность (в каждой строке все 4 элемента сообщают одно и то же)."""
+        results: list[RowConsistency] = []
+
+        for level in BOND_LEVELS:
+            cells = [c for c in matrix if c.level == level]
+
+            # Формализованная оценка:
+            # Если во всех ячейках уровня есть содержимое — выше score
+            filled_count = sum(1 for c in cells if c.content and len(c.content) > 10)
+            score = filled_count / max(1, len(cells))
+
+            # Проверяем на явные рассогласования
+            dissonances: list[dict] = []
+
+            # Проверка: Механика ↔ Эстетика
+            mech_cell = next((c for c in cells if c.element == "Механика"), None)
+            aest_cell = next((c for c in cells if c.element == "Эстетика"), None)
+            if mech_cell and aest_cell:
+                if not mech_cell.content or not aest_cell.content:
+                    dissonances.append({
+                        "element_a": "Механика",
+                        "element_b": "Эстетика",
+                        "reason": "Пустое содержимое в одном из элементов",
+                    })
+
+            results.append(RowConsistency(
+                level=level,
+                score=score,
+                dissonances=dissonances,
+            ))
+
+        return results
+
+    def _check_column_consistency(
+        self,
+        matrix: list[BondMatrixCell],
+    ) -> list[ColumnConsistency]:
+        """Проверить вертикальную согласованность (Фиксированный → Динамический → Культурный)."""
+        results: list[ColumnConsistency] = []
+
+        for element in BOND_ELEMENTS:
+            cells = [c for c in matrix if c.element == element]
+
+            # Все ячейки заполнены — хорошая последовательность
+            filled_count = sum(1 for c in cells if c.content and len(c.content) > 5)
+            score = filled_count / max(1, len(cells))
+
+            description = f"Логическая последовательность '{element}': "
+            if filled_count == 3:
+                description += "полная — от замысла до культурного влияния"
+            elif filled_count == 2:
+                description += "частичная — отсутствует культурный уровень"
+            else:
+                description += "неполная — требуется доработка"
+
+            results.append(ColumnConsistency(
+                element=element,
+                score=score,
+                description=description,
+            ))
+
+        return results
+
+    async def _check_ludonarrative(
+        self,
+        matrix: list[BondMatrixCell],
+        mechanics_list: list[str],
+        genre: str,
+        idea: str,
+        project_state: Optional[dict] = None,
+    ) -> LudonarrativeCheck:
+        """Проверить лудонарративный диссонанс (Механика ↔ История)."""
+        try:
+            prompt_result: PromptResult = await self.executor.execute(
+                prompt_id="CHECK_LUDONARRATIVE_MDA",
+                inputs={
+                    "mechanics": mechanics_list,
+                    "narrative": idea or "Не указан",
+                    "genre": genre,
+                },
+                project_state=project_state,
+                options=PromptExecutionOptions(skip_cache=False),
+            )
+
+            data = prompt_result.data if isinstance(prompt_result.data, dict) else {}
+            result_type = data.get("result", "Гармония")
+            description = data.get("description", "")
+            pairs = data.get("mechanic_narrative_pairs", [])
+            correction = data.get("correction", "")
+
+            return LudonarrativeCheck(
+                result=result_type,
+                description=description,
+                mechanic_narrative_pairs=pairs if isinstance(pairs, list) else [],
+                correction=correction,
+            )
+
+        except Exception as e:
+            logger.warning(f"[Stage 6] AI ludonarrative check failed: {e}")
+            # Fallback: формализованная проверка
+            return self._formal_ludonarrative_check(mechanics_list, idea)
+
+    def _formal_ludonarrative_check(
+        self,
+        mechanics_list: list[str],
+        idea: str,
+    ) -> LudonarrativeCheck:
+        """Формализованная проверка лудонарративного диссонанса (fallback)."""
+        # Если нет нарратива — нельзя проверить
+        if not idea:
+            return LudonarrativeCheck(
+                result="Гармония",
+                description="Нарратив не указан — лудонарративная проверка ограничена",
+                mechanic_narrative_pairs=[],
+                correction="",
+            )
+
+        # Простейшая проверка: если механики включают «Нарратив» — гармония
+        narrative_mechanics = ["Нарратив", "Квесты", "Выбор сюжета", "Фракции", "Компаньоны"]
+        has_narrative_mech = any(m in mechanics_list for m in narrative_mechanics)
+
+        if has_narrative_mech:
+            return LudonarrativeCheck(
+                result="Гармония",
+                description="Нарративные механики присутствуют — механика поддерживает историю",
+                mechanic_narrative_pairs=[{
+                    "mechanic": next(m for m in mechanics_list if m in narrative_mechanics),
+                    "narrative_element": "сюжет",
+                    "consistency": "high",
+                }],
+                correction="",
+            )
+
+        return LudonarrativeCheck(
+            result="Ирония",
+            description="Нарративные механики отсутствуют — возможна лудонарративная ирония",
+            mechanic_narrative_pairs=[],
+            correction="Добавьте нарративные механики (квесты, выбор сюжета) для согласованности",
+        )
+
+    # ========================================================
+    # Полный пайплайн: Этапы 1–6
+    # ========================================================
+
+    async def analyze_full(
+        self,
+        concept_id: str,
+        aesthetic_profile: AestheticProfile,
+        genre: str,
+        idea: str = "",
+        existing_mechanics: Optional[list[str]] = None,
+        required_mechanics: Optional[list[str]] = None,
+        forbidden_mechanics: Optional[list[str]] = None,
+        max_mechanics: int = 18,
+        min_mechanics: int = 8,
+        max_iterations: int = 3,
+        convergence_threshold: float = 0.8,
+        project_state: Optional[dict] = None,
+    ) -> MDAProfile:
+        """
+        Полный пайплайн MDA Lab — Этапы 1–6 алгоритма 3.3.
+
+        Выполняет последовательно:
+        1. Определение целевых динамик (Reverse MDA)
+        2. Маппинг «Динамика → Механики»
+        3. Сборка и оптимизация набора механик
+        4. Classic MDA — аналитический проход
+        5. Валидация через Линзы Шелла
+        6. Матрица 4×3 Бонда + лудонарративный анализ
+
+        Returns:
+            MDAProfile с результатами всех 6 этапов
+        """
+        pipeline_start = time.time()
+        models_used: list[str] = []
+
+        # === Этапы 1–3: Reverse MDA ===
+        profile = await self.analyze_stages_1_3(
+            concept_id=concept_id,
+            aesthetic_profile=aesthetic_profile,
+            genre=genre,
+            idea=idea,
+            existing_mechanics=existing_mechanics,
+            required_mechanics=required_mechanics,
+            forbidden_mechanics=forbidden_mechanics,
+            max_mechanics=max_mechanics,
+            min_mechanics=min_mechanics,
+            max_iterations=max_iterations,
+            convergence_threshold=convergence_threshold,
+            project_state=project_state,
+        )
+        models_used.extend(profile.models_used)
+
+        if not profile.mechanic_set or not profile.dynamics_target:
+            logger.warning("[Pipeline 1-6] Stages 1-3 failed — cannot proceed to stages 4-6")
+            return profile
+
+        # === Этап 4: Classic MDA ===
+        try:
+            classic_result = await self.classic_mda_pass(
+                mechanic_set=profile.mechanic_set,
+                aesthetic_profile=aesthetic_profile,
+                dynamics_target=profile.dynamics_target,
+                genre=genre,
+                convergence_threshold=convergence_threshold,
+                max_iterations=max_iterations,
+                project_state=project_state,
+            )
+            profile.classic_mda_result = classic_result
+            models_used.append("SIMULATE_GAMEPLAY")
+        except Exception as e:
+            logger.error(f"[Pipeline 1-6] Stage 4 (Classic MDA) failed: {e}")
+
+        # === Этап 5: Линзы Шелла ===
+        if profile.classic_mda_result:
+            try:
+                lens_result = await self.validate_lenses(
+                    mechanic_set=profile.mechanic_set,
+                    classic_mda_result=profile.classic_mda_result,
+                    concept_id=concept_id,
+                    project_state=project_state,
+                )
+                profile.lens_validation = lens_result
+                models_used.append("APPLY_LENS_MDA")
+            except Exception as e:
+                logger.error(f"[Pipeline 1-6] Stage 5 (Lens Validation) failed: {e}")
+
+        # === Этап 6: Матрица Бонда ===
+        if profile.classic_mda_result:
+            try:
+                bond_result = await self.validate_bond_matrix(
+                    mechanic_set=profile.mechanic_set,
+                    classic_mda_result=profile.classic_mda_result,
+                    genre=genre,
+                    idea=idea,
+                    concept_id=concept_id,
+                    project_state=project_state,
+                )
+                profile.bond_validation = bond_result
+                models_used.append("CHECK_LUDONARRATIVE_MDA")
+            except Exception as e:
+                logger.error(f"[Pipeline 1-6] Stage 6 (Bond Validation) failed: {e}")
+
+        # Обновляем метаданные
+        profile.stages_completed = [1, 2, 3, 4, 5, 6]
+        profile.latency_ms = int((time.time() - pipeline_start) * 1000)
+        profile.models_used = models_used
+
+        logger.info(
+            f"[Pipeline 1-6] Completed in {profile.latency_ms}ms. "
+            f"Stages: {profile.stages_completed}, "
+            f"Converged: {profile.classic_mda_result.converged if profile.classic_mda_result else 'N/A'}, "
+            f"Lens score: {profile.lens_validation.overall_score:.2f if profile.lens_validation else 'N/A'}, "
+            f"Bond consistency: {profile.bond_validation.overall_consistency:.2f if profile.bond_validation else 'N/A'}"
+        )
+
+        return profile

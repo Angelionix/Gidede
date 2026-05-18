@@ -1,6 +1,6 @@
 """
 Gidede — MDA Schemas (Pydantic Models)
-Фаза 4.B.9: Схемы для Блока 3 — MDA Lab (Этапы 1–3)
+Фаза 4.B.9–4.B.10: Схемы для Блока 3 — MDA Lab (Этапы 1–6)
 
 Модели синхронизированы с shared/types/python/models.py (4.A.12)
 и shared/types/typescript/interfaces.ts.
@@ -9,6 +9,9 @@ Gidede — MDA Schemas (Pydantic Models)
 - Этап 1: Reverse MDA — определение целевых динамик
 - Этап 2: Reverse MDA — маппинг «Динамика → Механики»
 - Этап 3: Сборка и оптимизация набора механик
+- Этап 4: Classic MDA — аналитический проход (3.3.6)
+- Этап 5: Валидация через Линзы Шелла (3.3.7)
+- Этап 6: Матрица 4×3 Бонда + лудонарративный анализ (3.3.8)
 """
 
 from pydantic import BaseModel, Field
@@ -231,21 +234,327 @@ class StructuredMechanicSet(BaseModel):
 
 
 # ============================================================
-# ИТОГОВЫЙ ПРОФИЛЬ MDA — ЭТАПЫ 1-3 (алгоритм 3.3)
+# ЭТАП 4: CLASSIC MDA — АНАЛИТИЧЕСКИЙ ПРОХОД (алгоритм 3.3.6)
+# ============================================================
+
+class GameplaySequenceStep(BaseModel):
+    """Шаг моделируемой последовательности геймплея."""
+    step_number: int = Field(..., description="Номер шага")
+    action: str = Field(..., description="Действие игрока")
+    mechanics_used: list[str] = Field(
+        default_factory=list,
+        description="Задействованные механики",
+    )
+    resources_consumed: list[str] = Field(
+        default_factory=list,
+        description="Потреблённые ресурсы",
+    )
+    resources_produced: list[str] = Field(
+        default_factory=list,
+        description="Произведённые ресурсы",
+    )
+
+
+class ResourceFlow(BaseModel):
+    """Поток ресурсов в моделируемом геймплее."""
+    source: str = Field(..., description="Источник ресурса")
+    target: str = Field(..., description="Получатель ресурса")
+    resource: str = Field(..., description="Название ресурса")
+    flow_type: str = Field(
+        "production",
+        description="Тип: production/consumption/conversion/exchange",
+    )
+
+
+class FeedbackLoop(BaseModel):
+    """Петля обратной связи в моделируемом геймплее."""
+    loop_type: str = Field(
+        ...,
+        description="Тип: positive (усиливающая) / negative (балансирующая)",
+    )
+    description: str = Field(..., description="Описание петли ОС")
+    mechanics_involved: list[str] = Field(
+        default_factory=list,
+        description="Механики, формирующие петлю",
+    )
+    stability: str = Field(
+        "stable",
+        description="Стабильность: stable/runaway/damping/oscillating",
+    )
+
+
+class StabilityCheck(BaseModel):
+    """Проверка устойчивости симуляции геймплея."""
+    stable: bool = Field(True, description="Стабильна ли симуляция")
+    pathology: str = Field(
+        "",
+        description="Обнаруженная патология: runaway/deadlock/stall/none",
+    )
+    correction: str = Field(
+        "",
+        description="Корректирующее действие при нестабильности",
+    )
+    details: str = Field("", description="Подробности проверки")
+
+
+class ClassicMDAResult(BaseModel):
+    """
+    Результат Classic MDA аналитического прохода — Этап 4 (алгоритм 3.3.6).
+
+    Выполняет обратный проход: Механики → Геймплей → Опыт.
+    Сравнивает предсказанную эстетику с целевой и проверяет сходимость.
+    """
+    # Смоделированный геймплей
+    gameplay_sequence: list[GameplaySequenceStep] = Field(
+        default_factory=list,
+        description="Последовательность действий игрока (5-10 шагов)",
+    )
+    resource_flows: list[ResourceFlow] = Field(
+        default_factory=list,
+        description="Потоки ресурсов между действиями",
+    )
+    feedback_loops: list[FeedbackLoop] = Field(
+        default_factory=list,
+        description="Петли обратной связи (positive/negative)",
+    )
+
+    # Наблюдаемые динамики (из симуляции)
+    observed_dynamics: list[str] = Field(
+        default_factory=list,
+        description="Динамики, наблюдаемые в симулированном геймплее",
+    )
+
+    # Предсказанная эстетика
+    predicted_aesthetics: dict[str, float] = Field(
+        default_factory=dict,
+        description="Предсказанная эстетика → уверенность (0-1)",
+    )
+
+    # Сравнение с целевой эстетикой
+    match_scores: dict[str, float] = Field(
+        default_factory=dict,
+        description="Совпадение с целевой эстетикой: эстетика → score (0-1)",
+    )
+    overall_match: float = Field(
+        0.0,
+        description="Общая сходимость (0-1), среднее по match_scores",
+    )
+    converged: bool = Field(
+        False,
+        description="Достигнута ли сходимость (overall_match >= threshold)",
+    )
+
+    # Устойчивость симуляции
+    stability: Optional[StabilityCheck] = Field(
+        None,
+        description="Проверка устойчивости Machinations-модели",
+    )
+
+    # Описание геймплея (для GDD)
+    gameplay_script: str = Field(
+        "",
+        description="Текстовое описание смоделированного геймплея",
+    )
+
+    # Итерации
+    iterations: int = Field(
+        1,
+        description="Количество итераций для сходимости",
+    )
+
+    # Предупреждения и рекомендации
+    warnings: list[str] = Field(
+        default_factory=list,
+        description="Предупреждения о несходимости эстетик",
+    )
+    suggestions: list[str] = Field(
+        default_factory=list,
+        description="Рекомендации по корректировке набора механик",
+    )
+
+
+# ============================================================
+# ЭТАП 5: ВАЛИДАЦИЯ ЧЕРЕЗ ЛИНЗЫ ШЕЛЛА (алгоритм 3.3.7)
+# ============================================================
+
+class LensResult(BaseModel):
+    """Результат применения одной линзы Шелла."""
+    lens_id: int = Field(..., description="ID линзы (1-113)")
+    lens_name: str = Field(..., description="Название линзы")
+    questions_asked: list[str] = Field(
+        default_factory=list,
+        description="Вопросы, заданные линзой",
+    )
+    answers: list[str] = Field(
+        default_factory=list,
+        description="Ответы на вопросы линзы",
+    )
+    score: float = Field(
+        0.5,
+        description="Оценка по линзе (0.0–1.0)",
+    )
+    issues_found: list[str] = Field(
+        default_factory=list,
+        description="Обнаруженные проблемы",
+    )
+    suggestions: list[str] = Field(
+        default_factory=list,
+        description="Рекомендации по улучшению",
+    )
+
+
+class LensValidation(BaseModel):
+    """
+    Результат валидации через Линзы Шелла — Этап 5 (алгоритм 3.3.7).
+
+    Применяет 9 приоритетных линз Шелла к набору механик.
+    """
+    results: list[LensResult] = Field(
+        default_factory=list,
+        description="Результаты по каждой линзе",
+    )
+    critical_issues: list[LensResult] = Field(
+        default_factory=list,
+        description="Линзы с score < 0.4 (критические проблемы)",
+    )
+    warnings: list[LensResult] = Field(
+        default_factory=list,
+        description="Линзы с score 0.4–0.7 (предупреждения)",
+    )
+    passed_count: int = Field(
+        0,
+        description="Количество линз со score >= 0.7",
+    )
+    total_count: int = Field(
+        0,
+        description="Общее количество применённых линз",
+    )
+    overall_score: float = Field(
+        0.0,
+        description="Средний score по всем линзам (0-1)",
+    )
+
+
+# ============================================================
+# ЭТАП 6: МАТРИЦА 4×3 БОНДА + ЛУДОНАРРАТИВНЫЙ АНАЛИЗ (алгоритм 3.3.8)
+# ============================================================
+
+class BondMatrixCell(BaseModel):
+    """Ячейка матрицы 4×3 Бонда."""
+    element: str = Field(
+        ...,
+        description="Элемент: Механика/История/Эстетика/Технология",
+    )
+    level: str = Field(
+        ...,
+        description="Уровень: Фиксированный/Динамический/Культурный",
+    )
+    content: str = Field(
+        "",
+        description="Описание содержимого ячейки",
+    )
+
+
+class RowConsistency(BaseModel):
+    """Согласованность одной строки матрицы (горизонтальная)."""
+    level: str = Field(
+        ...,
+        description="Уровень: Фиксированный/Динамический/Культурный",
+    )
+    score: float = Field(
+        0.0,
+        description="Score согласованности (0-1)",
+    )
+    dissonances: list[dict] = Field(
+        default_factory=list,
+        description="Обнаруженные рассогласования [{element_a, element_b, reason}]",
+    )
+
+
+class ColumnConsistency(BaseModel):
+    """Согласованность одного столбца матрицы (вертикальная)."""
+    element: str = Field(
+        ...,
+        description="Элемент: Механика/История/Эстетика/Технология",
+    )
+    score: float = Field(
+        0.0,
+        description="Score согласованности (0-1)",
+    )
+    description: str = Field(
+        "",
+        description="Описание логической последовательности уровней",
+    )
+
+
+class LudonarrativeCheck(BaseModel):
+    """Результат проверки лудонарративного диссонанса."""
+    result: str = Field(
+        "Гармония",
+        description="Результат: Гармония / Ирония / Диссонанс",
+    )
+    description: str = Field(
+        "",
+        description="Описание обнаруженного соответствия или диссонанса",
+    )
+    mechanic_narrative_pairs: list[dict] = Field(
+        default_factory=list,
+        description="Пары «механика ↔ нарратив» с оценкой согласованности",
+    )
+    correction: str = Field(
+        "",
+        description="Рекомендуемая коррекция (при диссонансе)",
+    )
+
+
+class BondValidation(BaseModel):
+    """
+    Результат валидации через Матрицу 4×3 Бонда — Этап 6 (алгоритм 3.3.8).
+
+    Проверяет согласованность механики, истории, эстетики и технологии
+    на трёх уровнях (фиксированный, динамический, культурный).
+    """
+    matrix: list[BondMatrixCell] = Field(
+        default_factory=list,
+        description="Заполненная матрица 4×3 (12 ячеек)",
+    )
+    row_consistency: list[RowConsistency] = Field(
+        default_factory=list,
+        description="Согласованность по строкам (горизонтальная)",
+    )
+    col_consistency: list[ColumnConsistency] = Field(
+        default_factory=list,
+        description="Согласованность по столбцам (вертикальная)",
+    )
+    ludonarrative: Optional[LudonarrativeCheck] = Field(
+        None,
+        description="Проверка лудонарративного диссонанса (Механика ↔ История)",
+    )
+    overall_consistency: float = Field(
+        0.0,
+        description="Общая согласованность (0-1), среднее по строкам и столбцам",
+    )
+
+
+# ============================================================
+# ИТОГОВЫЙ ПРОФИЛЬ MDA — ЭТАПЫ 1-6 (алгоритм 3.3)
 # ============================================================
 
 class MDAProfile(BaseModel):
     """
-    MDA-профиль — результат Этапов 1–3 алгоритма 3.3.
+    MDA-профиль — результат Этапов 1–6 алгоритма 3.3.
 
     Включает:
     - aesthetic_profile: целевая эстетика (из алгоритма 3.1 / ввод)
     - dynamics_target: целевые динамики (Этап 1)
     - mechanic_candidate_set: набор кандидатов (Этап 2)
     - mechanic_set: структурированный набор механик (Этап 3)
+    - classic_mda_result: аналитический проход (Этап 4)
+    - lens_validation: валидация через Линзы Шелла (Этап 5)
+    - bond_validation: матрица 4×3 Бонда + лудонарративный анализ (Этап 6)
     - balance_input: данные для алгоритма 3.4
     """
-    # Целевая модель
+    # Целевая модель (Этапы 1–3)
     aesthetic_profile: Optional[dict] = Field(
         None,
         description="Целевая эстетика (AestheticProfile)",
@@ -261,6 +570,24 @@ class MDAProfile(BaseModel):
     mechanic_set: Optional[StructuredMechanicSet] = Field(
         None,
         description="Структурированный набор механик (Этап 3)",
+    )
+
+    # Аналитическая модель (Этап 4)
+    classic_mda_result: Optional[ClassicMDAResult] = Field(
+        None,
+        description="Результат Classic MDA аналитического прохода (Этап 4)",
+    )
+
+    # Валидация (Этап 5)
+    lens_validation: Optional[LensValidation] = Field(
+        None,
+        description="Результат валидации через Линзы Шелла (Этап 5)",
+    )
+
+    # Валидация (Этап 6)
+    bond_validation: Optional[BondValidation] = Field(
+        None,
+        description="Результат матрицы 4×3 Бонда + лудонарративный анализ (Этап 6)",
     )
 
     # Мета-данные

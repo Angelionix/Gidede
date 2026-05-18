@@ -1,8 +1,8 @@
 # Gidede — Документ тестирования
 
-> **Фаза**: 4.B.5–4.B.9 (полное покрытие)  
+> **Фаза**: 4.B.5–4.B.10 (полное покрытие)  
 > **Дата**: 2026-05-18  
-> **Версия**: 0.9.0  
+> **Версия**: 0.11.0  
 > **Статус**: Активный  
 > **Подход**: Локальное тестирование (без GitHub Actions)
 
@@ -79,6 +79,12 @@ mini-services/api-service/tests/
 ├── test_coreloop_service.py       # Core Loop Designer (Этапы 1–5)
 ├── test_coreloop_api.py           # API Core Loop Designer
 ├── test_coreloop_validation.py    # Валидация Core Loop (Этапы 4–5)
+├── test_mda_service_stages_1_3.py  # MDA Lab Этапы 1–3 (4.B.9)
+├── test_mda_service_stage_4.py    # ★ НОВОЕ: MDA Classic MDA проход (4.B.10)
+├── test_mda_service_stage_5.py    # ★ НОВОЕ: MDA Линзы Шелла (4.B.10)
+├── test_mda_service_stage_6.py    # ★ НОВОЕ: MDA Матрица Бонда (4.B.10)
+├── test_mda_service_full.py       # ★ НОВОЕ: MDA полный пайплайн 1–6 (4.B.10)
+├── test_mda_api_full.py           # ★ НОВОЕ: API MDA полный анализ (4.B.10)
 └── test_jwt_secret.py             # ★ НОВОЕ: JWT secret property (TD-017)
 ```
 
@@ -452,6 +458,98 @@ mini-services/api-service/tests/
 | B-222 | `test_api_mda_analyze_forbidden_mechanics` | Запрещённые механики исключены из результата |
 | B-223 | `test_api_mda_analyze_iterations` | maxIterations параметр работает |
 
+##### MDA Service — Этап 4: Classic MDA аналитический проход (4.B.10) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-224 | `test_classic_mda_pass` | Classic MDA проход — основной метод |
+| B-225 | `test_classic_mda_simulate_gameplay` | AI-моделирование геймплея через SIMULATE_GAMEPLAY |
+| B-226 | `test_classic_mda_simulate_gameplay_fallback` | Fallback при недоступности AI — формализованная модель |
+| B-227 | `test_classic_mda_extract_observed_dynamics` | Извлечение наблюдаемых динамик из симуляции |
+| B-228 | `test_classic_mda_predict_aesthetics` | Предсказание эстетики из наблюдаемых динамик |
+| B-229 | `test_classic_mda_match_scores` | Сравнение предсказанной и целевой эстетики (match_scores) |
+| B-230 | `test_classic_mda_overall_match` | Расчёт overall_match как среднего по match_scores |
+| B-231 | `test_classic_mda_convergence` | Проверка сходимости при overall_match >= threshold |
+| B-232 | `test_classic_mda_no_convergence` | Отсутствие сходимости при низких match_scores |
+| B-233 | `test_classic_mda_weak_aesthetic_suggestion` | Рекомендации для слабых эстетик (score < 0.6) |
+| B-234 | `test_classic_mda_stability_check_stable` | Проверка устойчивости при стабильных feedback loops |
+| B-235 | `test_classic_mda_stability_runaway` | Обнаружение runaway-патологии |
+| B-236 | `test_classic_mda_stability_oscillating` | Обнаружение осциллирующей петли |
+| B-237 | `test_classic_mda_stability_stall` | Обнаружение stall при отсутствии негативных петель |
+| B-238 | `test_classic_mda_iterations` | Итеративная коррекция до maxIterations |
+| B-239 | `test_classic_mda_gameplay_script` | Текстовое описание геймплея заполнено |
+
+##### MDA Service — Этап 5: Валидация через Линзы Шелла (4.B.10) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-240 | `test_validate_lenses` | Валидация через 9 линз Шелла — основной метод |
+| B-241 | `test_validate_lenses_9_priority` | Все 9 приоритетных линз применены |
+| B-242 | `test_validate_lens_tetrad` | Линза #9 «Тетрада» — согласованность 4 элементов |
+| B-243 | `test_validate_lens_unity` | Линза #11 «Единство» — общий замысел |
+| B-244 | `test_validate_lens_resonance` | Линза #12 «Резонанс» — усиление элементов |
+| B-245 | `test_validate_lens_emergence` | Линза #30 «Эмерджентность» — глаголы и действия |
+| B-246 | `test_validate_lens_action_space` | Линза #31 «Пространство действий» — perceived vs real |
+| B-247 | `test_validate_lens_triangularity` | Линза #40 «Треугольность» — выбор риска |
+| B-248 | `test_validate_lens_dominant_strategy` | Линза #41 «Доминантная стратегия» — лучший путь |
+| B-249 | `test_validate_lens_interest_curve` | Линза #69 «Кривая интереса» — пики и спады |
+| B-250 | `test_validate_lens_freedom_vs_control` | Линза #74 «Свобода vs управляемость» — агентивность |
+| B-251 | `test_validate_lens_ai_evaluation` | AI-оценка через APPLY_LENS_MDA промпт |
+| B-252 | `test_validate_lens_formal_fallback` | Формализованная fallback-оценка при недоступности AI |
+| B-253 | `test_validate_lens_aggregation_critical` | Агрегация: critical_issues при score < 0.4 |
+| B-254 | `test_validate_lens_aggregation_warnings` | Агрегация: warnings при score 0.4–0.7 |
+| B-255 | `test_validate_lens_aggregation_passed` | Агрегация: passed при score >= 0.7 |
+| B-256 | `test_validate_lens_overall_score` | Общий score как среднее по 9 линзам |
+
+##### MDA Service — Этап 6: Матрица 4×3 Бонда + лудонарративный анализ (4.B.10) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-257 | `test_validate_bond_matrix` | Валидация через матрицу Бонда — основной метод |
+| B-258 | `test_bond_matrix_12_cells` | Матрица содержит 12 ячеек (4 элемента × 3 уровня) |
+| B-259 | `test_bond_matrix_mechanic_fixed` | Ячейка «Механика/Фиксированный» содержит определённые правила |
+| B-260 | `test_bond_matrix_narrative_fixed` | Ячейка «История/Фиксированный» содержит заданный нарратив |
+| B-261 | `test_bond_matrix_aesthetic_fixed` | Ячейка «Эстетика/Фиксированный» содержит целевые эстетики |
+| B-262 | `test_bond_matrix_technology_fixed` | Ячейка «Технология/Фиксированный» содержит жанровую платформу |
+| B-263 | `test_bond_matrix_dynamic_level` | Динамический уровень содержит эмергентные данные |
+| B-264 | `test_bond_matrix_cultural_level` | Культурный уровень содержит культурные аспекты |
+| B-265 | `test_bond_row_consistency` | Горизонтальная согласованность по строкам |
+| B-266 | `test_bond_row_dissonance_detection` | Обнаружение рассогласований в строках |
+| B-267 | `test_bond_col_consistency` | Вертикальная согласованность по столбцам |
+| B-268 | `test_bond_col_logical_sequence` | Логическая последовательность Фиксированный → Динамический → Культурный |
+| B-269 | `test_bond_overall_consistency` | Общая согласованность как среднее row + col scores |
+| B-270 | `test_ludonarrative_check_harmony` | Лудонарративная гармония при наличии нарративных механик |
+| B-271 | `test_ludonarrative_check_irony` | Лудонарративная ирония при отсутствии нарративных механик |
+| B-272 | `test_ludonarrative_check_disonance` | Лудонарративный диссонанс через CHECK_LUDONARRATIVE_MDA |
+| B-273 | `test_ludonarrative_ai_evaluation` | AI-оценка через CHECK_LUDONARRATIVE_MDA промпт |
+| B-274 | `test_ludonarrative_formal_fallback` | Формализованный fallback при недоступности AI |
+| B-275 | `test_ludonarrative_correction_suggestion` | Рекомендация коррекции при иронии/диссонансе |
+
+##### MDA Service — Полный пайплайн 1–6 (4.B.10) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-276 | `test_analyze_full` | Полный пайплайн Этапов 1–6 |
+| B-277 | `test_analyze_full_classic_mda` | classic_mda_result заполнен в результате |
+| B-278 | `test_analyze_full_lens_validation` | lens_validation заполнен в результате |
+| B-279 | `test_analyze_full_bond_validation` | bond_validation заполнен в результате |
+| B-280 | `test_analyze_full_stages_completed` | stages_completed = [1,2,3,4,5,6] |
+| B-281 | `test_analyze_full_models_used` | models_used содержит SIMULATE_GAMEPLAY, APPLY_LENS_MDA, CHECK_LUDONARRATIVE_MDA |
+| B-282 | `test_analyze_full_short_mode` | full_analysis=False — только Этапы 1–3 |
+| B-283 | `test_analyze_full_stage_4_failure_graceful` | Отказоустойчивость при падении Этапа 4 |
+| B-284 | `test_analyze_full_stage_5_failure_graceful` | Отказоустойчивость при падении Этапа 5 |
+| B-285 | `test_analyze_full_stage_6_failure_graceful` | Отказоустойчивость при падении Этапа 6 |
+
+##### API-эндпоинты MDA Lab — полный анализ (4.B.10) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-286 | `test_api_mda_analyze_full` | POST /api/v1/mda/analyze?full_analysis=true — MDAProfile с 6 этапами |
+| B-287 | `test_api_mda_analyze_short` | POST /api/v1/mda/analyze?full_analysis=false — MDAProfile с 3 этапами |
+| B-288 | `test_api_mda_analyze_classic_mda_result` | classic_mda_result заполнен при full_analysis=true |
+| B-289 | `test_api_mda_analyze_lens_validation` | lens_validation заполнен при full_analysis=true |
+| B-290 | `test_api_mda_analyze_bond_validation` | bond_validation заполнен при full_analysis=true |
+
 ### 2.2 Frontend — vitest
 
 #### Структура тестов
@@ -480,7 +578,7 @@ src/__tests__/
 | F-06 | API Client: обработка 401 | Обработка ошибки авторизации |
 | F-07 | Sidebar: навигация по блокам | 8 блоков в sidebar |
 | F-08 | Sidebar: статус блоков | Блок 1, 2, 3 — «Активен» |
-| F-09 | Sidebar: версия | Отображение «v0.9.0» |
+| F-09 | Sidebar: версия | Отображение «v0.11.0» |
 | F-10 | Главная страница: блоки | Карточки 8 блоков |
 | F-11 | Форма концепции: поля | Поля идея, жанр, платформа |
 | F-12 | ★ OnePagerCard: рендер | Карточка с 8 полями отображается |
@@ -516,6 +614,26 @@ src/__tests__/
 | F-42 | ★ StructuredMechanicSet: группы | 5 групп механик (base/combat/progression/spatial/social) |
 | F-43 | ★ StructuredMechanicSet: эстетики | Покрытие эстетик (sufficient/insufficient) |
 | F-44 | ★ StructuredMechanicSet: паттерны | Обнаруженные паттерны Adams/Dormans |
+
+##### MDA Lab — Этапы 4–6: Classic MDA и валидация (4.B.10) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| F-45 | ★ ClassicMDAResult: геймплей | Последовательность шагов моделированного геймплея |
+| F-46 | ★ ClassicMDAResult: ресурсы | Потоки ресурсов между действиями |
+| F-47 | ★ ClassicMDAResult: feedback | Петли обратной связи (positive/negative) |
+| F-48 | ★ ClassicMDAResult: сходимость | overall_match и converged индикатор |
+| F-49 | ★ ClassicMDAResult: stability | Статус устойчивости (stable/pathology) |
+| F-50 | ★ LensValidation: линзы | Список 9 линз с оценками |
+| F-51 | ★ LensValidation: критические | Красная индикация при score < 0.4 |
+| F-52 | ★ LensValidation: предупреждения | Жёлтая индикация при score 0.4–0.7 |
+| F-53 | ★ LensValidation: пройденные | Зелёная индикация при score >= 0.7 |
+| F-54 | ★ LensValidation: overall | Общий score по всем линзам |
+| F-55 | ★ BondValidation: матрица | 12 ячеек матрицы 4×3 |
+| F-56 | ★ BondValidation: row consistency | Согласованность по строкам с цветовой индикацией |
+| F-57 | ★ BondValidation: col consistency | Согласованность по столбцам |
+| F-58 | ★ BondValidation: ludonarrative | Результат: Гармония/Ирония/Диссонанс с иконкой |
+| F-59 | ★ BondValidation: overall consistency | Общая согласованность (0-1) |
 
 ---
 
@@ -569,7 +687,7 @@ src/__tests__/
 | 2 | Кликнуть «Блок 2» | Открылась страница /blocks/2 |
 | 3 | Кликнуть каждый блок 1–8 | Каждая страница открывается |
 | 4 | Проверить активное состояние | Текущий блок выделен в sidebar |
-| 5 | Проверить версию в footer | Отображается «Фаза 4.B • v0.9.0» |
+| 5 | Проверить версию в footer | Отображается «Фаза 4.B • v0.11.0» |
 
 #### UI-05: Генератор концепции — ввод (Блок 1, Этапы 1–5)
 
@@ -733,6 +851,22 @@ src/__tests__/
 | 12 | Проверить AdamsDormansPatterns | Список паттернов (engine/friction/escalation) |
 | 13 | Проверить warnings | Предупреждения о конфликтах и недостаточном покрытии |
 | 14 | Проверить мета-информацию | stages_completed, iterations_done, latency_ms |
+
+#### UI-27: MDA Lab — Classic MDA и валидация (Блок 3, Этапы 4–6) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | После генерации MDA (Этапы 1–3) | Отображается Classic MDA результат |
+| 2 | Проверить gameplay sequence | Список шагов с действиями и ресурсами |
+| 3 | Проверить feedback loops | Визуализация петель ОС (positive/negative) |
+| 4 | Проверить match scores | Сравнение целевой и предсказанной эстетики |
+| 5 | Проверить converged | Индикатор сходимости (Да/Нет) |
+| 6 | Проверить stability | Статус устойчивости с описанием патологии |
+| 7 | Проверить Линзы Шелла | 9 линз с оценками и colour-coding |
+| 8 | Проверить критические линзы | Красная индикация и предложения |
+| 9 | Проверить Матрицу Бонда | Таблица 4×3 с содержимым |
+| 10 | Проверить ludonarrative | Результат: Гармония/Ирония/Диссонанс |
+| 11 | Проверить overall consistency | Общая согласованность (0-1) |
 
 #### UI-15: MDA Lab (Блок 3, скелет)
 

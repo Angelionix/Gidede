@@ -9,6 +9,101 @@
 
 ---
 
+## [0.23.0] — 2026-05-19
+
+### Добавлено
+
+#### Тестовая документация — полная актуализация
+- Актуализирован полный перечень программных и UI тестов для всего функционала (docs/тестирование/)
+- Реальное состояние: backend 198 тестов (8 файлов), frontend 9 тестов (3 файла)
+- Добавлены 50 UI-тест кейсов и 6 E2E-сценариев (ручное тестирование)
+- Плановые тесты: ~340 backend + ~112 frontend для будущих модулей
+
+#### ROADMAP
+- Задача 4.C.6 отмечена как завершённая (✅) в ROADMAP_PHASE4.md
+
+### Изменено
+- Версия обновлена с 0.22.0 до 0.23.0
+- `docs/тестирование/testing_plan.md` — полная актуализация: реальные + плановые тесты, UI/E2E сценарии
+- `docs/тестирование/test_infrastructure.md` — актуализация: текущие фикстуры, статистика
+
+---
+
+## [0.22.0] — 2026-05-19
+
+### Добавлено
+
+#### Продвинутые модули (Фаза 4.C, Блок 5 Backend — Экономика)
+- Блок 5: Backend — Экономическое моделирование (алгоритм 3.6) — 4.C.6
+  - **Этап 1: Идентификация ресурсов** (3.6.3)
+    - Извлечение core ресурсов из CoreLoop шагов (consumed/produced)
+    - Genre resource maps: 10 жанров → core/anchor/subsidiary ресурсы
+    - Классификация по Schreiber: time/currency/game_object/hp/experience/consumable
+    - Установка свойств: is_consumable, is_catalytic, is_anchor, depreciates, transferable
+    - AI-обогащение через IDENTIFY_RESOURCES промпт (fallback → эвристики)
+  - **Этап 2: Классификация экономической системы** (3.6.4)
+    - Определение loop types (reinforcing/balancing/neutral) из CoreLoop петель
+    - Классификация по Sellers matrix: Engine/Economy/Ecology/Hybrid
+    - Подтипы: braked_engine, pure_engine, multi_currency, single_currency, metastable, balanced_ecology, engine_dominant, economy_dominant
+    - Openness (open/closed/mixed) и pricing_type (fixed/player_driven/f2p/mixed) по жанру
+    - Risk profile на основе экономического типа
+  - **Этап 3: Построение Machinations-модели** (3.6.5)
+    - Pool, Source, Drain, Converter, Trader, Gate узлы для каждого ресурса
+    - Resource flows (Source→Pool, Pool→Drain, Pool→Converter)
+    - State connections (reinforcing/balancing feedback loops)
+    - Structural patterns Adams/Dormans (Static Engine, Converter Engine, Dynamic Friction, etc.)
+  - **Этап 4: Построение графа конверсий** (3.6.6)
+    - Conversion chains из progression_profile.economyInput
+    - Profitability расчёт (output_value / input_value)
+    - Предупреждения при profitability > 1.5 (grind risk) или < 0.7 (frustration risk)
+    - Tier coverage анализ и обнаружение непокрытых тиров
+  - **Этап 5: Диагностика патологий** (3.6.7)
+    - Runaway detection (усиливающие петли без торможения)
+    - Deadlock/stall detection (балансирующих петель больше)
+    - Inflation detection (faucet >> drain)
+    - Stagnation detection (faucet ≈ 0)
+    - Arbitrage detection (profitability > 1.0, замкнутые циклы)
+    - Faucet/drain ratios для каждого ресурса
+  - **Этап 6: Автоматическая балансировка faucet/drain** (3.6.8)
+    - Auto-adjust: deficit → increase faucet/decrease drain
+    - Auto-adjust: surplus → increase drain/decrease faucet
+    - Economy phase targets: startup(1.0), growth(1.3), maturity(1.0), endgame(0.8)
+    - Обновление Machinations graph с корректировками
+  - **Этап 7: Симуляция экономики (Monte Carlo)** (3.6.9)
+    - 4 архетипа игроков (optimal/casual/minmaxer/explorer)
+    - Reinforcing/balancing feedback в симуляции
+    - Runaway/stall frequency, build gap, stability index
+    - Quality assessment: 6 проверок (resources_in_bounds, progression_pacing, no_runaway, no_stall, build_gap_acceptable, economy_stable)
+    - Снапшоты для визуализации
+  - **Этап 8: Полный пайплайн economy_design_full()** — Этапы 1–8
+
+#### Схемы данных (Блок 5 — Экономика)
+- `ResourceDescriptor` — дескриптор ресурса (name, resource_class, properties, bounds)
+- `ResourceInventory` — инвентарь ресурсов (resources, anchor, core/subsidiary counts, class_distribution)
+- `EconomicClassification` — классификация экономики (type, sub_type, loop analysis, risk)
+- `ConversionChain` — цепочка конверсии (inputs, outputs, profitability, tier)
+- `ConversionGraph` — граф конверсий (chains, avg_profitability, tier_coverage, warnings)
+- `EconomyPathology` — патология экономики (name, severity, description, correction)
+- `EconomyDiagnostics` — диагностика (pathologies, faucet_drain_ratios, overall_severity)
+- `FaucetDrainAdjustment` — корректировка faucet/drain (current/new rates, action)
+- `FaucetDrainBalance` — результат балансировки (adjustments, phase, target_ratio)
+- `EconomySimResult` — результат симуляции (config, aggregated, quality, pathologies)
+- `EconomyProfile` — итоговый профиль экономики (все 8 этапов + summary + meta)
+
+#### API
+- POST `/api/v1/economy/design` — полный пайплайн экономического моделирования (Этапы 1–8)
+- POST `/api/v1/economy/resources` — идентификация ресурсов (Этап 1)
+- POST `/api/v1/economy/classify` — классификация экономики (Этап 2)
+- GET `/api/v1/economy/{project_id}` — получение результатов экономики (stub)
+
+#### Тесты
+- 83 теста для EconomyService: Stage 1 (15), Stage 2 (15), Stage 3 (10), Stage 4 (8), Stage 5 (10), Stage 6 (8), Stage 7 (8), Full Pipeline (8)
+
+### Изменено
+- Версия обновлена с 0.21.0 до 0.22.0
+
+---
+
 ## [0.21.0] — 2026-05-19
 
 ### Добавлено

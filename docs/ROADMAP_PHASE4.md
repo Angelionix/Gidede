@@ -411,7 +411,7 @@
 
 ---
 
-#### 4.C.6 — Блок 5: Backend — Экономическое моделирование (алгоритм 3.6)
+#### 4.C.6 — Блок 5: Backend — Экономическое моделирование (алгоритм 3.6) ✅
 
 **Описание**: Реализовать алгоритм 3.6: (1) Идентификация ресурсов — извлечение ресурсов из Core Loop и MDA-профиля, классификация (Valued/Commodity/Subsidiary из Кн. 4); (2) Построение Machinations-модели — создание графа (Sources, Drains, Pools, Converters, Traders, Gates), привязка к механикам; (3) Диагностика — runaway detection, deadlock/stall detection, инфляция/стагнация/арбитраж; (4) Балансировка faucets/drains — автокоррекция ratio; (5) Связь прогрессии с экономикой — маппинг tiers на экономические фазы, цепочки конверсии. Реализовать: `build_economy_model()`, `diagnose_economy()`, `balance_faucets_drains()`.
 

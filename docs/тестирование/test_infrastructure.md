@@ -1,8 +1,8 @@
 # Gidede — Подготовка тестовой инфраструктуры
 
-> **Фаза**: 4.C.4+ (техдолг + инфраструктура)
-> **Дата**: 2026-05-19  
-> **Версия**: 0.20.0  
+> **Фаза**: 4.C.6 (экономика)
+> **Дата**: 2026-05-19
+> **Версия**: 0.23.0
 > **Статус**: Активный
 
 ---
@@ -28,12 +28,11 @@
 │  │ test_health    │  │  │ components     │              │
 │  │ test_auth      │  │  │ auth           │              │
 │  │ test_projects  │  │  │ api-client     │              │
-│  │ test_rag       │  │  │ concept-form   │ ★            │
-│  │ test_registry  │  │  │ sidebar        │ ★            │
-│  │ test_chunker   │  │  └────────────────┘              │
-│  │ test_concept   │ ★  │                                  │
-│  │ test_validate  │ ★  │                                  │
-│  │ test_one_pager │ ★  │                                  │
+│  │ test_rag       │  │  └────────────────┘              │
+│  │ test_registry  │  │                                  │
+│  │ test_chunker   │  │                                  │
+│  │ test_balance   │  │                                  │
+│  │ test_economy   │  │                                  │
 │  └────────────────┘  │                                  │
 ├──────────────────────┴──────────────────────────────────┤
 │               Shared Types (4.A.12)                      │
@@ -48,28 +47,25 @@
 │  .pre-commit-config.yaml — хуки                          │
 │  .github/workflows/ci.yml — CI/CD пайплайн (GitHub Actions) │
 └─────────────────────────────────────────────────────────┘
-
-★ — добавлено в v0.5.0 (4.B.4)
 ```
 
 ---
 
 ## 2. Компоненты тестовой инфраструктуры
 
-### 2.1 Backend: pytest
+### 2.1 Backend: pytest (8 файлов, 198 тестов)
 
-| Компонент | Файл | Назначение |
-|-----------|------|-----------|
-| Фикстуры | `tests/conftest.py` | Общие тестовые данные, моки, БД |
-| Health Check | `tests/test_health.py` | API health-эндпоинт |
-| Авторизация | `tests/test_auth.py` | Регистрация, логин, JWT, refresh |
-| Проекты | `tests/test_projects.py` | CRUD проектов |
-| RAG-сервис | `tests/test_rag_service.py` | Векторный поиск, чанкинг |
-| Реестр промптов | `tests/test_prompt_registry.py` | 34 PromptSpec |
-| TextChunker | `tests/test_text_chunker.py` | Разбиение текста |
-| ★ Concept Service | `tests/test_concept_service.py` | Этапы 1–7 генерации концепции |
-| ★ Валидация | `tests/test_validation.py` | Triangle, 5Q, 8F валидаторы |
-| ★ One-Pager | `tests/test_one_pager.py` | Сборка OnePager |
+| Компонент | Файл | Назначение | Тестов |
+|-----------|------|-----------|--------|
+| Фикстуры | `tests/conftest.py` | Общие тестовые данные, моки, БД | — |
+| Health Check | `tests/test_health.py` | API health-эндпоинт | 2 |
+| Авторизация | `tests/test_auth.py` | Регистрация, логин, JWT | 6 |
+| Проекты | `tests/test_projects.py` | CRUD проектов | 4 |
+| RAG-сервис | `tests/test_rag_service.py` | Векторный поиск, чанкинг | 12 |
+| Реестр промптов | `tests/test_prompt_registry.py` | 34+ PromptSpec | 8 |
+| TextChunker | `tests/test_text_chunker.py` | Разбиение текста | 6 |
+| Balance Service | `tests/test_balance_service.py` | Транзитивный, интранзитивный, ситуационный, Q-фактор, Monte Carlo, Machinations | 77 |
+| Economy Service | `tests/test_economy_service.py` | Все 8 этапов алгоритма 3.6 | 83 |
 
 **Ключевые фикстуры:**
 
@@ -79,26 +75,24 @@
 | `test_client` | Async HTTP-клиент (httpx) |
 | `authenticated_client` | Клиент с JWT-авторизацией |
 | `mock_ai_provider` | Мок AI-провайдера (без реальных вызовов) |
+| `mock_executor` | Мок PromptExecutor |
 | `sample_project_state` | Тестовый Project State |
 | `sample_concept_input` | Тестовый ConceptInput |
-| `sample_aesthetic_profile` | Тестовый AestheticProfile |
-| `sample_dynamics_profile` | Тестовый DynamicsProfile |
-| `sample_mechanic_set` | Тестовый MechanicSet (10–15 механик) |
-| `sample_core_loop_candidates` | Тестовые 3 варианта CoreLoopCandidate |
-| `sample_usp_candidates` | Тестовые 3 варианта USPCandidate |
-| `sample_validation_report` | Тестовый ValidationReport |
-| `sample_one_pager` | Тестовый OnePager |
+| `sample_core_loop` | Тестовый Core Loop с шагами и петлями |
+| `sample_mda_profile` | Тестовый MDA-профиль |
+| `sample_progression_profile` | Тестовый профиль прогрессии |
+| `rpg_inventory` | Инвентарь ресурсов для RPG |
+| `rpg_classification` | Классификация для RPG |
+| `economy_service` | EconomyService с мокнутым PromptExecutor |
 
-### 2.2 Frontend: vitest
+### 2.2 Frontend: vitest (3 файла, 9 тестов)
 
-| Компонент | Файл | Назначение |
-|-----------|------|-----------|
-| Setup | `src/__tests__/setup.ts` | Глобальные моки |
-| UI-компоненты | `src/__tests__/components.test.tsx` | Базовый рендеринг |
-| Авторизация | `src/__tests__/auth.test.tsx` | Формы логина/регистрации |
-| API-клиент | `src/__tests__/api-client.test.ts` | HTTP-запросы, обработка ошибок |
-| ★ Форма концепции | `src/__tests__/concept-form.test.tsx` | Поля ввода Блока 1 |
-| ★ Sidebar | `src/__tests__/sidebar.test.tsx` | Навигация, статусы, версия |
+| Компонент | Файл | Назначение | Тестов |
+|-----------|------|-----------|--------|
+| Setup | `src/__tests__/setup.ts` | Глобальные моки | — |
+| UI-компоненты | `src/__tests__/components.test.tsx` | Базовый рендеринг | 3 |
+| Авторизация | `src/__tests__/auth.test.tsx` | Формы логина/регистрации | 2 |
+| API-клиент | `src/__tests__/api-client.test.ts` | HTTP-запросы, обработка ошибок | 4 |
 
 **Моки в setup.ts:**
 - `next/navigation` — useRouter, usePathname, useSearchParams
@@ -137,18 +131,14 @@
 | Модуль | Файлов | Тестов | Покрытие |
 |--------|--------|--------|----------|
 | Health API | 1 | 2 | — |
-| Auth API | 1 | 8 | — |
-| Projects API | 1 | 5 | — |
-| RAG Service | 1 | 10 | — |
-| Prompt Registry | 1 | 7 | — |
-| TextChunker | 1 | 5 | — |
-| Concept Service (1–7) | 4 | 60+ | — |
-| Core Loop Service (1–5) | 4 | 70+ | — |
-| MDA Service (1–6) | 6 | 90+ | — |
-| Pipeline Service | 2 | 20+ | — |
-| Balance Service (1–7) | 1 | 77+ | — |
-| JWT Secret | 1 | 3 | — |
-| **Итого** | **29** | **390+** | **baseline** |
+| Auth API | 1 | 6 | — |
+| Projects API | 1 | 4 | — |
+| RAG Service | 1 | 12 | — |
+| Prompt Registry | 1 | 8 | — |
+| TextChunker | 1 | 6 | — |
+| Balance Service (4.C.1–4.C.3) | 1 | 77 | — |
+| Economy Service (4.C.6) | 1 | 83 | — |
+| **Итого** | **8** | **198** | **baseline** |
 
 ### 3.2 Frontend — текущее покрытие
 
@@ -156,35 +146,28 @@
 |--------|--------|--------|----------|
 | UI Components | 1 | 3 | — |
 | Auth Pages | 1 | 2 | — |
-| API Client | 1 | 3 | — |
-| Concept Form/Result | 2 | 8 | — |
-| Core Loop Designer | 1 | 15 | — |
-| MDA Lab UI | 1 | 20 | — |
-| Pipeline Components | 1 | 10 | — |
-| Balance Page | 1 | 24 | — |
-| Sidebar | 1 | 3 | — |
-| Main Page | 1 | 2 | — |
-| **Итого** | **11** | **109+** | **baseline** |
+| API Client | 1 | 4 | — |
+| **Итого** | **3** | **9** | **baseline** |
 
 ### 3.3 UI-тесты (ручные)
 
 | Категория | Тест-кейсов |
 |-----------|-------------|
-| Авторизация | UI-01–UI-02 |
-| Проекты | UI-03 |
-| Навигация | UI-04 |
+| Авторизация и навигация | UI-01–UI-04 |
 | Блок 1: Концепция | UI-05–UI-12 |
-| Блок 2: Core Loop | UI-13–UI-22 |
-| Блок 3: MDA Lab | UI-23–UI-39 |
-| Блок 4: Баланс | UI-40–UI-48 |
-| Pipeline | UI-49–UI-52 |
-| E2E сценарии | E2E-01–E2E-45 |
-| **Итого** | **134+** |
+| Блок 2: Core Loop | UI-13–UI-20 |
+| Блок 3: MDA Lab | UI-21–UI-27 |
+| Блок 4: Баланс | UI-28–UI-33 |
+| Блок 5: Прогрессия и экономика | UI-34–UI-41 |
+| Сквозной пайплайн | UI-42–UI-45 |
+| Общие UI | UI-46–UI-50 |
+| E2E сценарии | E2E-01–E2E-06 |
+| **Итого** | **56** |
 
-### 3.3 Целевое покрытие (критерий C8 из ROADMAP)
+### 3.4 Целевое покрытие (критерий C8 из ROADMAP)
 
-- **Backend**: ≥ 60% coverage
-- **Frontend**: ≥ 50% coverage
+- **Backend**: >= 60% coverage
+- **Frontend**: >= 50% coverage
 
 ---
 

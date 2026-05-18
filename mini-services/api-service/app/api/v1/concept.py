@@ -1,12 +1,13 @@
 """
 Блок 1: Генератор концепции — API endpoints.
-Фаза 4.B.1–4.B.2: Полная реализация Этапов 1–3 алгоритма 3.1.
+Фаза 4.B.1–4.B.3: Полная реализация Этапов 1–5 алгоритма 3.1.
 
 Endpoints:
-- POST /generate — генерация концепции (Этапы 1–3 + заглушки 4–7)
+- POST /generate — генерация концепции (Этапы 1–5, ранее 1–3)
 - GET /{concept_id} — получить текущее состояние концепции
 - PUT /{concept_id} — обновить концепцию (ручные правки)
 - POST /{concept_id}/validate — запустить валидацию (Этап 6)
+- POST /{concept_id}/stages-4-5 — продолжить генерацию (Этапы 4–5) для существующей концепции
 """
 
 import logging
@@ -162,8 +163,9 @@ async def generate_concept(
     Генерация концепции игры из описания идеи.
 
     Алгоритм 3.1: 7 этапов
-    - Этапы 1–3: реализованы в 4.B.2 (жанр, эстетика, динамики)
-    - Этапы 4–7: заглушки (реализация в 4.B.3–4.B.4)
+    - Этапы 1–3: жанр, эстетика, динамики (реализовано в 4.B.2)
+    - Этапы 4–5: выбор механик, Core Loop, USP (реализовано в 4.B.3)
+    - Этапы 6–7: заглушки (реализация в 4.B.4)
     """
     user_id = current_user.id
     logger.info(f"Generating concept for user {user_id}")
@@ -178,8 +180,8 @@ async def generate_concept(
             target_motivations = input_data.target_audience.primary
             experience_level = input_data.target_audience.experience
 
-        # Выполняем Этапы 1–3
-        result = await service.generate_stages_1_3(
+        # Выполняем полный пайплайн Этапы 1–5
+        result = await service.generate_full(
             idea=input_data.idea,
             explicit_genre=input_data.genre,
             target_motivations=target_motivations,
@@ -191,10 +193,13 @@ async def generate_concept(
             project_state=None,  # Будет заполнено из БД в будущих фазах
         )
 
-        # Формируем ответ — Этапы 1–3 заполнены, 4–7 заглушки
+        # Формируем ответ
         genre_result = result.get("genre_result", {})
         aesthetic_profile = result.get("aesthetic_profile", {})
         dynamics_profile = result.get("dynamics_profile", {})
+        mechanic_set = result.get("mechanic_set", {})
+        core_loop_candidates = result.get("core_loop_candidates", [])
+        usp_candidates = result.get("usp_candidates", [])
 
         # Сохраняем результат в БД
         concept_id = await _save_concept_result(
@@ -203,6 +208,9 @@ async def generate_concept(
             genre_result=genre_result,
             aesthetic_profile=aesthetic_profile,
             dynamics_profile=dynamics_profile,
+            mechanic_set=mechanic_set,
+            core_loop_candidates=core_loop_candidates,
+            usp_candidates=usp_candidates,
             input_data=input_data.model_dump(),
             metadata=result,
         )
@@ -214,6 +222,16 @@ async def generate_concept(
             if experience_level:
                 audience_str += f" | Уровень: {experience_level}"
 
+        # Уникальные фичи из механик
+        unique_features = []
+        for category_key in ["base", "combat", "progression", "spatial", "social"]:
+            for m in mechanic_set.get(category_key, []):
+                if len(unique_features) >= 3:
+                    break
+                unique_features.append(m.get("name", ""))
+            if len(unique_features) >= 3:
+                break
+
         response = OnePagerResponse(
             id=concept_id,
             title=_generate_title(input_data.idea, genre_result.get("genre", "")),
@@ -221,15 +239,15 @@ async def generate_concept(
             target_audience=audience_str,
             story_synopsis="",  # Этап 7 (4.B.4)
             gameplay_description="",  # Этап 7 (4.B.4)
-            unique_features=[],  # Этап 5 (4.B.3)
+            unique_features=unique_features,
             competitors=input_data.reference_games or [],
             aesthetic_profile=aesthetic_profile,
             dynamics_profile=dynamics_profile,
-            mechanic_set={},  # Этап 4 (4.B.3)
-            core_loop_candidates=[],  # Этап 5 (4.B.3)
-            usp_candidates=[],  # Этап 5 (4.B.3)
+            mechanic_set=mechanic_set,
+            core_loop_candidates=core_loop_candidates,
+            usp_candidates=usp_candidates,
             validation_report={},  # Этап 6 (4.B.4)
-            status="stages_1_3_completed",
+            status="stages_1_5_completed",
             generation_metadata={
                 "stages_completed": result.get("stages_completed", []),
                 "latency_ms": result.get("latency_ms", 0),
@@ -334,8 +352,11 @@ async def _save_concept_result(
     genre_result: dict,
     aesthetic_profile: dict,
     dynamics_profile: dict,
-    input_data: dict,
-    metadata: dict,
+    mechanic_set: Optional[dict] = None,
+    core_loop_candidates: Optional[list] = None,
+    usp_candidates: Optional[list] = None,
+    input_data: Optional[dict] = None,
+    metadata: Optional[dict] = None,
 ) -> str:
     """Сохранить результат генерации в БД (project_concepts)."""
     try:
@@ -356,7 +377,7 @@ async def _save_concept_result(
                 genre=genre_result.get("genre"),
                 status="draft",
                 project_stage="concept",
-                completion_percent=10,  # ~10% после этапов 1-3 из 7
+                completion_percent=30,  # ~30% после этапов 1-5 из 7
             )
             session.add(project)
 
@@ -372,10 +393,10 @@ async def _save_concept_result(
                 aesthetic_profile=aesthetic_profile,
                 dynamics_profile=dynamics_profile,
                 one_pager_data=None,  # Будет заполнено в 4.B.4
-                mechanic_set=None,    # Будет заполнено в 4.B.3
+                mechanic_set=mechanic_set,
                 validation_report=None,  # Будет заполнено в 4.B.4
-                usp_candidates=None,     # Будет заполнено в 4.B.3
-                core_loop_candidates=None,  # Будет заполнено в 4.B.3
+                usp_candidates=usp_candidates,
+                core_loop_candidates=core_loop_candidates,
             )
             session.add(concept)
 

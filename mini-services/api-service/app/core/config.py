@@ -10,7 +10,7 @@ def _read_version() -> str:
     version_file = Path(__file__).resolve().parent.parent.parent.parent.parent / "VERSION"
     if version_file.exists():
         return version_file.read_text().strip()
-    return "0.1.0"
+    return "0.2.0"
 
 
 class Settings:

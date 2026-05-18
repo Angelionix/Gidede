@@ -42,7 +42,7 @@ const blocks = [
     name: "Генератор концепции",
     icon: Lightbulb,
     href: "/blocks/1",
-    status: "skeleton" as const,
+    status: "active" as const,
     algorithm: "3.1",
   },
   {
@@ -289,7 +289,7 @@ export function GidedeSidebar() {
         )}
 
         <p className="text-xs text-muted-foreground px-2 pt-1">
-          Фаза 4.A • v0.1.0
+          Фаза 4.B • v0.3.0
         </p>
       </SidebarFooter>
     </Sidebar>

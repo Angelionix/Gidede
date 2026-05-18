@@ -34,7 +34,7 @@ const blocks = [
       "Превращает абстрактную идею в структурированную концепцию: жанр, эстетика, механики, Core Loop, USP.",
     icon: Lightbulb,
     href: "/blocks/1",
-    status: "skeleton" as const,
+    status: "active" as const,
     algorithm: "Алгоритм 3.1",
   },
   {
@@ -143,7 +143,7 @@ export default function Home() {
           Game Design AI System — от идеи до GDD за 60 минут
         </p>
         <p className="text-sm text-muted-foreground mt-1">
-          Фаза 4.A: Инфраструктура и фундамент • 8 функциональных блоков • 31
+          Фаза 4.B: Основные модули • 8 функциональных блоков • 31
           AI-промпт • 10 алгоритмов
         </p>
       </div>
@@ -153,8 +153,7 @@ export default function Home() {
         <CardHeader>
           <CardTitle className="text-lg">Прогресс разработки</CardTitle>
           <CardDescription>
-            Фазы 1–3 завершены (анализ, библия, алгоритмы). Фаза 4 — разработка
-            веб-приложения.
+            Фазы 1–3 завершены (анализ, библия, алгоритмы). Фаза 4.B — разработка основных модулей
           </CardDescription>
         </CardHeader>
         <CardContent>

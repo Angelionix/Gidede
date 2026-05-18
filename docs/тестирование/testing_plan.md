@@ -1,8 +1,8 @@
 # Gidede — Документ тестирования
 
-> **Фаза**: 4.B.5–4.B.6 (полное покрытие)  
+> **Фаза**: 4.B.5–4.B.7 (полное покрытие)  
 > **Дата**: 2026-05-18  
-> **Версия**: 0.6.0  
+> **Версия**: 0.7.0  
 > **Статус**: Активный  
 > **Подход**: Локальное тестирование (без GitHub Actions)
 
@@ -76,8 +76,9 @@ mini-services/api-service/tests/
 ├── test_concept_service.py        # Генератор концепции (Этапы 1–7)
 ├── test_validation.py             # Валидация концепции (Triangle, 5Q, 8F)
 ├── test_one_pager.py              # Сборка One-Pager
-├── test_coreloop_service.py       # ★ НОВОЕ: Core Loop Designer (Этапы 1–3)
-└── test_coreloop_api.py           # ★ НОВОЕ: API Core Loop Designer
+├── test_coreloop_service.py       # Core Loop Designer (Этапы 1–5)
+├── test_coreloop_api.py           # API Core Loop Designer
+└── test_coreloop_validation.py    # ★ НОВОЕ: Валидация Core Loop (Этапы 4–5)
 ```
 
 #### Фикстуры (conftest.py)
@@ -101,6 +102,8 @@ mini-services/api-service/tests/
 | `sample_core_loop_profile` | ★ Тестовый CoreLoopProfile |
 | `sample_loop_hierarchy` | ★ Тестовый LoopHierarchy |
 | `sample_pathology_report` | ★ Тестовый PathologyReport |
+| `sample_core_loop_validation` | ★ Тестовый CoreLoopValidationResult |
+| `sample_recommendations` | ★ Тестовый список рекомендаций |
 
 #### Тест-кейсы Backend
 
@@ -299,23 +302,68 @@ mini-services/api-service/tests/
 | B-124 | `test_diagnose_multiple_pathologies` | Обнаружение нескольких патологий одновременно |
 | B-125 | `test_pathology_report_metrics` | Корректность total_count и critical_count |
 
-##### Core Loop — Полный пайплайн (4.B.6) ★
+##### Core Loop Service — Этап 4: Валидация Core Loop (4.B.7) ★
 
 | ID | Тест | Что проверяет |
 |----|------|---------------|
-| B-126 | `test_design_full_pipeline` | Полный пайплайн Этапов 1–3 |
-| B-127 | `test_design_full_structural_type` | StructuralType заполнен в результате |
-| B-128 | `test_design_full_loop_hierarchy` | LoopHierarchy заполнен в результате |
-| B-129 | `test_design_full_pathologies` | PathologyReport заполнен в результате |
+| B-126 | `test_validate_core_loop_all_pass` | Все 5 критериев пройдены — overall_passed=true |
+| B-127 | `test_validate_fun_check_pass` | Тест «30 секунд веселья» пройден при наличии обратной связи и награды |
+| B-128 | `test_validate_fun_check_fail_no_feedback` | Тест «30 секунд веселья» не пройден без обратной связи |
+| B-129 | `test_validate_fun_check_score_calculation` | Корректный расчёт score (0.25 за каждый критерий) |
+| B-130 | `test_validate_loop_closedness_resource_overlap` | Замкнутость через пересечение ресурсов (последний → первый) |
+| B-131 | `test_validate_loop_closedness_preparation_keyword` | Замкнутость через ключевое слово «подготов» в последнем шаге |
+| B-132 | `test_validate_loop_closedness_shared_mechanics` | Замкнутость через общие механики первого и последнего шагов |
+| B-133 | `test_validate_loop_closedness_not_closed` | Петля не замкнута — is_closed=false, предупреждение |
+| B-134 | `test_validate_loop_closedness_single_step` | Один шаг — замкнутость невозможна |
+| B-135 | `test_validate_resource_sufficiency_no_dead` | Нет мёртвых ресурсов — has_dead_resources=false |
+| B-136 | `test_validate_resource_sufficiency_dead_resources` | Обнаружены мёртвые ресурсы — produced but not consumed |
+| B-137 | `test_validate_resource_sufficiency_unsourced` | Обнаружены потребляемые без источника пополнения |
+| B-138 | `test_validate_checklist_critical_pathology` | Критическая патология — checklist_passed не увеличивается |
+| B-139 | `test_validate_checklist_step_count_ok` | 3–7 шагов — критерий пройден |
+| B-140 | `test_validate_checklist_step_count_too_few` | <3 шагов — критерий не пройден |
+| B-141 | `test_validate_checklist_step_count_too_many` | >7 шагов — критерий не пройден |
+| B-142 | `test_validate_overall_passed_threshold` | overall_passed=true при >=3 из 5 критериев |
+| B-143 | `test_validate_overall_failed_threshold` | overall_passed=false при <3 из 5 критериев |
+| B-144 | `test_validate_warnings_generated` | Предупреждения формируются для непройденных критериев |
 
-##### API-эндпоинты Core Loop (4.B.6) ★
+##### Core Loop Service — Этап 5: Рекомендации (4.B.7) ★
 
 | ID | Тест | Что проверяет |
 |----|------|---------------|
-| B-130 | `test_api_coreloop_design` | POST /api/v1/coreloop/design — полный CoreLoopProfile |
-| B-131 | `test_api_coreloop_design_unauthorized` | 401 без авторизации |
-| B-132 | `test_api_coreloop_design_invalid_input` | 400 при невалидных данных |
-| B-133 | `test_api_coreloop_design_with_concept` | Проектирование с данными из существующей концепции |
+| B-145 | `test_recommendations_from_fun_check_failure` | Рекомендация при непройденном тесте «30 секунд веселья» |
+| B-146 | `test_recommendations_from_loop_not_closed` | Рекомендация при незамкнутой петле |
+| B-147 | `test_recommendations_from_dead_resources` | Рекомендация при мёртвых ресурсах |
+| B-148 | `test_recommendations_from_unsourced_consumables` | Рекомендация при потребляемых без источника |
+| B-149 | `test_recommendations_from_critical_pathology` | Рекомендация при критических патологиях (priority=high) |
+| B-150 | `test_recommendations_from_warning_pathology` | Рекомендация при warning-патологиях (priority=medium) |
+| B-151 | `test_recommendations_engine_without_braking` | Структурная рекомендация для Engine без торможения |
+| B-152 | `test_recommendations_ai_enrichment` | AI-рекомендации через GENERATE_RECOMMENDATIONS |
+| B-153 | `test_recommendations_ai_fallback` | Fallback: только формализованные рекомендации без AI |
+| B-154 | `test_recommendations_priority_levels` | Корректные приоритеты: high для critical, medium для warning |
+| B-155 | `test_recommendations_category_and_source` | Категория (fun/closedness/resource/pathology/structure) и источник (formal/ai) |
+
+##### Core Loop — Полный пайплайн (4.B.7) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-156 | `test_design_full_pipeline` | Полный пайплайн Этапов 1–5 |
+| B-157 | `test_design_full_structural_type` | StructuralType заполнен в результате |
+| B-158 | `test_design_full_loop_hierarchy` | LoopHierarchy заполнен в результате |
+| B-159 | `test_design_full_pathologies` | PathologyReport заполнен в результате |
+| B-160 | `test_design_full_validation` | ★ CoreLoopValidationResult заполнен в результате |
+| B-161 | `test_design_full_recommendations` | ★ Рекомендации содержат формализованные записи |
+| B-162 | `test_design_full_stages_completed` | ★ stages_completed = [1,2,3,4,5] |
+
+##### API-эндпоинты Core Loop (4.B.7) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-163 | `test_api_coreloop_design` | POST /api/v1/coreloop/design — полный CoreLoopProfile |
+| B-164 | `test_api_coreloop_design_unauthorized` | 401 без авторизации |
+| B-165 | `test_api_coreloop_design_invalid_input` | 400 при невалидных данных |
+| B-166 | `test_api_coreloop_design_with_concept` | Проектирование с данными из существующей концепции |
+| B-167 | `test_api_coreloop_design_validation` | ★ Ответ содержит validation с результатом валидации |
+| B-168 | `test_api_coreloop_design_stages_completed` | ★ stages_completed = [1,2,3,4,5] |
 
 ### 2.2 Frontend — vitest
 
@@ -344,7 +392,7 @@ src/__tests__/
 | F-06 | API Client: обработка 401 | Обработка ошибки авторизации |
 | F-07 | Sidebar: навигация по блокам | 8 блоков в sidebar |
 | F-08 | Sidebar: статус блоков | Блок 1, 2 — «Активен» |
-| F-09 | Sidebar: версия | Отображение «v0.6.0» |
+| F-09 | Sidebar: версия | Отображение «v0.7.0» |
 | F-10 | Главная страница: блоки | Карточки 8 блоков |
 | F-11 | Форма концепции: поля | Поля идея, жанр, платформа |
 | F-12 | ★ OnePagerCard: рендер | Карточка с 8 полями отображается |
@@ -407,7 +455,7 @@ src/__tests__/
 | 2 | Кликнуть «Блок 2» | Открылась страница /blocks/2 |
 | 3 | Кликнуть каждый блок 1–8 | Каждая страница открывается |
 | 4 | Проверить активное состояние | Текущий блок выделен в sidebar |
-| 5 | Проверить версию в footer | Отображается «Фаза 4.B • v0.6.0» |
+| 5 | Проверить версию в footer | Отображается «Фаза 4.B • v0.7.0» |
 
 #### UI-05: Генератор концепции — ввод (Блок 1, Этапы 1–5)
 
@@ -506,7 +554,7 @@ src/__tests__/
 | 4 | Проверить warnings | Жёлтые алерты |
 | 5 | Проверить suggestions | Синие алерты с предложениями |
 
-#### UI-14: Core Loop Designer — Backend (Блок 2, 4.B.6) ★
+#### UI-14: Core Loop Designer — Backend (Блок 2, 4.B.7) ★
 
 | Шаг | Действие | Ожидаемый результат |
 |------|----------|-------------------|
@@ -514,7 +562,10 @@ src/__tests__/
 | 2 | Проверить structural_type | type: engine/economy/ecology/hybrid |
 | 3 | Проверить loop_hierarchy | 6 уровней: micro → meta |
 | 4 | Проверить pathologies | PathologyReport с total_count |
-| 5 | Проверить статус в sidebar | «Активен» |
+| 5 | Проверить validation | ★ CoreLoopValidationResult с fun_check, closedness, resource_sufficiency |
+| 6 | Проверить recommendations | ★ Список рекомендаций с приоритетами |
+| 7 | Проверить stages_completed | ★ [1,2,3,4,5] |
+| 8 | Проверить статус в sidebar | «Активен» |
 
 #### UI-15: MDA Lab (Блок 3, скелет)
 
@@ -668,6 +719,9 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 | 8 | Проверить resources | Список ресурсов из концепции |
 | 9 | Проверить loop_hierarchy | 6 уровней (micro → meta) |
 | 10 | Проверить pathologies | PathologyReport, total_count >= 0 |
+| 11 | Проверить validation | ★ CoreLoopValidationResult: fun_check, closedness, resource_sufficiency |
+| 12 | Проверить recommendations | ★ Формализованные + AI-рекомендации |
+| 13 | Проверить stages_completed | ★ [1,2,3,4,5] |
 
 ---
 
@@ -689,12 +743,14 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 | Concept Service (Этап 7) | 11 | — | ✅ |
 | Полный пайплайн концепции (1–7) | 4 | — | ✅ |
 | API концепции | 7 | — | ✅ |
-| ★ CoreLoop Service (Этап 1) | 11 | — | ★ Новое |
-| ★ CoreLoop Service (Этап 2) | 10 | — | ★ Новое |
-| ★ CoreLoop Service (Этап 3) | 12 | — | ★ Новое |
-| ★ CoreLoop полный пайплайн | 4 | — | ★ Новое |
-| ★ API CoreLoop | 4 | — | ★ Новое |
-| **Итого** | **143** | **baseline** | |
+| CoreLoop Service (Этап 1) | 11 | — | ✅ |
+| CoreLoop Service (Этап 2) | 10 | — | ✅ |
+| CoreLoop Service (Этап 3) | 12 | — | ✅ |
+| ★ CoreLoop Service (Этап 4: Валидация) | 19 | — | ★ Новое |
+| ★ CoreLoop Service (Этап 5: Рекомендации) | 11 | — | ★ Новое |
+| ★ CoreLoop полный пайплайн | 7 | — | ★ Новое |
+| ★ API CoreLoop | 6 | — | ★ Новое |
+| **Итого** | **168** | **baseline** | |
 
 ### 6.2 Frontend — покрытие по модулям
 

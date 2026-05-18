@@ -1,9 +1,9 @@
 """
 Блок 2: Core Loop Designer — API endpoints.
-Фаза 4.B.6: Полная реализация Этапов 1–3 алгоритма 3.2.
+Фаза 4.B.7: Полная реализация Этапов 1–5 алгоритма 3.2.
 
 Endpoints:
-- POST /design — проектирование Core Loop (Этапы 1–3)
+- POST /design — проектирование Core Loop (Этапы 1–5)
 """
 
 import logging
@@ -53,7 +53,7 @@ class CoreLoopInput(BaseModel):
 
 
 class CoreLoopProfileResponse(BaseModel):
-    """Результат проектирования Core Loop — Этапы 1–3."""
+    """Результат проектирования Core Loop — Этапы 1–5."""
     id: str
     structural_type: dict
     steps: List[dict]
@@ -62,8 +62,9 @@ class CoreLoopProfileResponse(BaseModel):
     meta_loop: Optional[dict]
     pathologies: dict
     recommendations: List[dict]
+    validation: Optional[dict] = None
     loop_hierarchy: Optional[dict]
-    stages_completed: List[int] = [1, 2, 3]
+    stages_completed: List[int] = [1, 2, 3, 4, 5]
     latency_ms: int = 0
     models_used: List[str] = []
 
@@ -140,11 +141,13 @@ async def design_core_loop(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Проектирование Core Loop. Алгоритм 3.2: 3 этапа.
+    Проектирование Core Loop. Алгоритм 3.2: 5 этапов.
 
     1. Классификация структурного типа (3.2.3)
     2. Конструирование иерархии петель (3.2.4)
     3. Диагностика патологий (3.2.5)
+    4. Валидация Core Loop (3.2.6)
+    5. Рекомендации (3.2.7)
 
     Принимает данные концепции из Блока 1 (concept_id + mechanics)
     и возвращает полный CoreLoopProfile.
@@ -203,7 +206,7 @@ async def design_core_loop(
         if concept_data and concept_data.get("genre"):
             genre = concept_data["genre"]
 
-        # Выполняем полный пайплайн Этапы 1–3
+        # Выполняем полный пайплайн Этапы 1–5
         profile = await service.design_full(
             mechanics=mechanics,
             concept_data=concept_data,
@@ -218,6 +221,7 @@ async def design_core_loop(
         structural_type_dict = profile.structural_type.model_dump() if profile.structural_type else {}
         pathologies_dict = profile.pathologies.model_dump() if profile.pathologies else {}
         hierarchy_dict = profile.loop_hierarchy.model_dump() if profile.loop_hierarchy else None
+        validation_dict = profile.validation.model_dump() if profile.validation else None
 
         response = CoreLoopProfileResponse(
             id=result_id,
@@ -228,8 +232,9 @@ async def design_core_loop(
             meta_loop=profile.meta_loop,
             pathologies=pathologies_dict,
             recommendations=profile.recommendations,
+            validation=validation_dict,
             loop_hierarchy=hierarchy_dict,
-            stages_completed=[1, 2, 3],
+            stages_completed=[1, 2, 3, 4, 5],
             latency_ms=0,
             models_used=["DECOMPOSE_STEP", "GENERATE_OUTER_LOOPS", "GENERATE_META_LOOP", "GENERATE_RECOMMENDATIONS"],
         )

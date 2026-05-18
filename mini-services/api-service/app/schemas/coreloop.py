@@ -1,6 +1,6 @@
 """
 Gidede — Core Loop Schemas (Pydantic Models)
-Фаза 4.B.6: Схемы для Блока 2 — Core Loop Designer (Этапы 1–3)
+Фаза 4.B.7: Схемы для Блока 2 — Core Loop Designer (Этапы 1–5)
 
 Модели синхронизированы с shared/types/python/models.py (4.A.12)
 и shared/types/typescript/interfaces.ts.
@@ -9,6 +9,8 @@ Gidede — Core Loop Schemas (Pydantic Models)
 - Этап 1: Классификация структурного типа
 - Этап 2: Конструирование иерархии петель
 - Этап 3: Диагностика патологий
+- Этап 4: Валидация Core Loop
+- Этап 5: Рекомендации
 """
 
 from pydantic import BaseModel, Field
@@ -194,12 +196,60 @@ class PathologyReport(BaseModel):
 
 
 # ============================================================
-# ИТОГОВЫЙ ПРОФИЛЬ CORE LOOP (результат Этапов 1–3)
+# ЭТАП 4: ВАЛИДАЦИЯ CORE LOOP (алгоритм 3.2.6)
+# ============================================================
+
+class FunCheckResult(BaseModel):
+    """Результат теста '30 секунд веселья' (Кн. 7)."""
+    passed: bool = Field(False, description="Прошёл ли тест '30 секунд веселья'")
+    score: float = Field(0.0, description="Оценка веселья 0-1")
+    reasoning: str = Field("", description="Обоснование оценки")
+
+class LoopClosednessCheck(BaseModel):
+    """Проверка замкнутости петли."""
+    is_closed: bool = Field(False, description="Замкнута ли петля (последний шаг → первый)")
+    last_step: str = Field("", description="Последний шаг")
+    first_step: str = Field("", description="Первый шаг")
+    connection_description: str = Field("", description="Как последний шаг ведёт к первому")
+
+class ResourceSufficiencyCheck(BaseModel):
+    """Проверка достаточности ресурсов."""
+    has_dead_resources: bool = Field(False, description="Есть ли 'мёртвые' ресурсы")
+    dead_resources: list[str] = Field(default_factory=list, description="Список мёртвых ресурсов")
+    has_unsourced_consumables: bool = Field(False, description="Есть ли потребляемые ресурсы без источника")
+    unsourced_consumables: list[str] = Field(default_factory=list, description="Потребляемые без источника пополнения")
+
+class CoreLoopValidationResult(BaseModel):
+    """Результат валидации Core Loop (алгоритм 3.2.6)."""
+    fun_check: Optional[FunCheckResult] = Field(None, description="Тест '30 секунд веселья'")
+    loop_closedness: Optional[LoopClosednessCheck] = Field(None, description="Проверка замкнутости")
+    resource_sufficiency: Optional[ResourceSufficiencyCheck] = Field(None, description="Проверка достаточности ресурсов")
+    checklist_passed: int = Field(0, description="Количество пройденных критериев чек-листа (из 5)")
+    checklist_total: int = Field(5, description="Всего критериев чек-листа")
+    overall_passed: bool = Field(False, description="Валидация пройдена (>=3 из 5 критериев)")
+    score: float = Field(0.0, description="Общая оценка валидации 0-1")
+    warnings: list[str] = Field(default_factory=list, description="Предупреждения")
+
+# ============================================================
+# ЭТАП 5: РЕКОМЕНДАЦИИ (алгоритм 3.2.7)
+# ============================================================
+
+class Recommendation(BaseModel):
+    """Рекомендация по улучшению Core Loop."""
+    target: str = Field("", description="Что рекомендуется изменить")
+    recommendation: str = Field("", description="Текст рекомендации")
+    priority: str = Field("medium", description="Приоритет: high/medium/low")
+    category: str = Field("", description="Категория: fun/closedness/resource/pathology/structure")
+    source: str = Field("formal", description="Источник: formal/ai")
+
+
+# ============================================================
+# ИТОГОВЫЙ ПРОФИЛЬ CORE LOOP (результат Этапов 1–5)
 # ============================================================
 
 class CoreLoopProfile(BaseModel):
     """
-    Итоговый профиль Core Loop — результат Этапов 1–3 алгоритма 3.2.
+    Итоговый профиль Core Loop — результат Этапов 1–5 алгоритма 3.2.
 
     Включает:
     - structural_type: классификация структурного типа (Этап 1)
@@ -208,7 +258,8 @@ class CoreLoopProfile(BaseModel):
     - outer_loops: внешние петли (Этап 2)
     - meta_loop: мета-петля (Этап 2)
     - pathologies: отчёт по патологиям (Этап 3)
-    - recommendations: рекомендации
+    - validation: результат валидации (Этап 4)
+    - recommendations: рекомендации (Этап 5)
     - loop_hierarchy: иерархия петель (Этап 2)
     """
     structural_type: Optional[StructuralType] = Field(
@@ -235,6 +286,10 @@ class CoreLoopProfile(BaseModel):
         None,
         description="Отчёт по патологиям (Этап 3)",
     )
+    validation: Optional[CoreLoopValidationResult] = Field(
+        None,
+        description="Результат валидации (Этап 4)",
+    )
     recommendations: list[dict] = Field(
         default_factory=list,
         description="Рекомендации",
@@ -242,4 +297,8 @@ class CoreLoopProfile(BaseModel):
     loop_hierarchy: Optional[LoopHierarchy] = Field(
         None,
         description="Иерархия петель (Этап 2)",
+    )
+    stages_completed: list[int] = Field(
+        default_factory=lambda: [1, 2, 3],
+        description="Завершённые этапы",
     )

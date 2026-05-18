@@ -1,6 +1,6 @@
 """
 Gidede — Core Loop Service
-Фаза 4.B.6: Блок 2 — алгоритм проектирования Core Loop (Этапы 1–3)
+Фаза 4.B.7: Блок 2 — алгоритм проектирования Core Loop (Этапы 1–5)
 
 Реализация пайплайна Core Loop из алгоритма 3.2:
 - Этап 1: Классификация структурного типа (3.2.3)
@@ -22,6 +22,15 @@ Gidede — Core Loop Service
     oscillation, stagnation, triviality
   • Формализованные правила + AI-обогащение
   • Рекомендации через GENERATE_RECOMMENDATIONS
+
+- Этап 4: Валидация Core Loop (3.2.6)
+  • Тест «30 секунд веселья» (Кн. 7) — 5 критериев чек-листа
+  • Проверка замкнутости петли
+  • Проверка достаточности ресурсов
+
+- Этап 5: Рекомендации (3.2.7)
+  • Формализованные рекомендации на основе валидации и патологий
+  • AI-генерация рекомендаций через GENERATE_RECOMMENDATIONS
 
 Зависимости: 4.A.7 (PromptExecutor), 4.A.8 (Prompt Registry), 4.A.12 (Shared Types)
 """
@@ -225,13 +234,15 @@ PATHOLOGY_RULES: dict[str, dict[str, Any]] = {
 class CoreLoopService:
     """
     Блок 2: Core Loop Designer.
-    Реализует алгоритм 3.2 — Этапы 1–3.
+    Реализует алгоритм 3.2 — Этапы 1–5.
 
     Методы:
     - classify_core_loop() — Этап 1: классификация структурного типа
     - build_loop_hierarchy() — Этап 2: конструирование иерархии петель
     - diagnose_pathologies() — Этап 3: диагностика патологий
-    - design_full() — полный пайплайн Этапов 1–3
+    - validate_core_loop() — Этап 4: валидация Core Loop
+    - generate_recommendations() — Этап 5: генерация рекомендаций
+    - design_full() — полный пайплайн Этапов 1–5
     """
 
     def __init__(self, executor: PromptExecutor):
@@ -1505,7 +1516,455 @@ class CoreLoopService:
         return recommendations
 
     # ========================================================
-    # Полный пайплайн: Этапы 1–3
+    # Этап 4: Валидация Core Loop (3.2.6)
+    # ========================================================
+
+    async def validate_core_loop(
+        self,
+        steps: list[CoreLoopStep],
+        structural_type: StructuralType,
+        pathologies: Optional[PathologyReport] = None,
+        project_state: Optional[dict] = None,
+    ) -> 'CoreLoopValidationResult':
+        """
+        Этап 4: Валидация Core Loop.
+
+        Алгоритм 3.2.6:
+        1. Тест «30 секунд веселья» (Кн. 7) — 5 критериев чек-листа
+        2. Проверка замкнутости петли (последний шаг → первый)
+        3. Проверка достаточности ресурсов (нет «мёртвых» ресурсов)
+
+        Returns:
+            CoreLoopValidationResult с результатами валидации
+        """
+        from app.schemas.coreloop import (
+            CoreLoopValidationResult, FunCheckResult,
+            LoopClosednessCheck, ResourceSufficiencyCheck,
+        )
+
+        start = time.time()
+        checklist_passed = 0
+        warnings: list[str] = []
+
+        # 1. Тест «30 секунд веселья» (Кн. 7)
+        fun_check = self._evaluate_fun_check(steps, structural_type)
+        if fun_check.passed:
+            checklist_passed += 1
+        else:
+            warnings.append(
+                f"Тест '30 секунд веселья' не пройден: {fun_check.reasoning}"
+            )
+
+        # 2. Проверка замкнутости петли
+        closedness_check = self._check_loop_closedness(steps)
+        if closedness_check.is_closed:
+            checklist_passed += 1
+        else:
+            warnings.append(
+                "Core Loop не замкнут: последний шаг не ведёт к первому"
+            )
+
+        # 3. Проверка достаточности ресурсов
+        resource_check = self._check_resource_sufficiency(steps, structural_type)
+        if not resource_check.has_dead_resources and not resource_check.has_unsourced_consumables:
+            checklist_passed += 1
+        else:
+            if resource_check.has_dead_resources:
+                warnings.append(
+                    f"Обнаружены 'мёртвые' ресурсы: {', '.join(resource_check.dead_resources)}"
+                )
+            if resource_check.has_unsourced_consumables:
+                warnings.append(
+                    f"Ресурсы без источника пополнения: {', '.join(resource_check.unsourced_consumables)}"
+                )
+
+        # 4. Проверка на наличие критических патологий
+        has_critical_pathology = False
+        if pathologies and pathologies.critical_count > 0:
+            has_critical_pathology = True
+            warnings.append(
+                f"Обнаружено {pathologies.critical_count} критических патологий"
+            )
+        else:
+            checklist_passed += 1
+
+        # 5. Проверка на достаточное число шагов (3-7)
+        if 3 <= len(steps) <= 7:
+            checklist_passed += 1
+        else:
+            warnings.append(
+                f"Некорректное число шагов Core Loop: {len(steps)} (рекомендуется 3-7)"
+            )
+
+        # Итоговая оценка
+        score = checklist_passed / 5.0
+        overall_passed = checklist_passed >= 3
+
+        result = CoreLoopValidationResult(
+            fun_check=fun_check,
+            loop_closedness=closedness_check,
+            resource_sufficiency=resource_check,
+            checklist_passed=checklist_passed,
+            checklist_total=5,
+            overall_passed=overall_passed,
+            score=score,
+            warnings=warnings,
+        )
+
+        logger.info(
+            f"[Stage 4] Core Loop validation: {checklist_passed}/5 passed, "
+            f"score={score:.2f}, overall={'PASS' if overall_passed else 'FAIL'} "
+            f"({time.time() - start:.2f}s)"
+        )
+        return result
+
+    def _evaluate_fun_check(
+        self,
+        steps: list[CoreLoopStep],
+        structural_type: StructuralType,
+    ) -> 'FunCheckResult':
+        """Оценить тест '30 секунд веселья' (Кн. 7) формализованно."""
+        from app.schemas.coreloop import FunCheckResult
+
+        score = 0.0
+        reasoning_parts = []
+
+        # Критерий 1: Есть ли действие с немедленной обратной связью?
+        has_immediate_feedback = any(
+            s.feedback_type == "positive" for s in steps
+        )
+        if has_immediate_feedback:
+            score += 0.25
+            reasoning_parts.append("есть немедленная обратная связь")
+        else:
+            reasoning_parts.append("нет немедленной обратной связи")
+
+        # Критерий 2: Есть ли элемент риска/вызова?
+        has_challenge = any(
+            s.resources_consumed for s in steps
+        )
+        if has_challenge:
+            score += 0.25
+            reasoning_parts.append("есть затраты ресурсов (риск)")
+        else:
+            reasoning_parts.append("нет затрат ресурсов")
+
+        # Критерий 3: Есть ли награда?
+        has_reward = any(
+            s.resources_produced for s in steps
+        )
+        if has_reward:
+            score += 0.25
+            reasoning_parts.append("есть награда за действие")
+        else:
+            reasoning_parts.append("нет награды")
+
+        # Критерий 4: Достаточно ли короткий цикл (до 120 секунд)?
+        total_duration = sum(s.duration_estimate for s in steps)
+        if total_duration <= 120:
+            score += 0.25
+            reasoning_parts.append(f"длительность {total_duration:.0f}с — укладывается в 30 сек веселья")
+        else:
+            reasoning_parts.append(f"длительность {total_duration:.0f}с — слишком долго для '30 секунд веселья'")
+
+        passed = score >= 0.6
+        reasoning = "; ".join(reasoning_parts)
+
+        return FunCheckResult(
+            passed=passed,
+            score=min(score, 1.0),
+            reasoning=reasoning,
+        )
+
+    def _check_loop_closedness(
+        self,
+        steps: list[CoreLoopStep],
+    ) -> 'LoopClosednessCheck':
+        """Проверить замкнутость петли (последний шаг → первый)."""
+        from app.schemas.coreloop import LoopClosednessCheck
+
+        if len(steps) < 2:
+            return LoopClosednessCheck(
+                is_closed=False,
+                last_step=steps[0].action if steps else "",
+                first_step=steps[0].action if steps else "",
+                connection_description="Недостаточно шагов для замкнутой петли",
+            )
+
+        last_step = steps[-1]
+        first_step = steps[0]
+
+        # Проверяем: производит ли последний шаг ресурс, который потребляет первый?
+        last_produced = set(last_step.resources_produced)
+        first_consumed = set(first_step.resources_consumed)
+
+        # Прямая связь через ресурсы
+        resource_overlap = last_produced & first_consumed
+        if resource_overlap:
+            return LoopClosednessCheck(
+                is_closed=True,
+                last_step=last_step.action,
+                first_step=first_step.action,
+                connection_description=(
+                    f"Последний шаг '{last_step.action}' производит ресурсы "
+                    f"({', '.join(resource_overlap)}), которые потребляются первым шагом "
+                    f"'{first_step.action}'"
+                ),
+            )
+
+        # Проверяем: приводит ли последний шаг к подготовке для первого?
+        preparation_keywords = ["подготов", "вернуть", "начать", "снова", "рестарт", "reset"]
+        last_action_lower = last_step.action.lower()
+        if any(kw in last_action_lower for kw in preparation_keywords):
+            return LoopClosednessCheck(
+                is_closed=True,
+                last_step=last_step.action,
+                first_step=first_step.action,
+                connection_description=(
+                    f"Последний шаг '{last_step.action}' подготавливает "
+                    f"к началу нового цикла '{first_step.action}'"
+                ),
+            )
+
+        # По умолчанию — проверяем через наличие механик, связывающих шаги
+        last_mechanics = set(last_step.mechanics)
+        first_mechanics = set(first_step.mechanics)
+        if last_mechanics & first_mechanics:
+            return LoopClosednessCheck(
+                is_closed=True,
+                last_step=last_step.action,
+                first_step=first_step.action,
+                connection_description=(
+                    f"Последний и первый шаги связаны общими механиками: "
+                    f"{', '.join(last_mechanics & first_mechanics)}"
+                ),
+            )
+
+        # Петля не замкнута
+        return LoopClosednessCheck(
+            is_closed=False,
+            last_step=last_step.action,
+            first_step=first_step.action,
+            connection_description=(
+                f"Последний шаг '{last_step.action}' не ведёт явно к первому '{first_step.action}'. "
+                f"Рекомендуется добавить связь: произвести ресурс, нужный для первого шага."
+            ),
+        )
+
+    def _check_resource_sufficiency(
+        self,
+        steps: list[CoreLoopStep],
+        structural_type: StructuralType,
+    ) -> 'ResourceSufficiencyCheck':
+        """Проверить достаточность ресурсов (нет 'мёртвых' ресурсов)."""
+        from app.schemas.coreloop import ResourceSufficiencyCheck
+
+        # Собираем все потребляемые и производимые ресурсы
+        all_consumed: set[str] = set()
+        all_produced: set[str] = set()
+        for step in steps:
+            all_consumed.update(step.resources_consumed)
+            all_produced.update(step.resources_produced)
+
+        # Также берём ресурсы из структурного типа
+        structural_resources: set[str] = set()
+        if structural_type.resources:
+            for res_dict in structural_type.resources:
+                if isinstance(res_dict, dict):
+                    name = res_dict.get("name", "")
+                    if name:
+                        structural_resources.add(name)
+
+        all_produced |= structural_resources
+
+        # Мёртвые ресурсы: производятся, но не потребляются
+        dead_resources = list(all_produced - all_consumed)
+
+        # Потребляемые без источника: потребляются, но не производятся
+        unsourced_consumables = list(all_consumed - all_produced)
+
+        return ResourceSufficiencyCheck(
+            has_dead_resources=len(dead_resources) > 0,
+            dead_resources=dead_resources,
+            has_unsourced_consumables=len(unsourced_consumables) > 0,
+            unsourced_consumables=unsourced_consumables,
+        )
+
+    # ========================================================
+    # Этап 5: Рекомендации (3.2.7)
+    # ========================================================
+
+    async def generate_recommendations(
+        self,
+        steps: list[CoreLoopStep],
+        structural_type: StructuralType,
+        pathologies: Optional[PathologyReport] = None,
+        validation: Optional['CoreLoopValidationResult'] = None,
+        project_state: Optional[dict] = None,
+    ) -> list[dict]:
+        """
+        Этап 5: Генерация рекомендаций по улучшению Core Loop.
+
+        Алгоритм 3.2.7:
+        AI-генерация рекомендаций через GENERATE_RECOMMENDATIONS промпт.
+        Формализованные рекомендации на основе патологий и валидации.
+
+        Returns:
+            Список рекомендаций (dict с target, recommendation, priority, category, source)
+        """
+        from app.schemas.coreloop import CoreLoopValidationResult, Recommendation
+
+        start = time.time()
+        recommendations: list[dict] = []
+
+        # Формализованные рекомендации на основе валидации
+        if validation:
+            if validation.fun_check and not validation.fun_check.passed:
+                recommendations.append({
+                    "target": "Core Loop — веселье",
+                    "recommendation": (
+                        f"Core Loop не проходит тест '30 секунд веселья' "
+                        f"(score={validation.fun_check.score:.2f}). "
+                        f"Рекомендуется: добавить немедленную обратную связь, "
+                        f"элемент риска и награду. {validation.fun_check.reasoning}"
+                    ),
+                    "priority": "high",
+                    "category": "fun",
+                    "source": "formal",
+                })
+
+            if validation.loop_closedness and not validation.loop_closedness.is_closed:
+                recommendations.append({
+                    "target": "Core Loop — замкнутость",
+                    "recommendation": (
+                        f"Core Loop не замкнут. {validation.loop_closedness.connection_description}. "
+                        f"Рекомендуется: добавить шаг или ресурс, связывающий "
+                        f"'{validation.loop_closedness.last_step}' с '{validation.loop_closedness.first_step}'"
+                    ),
+                    "priority": "high",
+                    "category": "closedness",
+                    "source": "formal",
+                })
+
+            if validation.resource_sufficiency and validation.resource_sufficiency.has_dead_resources:
+                recommendations.append({
+                    "target": "Core Loop — ресурсы",
+                    "recommendation": (
+                        f"Обнаружены 'мёртвые' ресурсы, которые производятся, но не используются: "
+                        f"{', '.join(validation.resource_sufficiency.dead_resources)}. "
+                        f"Рекомендуется: добавить шаг, потребляющий эти ресурсы, "
+                        f"или удалить их производство."
+                    ),
+                    "priority": "medium",
+                    "category": "resource",
+                    "source": "formal",
+                })
+
+            if validation.resource_sufficiency and validation.resource_sufficiency.has_unsourced_consumables:
+                recommendations.append({
+                    "target": "Core Loop — источники ресурсов",
+                    "recommendation": (
+                        f"Ресурсы без источника пополнения: "
+                        f"{', '.join(validation.resource_sufficiency.unsourced_consumables)}. "
+                        f"Рекомендуется: добавить шаг, производящий эти ресурсы, "
+                        f"или автоматическое пополнение."
+                    ),
+                    "priority": "medium",
+                    "category": "resource",
+                    "source": "formal",
+                })
+
+        # Формализованные рекомендации на основе патологий
+        if pathologies and pathologies.pathologies:
+            for pathology in pathologies.pathologies:
+                if pathology.severity in ("critical", "warning"):
+                    recommendations.append({
+                        "target": f"Патология: {pathology.name}",
+                        "recommendation": pathology.correction,
+                        "priority": "high" if pathology.severity == "critical" else "medium",
+                        "category": "pathology",
+                        "source": "formal",
+                    })
+
+        # Структурные рекомендации
+        if structural_type.type == "engine" and not structural_type.has_braking:
+            recommendations.append({
+                "target": "Структурный тип: Engine без торможения",
+                "recommendation": (
+                    "Engine без тормозящего механизма — высокий риск runaway-патологии. "
+                    "Рекомендуется: добавить расходуемый ресурс (drain) или "
+                    "механику износа/расхода."
+                ),
+                "priority": "high",
+                "category": "structure",
+                "source": "formal",
+            })
+
+        # AI-генерация дополнительных рекомендаций
+        try:
+            prompt_result: PromptResult = await self.executor.execute(
+                prompt_id="GENERATE_RECOMMENDATIONS",
+                inputs={
+                    "core_loop": {
+                        "steps": [s.model_dump() for s in steps],
+                        "structural_type": structural_type.model_dump(),
+                    },
+                    "pathologies": (
+                        [p.model_dump() for p in pathologies.pathologies]
+                        if pathologies and pathologies.pathologies
+                        else []
+                    ),
+                    "validation": validation.model_dump() if validation else {},
+                },
+                project_state=project_state,
+                options=PromptExecutionOptions(skip_cache=False),
+            )
+
+            ai_data = prompt_result.data
+            if isinstance(ai_data, dict) and "recommendations" in ai_data:
+                ai_recs = ai_data["recommendations"]
+                if isinstance(ai_recs, list):
+                    for rec in ai_recs:
+                        if isinstance(rec, dict):
+                            recommendations.append({
+                                "target": rec.get("target", "AI-рекомендация"),
+                                "recommendation": rec.get("recommendation", ""),
+                                "priority": rec.get("priority", "low"),
+                                "category": rec.get("category", "structure"),
+                                "source": "ai",
+                            })
+                        elif isinstance(rec, str):
+                            recommendations.append({
+                                "target": "AI-рекомендация",
+                                "recommendation": rec,
+                                "priority": "low",
+                                "category": "structure",
+                                "source": "ai",
+                            })
+            elif isinstance(ai_data, list):
+                for rec in ai_data:
+                    if isinstance(rec, dict):
+                        recommendations.append({
+                            "target": rec.get("target", "AI-рекомендация"),
+                            "recommendation": rec.get("recommendation", ""),
+                            "priority": rec.get("priority", "low"),
+                            "category": rec.get("category", "structure"),
+                            "source": "ai",
+                        })
+
+        except Exception as e:
+            logger.warning(
+                f"[Stage 5] GENERATE_RECOMMENDATIONS AI failed, using formal-only: {e}"
+            )
+
+        logger.info(
+            f"[Stage 5] Generated {len(recommendations)} recommendations "
+            f"({time.time() - start:.2f}s)"
+        )
+        return recommendations
+
+    # ========================================================
+    # Полный пайплайн: Этапы 1–5
     # ========================================================
 
     async def design_full(
@@ -1518,15 +1977,17 @@ class CoreLoopService:
         project_state: Optional[dict] = None,
     ) -> CoreLoopProfile:
         """
-        Полный пайплайн проектирования Core Loop — Этапы 1–3 алгоритма 3.2.
+        Полный пайплайн проектирования Core Loop — Этапы 1–5 алгоритма 3.2.
 
         Выполняет последовательно:
         1. Классификацию структурного типа
         2. Конструирование иерархии петель
         3. Диагностику патологий
+        4. Валидацию Core Loop
+        5. Генерацию рекомендаций
 
         Returns:
-            CoreLoopProfile с результатами всех трёх этапов
+            CoreLoopProfile с результатами всех пяти этапов
         """
         pipeline_start = time.time()
 
@@ -1579,12 +2040,32 @@ class CoreLoopService:
             core_loop_steps = updated_steps
 
         # === Этап 3: Диагностика патологий ===
-        pathology_report, recommendations = await self.diagnose_pathologies(
+        pathology_report, stage3_recommendations = await self.diagnose_pathologies(
             structural_type=structural_type,
             core_loop_steps=core_loop_steps,
             loop_hierarchy=loop_hierarchy,
             project_state=project_state,
         )
+
+        # === Этап 4: Валидация Core Loop ===
+        validation = await self.validate_core_loop(
+            steps=core_loop_steps,
+            structural_type=structural_type,
+            pathologies=pathology_report,
+            project_state=project_state,
+        )
+
+        # === Этап 5: Генерация рекомендаций ===
+        stage5_recommendations = await self.generate_recommendations(
+            steps=core_loop_steps,
+            structural_type=structural_type,
+            pathologies=pathology_report,
+            validation=validation,
+            project_state=project_state,
+        )
+
+        # Объединяем рекомендации из Этапов 3 и 5
+        all_recommendations = stage3_recommendations + stage5_recommendations
 
         # Формируем inner_loops, outer_loops, meta_loop из иерархии
         inner_loops = [
@@ -1605,17 +2086,22 @@ class CoreLoopService:
             outer_loops=outer_loops,
             meta_loop=meta_loop,
             pathologies=pathology_report,
-            recommendations=recommendations,
+            validation=validation,
+            recommendations=all_recommendations,
             loop_hierarchy=loop_hierarchy,
+            stages_completed=[1, 2, 3, 4, 5],
         )
 
         latency_ms = int((time.time() - pipeline_start) * 1000)
         logger.info(
-            f"[Pipeline 1-3] Core Loop design completed in {latency_ms}ms. "
+            f"[Pipeline 1-5] Core Loop design completed in {latency_ms}ms. "
             f"Type: {structural_type.type}/{structural_type.sub_type}, "
             f"Steps: {len(core_loop_steps)}, "
             f"Pathologies: {pathology_report.total_count} "
-            f"({pathology_report.critical_count} critical)"
+            f"({pathology_report.critical_count} critical), "
+            f"Validation: {'PASS' if validation.overall_passed else 'FAIL'} "
+            f"({validation.checklist_passed}/5), "
+            f"Recommendations: {len(all_recommendations)}"
         )
 
         return profile

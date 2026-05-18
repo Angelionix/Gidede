@@ -1,8 +1,8 @@
 # Gidede — Документ тестирования
 
-> **Фаза**: 4.C.3 (Блок 4: Симуляция Monte Carlo + Machinations)  
+> **Фаза**: 4.C.4 (Блок 4: UI Баланс и симуляция)  
 > **Дата**: 2026-05-19  
-> **Версия**: 0.18.0  
+> **Версия**: 0.19.0  
 > **Статус**: Активный  
 > **Подход**: Локальное тестирование (без GitHub Actions)
 
@@ -10,7 +10,7 @@
 
 ## 1. Общая стратегия тестирования
 
-Тестирование Gidede проводится локально на ПК разработчика. Автоматизированные программные тесты запускаются через скрипты, отчёты предоставляются вручную. Ручное тестирование UI проводится через браузер. Полное покрытие включает все реализованные модули: инфраструктуру (4.A), концепцию (4.B.1–4.B.5), Core Loop Designer (4.B.6–4.B.8), MDA Lab (4.B.9–4.B.11), сквозной пайплайн (4.B.12), баланс и симуляцию (4.C.1–4.C.3), а также скелетные эндпоинты будущих блоков.
+Тестирование Gidede проводится локально на ПК разработчика. Автоматизированные программные тесты запускаются через скрипты, отчёты предоставляются вручную. Ручное тестирование UI проводится через браузер. Полное покрытие включает все реализованные модули: инфраструктуру (4.A), концепцию (4.B.1–4.B.5), Core Loop Designer (4.B.6–4.B.8), MDA Lab (4.B.9–4.B.11), сквозной пайплайн (4.B.12), баланс и симуляцию (4.C.1–4.C.4), а также скелетные эндпоинты будущих блоков.
 
 ### 1.1 Уровни тестирования
 
@@ -686,15 +686,34 @@ src/__tests__/
 | F-84 | ★ Pipeline Data Flow Indicator: Блок 1 | Индикатор «Блок 1 ← → Блок 2 → Блок 3» с кнопкой запуска пайплайна |
 | F-85 | ★ Pipeline Data Flow Indicator: Блок 2/3 | Индикатор с кнопкой «Загрузить из пайплайна» |
 
-##### Баланс и симуляция (4.C.3 — планируется UI в 4.C.4) ★
+##### Баланс и симуляция — UI (4.C.4) ★
 
 | ID | Тест | Что проверяет |
 |----|------|---------------|
-| F-86 | ★ BalancePage: рендер | Страница /blocks/4 рендерится (скелет или плейсхолдер) |
-| F-87 | ★ TransitiveTable: колонки | Колонки: Элемент, Cost, Power, C/P Ratio, Статус |
-| F-88 | ★ PayoffMatrix: тепловая карта | Интерактивная таблица N×N с цветовой тепловой картой |
-| F-89 | ★ SimulationCharts: win rate | Графики win rate по элементам (Recharts) |
-| F-90 | ★ MachinationsView: граф | Визуализация графа ресурсов с анимацией потока |
+| F-86 | ★ BalancePage: рендер | Страница /blocks/4 рендерится с формой и 5 вкладками |
+| F-87 | ★ BalancePage: форма | Поля: объекты, game_mode, genre, balance_type, параметры симуляции |
+| F-88 | ★ BalancePage: предзаполнение | 5 тестовых объектов (Warrior, Mage, Rogue, Tank, Healer) |
+| F-89 | ★ BalancePage: валидация | Кнопка «Запустить анализ» неактивна без объектов |
+| F-90 | ★ TransitiveTable: таблица | Колонки: Элемент, Cost, Power, C/P Ratio, Distance, Статус |
+| F-91 | ★ TransitiveTable: цветовая индикация | overpowered=red, underpowered=amber, balanced=green, ideal_imbalance=blue |
+| F-92 | ★ TransitiveTable: веса | Отображение attribute_weights и cost_curve_model |
+| F-93 | ★ PayoffMatrix: тепловая карта | Интерактивная N×N таблица с green=positive, red=negative |
+| F-94 | ★ PayoffMatrix: Нэш | Прогресс-бары вероятностей равновесия Нэша |
+| F-95 | ★ PayoffMatrix: RPS-циклы | Обнаруженные нетранзитивные циклы с показателем силы |
+| F-96 | ★ PayoffMatrix: метрики | entropy, max_share, gini strategy balance metrics |
+| F-97 | ★ SimulationCharts: win rate | Win rate bar chart по объектам (Recharts BarChart) |
+| F-98 | ★ SimulationCharts: вердикт | Вердикт GOOD/MODERATE/POOR (цветокодированный бейдж) |
+| F-99 | ★ SimulationCharts: duration | Average duration bar chart по объектам |
+| F-100 | ★ SimulationCharts: correlation | Корреляция Спирмена с формальным ранжированием |
+| F-101 | ★ MachinationsView: узлы | Список узлов с типоспецифичными иконками (pool/source/drain/converter/trader/gate) |
+| F-102 | ★ MachinationsView: потоки | Диаграмма потоков ресурсов (from → to с rate) |
+| F-103 | ★ MachinationsView: feedback | Петли обратной связи (reinforcing/balancing) |
+| F-104 | ★ MachinationsView: quality | Quality Assessment: 6 проверок с pass/fail |
+| F-105 | ★ MachinationsView: curves | Line chart кривых ресурсов (Recharts LineChart) |
+| F-106 | ★ MachinationsView: stability | Индекс стабильности и разрыв билдов |
+| F-107 | ★ CorrectionsPanel: severity | Группировка по severity (critical/warning/info) |
+| F-108 | ★ CorrectionsPanel: metadata | stages_completed, latency_ms, models_used |
+| F-109 | ★ CorrectionsPanel: balance_map | Сводка balance_map и stability assessment |
 
 ---
 
@@ -1207,12 +1226,34 @@ src/__tests__/
 | 1 | Открыть /blocks/3 | Страница с плейсхолдером |
 | 2 | Проверить статус в sidebar | «Скелет» |
 
-#### UI-16: Баланс (Блок 4, скелет)
+#### UI-16: Баланс и симуляция — UI (Блок 4, 4.C.4) ★
 
 | Шаг | Действие | Ожидаемый результат |
 |------|----------|-------------------|
-| 1 | Открыть /blocks/4 | Страница с плейсхолдером |
-| 2 | Проверить статус | «Скелет» |
+| 1 | Открыть /blocks/4 | Страница «Баланс и симуляция» с формой и 5 вкладками |
+| 2 | Проверить Badge | «Активен» в заголовке |
+| 3 | Проверить предзаполнение | 5 тестовых объектов (Warrior, Mage, Rogue, Tank, Healer) |
+| 4 | Выбрать game_mode | Dropdown: PvP/PvE/PvPvE |
+| 5 | Выбрать жанр | Dropdown с жанрами |
+| 6 | Выбрать balance_type | Dropdown: transitive/intransitive/situational/mixed |
+| 7 | Нажать «Запустить анализ баланса» | Индикатор загрузки → результат |
+| 8 | Перейти на вкладку «Transitive-анализ» | Таблица с колонками: Элемент, Cost, Power, C/P Ratio, Distance, Статус |
+| 9 | Проверить цветовую индикацию | overpowered=red, underpowered=amber, balanced=green, ideal_imbalance=blue |
+| 10 | Проверить attribute_weights | Отображение весов атрибутов и cost_curve_model |
+| 11 | Перейти на вкладку «Payoff-матрица» | Интерактивная N×N таблица с тепловой картой |
+| 12 | Проверить равновесие Нэша | Прогресс-бары вероятностей для каждого объекта |
+| 13 | Проверить RPS-циклы | Обнаруженные нетранзитивные циклы с показателем силы |
+| 14 | Проверить метрики баланса | entropy, max_share, gini |
+| 15 | Перейти на вкладку «Симуляция (MC)» | Win rate bar chart + duration bar chart |
+| 16 | Проверить вердикт баланса | Бейдж GOOD/MODERATE/POOR |
+| 17 | Проверить корреляцию Спирмена | Индикатор ranking_correlation |
+| 18 | Перейти на вкладку «Machinations» | Список узлов с иконками + диаграмма потоков |
+| 19 | Проверить Quality Assessment | 6 проверок с pass/fail индикаторами |
+| 20 | Проверить кривые ресурсов | Line chart кривых ресурсов по тикам |
+| 21 | Проверить stability_index и build_gap | Индексы стабильности и разрыва билдов |
+| 22 | Перейти на вкладку «Коррекции» | Список warnings/suggestions по severity |
+| 23 | Проверить метаданные | stages_completed, latency_ms, models_used |
+| 24 | Проверить мета-информацию | stages_completed = [1,2,3,4,5,6,7] при полном анализе |
 
 #### UI-17: Экономика и прогрессия (Блок 5, скелет)
 

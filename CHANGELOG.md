@@ -9,6 +9,54 @@
 
 ---
 
+## [0.19.0] — 2026-05-19
+
+### Добавлено
+
+#### Продвинутые модули (Фаза 4.C, Блок 4 UI)
+- Блок 4: UI — Баланс и симуляция — 4.C.4
+  - **BalancePage** — страница `/blocks/4` с формой ввода объектов и 5 вкладками результатов
+  - **TransitiveTable** — вкладка «Transitive-анализ»
+    - Форма добавления/редактирования игровых объектов (name, type, attributes, cost, tier)
+    - 5 предзаполненных тестовых объектов (Warrior, Mage, Rogue, Tank, Healer)
+    - Таблица результатов: Элемент, Cost, Power, C/P Ratio, Distance from Curve, Status
+    - Цветовая индикация: overpowered=red, underpowered=amber, balanced=green, ideal_imbalance=blue
+    - Отображение attribute_weights, cost_curve_model, warnings, suggestions
+  - **PayoffMatrix** — вкладка «Payoff-матрица»
+    - Интерактивная N×N таблица с тепловой картой (green=positive, red=negative)
+    - Равновесие Нэша с прогресс-барами вероятностей
+    - Обнаруженные RPS-циклы с показателем силы
+    - Доминируемые стратегии
+    - Метрики баланса стратегий (entropy, max_share, gini)
+  - **SimulationCharts** — вкладка «Симуляция (Monte Carlo)»
+    - Win rate bar chart по объектам (Recharts BarChart с цветокодированием)
+    - Индикаторы: win rate spread, корреляция Спирмена
+    - Вердикт баланса: GOOD/MODERATE/POOR (цветокодированный бейдж)
+    - Average duration bar chart
+    - Сворачиваемая матрица парных сравнений (matchup_matrix)
+  - **MachinationsView** — вкладка «Machinations»
+    - Визуальный список узлов с типоспецифичными иконками (pool/source/drain/converter/trader/gate)
+    - Диаграмма потоков ресурсов (from → to с rate)
+    - Связи состояния (dashed arrows) с модификаторами
+    - Петли обратной связи (reinforcing/balancing)
+    - Quality Assessment: 6 проверок с pass/fail индикаторами
+    - Обнаруженные патологии
+    - Line chart кривых ресурсов (Recharts LineChart)
+    - Индекс стабильности и разрыв билдов
+  - **CorrectionsPanel** — вкладка «Коррекции»
+    - Все warnings и suggestions, сгруппированные по severity (critical/warning/info)
+    - AI-рекомендации с кнопками «Применить» (visual only)
+    - Метаданные анализа: stages_completed, latency_ms, models_used
+    - Сводка balance_map и stability assessment
+  - Форма ввода: список объектов, game_mode, genre, balance_type, параметры симуляции
+  - Кнопка «Запустить анализ баланса» → POST `/api/v1/balance/analyze`
+
+### Изменено
+- Версия обновлена с 0.18.0 до 0.19.0
+- Страница `/blocks/4` заменена с placeholder на полнофункциональный UI
+
+---
+
 ## [0.18.0] — 2026-05-19
 
 ### Добавлено

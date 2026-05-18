@@ -1,8 +1,8 @@
 # Gidede — Подготовка тестовой инфраструктуры
 
-> **Фаза**: 4.C.6 (экономика)
+> **Фаза**: 4.C.7 (валидация прогрессии и сборка профилей)
 > **Дата**: 2026-05-19
-> **Версия**: 0.23.0
+> **Версия**: 0.24.0
 > **Статус**: Активный
 
 ---
@@ -53,7 +53,7 @@
 
 ## 2. Компоненты тестовой инфраструктуры
 
-### 2.1 Backend: pytest (8 файлов, 198 тестов)
+### 2.1 Backend: pytest (8 файлов, 180 тестов)
 
 | Компонент | Файл | Назначение | Тестов |
 |-----------|------|-----------|--------|
@@ -61,11 +61,13 @@
 | Health Check | `tests/test_health.py` | API health-эндпоинт | 2 |
 | Авторизация | `tests/test_auth.py` | Регистрация, логин, JWT | 6 |
 | Проекты | `tests/test_projects.py` | CRUD проектов | 4 |
-| RAG-сервис | `tests/test_rag_service.py` | Векторный поиск, чанкинг | 12 |
+| RAG-сервис | `tests/test_rag_service.py` | Векторный поиск, чанкинг | 1* |
 | Реестр промптов | `tests/test_prompt_registry.py` | 34+ PromptSpec | 8 |
-| TextChunker | `tests/test_text_chunker.py` | Разбиение текста | 6 |
+| TextChunker | `tests/test_text_chunker.py` | Разбиение текста | 1* |
 | Balance Service | `tests/test_balance_service.py` | Транзитивный, интранзитивный, ситуационный, Q-фактор, Monte Carlo, Machinations | 77 |
 | Economy Service | `tests/test_economy_service.py` | Все 8 этапов алгоритма 3.6 | 83 |
+
+*\* RAG и TextChunker имеют ошибки импорта, требуют исправления зависимостей*
 
 **Ключевые фикстуры:**
 
@@ -133,12 +135,14 @@
 | Health API | 1 | 2 | — |
 | Auth API | 1 | 6 | — |
 | Projects API | 1 | 4 | — |
-| RAG Service | 1 | 12 | — |
+| RAG Service | 1 | 1* | — |
 | Prompt Registry | 1 | 8 | — |
-| TextChunker | 1 | 6 | — |
+| TextChunker | 1 | 1* | — |
 | Balance Service (4.C.1–4.C.3) | 1 | 77 | — |
 | Economy Service (4.C.6) | 1 | 83 | — |
-| **Итого** | **8** | **198** | **baseline** |
+| **Итого** | **8** | **180** | **baseline** |
+
+*\* RAG и TextChunker имеют ошибки импорта*
 
 ### 3.2 Frontend — текущее покрытие
 

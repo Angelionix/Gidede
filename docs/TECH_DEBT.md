@@ -31,7 +31,7 @@
 | TD-012 | Нет формализованного тестового набора для AI-промптов | 31 промпт специфицирован, но без эталонных входов/выходов | Невозможно автоматически валидировать качество AI-ответов при изменении промптов | Создать golden dataset из 5-10 примеров на каждый промпт на Фазе 4.A | ✅ Resolved — mini-services/api-service/tests/golden_dataset/: 15 примеров для 6 промптов + 3 MDA-сценария |
 | TD-013 | Machinations-симуляция требует сложного графового движка | Формализация в алгоритме 3.6 описана концептуально, но реализация нетривиальна | Блок «Экономика» может быть отложен или реализован в упрощённом виде | Начать с 5 базовых узлов (Pool, Source, Drain, Converter, Gate) на Фазе 4.C, расширять итеративно | ✅ Resolved — Machinations-движок полностью реализован в 4.C.3: 8 типов узлов (Pool, Source, Drain, Converter, Trader, Gate, Delay, Queue), граф потоков и связей, 16 паттернов Adams/Dormans, симуляция N тиков с 4 архетипами игроков, Quality Assessment (6 проверок), обнаружение 6 патологий. Monte Carlo-симуляция также реализована. Полная интеграция с Блоком 5 в 4.C.6 |
 | TD-017 | JWT_SECRET_KEY захардкожен в config.py (dev-значение) | Для удобства локальной разработки | В production утечка ключа = компрометация всех токенов | Обязательно установить JWT_SECRET_KEY через env-переменную при деплое | ✅ Resolved — JWT secret теперь через settings.jwt_secret property: env-переменная обязательна в production, auto-generated dev-ключ с warning |
-| TD-018 | Две ORM-системы (Prisma + SQLAlchemy) — дублирование схемы | Prisma для Next.js SSR, SQLAlchemy для FastAPI backend | Рассинхронизация схем при изменениях | Унифицировать на SQLAlchemy + Alembic (backend — единственный источник истины), Prisma только для миграций в Next.js | 🔲 Open |
+| TD-018 | Две ORM-системы (Prisma + SQLAlchemy) — дублирование схемы | Prisma для Next.js SSR, SQLAlchemy для FastAPI backend | Рассинхронизация схем при изменениях | Унифицировать на SQLAlchemy + Alembic (backend — единственный источник истины), Prisma только для миграций в Next.js | 🔧 Partially Resolved — Shared типы (TS + Python) для Блока 4 синхронизированы (v0.20.0). Полная унификация ORM отложена до Фазы 4.E. |
 
 ---
 
@@ -52,7 +52,7 @@
 | ID | Описание | Причина | Влияние | План решения | Статус |
 |----|----------|---------|---------|--------------|--------|
 | TD-010 | README.md репозитория почти пустой | Только инициализирован | Новые участники не поймут проект | Заполнить README после Фазы 2.5 | ✅ Resolved — README заполнен в v0.9.0: описание проекта, стек, структура, запуск |
-| TD-011 | Нет CI/CD пайплайна | Проект на ранней стадии | Ручной деплой в будущем | Настроить CI/CD на Фазе 4 (описано в DEPLOYMENT.md) | 🔧 Файл .github/workflows/ci.yml создан локально, но не может быть запушен (PAT без workflow scope). Требуется push с полным доступом. |
+| TD-011 | Нет CI/CD пайплайна | Проект на ранней стадии | Ручной деплой в будущем | Настроить CI/CD на Фазе 4 (описано в DEPLOYMENT.md) | ✅ Resolved — .github/workflows/ci.yml создан: backend lint (Ruff), backend test (pytest), frontend lint (ESLint), frontend test (vitest), type sync check. Push требует PAT с workflow scope. |
 | TD-016 | Файл SECRETS.md не в репозитории | PAT содержит чувствительные данные | При восстановлении сессии нужно вручную вводить PAT | Инструкция по восстановлению в AI_RECOVERY_INSTRUCTIONS.md, PAT в менеджере секретов | 🔲 Open |
 
 ---
@@ -95,6 +95,8 @@
 | 2026-05-18 | TD-013 → In Progress: Базовый Machinations-движок реализован в 4.C.3 (8 типов узлов, симуляция экономики, Quality Assessment). Полная интеграция с Блоком 5 в 4.C.6 |
 | 2026-05-19 | TD-013 → Resolved: Machinations-движок полностью реализован в 4.C.3 (Monte Carlo + Machinations симуляция, 8 типов узлов, 16 паттернов Adams/Dormans, Quality Assessment, обнаружение 6 патологий). 77 тестов для balance_service |
 | 2026-05-18 | DEFERRED-004 → Partially Resolved: ANALYZE_DISCREPANCY промпт добавлен в registry (4.C.3) |
+| 2026-05-19 | TD-011 → Resolved: CI/CD пайплайн создан (.github/workflows/ci.yml) |
+| 2026-05-19 | TD-018 → Partially Resolved: Shared типы для Блока 4 синхронизированы (TS interfaces + Python models) |
 
 ---
 

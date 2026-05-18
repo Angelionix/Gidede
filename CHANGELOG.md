@@ -9,6 +9,41 @@
 
 ---
 
+## [0.20.0] — 2026-05-19
+
+### Добавлено
+
+#### Техдолг — синхронизация типов (TD-018 частично)
+- Обновлены TypeScript-интерфейсы в `shared/types/typescript/interfaces.ts` (Блок 4):
+  - Добавлены: `ObjectBalanceReport`, `BalanceMap`, `StrategyBalanceScore`, `RPSCycle`, `Situation`, `VersatilityInfo`, `QFactorObject`, `QFactorResult`, `StabilityAnalysis`, `SimulationConfig`, `MatchupData`, `NumberFormatReport`, `MachinationsSimConfig`, `EconomyRunSnapshot`, `AggregatedSimData`, `QualityAssessment`, `MachinationsSimResult`
+  - Обновлены: `TransitiveResult`, `IntransitiveResult`, `SituationalResult`, `MonteCarloResult`, `BalanceResult` — приведены в соответствие с backend-схемами
+  - Удалены устаревшие: `CostPowerCurve`, `BalancePathology`, `CorrectionProposal`
+- Обновлены Python-модели в `shared/types/python/models.py` (Блок 4):
+  - Добавлены: `BalanceInput`, `ObjectBalanceReport`, `BalanceMap`, `StrategyBalanceScore`, `RPSCycle`, `IntransitiveResult` (полная), `Situation`, `VersatilityInfo`, `SituationalResult` (полная), `QFactorObject`, `QFactorResult`, `StabilityAnalysis`, `SimulationConfig`, `MatchupData`, `NumberFormatReport`, `MachinationsSimResult`, `BalanceResult` (полная)
+  - Удалены устаревшие заглушки `Optional[dict]` для IntransitiveResult и SituationalResult
+
+#### Инфраструктура
+- Создан `.github/workflows/ci.yml` — CI/CD пайплайн GitHub Actions:
+  - Backend lint (Ruff), Backend tests (pytest), Frontend lint (ESLint), Frontend tests (vitest), Type sync check
+- Обновлён `docs/AI_RECOVERY_INSTRUCTIONS.md`:
+  - Фаза 4 отмечена как активная (4.C.4 завершён)
+  - Добавлен прогресс по субфазам 4.A–4.C
+  - Добавлены реализованные модули с детализацией
+  - Обновлён технологический стек
+  - Добавлена структура директорий docs/архитектура/, docs/тестирование/, docs/ROADMAP_PHASE4.md
+
+#### Тестовая документация
+- Актуализирован полный перечень программных и UI тестов (покрытие всего функционала)
+
+### Изменено
+- Версия обновлена с 0.19.0 до 0.20.0
+
+### Техдолг
+- TD-011 → Resolved: CI/CD пайплайн создан (.github/workflows/ci.yml)
+- TD-018 → Partially Resolved: Shared типы синхронизированы для Блока 4; Prisma/SQLAlchemy унификация отложена
+
+---
+
 ## [0.19.0] — 2026-05-19
 
 ### Добавлено

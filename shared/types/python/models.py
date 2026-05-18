@@ -283,63 +283,210 @@ class MDAProfile(BaseModel):
 # ============================================================
 
 class BalanceObject(BaseModel):
-    id: str = ""
+    """Игровой объект для балансировки."""
+    id: str = Field("", description="Уникальный идентификатор объекта")
+    name: str = Field("", description="Название объекта")
+    type: str = Field("", description="Тип: character/weapon/unit/ability/item/class")
+    attributes: dict[str, float] = Field(default_factory=dict, description="Атрибуты: HP, damage, speed, etc.")
+    cost: Optional[float] = Field(None, description="Стоимость")
+    tier: Optional[int] = Field(None, description="Уровень/тир (1-10)")
+    tags: list[str] = Field(default_factory=list, description="Теги")
+
+
+class BalanceInput(BaseModel):
+    """Входные данные для балансировки (алгоритм 3.4.2)."""
+    objects: list[BalanceObject] = Field(default_factory=list, description="Список объектов")
+    resources: list[dict] = Field(default_factory=list, description="Ресурсные профили")
+    balance_type: str = Field("mixed", description="transitive/intransitive/situational/mixed")
+    game_mode: str = Field("PvE", description="PvP/PvE/PvPvE")
+    target_duration: Optional[float] = Field(None, description="Целевая длительность (с)")
+    target_levels: Optional[int] = Field(None, description="Целевое количество уровней")
+    anchor_resource: Optional[str] = Field(None, description="Якорный ресурс")
+    genre: str = Field("", description="Жанр игры")
+
+
+class ObjectBalanceReport(BaseModel):
+    """Отчёт по одному объекту — результат transitive-анализа."""
     name: str = ""
-    type: BalanceObjectType = BalanceObjectType.CHARACTER
-    attributes: dict[str, float] = Field(default_factory=dict)
-    cost: Optional[float] = None
-    tier: Optional[int] = None
-    tags: list[str] = Field(default_factory=list)
-
-
-class CostPowerCurve(BaseModel):
-    object_id: str = ""
-    object_name: str = ""
-    cost: float = 0.0
     power: float = 0.0
-    ratio: float = 0.0
-    deviation_from_anchor: float = 0.0
+    effective_cost: float = 0.0
+    cp_ratio: float = 0.0
+    distance_from_curve: float = 0.0
     status: str = "balanced"
 
 
 class TransitiveResult(BaseModel):
-    anchor: str = ""
-    cost_power_curves: list[CostPowerCurve] = Field(default_factory=list)
+    """Результат транзитивного анализа — Этап 2."""
+    attribute_weights: dict[str, float] = Field(default_factory=dict)
+    cost_curve_model: str = "identity"
+    expected_cp: float = 1.0
+    objects: list[ObjectBalanceReport] = Field(default_factory=list)
     overpowered: list[str] = Field(default_factory=list)
     underpowered: list[str] = Field(default_factory=list)
     balanced: list[str] = Field(default_factory=list)
+    ideal_imbalance: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    suggestions: list[str] = Field(default_factory=list)
+
+
+class BalanceMap(BaseModel):
+    """Карта балансировки — результат Этапа 1."""
+    primary_model: str = "transitive"
+    secondary_model: str = ""
+    anchor: str = "gold"
+    game_sum: str = "positive"
+    feedback: str = "balancing"
+    macro_model: Optional[dict] = None
+    applicable_balance_types: dict[str, bool] = Field(default_factory=dict)
+
+
+class StrategyBalanceScore(BaseModel):
+    """Метрики баланса стратегий."""
+    entropy: float = 0.0
+    max_share: float = 0.0
+    gini: float = 0.0
+
+
+class RPSCycle(BaseModel):
+    """Нетранзитивный цикл (Rock-Paper-Scissors)."""
+    cycle: list[str] = Field(default_factory=list)
+    strength: float = 0.0
+
+
+class IntransitiveResult(BaseModel):
+    """Результат нетранзитивного анализа — Этап 3."""
+    payoff_matrix: list[list[float]] = Field(default_factory=list)
+    object_names: list[str] = Field(default_factory=list)
+    nash_equilibrium: list[float] = Field(default_factory=list)
+    is_intransitive: bool = False
+    dominated_strategies: list[int] = Field(default_factory=list)
+    strategy_balance: Optional[StrategyBalanceScore] = None
+    rps_cycles: list[RPSCycle] = Field(default_factory=list)
+    has_dominant_strategy: bool = False
+    warnings: list[str] = Field(default_factory=list)
+    suggestions: list[str] = Field(default_factory=list)
+
+
+class Situation(BaseModel):
+    """Игровая ситуация."""
+    name: str = ""
+    probability: float = 0.0
+
+
+class VersatilityInfo(BaseModel):
+    """Универсальность/специализация объекта."""
+    max_value: float = 0.0
+    min_value: float = 0.0
+    spread: float = 0.0
+    type: str = "universal"
+
+
+class SituationalResult(BaseModel):
+    """Результат ситуационного анализа — Этап 4."""
+    situations: list[Situation] = Field(default_factory=list)
+    situational_values: list[list[float]] = Field(default_factory=list)
+    object_names: list[str] = Field(default_factory=list)
+    situational_ev: list[float] = Field(default_factory=list)
+    versatility_map: list[VersatilityInfo] = Field(default_factory=list)
+    dead_zones: list[str] = Field(default_factory=list)
+    dominant_universals: list[str] = Field(default_factory=list)
+    switching_cost: str = "medium"
+    warnings: list[str] = Field(default_factory=list)
+    suggestions: list[str] = Field(default_factory=list)
+
+
+class QFactorObject(BaseModel):
+    """Q-фактор анализ одного объекта."""
+    name: str = ""
+    dominant_attributes: list[str] = Field(default_factory=list)
+    is_redundant: bool = False
+    redundancy_score: float = 0.0
+
+
+class QFactorResult(BaseModel):
+    """Результат Q-фактор анализа (Роллингс/Моррис)."""
+    objects: list[QFactorObject] = Field(default_factory=list)
+    redundant_objects: list[str] = Field(default_factory=list)
+    attribute_dominance: dict[str, str] = Field(default_factory=dict)
+    q_matrix: list[list[float]] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    suggestions: list[str] = Field(default_factory=list)
+
+
+class StabilityAnalysis(BaseModel):
+    """Результат анализа устойчивости (Schreiber)."""
+    overall_stability: str = "stable"
+    pathology_risks: list[str] = Field(default_factory=list)
+    analysis: list[dict] = Field(default_factory=list)
+    positive_loops: int = 0
+    negative_loops: int = 0
+    recommendations: list[str] = Field(default_factory=list)
+
+
+class SimulationConfig(BaseModel):
+    """Конфигурация Monte Carlo-симуляции."""
+    num_iterations: int = 10000
+    matchup_format: str = "1v1"
+    random_seed: int = 42
+    logging_level: str = "summary"
+
+
+class MatchupData(BaseModel):
+    """Результат парного сравнения."""
+    wins_a: int = 0
+    wins_b: int = 0
+    draws: int = 0
+    avg_duration: float = 0.0
+
+
+class NumberFormatReport(BaseModel):
+    """Оценка эмоционального восприятия чисел."""
+    light_numbers: list[str] = Field(default_factory=list)
+    heavy_numbers: list[str] = Field(default_factory=list)
+    assessment: str = ""
 
 
 class MonteCarloResult(BaseModel):
-    iterations: int = 0
+    """Результат Monte Carlo-симуляции — Этап 6."""
+    config: Optional[SimulationConfig] = None
     win_rates: dict[str, float] = Field(default_factory=dict)
+    avg_duration: dict[str, float] = Field(default_factory=dict)
+    matchup_matrix: dict[str, dict[str, dict]] = Field(default_factory=dict)
     win_rate_spread: float = 0.0
     ranking_correlation: float = 0.0
-    average_duration: float = 0.0
+    number_format: Optional[NumberFormatReport] = None
+    balance_verdict: str = "GOOD"
+    warnings: list[str] = Field(default_factory=list)
+    suggestions: list[str] = Field(default_factory=list)
 
 
-class CorrectionProposal(BaseModel):
-    object_id: str = ""
-    attribute: str = ""
-    current_value: float = 0.0
-    suggested_value: float = 0.0
-    reason: str = ""
+class MachinationsSimResult(BaseModel):
+    """Результат Machinations-симуляции — Этап 7."""
+    config: Optional[dict] = None
+    graph: Optional[dict] = None
+    runs: int = 0
+    aggregated: Optional[dict] = None
+    quality: Optional[dict] = None
+    snapshots: list[dict] = Field(default_factory=list)
+    detected_pathologies: list[str] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
 
 
 class BalanceResult(BaseModel):
-    balance_type: BalanceType = BalanceType.MIXED
-    objects: list[BalanceObject] = Field(default_factory=list)
+    """Итоговый результат балансировки — алгоритм 3.4."""
+    balance_map: Optional[BalanceMap] = None
     transitive_result: Optional[TransitiveResult] = None
-    intransitive_result: Optional[dict] = None
-    situational_result: Optional[dict] = None
-    feedback_stability: Optional[dict] = None
-    pathology_report: Optional[PathologyReport] = None
+    stability: Optional[StabilityAnalysis] = None
+    intransitive_result: Optional[IntransitiveResult] = None
+    situational_result: Optional[SituationalResult] = None
+    q_factor_result: Optional[QFactorResult] = None
     monte_carlo_result: Optional[MonteCarloResult] = None
-    overall_balance_score: float = 0.0
-    critical_issues: list[Issue] = Field(default_factory=list)
-    warnings: list[Issue] = Field(default_factory=list)
-    suggestions: list[Suggestion] = Field(default_factory=list)
-    formulas: dict = Field(default_factory=dict)
+    machinations_result: Optional[MachinationsSimResult] = None
+    stages_completed: list[int] = Field(default_factory=list)
+    latency_ms: int = 0
+    models_used: list[str] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
+    suggestions: list[str] = Field(default_factory=list)
 
 
 # ============================================================

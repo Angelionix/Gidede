@@ -12,7 +12,7 @@
 import type {
   AestheticType, Genre, YeeMotivation, BartleType, Platform,
   LoopStructuralType, LoopSubType, EmergencePotential,
-  BalanceType, BalanceObjectType, GameMode,
+  BalanceType, GameMode,
   ProgressionType, FlowTarget, ContentBudget,
   EconomyMonetizationType, EconomyOpenness, ResourceClass, ResourceType,
   GDDFormat, DocAudience, DetailLevel,
@@ -404,111 +404,280 @@ export interface MDAProfile {
 // ============================================================
 
 export interface BalanceInput {
-  mdaProfile: MDAProfile;
   objects: BalanceObject[];
-  resources: ResourceProfile[];
+  resources: Record<string, unknown>[];
   balanceType: BalanceType;
   gameMode: GameMode;
   targetDuration?: number;
   targetLevels?: number;
   anchorResource?: string;
-  fulcrumLevel?: number;
+  genre: string;
 }
 
 export interface BalanceObject {
   id: string;
   name: string;
-  type: BalanceObjectType;
+  type: string;
   attributes: Record<string, number>;
   cost?: number;
   tier?: number;
   tags?: string[];
 }
 
+export interface ObjectBalanceReport {
+  name: string;
+  power: number;
+  effective_cost: number;
+  cp_ratio: number;
+  distance_from_curve: number;
+  status: 'overpowered' | 'underpowered' | 'balanced' | 'ideal_imbalance';
+}
+
 export interface TransitiveResult {
-  anchor: string;
-  cost_power_curves: CostPowerCurve[];
+  attribute_weights: Record<string, number>;
+  cost_curve_model: string;
+  expected_cp: number;
+  objects: ObjectBalanceReport[];
   overpowered: string[];
   underpowered: string[];
   balanced: string[];
+  ideal_imbalance: string[];
+  warnings: string[];
+  suggestions: string[];
 }
 
-export interface CostPowerCurve {
-  object_id: string;
-  object_name: string;
-  cost: number;
-  power: number;
-  ratio: number;
-  deviation_from_anchor: number;
-  status: 'balanced' | 'overpowered' | 'underpowered';
+export interface BalanceMap {
+  primary_model: string;
+  secondary_model: string;
+  anchor: string;
+  game_sum: string;
+  feedback: string;
+  macro_model?: Record<string, unknown>;
+  applicable_balance_types: Record<string, boolean>;
+}
+
+export interface StrategyBalanceScore {
+  entropy: number;
+  max_share: number;
+  gini: number;
+}
+
+export interface RPSCycle {
+  cycle: string[];
+  strength: number;
 }
 
 export interface IntransitiveResult {
   payoff_matrix: number[][];
-  dominant_strategies: string[];
-  nash_equilibria: string[];
+  object_names: string[];
+  nash_equilibrium: number[];
+  is_intransitive: boolean;
+  dominated_strategies: number[];
+  strategy_balance: StrategyBalanceScore | null;
+  rps_cycles: RPSCycle[];
+  has_dominant_strategy: boolean;
+  warnings: string[];
+  suggestions: string[];
+}
+
+export interface Situation {
+  name: string;
+  probability: number;
+}
+
+export interface VersatilityInfo {
+  max_value: number;
+  min_value: number;
+  spread: number;
+  type: 'universal' | 'specialized';
 }
 
 export interface SituationalResult {
-  matrix: number[][];
-  situations: string[];
-  situational_value: Record<string, number>;
+  situations: Situation[];
+  situational_values: number[][];
+  object_names: string[];
+  situational_ev: number[];
+  versatility_map: VersatilityInfo[];
+  dead_zones: string[];
+  dominant_universals: string[];
+  switching_cost: 'low' | 'medium' | 'high';
+  warnings: string[];
+  suggestions: string[];
+}
+
+export interface QFactorObject {
+  name: string;
+  dominant_attributes: string[];
+  is_redundant: boolean;
+  redundancy_score: number;
+}
+
+export interface QFactorResult {
+  objects: QFactorObject[];
+  redundant_objects: string[];
+  attribute_dominance: Record<string, string>;
+  q_matrix: number[][];
+  warnings: string[];
+  suggestions: string[];
+}
+
+export interface StabilityAnalysis {
+  overall_stability: 'stable' | 'unstable' | 'conditionally_stable';
+  pathology_risks: string[];
+  analysis: Record<string, unknown>[];
+  positive_loops: number;
+  negative_loops: number;
+  recommendations: string[];
+}
+
+export interface SimulationConfig {
+  num_iterations: number;
+  matchup_format: string;
+  random_seed: number;
+  logging_level: string;
+}
+
+export interface MatchupData {
+  wins_a: number;
+  wins_b: number;
+  draws: number;
+  avg_duration: number;
+}
+
+export interface NumberFormatReport {
+  light_numbers: string[];
+  heavy_numbers: string[];
+  assessment: string;
 }
 
 export interface MonteCarloResult {
-  iterations: number;
+  config: SimulationConfig;
   win_rates: Record<string, number>;
+  avg_duration: Record<string, number>;
+  matchup_matrix: Record<string, Record<string, MatchupData>>;
   win_rate_spread: number;
   ranking_correlation: number;
-  average_duration: number;
+  number_format: NumberFormatReport | null;
+  balance_verdict: 'GOOD' | 'MODERATE' | 'POOR';
+  warnings: string[];
+  suggestions: string[];
 }
 
-export interface BalancePathology {
+export interface MachinationsNode {
+  id: string;
   name: string;
-  type: string;
-  severity: 'critical' | 'warning' | 'info';
-  description: string;
-  correction: string;
+  node_type: 'pool' | 'source' | 'drain' | 'converter' | 'trader' | 'gate' | 'delay' | 'queue';
+  initial_value: number;
+  capacity: number | null;
+  rate: number | null;
+  activation: 'automatic' | 'interactive' | 'conditional';
+  inputs: string[];
+  outputs: string[];
+  efficiency: number | null;
+  is_core: boolean;
 }
 
-export interface CorrectionProposal {
-  object_id: string;
-  attribute: string;
-  current_value: number;
-  suggested_value: number;
-  reason: string;
+export interface MachinationsResourceFlow {
+  source_id: string;
+  target_id: string;
+  resource: string;
+  rate: number;
+  flow_type: 'automatic' | 'interactive' | 'conditional';
+}
+
+export interface MachinationsStateConnection {
+  source_id: string;
+  target_id: string;
+  modifier: '+' | '-';
+  formula: string;
+}
+
+export interface MachinationsFeedbackLoop {
+  nodes: string[];
+  loop_type: 'reinforcing' | 'balancing';
+  strength: number;
+}
+
+export interface MachinationsGraph {
+  nodes: MachinationsNode[];
+  resource_flows: MachinationsResourceFlow[];
+  state_connections: MachinationsStateConnection[];
+  feedback_loops: MachinationsFeedbackLoop[];
+  resource_count: number;
+  node_count: number;
+  flow_count: number;
+  economic_type: string;
+  structural_patterns: string[];
+}
+
+export interface MachinationsSimConfig {
+  ticks: number;
+  num_runs: number;
+  artificial_players: Record<string, unknown>[];
+  recording_interval: number;
+  resource_tracking: string[];
+}
+
+export interface EconomyRunSnapshot {
+  tick: number;
+  resources: Record<string, number>;
+  level: number;
+  actions_taken: string[];
+}
+
+export interface AggregatedSimData {
+  avg_resource_curves: Record<string, number[]>;
+  resource_ranges: Record<string, { min: number; max: number }>;
+  runaway_frequency: number;
+  stall_frequency: number;
+  avg_ticks_per_level: Record<number, number>;
+  build_gap: number;
+  stability_index: number;
+}
+
+export interface QualityAssessment {
+  resources_in_bounds: boolean;
+  progression_pacing_ok: boolean;
+  no_runaway_for_minmaxer: boolean;
+  no_stall_for_casual: boolean;
+  build_gap_acceptable: boolean;
+  economy_stable: boolean;
+  overall_pass: boolean;
+  critical_issues: string[];
+  warnings: string[];
+}
+
+export interface MachinationsSimResult {
+  config: MachinationsSimConfig;
+  graph: MachinationsGraph | null;
+  runs: number;
+  aggregated: AggregatedSimData | null;
+  quality: QualityAssessment | null;
+  snapshots: EconomyRunSnapshot[];
+  detected_pathologies: string[];
+  recommendations: string[];
+}
+
+export interface BalanceResult {
+  balance_map: BalanceMap | null;
+  transitive_result: TransitiveResult | null;
+  stability: StabilityAnalysis | null;
+  intransitive_result: IntransitiveResult | null;
+  situational_result: SituationalResult | null;
+  q_factor_result: QFactorResult | null;
+  monte_carlo_result: MonteCarloResult | null;
+  machinations_result: MachinationsSimResult | null;
+  stages_completed: number[];
+  latency_ms: number;
+  models_used: string[];
+  warnings: string[];
+  suggestions: string[];
 }
 
 export interface CurveSpec {
   type: string;
   formula: string;
   parameters: Record<string, number>;
-}
-
-export interface BalanceResult {
-  balanceMap: BalanceType;
-  objects: BalanceObject[];
-  transitiveResult: TransitiveResult;
-  intransitiveResult: IntransitiveResult;
-  situationalResult: SituationalResult;
-  feedbackStability: { stable: boolean; details: string };
-  pathologyReport: PathologyReport;
-  monteCarloResult: MonteCarloResult;
-  overallBalanceScore: number;
-  criticalIssues: Issue[];
-  warnings: Issue[];
-  suggestions: Suggestion[];
-  progressionCurves?: {
-    xpCurve: CurveSpec;
-    powerCurve: CurveSpec;
-    contentCurve: CurveSpec;
-  };
-  formulas: {
-    damageFormula: string;
-    hpFormula: string;
-    costFormula: string;
-    difficultyFormula: string;
-  };
 }
 
 
@@ -956,14 +1125,19 @@ export interface ProjectState {
   };
 
   balance: {
-    elements: BalanceObject[];
-    costPowerCurves: CostPowerCurve[];
-    intransitiveMatrix: number[][];
-    nashEquilibrium: string[];
-    monteCarloResults: MonteCarloResult[];
-    pathologies: BalancePathology[];
-    corrections: CorrectionProposal[];
-    overallBalanceScore: number;
+    balance_map: BalanceMap | null;
+    transitive_result: TransitiveResult | null;
+    stability: StabilityAnalysis | null;
+    intransitive_result: IntransitiveResult | null;
+    situational_result: SituationalResult | null;
+    q_factor_result: QFactorResult | null;
+    monte_carlo_result: MonteCarloResult | null;
+    machinations_result: MachinationsSimResult | null;
+    stages_completed: number[];
+    latency_ms: number;
+    models_used: string[];
+    warnings: string[];
+    suggestions: string[];
   };
 
   progression: {

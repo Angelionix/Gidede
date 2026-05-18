@@ -1,31 +1,22 @@
+# Gidede — Worklog
+
 ---
-Task ID: 2-a
-Agent: full-stack-developer
-Task: Implement 4.B.5 UI Result Display Components
+Task ID: 4.B.8 + TD-017 + version bump
+Agent: Main Agent
+Task: Implement 4.B.8 (Core Loop Designer UI), fix TD-017 (JWT secret), bump version to 0.8.0, update tests
 
 Work Log:
-- Read existing page.tsx, concept.py schema, and TypeScript interfaces to understand data structures
-- Read available UI components (accordion, progress, separator, collapsible, toast)
-- Implemented OnePagerCard component with all 8 fields: title, genre badge, target_audience, rating, story_synopsis, gameplay_description, unique_features (with star icons), competitors (badge list)
-- Implemented AestheticProfileView component with color-coded badges for all 8 Hunicke aesthetics (sensation=fuchsia, fantasy=purple, narrative=blue, challenge=orange, fellowship=green, discovery=yellow, expression=pink, submission=gray) with primary/secondary/tertiary sizing
-- Implemented MechanicSetView component with: compatibility_score progress bar, conflicts_resolved warning badges, synergies_detected green badges, accordion-grouped mechanics by category (base/combat/progression/spatial/social) with per-mechanic cards showing name, group, description, and warnings list
-- Implemented CoreLoopCandidates component with: 3 selectable card variants, numbered step list, loop_type badge, fun_check text, estimated_duration, "Выбрано" badge on selection, primary border highlight on selected
-- Implemented USPCandidates component with: 3 selectable card variants, triangle_check indicators (weird/appealing/credible with green/red icons), competitive_differentiation text, "Выбрано" badge on selection
-- Implemented ValidationReportView component with: ScoreIndicator (green>=0.8, yellow>=0.6, red<0.6), ValidatorSection helper for both ValidationResult objects and dict-based question/filter results, overall score/passed badge, warnings list (yellow), suggestions list (blue)
-- Added selection state (selectedCoreLoopIndex, selectedUSPIndex) with handlers
-- Added "Сохранить выбор" button that shows toast notification with selection summary
-- Added summary section at bottom showing selected Core Loop and USP
-- Updated Badge from "4.B.1–4.B.2" to "4.B.1–4.B.5"
-- Replaced all JSON.stringify() sections with proper UI components
-- Added useToast import and integration
-- Added new icon imports: Check, Star, Zap, Shield, ArrowRight, AlertTriangle, Info, CheckCircle2, XCircle, Eye
-- Added Collapsible component import
-- Lint passes with zero errors
-- Dev server compiles and renders page successfully (200 status)
+- Read ROADMAP_PHASE4.md to understand 4.B.8 task definition
+- Read TECH_DEBT.md to identify actionable items (TD-017 selected)
+- Created comprehensive Block 2 UI page: /src/app/blocks/2/page.tsx (4.B.8)
+  - StructuralTypeCard, CoreLoopDiagram, LoopHierarchyTree, PathologyPanel, ValidationPanel, RecommendationsPanel
+  - Full input form: concept_id, mechanics, genre, desired_loop_type, custom_steps
+- Fixed TD-017: JWT_SECRET_KEY no longer hardcoded, added settings.jwt_secret property
+- Bumped version: 0.7.0 → 0.8.0 across VERSION, package.json, pyproject.toml, sidebar
+- Updated CHANGELOG.md, TECH_DEBT.md, testing_plan.md
 
 Stage Summary:
-- Modified: /home/z/my-project/Gidede/src/app/blocks/1/page.tsx
-- All 6 UI display components implemented inline in the page file
-- Selection state and save functionality working
-- All JSON.stringify() dumps replaced with styled components
-- Badge updated to reflect 4.B.5 implementation
+- 4.B.8 (Core Loop Designer UI) — fully implemented
+- TD-017 (JWT secret hardcoded) — resolved
+- Version bumped to 0.8.0
+- Test documentation updated comprehensively

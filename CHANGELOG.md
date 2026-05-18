@@ -9,6 +9,66 @@
 
 ---
 
+## [0.8.0] — 2026-05-18
+
+### Добавлено
+
+#### Основные модули (Фаза 4.B, Блок 2 UI)
+- Блок 2: UI — Core Loop Designer — 4.B.8
+  - **CoreLoopDesignerPage** — страница `/blocks/2` с полной формой ввода и отображением результатов
+  - **StructuralTypeCard** — карточка структурного типа (type, sub_type, resources, braking, currencies, risk_assessment)
+    - Визуализация типа (Engine/Economy/Ecology/Hybrid) с цветокодированными бейджами
+    - Индикатор наличия тормозящего механизма (drain)
+    - Список валют и ресурсов с классификацией (Valued/Commodity/Subsidiary)
+    - Оценка рисков (likely_pathologies, risk_level, mitigation_suggestions)
+  - **CoreLoopDiagram** — визуальная круговая диаграмма шагов Core Loop
+    - CSS-based круговая раскладка с SVG-стрелками между шагами
+    - Цветокодирование feedback_type (positive/negative/neutral)
+    - Детальный список шагов с потребляемыми и производимыми ресурсами
+  - **LoopHierarchyTree** — сворачиваемое дерево иерархии петель (6 уровней)
+    - Micro (мс-с) → Small (1-2 мин) → Medium (5-10 мин) → Large (15-30 мин) → Macro (часы) → Meta (недели-месяцы)
+    - Раскрываемые секции с действиями каждой петли
+    - Индикация родительского шага (parent_step)
+  - **PathologyPanel** — панель диагностики патологий (7 типов)
+    - Цветовая индикация severity (critical/warning/info)
+    - Описание патологии и корректирующее действие
+    - Сводка: всего патологий, критических
+  - **ValidationPanel** — панель валидации Core Loop (5 критериев)
+    - Тест «30 секунд веселья» (Кн. 7)
+    - Замкнутость петли (последний шаг → первый)
+    - Достаточность ресурсов (мёртвые ресурсы, потребляемые без источника)
+    - Отсутствие критических патологий
+    - Корректное число шагов (3–7)
+    - Прогресс-бар и overall_passed индикатор
+  - **RecommendationsPanel** — панель рекомендаций (Этап 5)
+    - Приоритеты (high/medium/low) с цветокодированием
+    - Категории (fun/closedness/resource/pathology/structure)
+    - Источник (формализованная / AI)
+  - Форма ввода: concept_id, mechanics, genre, desired_loop_type, custom_steps
+  - Кнопка «Проектировать Core Loop» → POST `/api/v1/coreloop/design`
+
+#### Безопасность (Техдолг TD-017)
+- JWT_SECRET_KEY: удалено захардкоженное dev-значение из config.py
+  - Новый `settings.jwt_secret` property: в production обязателен env, в dev — auto-generated с warning
+  - security.py обновлён для использования `settings.jwt_secret`
+  - RuntimeError в production при отсутствии JWT_SECRET_KEY env-переменной
+
+### Изменено
+- Sidebar: Блок 2 «Core Loop Designer» статус изменён с «Скелет» на «Активен»
+- Sidebar: версия обновлена до v0.8.0
+- Главная страница: Блок 2 статус обновлён с «skeleton» на «active»
+- Версия обновлена с 0.7.0 до 0.8.0
+- TD-017 → Resolved в TECH_DEBT.md
+
+### Тестовая документация
+- Актуализирован полный перечень программных и UI тестов
+- Добавлены тест-кейсы для Core Loop Designer UI (Блок 2)
+- Добавлены тест-кейсы для StructuralTypeCard, CoreLoopDiagram, LoopHierarchyTree
+- Добавлены тест-кейсы для PathologyPanel, ValidationPanel, RecommendationsPanel
+- Обновлён список frontend-тестов (Block 2 components)
+
+---
+
 ## [0.7.0] — 2026-05-18
 
 ### Добавлено

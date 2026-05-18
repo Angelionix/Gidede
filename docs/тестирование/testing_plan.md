@@ -1,8 +1,8 @@
 # Gidede — Документ тестирования
 
-> **Фаза**: 4.B.5–4.B.7 (полное покрытие)  
+> **Фаза**: 4.B.5–4.B.8 (полное покрытие)  
 > **Дата**: 2026-05-18  
-> **Версия**: 0.7.0  
+> **Версия**: 0.8.0  
 > **Статус**: Активный  
 > **Подход**: Локальное тестирование (без GitHub Actions)
 
@@ -10,7 +10,7 @@
 
 ## 1. Общая стратегия тестирования
 
-Тестирование Gidede проводится локально на ПК разработчика. Автоматизированные программные тесты запускаются через скрипты, отчёты предоставляются вручную. Ручное тестирование UI проводится через браузер. Полное покрытие включает все реализованные модули: инфраструктуру (4.A), концепцию (4.B.1–4.B.4), а также скелетные эндпоинты будущих блоков.
+Тестирование Gidede проводится локально на ПК разработчика. Автоматизированные программные тесты запускаются через скрипты, отчёты предоставляются вручную. Ручное тестирование UI проводится через браузер. Полное покрытие включает все реализованные модули: инфраструктуру (4.A), концепцию (4.B.1–4.B.5), Core Loop Designer (4.B.6–4.B.8), а также скелетные эндпоинты будущих блоков.
 
 ### 1.1 Уровни тестирования
 
@@ -78,7 +78,8 @@ mini-services/api-service/tests/
 ├── test_one_pager.py              # Сборка One-Pager
 ├── test_coreloop_service.py       # Core Loop Designer (Этапы 1–5)
 ├── test_coreloop_api.py           # API Core Loop Designer
-└── test_coreloop_validation.py    # ★ НОВОЕ: Валидация Core Loop (Этапы 4–5)
+├── test_coreloop_validation.py    # Валидация Core Loop (Этапы 4–5)
+└── test_jwt_secret.py             # ★ НОВОЕ: JWT secret property (TD-017)
 ```
 
 #### Фикстуры (conftest.py)
@@ -103,7 +104,8 @@ mini-services/api-service/tests/
 | `sample_loop_hierarchy` | ★ Тестовый LoopHierarchy |
 | `sample_pathology_report` | ★ Тестовый PathologyReport |
 | `sample_core_loop_validation` | ★ Тестовый CoreLoopValidationResult |
-| `sample_recommendations` | ★ Тестовый список рекомендаций |
+| `sample_recommendations` | Тестовый список рекомендаций |
+| `sample_coreloop_design_result` | ★ Тестовый результат POST /coreloop/design |
 
 #### Тест-кейсы Backend
 
@@ -365,6 +367,14 @@ mini-services/api-service/tests/
 | B-167 | `test_api_coreloop_design_validation` | ★ Ответ содержит validation с результатом валидации |
 | B-168 | `test_api_coreloop_design_stages_completed` | ★ stages_completed = [1,2,3,4,5] |
 
+##### JWT Secret Property (TD-017) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-169 | `test_jwt_secret_from_env` | jwt_secret возвращает значение из JWT_SECRET_KEY env |
+| B-170 | `test_jwt_secret_dev_auto_generated` | jwt_secret auto-generated при DEBUG=true и пустом env |
+| B-171 | `test_jwt_secret_production_error` | RuntimeError при DEBUG=false и пустом JWT_SECRET_KEY |
+
 ### 2.2 Frontend — vitest
 
 #### Структура тестов
@@ -376,7 +386,8 @@ src/__tests__/
 ├── auth.test.tsx                  # Страницы авторизации
 ├── api-client.test.ts             # API-клиент
 ├── concept-form.test.tsx          # Форма ввода концепции (Блок 1)
-├── concept-result.test.tsx        # ★ НОВОЕ: Компоненты отображения результата (Блок 1)
+├── concept-result.test.tsx        # Компоненты отображения результата (Блок 1)
+├── coreloop-designer.test.tsx     # ★ НОВОЕ: Core Loop Designer (Блок 2)
 └── sidebar.test.tsx               # Навигация и прогресс
 ```
 
@@ -392,7 +403,7 @@ src/__tests__/
 | F-06 | API Client: обработка 401 | Обработка ошибки авторизации |
 | F-07 | Sidebar: навигация по блокам | 8 блоков в sidebar |
 | F-08 | Sidebar: статус блоков | Блок 1, 2 — «Активен» |
-| F-09 | Sidebar: версия | Отображение «v0.7.0» |
+| F-09 | Sidebar: версия | Отображение «v0.8.0» |
 | F-10 | Главная страница: блоки | Карточки 8 блоков |
 | F-11 | Форма концепции: поля | Поля идея, жанр, платформа |
 | F-12 | ★ OnePagerCard: рендер | Карточка с 8 полями отображается |
@@ -402,6 +413,23 @@ src/__tests__/
 | F-16 | ★ USPCandidates: выбор | Клик по USP выделяет его |
 | F-17 | ★ ValidationReportView: цвета | Зелёный/жёлтый/красный по score |
 | F-18 | ★ Кнопка «Сохранить выбор» | Сохранение выбранных Core Loop и USP |
+| F-19 | ★ Core Loop Designer: рендер | Страница /blocks/2 отображается |
+| F-20 | ★ Core Loop Designer: форма | Поля conceptId, mechanics, genre, loopType, customSteps |
+| F-21 | ★ Core Loop Designer: кнопка | Кнопка «Проектировать Core Loop» активна при заполненных полях |
+| F-22 | ★ StructuralTypeCard: тип | Badge типа (Engine/Economy/Ecology/Hybrid) |
+| F-23 | ★ StructuralTypeCard: ресурсы | Список ресурсов с классификацией |
+| F-24 | ★ StructuralTypeCard: риск | Оценка рисков с mitigation_suggestions |
+| F-25 | ★ CoreLoopDiagram: шаги | Круговая диаграмма с N шагами |
+| F-26 | ★ CoreLoopDiagram: ресурсы | Потребляемые/производимые ресурсы в шагах |
+| F-27 | ★ LoopHierarchyTree: уровни | 6 раскрываемых уровней (micro → meta) |
+| F-28 | ★ LoopHierarchyTree: раскрытие | Клик раскрывает/сворачивает уровень |
+| F-29 | ★ PathologyPanel: список | Список патологий с severity |
+| F-30 | ★ PathologyPanel: критические | Количество критических патологий |
+| F-31 | ★ ValidationPanel: критерии | 5 критериев валидации |
+| F-32 | ★ ValidationPanel: overall | Пройдено/Не пройдено + прогресс-бар |
+| F-33 | ★ RecommendationsPanel: список | Рекомендации с приоритетами |
+| F-34 | ★ RecommendationsPanel: категории | Категория (fun/closedness/resource/pathology/structure) |
+| F-35 | ★ JWT secret: property | settings.jwt_secret возвращает env или auto-generated dev-ключ |
 
 ---
 
@@ -455,7 +483,7 @@ src/__tests__/
 | 2 | Кликнуть «Блок 2» | Открылась страница /blocks/2 |
 | 3 | Кликнуть каждый блок 1–8 | Каждая страница открывается |
 | 4 | Проверить активное состояние | Текущий блок выделен в sidebar |
-| 5 | Проверить версию в footer | Отображается «Фаза 4.B • v0.7.0» |
+| 5 | Проверить версию в footer | Отображается «Фаза 4.B • v0.8.0» |
 
 #### UI-05: Генератор концепции — ввод (Блок 1, Этапы 1–5)
 
@@ -562,10 +590,30 @@ src/__tests__/
 | 2 | Проверить structural_type | type: engine/economy/ecology/hybrid |
 | 3 | Проверить loop_hierarchy | 6 уровней: micro → meta |
 | 4 | Проверить pathologies | PathologyReport с total_count |
-| 5 | Проверить validation | ★ CoreLoopValidationResult с fun_check, closedness, resource_sufficiency |
-| 6 | Проверить recommendations | ★ Список рекомендаций с приоритетами |
-| 7 | Проверить stages_completed | ★ [1,2,3,4,5] |
+| 5 | Проверить validation | CoreLoopValidationResult с fun_check, closedness, resource_sufficiency |
+| 6 | Проверить recommendations | Список рекомендаций с приоритетами |
+| 7 | Проверить stages_completed | [1,2,3,4,5] |
 | 8 | Проверить статус в sidebar | «Активен» |
+
+#### UI-24: Core Loop Designer — UI (Блок 2, 4.B.8) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | Открыть /blocks/2 | Страница Core Loop Designer с формой |
+| 2 | Проверить Badge | «Активен» в заголовке |
+| 3 | Ввести механики | Поле «Механики» с предзаполненным значением |
+| 4 | Выбрать жанр | Dropdown с жанрами |
+| 5 | Выбрать тип петли | Dropdown: Engine/Economy/Ecology/Hybrid/Auto |
+| 6 | Ввести custom steps | Textarea, каждый шаг на новой строке |
+| 7 | Нажать «Проектировать Core Loop» | Индикатор загрузки → результат |
+| 8 | Проверить StructuralTypeCard | Тип, подтип, ресурсы, торможение, валюты, оценка рисков |
+| 9 | Проверить CoreLoopDiagram | Круговая диаграмма с шагами и SVG-стрелками |
+| 10 | Проверить LoopHierarchyTree | 6 раскрываемых уровней (micro → meta) |
+| 11 | Раскрыть уровень «Малая» | Список действий петли |
+| 12 | Проверить PathologyPanel | Список патологий с severity (critical/warning/info) |
+| 13 | Проверить ValidationPanel | 5 критериев, overall_passed, прогресс-бар |
+| 14 | Проверить RecommendationsPanel | Список рекомендаций с приоритетами и категориями |
+| 15 | Проверить мета-информацию | stages_completed, latency_ms, models_used |
 
 #### UI-15: MDA Lab (Блок 3, скелет)
 

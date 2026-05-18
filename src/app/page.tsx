@@ -44,7 +44,7 @@ const blocks = [
       "Визуальный конструктор основного игрового цикла. Иерархия петель, диагностика патологий, валидация.",
     icon: RefreshCw,
     href: "/blocks/2",
-    status: "skeleton" as const,
+    status: "active" as const,
     algorithm: "Алгоритм 3.2",
   },
   {

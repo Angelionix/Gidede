@@ -52,7 +52,7 @@ def create_access_token(user_id: str, plan: str = "free") -> tuple[str, datetime
     }
     token = jwt.encode(
         payload,
-        settings.JWT_SECRET_KEY,
+        settings.jwt_secret,
         algorithm=settings.JWT_ALGORITHM,
     )
     return token, expires_at
@@ -75,7 +75,7 @@ def create_refresh_token(user_id: str) -> tuple[str, datetime]:
     }
     token = jwt.encode(
         payload,
-        settings.JWT_SECRET_KEY,
+        settings.jwt_secret,
         algorithm=settings.JWT_ALGORITHM,
     )
     return token, expires_at
@@ -86,7 +86,7 @@ def decode_token(token: str) -> Optional[dict]:
     try:
         payload = jwt.decode(
             token,
-            settings.JWT_SECRET_KEY,
+            settings.jwt_secret,
             algorithms=[settings.JWT_ALGORITHM],
         )
         return payload

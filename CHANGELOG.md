@@ -9,6 +9,69 @@
 
 ---
 
+## [0.6.0] — 2026-05-18
+
+### Добавлено
+
+#### Основные модули (Фаза 4.B, Блок 1 UI + Блок 2 Backend)
+- Блок 1: UI — отображение результата концепции — 4.B.5
+  - **OnePagerCard** — карточка One-Pager с 8 полями (title, platform, target_audience, rating, story_synopsis, gameplay_description, unique_features, competitors)
+  - **AestheticProfileView** — визуализация 3 эстетик с цветокодированными бейджами (8 типов ЛеБланка с иконками) и обоснованием
+  - **MechanicSetView** — список механик по группам (base/combat/progression/spatial/social) с индикаторами совместимости, прогресс-баром compatibility_score, предупреждениями о конфликтах и синергиях
+  - **CoreLoopCandidates** — 3 варианта Core Loop для выбора с номерованными шагами, типом петли, тестом «30 секунд веселья» и оценкой длительности
+  - **USPCandidates** — 3 варианта USP для выбора с проверкой Triangle of Weirdness (weird/appealing/credible)
+  - **ValidationReportView** — результаты валидации с цветовой индикацией (зелёный/жёлтый/красный), 3 валидатора, предупреждения и предложения
+  - Выбор Core Loop и USP пользователем — сохранение в Project State
+
+- Блок 2: Backend — алгоритм Core Loop Designer (Этапы 1–3) — 4.B.6
+  - **Этап 1: Классификация структурного типа** — определение Engine/Economy/Ecology/Hybrid по двум осям (тип петель × тип взаимодействия ресурсов)
+    - Определение подтипа: braked_engine, pure_engine, multi_currency_economy, single_currency_economy, и др.
+    - Определение ресурсов из MechanicsDB и концепции
+    - Оценка рисков (RiskProfile) — вероятные патологии и уровень риска
+  - **Этап 2: Конструирование иерархии петель** — 6-уровневая иерархия (микро → мета)
+    - Уровни: micro (мс-с), small (1-2 мин), medium (5-10 мин), large (15-30 мин), macro (часы), meta (недели-месяцы)
+    - AI-генерация внутренних петель через DECOMPOSE_STEP промпт
+    - AI-генерация внешних петель через GENERATE_OUTER_LOOPS промпт
+    - AI-генерация мета-петли через GENERATE_META_LOOP промпт
+    - Формализованные fallback-модели при недоступности AI
+  - **Этап 3: Диагностика патологий** — проверка на 7 патологий:
+    - Runaway — бесконечный рост ресурса
+    - Deadlock — замкнутый тупик
+    - Stall — петля останавливается
+    - Brittleness — хрупкость (одно изменение ломает всё)
+    - Oscillation — колебание между состояниями
+    - Stagnation — отсутствие прогресса
+    - Triviality — тривиальность решений
+    - Формализованные правила обнаружения + AI-обогащение через GENERATE_RECOMMENDATIONS
+
+#### Схемы данных (Core Loop)
+- `CoreLoopStep` — шаг Core Loop (action, mechanics, resources_consumed, resources_produced, feedback_type, duration_estimate)
+- `ResourceProfile` — профиль ресурса (name, class, type, initial_value, bounds)
+- `RiskProfile` — профиль рисков (likely_pathologies, risk_level, mitigation_suggestions)
+- `StructuralType` — классификация структурного типа (type, sub_type, resources, loops, has_braking, currencies, risk_assessment)
+- `LoopProfile` — профиль петли (level, actions, time_scale, parent_step)
+- `LoopHierarchy` — 6-уровневая иерархия петель (micro, small, medium, large, macro, meta)
+- `Pathology` — обнаруженная патология (name, type, severity, affected_resources, description, correction)
+- `PathologyReport` — отчёт по патологиям (pathologies, total_count, critical_count)
+- `CoreLoopProfile` — итоговый профиль Core Loop (structural_type, steps, inner/outer/meta loops, pathologies, recommendations, loop_hierarchy)
+
+#### API
+- POST `/api/v1/coreloop/design` — проектирование Core Loop (Этапы 1–3), заменена заглушка на полную реализацию
+
+### Изменено
+- Sidebar: Блок 2 «Core Loop Designer» статус изменён с «Скелет» на «Активен»
+- Sidebar: версия обновлена до v0.6.0
+- Блок 1 страница: Badge обновлён с «Реализация 4.B.1–4.B.2» до «Реализация 4.B.1–4.B.5»
+- Версия обновлена с 0.5.0 до 0.6.0
+
+### Тестовая документация
+- Актуализирован полный перечень программных и UI тестов
+- Добавлены тест-кейсы для Core Loop Designer (Этапы 1–3)
+- Добавлены тест-кейсы для UI-компонентов отображения результата концепции
+- Обновлён список API-тестов (coreloop/design)
+
+---
+
 ## [0.5.0] — 2026-05-18
 
 ### Добавлено

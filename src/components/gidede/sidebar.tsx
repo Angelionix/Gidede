@@ -50,7 +50,7 @@ const blocks = [
     name: "Core Loop Designer",
     icon: RefreshCw,
     href: "/blocks/2",
-    status: "skeleton" as const,
+    status: "active" as const,
     algorithm: "3.2",
   },
   {
@@ -289,7 +289,7 @@ export function GidedeSidebar() {
         )}
 
         <p className="text-xs text-muted-foreground px-2 pt-1">
-          Фаза 4.B • v0.5.0
+          Фаза 4.B • v0.6.0
         </p>
       </SidebarFooter>
     </Sidebar>

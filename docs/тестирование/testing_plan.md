@@ -1,8 +1,8 @@
 # Gidede — Документ тестирования
 
-> **Фаза**: 4.B.4 (полное покрытие)  
+> **Фаза**: 4.B.5–4.B.6 (полное покрытие)  
 > **Дата**: 2026-05-18  
-> **Версия**: 0.5.0  
+> **Версия**: 0.6.0  
 > **Статус**: Активный  
 > **Подход**: Локальное тестирование (без GitHub Actions)
 
@@ -73,9 +73,11 @@ mini-services/api-service/tests/
 ├── test_rag_service.py            # RAG-сервис (векторный поиск, чанкинг)
 ├── test_prompt_registry.py        # Реестр промптов (34 PromptSpec)
 ├── test_text_chunker.py           # Разбиение текста на чанки
-├── test_concept_service.py        # ★ НОВОЕ: Генератор концепции (Этапы 1–7)
-├── test_validation.py             # ★ НОВОЕ: Валидация концепции (Triangle, 5Q, 8F)
-└── test_one_pager.py              # ★ НОВОЕ: Сборка One-Pager
+├── test_concept_service.py        # Генератор концепции (Этапы 1–7)
+├── test_validation.py             # Валидация концепции (Triangle, 5Q, 8F)
+├── test_one_pager.py              # Сборка One-Pager
+├── test_coreloop_service.py       # ★ НОВОЕ: Core Loop Designer (Этапы 1–3)
+└── test_coreloop_api.py           # ★ НОВОЕ: API Core Loop Designer
 ```
 
 #### Фикстуры (conftest.py)
@@ -95,6 +97,10 @@ mini-services/api-service/tests/
 | `sample_usp_candidates` | Тестовые 3 варианта USP |
 | `sample_validation_report` | Тестовый ValidationReport |
 | `sample_one_pager` | Тестовый OnePager |
+| `sample_structural_type` | ★ Тестовый StructuralType |
+| `sample_core_loop_profile` | ★ Тестовый CoreLoopProfile |
+| `sample_loop_hierarchy` | ★ Тестовый LoopHierarchy |
+| `sample_pathology_report` | ★ Тестовый PathologyReport |
 
 #### Тест-кейсы Backend
 
@@ -245,6 +251,72 @@ mini-services/api-service/tests/
 | B-91 | `test_api_concept_validate` | ★ POST /api/v1/concept/{id}/validate — валидация |
 | B-92 | `test_api_concept_validate_not_found` | ★ 404 при валидации несуществующей концепции |
 
+##### Core Loop Service — Этап 1: Классификация (4.B.6) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-93 | `test_classify_core_loop_engine` | Определение типа «engine» (усиливающие + один ресурс) |
+| B-94 | `test_classify_core_loop_economy` | Определение типа «economy» (усиливающие + конвертация) |
+| B-95 | `test_classify_core_loop_ecology` | Определение типа «ecology» (балансирующие + конвертация) |
+| B-96 | `test_classify_core_loop_hybrid` | Определение типа «hybrid» (смешанные петли) |
+| B-97 | `test_classify_core_loop_braked_engine` | Определение подтипа «braked_engine» (с тормозящим механизмом) |
+| B-98 | `test_classify_core_loop_multi_currency` | Определение подтипа «multi_currency_economy» (2+ валюты) |
+| B-99 | `test_extract_resources_from_mechanics` | Извлечение ресурсов из MechanicsDB |
+| B-100 | `test_determine_loop_type_reinforcing` | Определение усиливающих петель |
+| B-101 | `test_determine_loop_type_balancing` | Определение балансирующих петель |
+| B-102 | `test_risk_assessment_high` | Оценка риска «high» для Engine без торможения |
+| B-103 | `test_risk_assessment_low` | Оценка риска «low» для Ecology с торможением |
+
+##### Core Loop Service — Этап 2: Иерархия петель (4.B.6) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-104 | `test_build_loop_hierarchy_6_levels` | Построение иерархии из 6 уровней |
+| B-105 | `test_build_loop_hierarchy_micro` | Уровень «micro» — мс-секунды |
+| B-106 | `test_build_loop_hierarchy_meta` | Уровень «meta» — недели-месяцы |
+| B-107 | `test_build_inner_loops` | Генерация внутренних петель (DECOMPOSE_STEP) |
+| B-108 | `test_build_inner_loops_fallback` | Fallback внутренних петель без AI |
+| B-109 | `test_build_outer_loops` | Генерация внешних петель (GENERATE_OUTER_LOOPS) |
+| B-110 | `test_build_outer_loops_fallback` | Fallback внешних петель без AI |
+| B-111 | `test_build_meta_loop` | Генерация мета-петли (GENERATE_META_LOOP) |
+| B-112 | `test_build_meta_loop_fallback` | Fallback мета-петли без AI |
+| B-113 | `test_loop_hierarchy_parent_child` | Связь parent_step в иерархии |
+
+##### Core Loop Service — Этап 3: Диагностика патологий (4.B.6) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-114 | `test_diagnose_runaway` | Обнаружение патологии «runaway» |
+| B-115 | `test_diagnose_deadlock` | Обнаружение патологии «deadlock» |
+| B-116 | `test_diagnose_stall` | Обнаружение патологии «stall» |
+| B-117 | `test_diagnose_brittleness` | Обнаружение патологии «brittleness» |
+| B-118 | `test_diagnose_oscillation` | Обнаружение патологии «oscillation» |
+| B-119 | `test_diagnose_stagnation` | Обнаружение патологии «stagnation» |
+| B-120 | `test_diagnose_triviality` | Обнаружение патологии «triviality» |
+| B-121 | `test_pathology_severity_critical` | Критичность патологии «runaway» → critical |
+| B-122 | `test_pathology_severity_warning` | Критичность патологии «stagnation» → warning |
+| B-123 | `test_pathology_correction_suggestion` | Наличие предложения по исправлению |
+| B-124 | `test_diagnose_multiple_pathologies` | Обнаружение нескольких патологий одновременно |
+| B-125 | `test_pathology_report_metrics` | Корректность total_count и critical_count |
+
+##### Core Loop — Полный пайплайн (4.B.6) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-126 | `test_design_full_pipeline` | Полный пайплайн Этапов 1–3 |
+| B-127 | `test_design_full_structural_type` | StructuralType заполнен в результате |
+| B-128 | `test_design_full_loop_hierarchy` | LoopHierarchy заполнен в результате |
+| B-129 | `test_design_full_pathologies` | PathologyReport заполнен в результате |
+
+##### API-эндпоинты Core Loop (4.B.6) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-130 | `test_api_coreloop_design` | POST /api/v1/coreloop/design — полный CoreLoopProfile |
+| B-131 | `test_api_coreloop_design_unauthorized` | 401 без авторизации |
+| B-132 | `test_api_coreloop_design_invalid_input` | 400 при невалидных данных |
+| B-133 | `test_api_coreloop_design_with_concept` | Проектирование с данными из существующей концепции |
+
 ### 2.2 Frontend — vitest
 
 #### Структура тестов
@@ -255,8 +327,9 @@ src/__tests__/
 ├── components.test.tsx            # Базовые UI-компоненты
 ├── auth.test.tsx                  # Страницы авторизации
 ├── api-client.test.ts             # API-клиент
-├── concept-form.test.tsx          # ★ Форма ввода концепции (Блок 1)
-└── sidebar.test.tsx               # ★ Навигация и прогресс
+├── concept-form.test.tsx          # Форма ввода концепции (Блок 1)
+├── concept-result.test.tsx        # ★ НОВОЕ: Компоненты отображения результата (Блок 1)
+└── sidebar.test.tsx               # Навигация и прогресс
 ```
 
 #### Тест-кейсы
@@ -269,11 +342,18 @@ src/__tests__/
 | F-04 | API Client: базовый URL | Корректный URL API |
 | F-05 | API Client: авторизация | JWT-токен в заголовках |
 | F-06 | API Client: обработка 401 | Обработка ошибки авторизации |
-| F-07 | ★ Sidebar: навигация по блокам | 8 блоков в sidebar |
-| F-08 | ★ Sidebar: статус блоков | Блок 1 — «Активен» |
-| F-09 | ★ Sidebar: версия | Отображение «v0.5.0» |
-| F-10 | ★ Главная страница: блоки | Карточки 8 блоков |
-| F-11 | ★ Форма концепции: поля | Поля идея, жанр, платформа |
+| F-07 | Sidebar: навигация по блокам | 8 блоков в sidebar |
+| F-08 | Sidebar: статус блоков | Блок 1, 2 — «Активен» |
+| F-09 | Sidebar: версия | Отображение «v0.6.0» |
+| F-10 | Главная страница: блоки | Карточки 8 блоков |
+| F-11 | Форма концепции: поля | Поля идея, жанр, платформа |
+| F-12 | ★ OnePagerCard: рендер | Карточка с 8 полями отображается |
+| F-13 | ★ AestheticProfileView: бейджи | 3 цветных бейджа эстетик + rationale |
+| F-14 | ★ MechanicSetView: группы | 5 групп механик + compatibility_score |
+| F-15 | ★ CoreLoopCandidates: выбор | Клик по варианту выделяет его |
+| F-16 | ★ USPCandidates: выбор | Клик по USP выделяет его |
+| F-17 | ★ ValidationReportView: цвета | Зелёный/жёлтый/красный по score |
+| F-18 | ★ Кнопка «Сохранить выбор» | Сохранение выбранных Core Loop и USP |
 
 ---
 
@@ -327,7 +407,7 @@ src/__tests__/
 | 2 | Кликнуть «Блок 2» | Открылась страница /blocks/2 |
 | 3 | Кликнуть каждый блок 1–8 | Каждая страница открывается |
 | 4 | Проверить активное состояние | Текущий блок выделен в sidebar |
-| 5 | Проверить версию в footer | Отображается «Фаза 4.B • v0.5.0» |
+| 5 | Проверить версию в footer | Отображается «Фаза 4.B • v0.6.0» |
 
 #### UI-05: Генератор концепции — ввод (Блок 1, Этапы 1–5)
 
@@ -369,56 +449,116 @@ src/__tests__/
 | 10 | Проверить ValidationReport | Полный отчёт встроен в OnePager |
 | 11 | Проверить meta-поля | compatibility_score, uniqueness_score, loop_type |
 
-#### UI-08: Core Loop Designer (Блок 2, скелет)
+#### UI-08: Результат концепции — OnePagerCard (Блок 1, 4.B.5) ★
 
 | Шаг | Действие | Ожидаемый результат |
 |------|----------|-------------------|
-| 1 | Открыть /blocks/2 | Страница с плейсхолдером |
-| 2 | Проверить статус в sidebar | «Скелет» |
+| 1 | После генерации концепции | OnePagerCard с 8 полями отображается |
+| 2 | Проверить карточку One-Pager | title, genre badge, target_audience, rating badge |
+| 3 | Проверить story_synopsis | AI-сгенерированный текст 2-3 предложения |
+| 4 | Проверить gameplay_description | AI-сгенерированный текст 3-5 предложений |
+| 5 | Проверить unique_features | 3 фичи со звёздочками |
+| 6 | Проверить competitors | Бейджи-список конкурентов |
 
-#### UI-09: MDA Lab (Блок 3, скелет)
+#### UI-09: Результат концепции — AestheticProfileView (Блок 1, 4.B.5) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | Проверить отображение 3 эстетик | Primary (крупный), Secondary, Tertiary (мельче) |
+| 2 | Проверить цветокодирование | 8 цветов для 8 эстетик ЛеБланка |
+| 3 | Проверить rationale | Текст обоснования под бейджами |
+
+#### UI-10: Результат концепции — MechanicSetView (Блок 1, 4.B.5) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | Проверить 5 групп механик | Аккордеон: base, combat, progression, spatial, social |
+| 2 | Раскрыть группу | Список механик с названием и описанием |
+| 3 | Проверить compatibility_score | Прогресс-бар 0-100% |
+| 4 | Проверить conflicts_resolved | Жёлтые бейджи-предупреждения |
+| 5 | Проверить synergies_detected | Зелёные бейджи-синергии |
+
+#### UI-11: Результат концепции — CoreLoopCandidates (Блок 1, 4.B.5) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | Проверить 3 варианта | 3 карточки Core Loop |
+| 2 | Проверить содержимое | name, steps (нумерованный список), loop_type badge, fun_check, estimated_duration |
+| 3 | Кликнуть на вариант | Выделяется (primary border + «Выбрано» badge) |
+| 4 | Кликнуть на другой вариант | Предыдущий снимается, новый выделяется |
+
+#### UI-12: Результат концепции — USPCandidates (Блок 1, 4.B.5) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | Проверить 3 варианта | 3 карточки USP |
+| 2 | Проверить triangle_check | 3 индикатора: weird, appealing, credible |
+| 3 | Кликнуть на вариант | Выделяется |
+| 4 | Нажать «Сохранить выбор» | Toast «Выбор сохранён» |
+
+#### UI-13: Результат концепции — ValidationReportView (Блок 1, 4.B.5) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | Проверить 3 валидатора | Triangle of Weirdness, 5 вопросов, 8 фильтров |
+| 2 | Проверить цветовую индикацию | Зелёный (>=0.8), жёлтый (0.6-0.8), красный (<0.6) |
+| 3 | Проверить overall_score | Среднее по 3 валидаторам |
+| 4 | Проверить warnings | Жёлтые алерты |
+| 5 | Проверить suggestions | Синие алерты с предложениями |
+
+#### UI-14: Core Loop Designer — Backend (Блок 2, 4.B.6) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | POST /api/v1/coreloop/design с concept_id | CoreLoopProfile с structural_type |
+| 2 | Проверить structural_type | type: engine/economy/ecology/hybrid |
+| 3 | Проверить loop_hierarchy | 6 уровней: micro → meta |
+| 4 | Проверить pathologies | PathologyReport с total_count |
+| 5 | Проверить статус в sidebar | «Активен» |
+
+#### UI-15: MDA Lab (Блок 3, скелет)
 
 | Шаг | Действие | Ожидаемый результат |
 |------|----------|-------------------|
 | 1 | Открыть /blocks/3 | Страница с плейсхолдером |
 | 2 | Проверить статус в sidebar | «Скелет» |
 
-#### UI-10: Баланс (Блок 4, скелет)
+#### UI-16: Баланс (Блок 4, скелет)
 
 | Шаг | Действие | Ожидаемый результат |
 |------|----------|-------------------|
 | 1 | Открыть /blocks/4 | Страница с плейсхолдером |
 | 2 | Проверить статус | «Скелет» |
 
-#### UI-11: Экономика и прогрессия (Блок 5, скелет)
+#### UI-17: Экономика и прогрессия (Блок 5, скелет)
 
 | Шаг | Действие | Ожидаемый результат |
 |------|----------|-------------------|
 | 1 | Открыть /blocks/5 | Страница с плейсхолдером |
 | 2 | Проверить статус | «Скелет» |
 
-#### UI-12: GDD Generator (Блок 6, скелет)
+#### UI-18: GDD Generator (Блок 6, скелет)
 
 | Шаг | Действие | Ожидаемый результат |
 |------|----------|-------------------|
 | 1 | Открыть /blocks/6 | Страница с плейсхолдером |
 | 2 | Проверить статус | «Скелет» |
 
-#### UI-13: AI-ассистент (Блок 7, скелет)
+#### UI-19: AI-ассистент (Блок 7, скелет)
 
 | Шаг | Действие | Ожидаемый результат |
 |------|----------|-------------------|
 | 1 | Открыть /blocks/7 | Страница с плейсхолдером |
 | 2 | Проверить статус | «Скелет» |
 
-#### UI-14: GBE Integration (Блок 8, запланирован)
+#### UI-20: GBE Integration (Блок 8, запланирован)
 
 | Шаг | Действие | Ожидаемый результат |
 |------|----------|-------------------|
 | 1 | Открыть /blocks/8 | Страница с плейсхолдером |
 | 2 | Проверить статус в sidebar | «План» |
 
-#### UI-15: Responsive-дизайн
+#### UI-21: Responsive-дизайн
 
 | Шаг | Действие | Ожидаемый результат |
 |------|----------|-------------------|
@@ -427,7 +567,7 @@ src/__tests__/
 | 3 | Открыть на Mobile (375px) | Мобильный layout |
 | 4 | Переключить тему | Тёмная/светлая тема работает |
 
-#### UI-16: Обработка ошибок
+#### UI-22: Обработка ошибок
 
 | Шаг | Действие | Ожидаемый результат |
 |------|----------|-------------------|
@@ -436,7 +576,7 @@ src/__tests__/
 | 3 | AI таймаут | Индикатор + fallback |
 | 4 | Сессия истекла | Редирект на /login |
 
-#### UI-17: Главная страница ★
+#### UI-23: Главная страница ★
 
 | Шаг | Действие | Ожидаемый результат |
 |------|----------|-------------------|
@@ -514,6 +654,21 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 | 4 | Проверить warnings | Корректные предупреждения |
 | 5 | Проверить suggestions | Конкретные предложения по улучшению |
 
+### E2E-03: Core Loop Designer (Блок 2) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | Зарегистрироваться и залогиниться | Аккаунт создан, редирект на главную |
+| 2 | Сгенерировать концепцию на /blocks/1 | OnePager с данными |
+| 3 | Выбрать Core Loop и USP | Выделены в UI |
+| 4 | Нажать «Сохранить выбор» | Toast подтверждения |
+| 5 | POST /api/v1/coreloop/design с concept_id | CoreLoopProfile с structural_type |
+| 6 | Проверить structural_type | type в [engine, economy, ecology, hybrid] |
+| 7 | Проверить sub_type | Определён (braked_engine и т.д.) |
+| 8 | Проверить resources | Список ресурсов из концепции |
+| 9 | Проверить loop_hierarchy | 6 уровней (micro → meta) |
+| 10 | Проверить pathologies | PathologyReport, total_count >= 0 |
+
 ---
 
 ## 6. Сводка покрытия тестами
@@ -530,11 +685,16 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 | TextChunker | 5 | — | ✅ |
 | Concept Service (Этапы 1–3) | 10 | — | ✅ |
 | Concept Service (Этапы 4–5) | 19 | — | ✅ |
-| ★ Concept Service (Этап 6) | 14 | — | ★ Новое |
-| ★ Concept Service (Этап 7) | 11 | — | ★ Новое |
-| ★ Полный пайплайн (1–7) | 4 | — | ★ Новое |
-| ★ API концепции | 7 | — | ★ Новое |
-| **Итого** | **102** | **baseline** | |
+| Concept Service (Этап 6) | 14 | — | ✅ |
+| Concept Service (Этап 7) | 11 | — | ✅ |
+| Полный пайплайн концепции (1–7) | 4 | — | ✅ |
+| API концепции | 7 | — | ✅ |
+| ★ CoreLoop Service (Этап 1) | 11 | — | ★ Новое |
+| ★ CoreLoop Service (Этап 2) | 10 | — | ★ Новое |
+| ★ CoreLoop Service (Этап 3) | 12 | — | ★ Новое |
+| ★ CoreLoop полный пайплайн | 4 | — | ★ Новое |
+| ★ API CoreLoop | 4 | — | ★ Новое |
+| **Итого** | **143** | **baseline** | |
 
 ### 6.2 Frontend — покрытие по модулям
 
@@ -543,10 +703,11 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 | UI Components | 3 | — | ✅ |
 | Auth Pages | 2 | — | ✅ |
 | API Client | 3 | — | ✅ |
-| ★ Sidebar | 3 | — | ★ Новое |
-| ★ Главная страница | 2 | — | ★ Новое |
-| ★ Форма концепции | 2 | — | ★ Новое |
-| **Итого** | **15** | **baseline** | |
+| Sidebar | 3 | — | ✅ |
+| Главная страница | 2 | — | ✅ |
+| Форма концепции | 2 | — | ✅ |
+| ★ Компоненты результата (4.B.5) | 7 | — | ★ Новое |
+| **Итого** | **22** | **baseline** | |
 
 ### 6.3 Ручные UI-тесты
 
@@ -556,22 +717,30 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 | Проекты | 6 | ✅ |
 | Навигация | 5 | ✅ |
 | Генератор концепции (ввод) | 7 | ✅ |
-| ★ Валидация концепции | 7 | ★ Новое |
-| ★ One-Pager | 11 | ★ Новое |
-| Скелетные блоки (2–7) | 12 | ✅ |
+| Валидация концепции | 7 | ✅ |
+| One-Pager | 11 | ✅ |
+| ★ Результат — OnePagerCard | 6 | ★ Новое |
+| ★ Результат — AestheticProfileView | 3 | ★ Новое |
+| ★ Результат — MechanicSetView | 5 | ★ Новое |
+| ★ Результат — CoreLoopCandidates | 4 | ★ Новое |
+| ★ Результат — USPCandidates | 4 | ★ Новое |
+| ★ Результат — ValidationReportView | 5 | ★ Новое |
+| ★ Core Loop Designer (API) | 5 | ★ Новое |
+| Скелетные блоки (3–7) | 10 | ✅ |
 | Запланированные (8) | 2 | ✅ |
 | Responsive | 4 | ✅ |
 | Обработка ошибок | 4 | ✅ |
-| ★ Главная страница | 4 | ★ Новое |
-| **Итого** | **72** | |
+| Главная страница | 4 | ✅ |
+| **Итого** | **102** | |
 
 ### 6.4 E2E-сценарии
 
 | Сценарий | Шагов | Статус |
 |----------|-------|--------|
-| Полный пайплайн генерации | 17 | ★ Новое |
-| Повторная валидация | 5 | ★ Новое |
-| **Итого** | **22** | |
+| Полный пайплайн генерации | 17 | ✅ |
+| Повторная валидация | 5 | ✅ |
+| ★ Core Loop Designer (Этапы 1–3) | 10 | ★ Новое |
+| **Итого** | **32** | |
 
 ### 6.5 Целевое покрытие (критерий C8 из ROADMAP)
 

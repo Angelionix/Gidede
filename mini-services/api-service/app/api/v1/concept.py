@@ -1,9 +1,9 @@
 """
 Блок 1: Генератор концепции — API endpoints.
-Фаза 4.B.1–4.B.3: Полная реализация Этапов 1–5 алгоритма 3.1.
+Фаза 4.B.1–4.B.4: Полная реализация Этапов 1–7 алгоритма 3.1.
 
 Endpoints:
-- POST /generate — генерация концепции (Этапы 1–5, ранее 1–3)
+- POST /generate — генерация концепции (Этапы 1–7, полный One-Pager)
 - GET /{concept_id} — получить текущее состояние концепции
 - PUT /{concept_id} — обновить концепцию (ручные правки)
 - POST /{concept_id}/validate — запустить валидацию (Этап 6)
@@ -163,9 +163,12 @@ async def generate_concept(
     Генерация концепции игры из описания идеи.
 
     Алгоритм 3.1: 7 этапов
-    - Этапы 1–3: жанр, эстетика, динамики (реализовано в 4.B.2)
-    - Этапы 4–5: выбор механик, Core Loop, USP (реализовано в 4.B.3)
-    - Этапы 6–7: заглушки (реализация в 4.B.4)
+    - Этапы 1–3: жанр, эстетика, динамики (4.B.2)
+    - Этапы 4–5: выбор механик, Core Loop, USP (4.B.3)
+    - Этап 6: валидация через 3 валидатора (4.B.4)
+    - Этап 7: сборка One-Pager (4.B.4)
+
+    Возвращает полный OnePager с вложенными профилями и отчётом валидации.
     """
     user_id = current_user.id
     logger.info(f"Generating concept for user {user_id}")
@@ -180,7 +183,7 @@ async def generate_concept(
             target_motivations = input_data.target_audience.primary
             experience_level = input_data.target_audience.experience
 
-        # Выполняем полный пайплайн Этапы 1–5
+        # Выполняем полный пайплайн Этапы 1–7
         result = await service.generate_full(
             idea=input_data.idea,
             explicit_genre=input_data.genre,
@@ -190,22 +193,24 @@ async def generate_concept(
             constraints=input_data.constraints,
             reference_games=input_data.reference_games,
             forbidden_mechanics=input_data.forbidden_mechanics,
-            project_state=None,  # Будет заполнено из БД в будущих фазах
+            project_state=None,
         )
 
-        # Формируем ответ
-        genre_result = result.get("genre_result", {})
+        # result — это OnePager.model_dump()
+        genre = result.get("aesthetic_profile", {}).get("primary", "")
+        genre_name = result.get("title", "")
         aesthetic_profile = result.get("aesthetic_profile", {})
         dynamics_profile = result.get("dynamics_profile", {})
         mechanic_set = result.get("mechanic_set", {})
         core_loop_candidates = result.get("core_loop_candidates", [])
         usp_candidates = result.get("usp_candidates", [])
+        validation_report = result.get("validation_report", {})
 
         # Сохраняем результат в БД
         concept_id = await _save_concept_result(
             user_id=user_id,
             idea=input_data.idea,
-            genre_result=genre_result,
+            genre_result={"genre": result.get("title", "").split("]")[0].replace("[", "") if "[" in result.get("title", "") else "unknown"},
             aesthetic_profile=aesthetic_profile,
             dynamics_profile=dynamics_profile,
             mechanic_set=mechanic_set,
@@ -215,43 +220,30 @@ async def generate_concept(
             metadata=result,
         )
 
-        # Формируем OnePagerResponse
-        audience_str = ""
-        if target_motivations:
-            audience_str = f"Мотивации: {', '.join(target_motivations)}"
-            if experience_level:
-                audience_str += f" | Уровень: {experience_level}"
-
-        # Уникальные фичи из механик
-        unique_features = []
-        for category_key in ["base", "combat", "progression", "spatial", "social"]:
-            for m in mechanic_set.get(category_key, []):
-                if len(unique_features) >= 3:
-                    break
-                unique_features.append(m.get("name", ""))
-            if len(unique_features) >= 3:
-                break
-
         response = OnePagerResponse(
             id=concept_id,
-            title=_generate_title(input_data.idea, genre_result.get("genre", "")),
-            genre=genre_result.get("genre", "unknown"),
-            target_audience=audience_str,
-            story_synopsis="",  # Этап 7 (4.B.4)
-            gameplay_description="",  # Этап 7 (4.B.4)
-            unique_features=unique_features,
-            competitors=input_data.reference_games or [],
+            title=result.get("title", ""),
+            genre=result.get("title", "").split("]")[0].replace("[", "") if "[" in result.get("title", "") else "unknown",
+            target_audience=result.get("target_audience", ""),
+            story_synopsis=result.get("story_synopsis", ""),
+            gameplay_description=result.get("gameplay_description", ""),
+            unique_features=result.get("unique_features", []),
+            competitors=result.get("competitors", []),
             aesthetic_profile=aesthetic_profile,
             dynamics_profile=dynamics_profile,
             mechanic_set=mechanic_set,
             core_loop_candidates=core_loop_candidates,
             usp_candidates=usp_candidates,
-            validation_report={},  # Этап 6 (4.B.4)
-            status="stages_1_5_completed",
+            validation_report=validation_report,
+            status="completed",
             generation_metadata={
                 "stages_completed": result.get("stages_completed", []),
                 "latency_ms": result.get("latency_ms", 0),
                 "models_used": result.get("models_used", []),
+                "overall_validation_score": validation_report.get("overall_score", 0),
+                "overall_validation_passed": validation_report.get("overall_passed", False),
+                "compatibility_score": result.get("compatibility_score", 0),
+                "uniqueness_score": result.get("uniqueness_score", 0),
             },
         )
 
@@ -326,9 +318,66 @@ async def validate_concept(
     concept_id: str,
     current_user: User = Depends(get_current_user),
 ):
-    """Запустить валидацию концепции (алгоритм 3.1.8)."""
-    # TODO: Реализация в Фазе 4.B.4
-    return {"id": concept_id, "validation": "not_implemented", "message": "Реализация в 4.B.4"}
+    """
+    Запустить валидацию существующей концепции (алгоритм 3.1.8, Этап 6).
+
+    Три валидатора:
+    1. Triangle of Weirdness (Кн. 8)
+    2. 5 вопросов кор-геймплея (Кн. 10)
+    3. 8 фильтров идеи (Кн. 1)
+    """
+    try:
+        from app.core.database import async_session
+        from app.models.db import ProjectConcept
+        from sqlalchemy import select
+
+        async with async_session() as session:
+            stmt = select(ProjectConcept).where(ProjectConcept.id == concept_id)
+            db_result = await session.execute(stmt)
+            concept = db_result.scalar_one_or_none()
+
+            if not concept:
+                raise HTTPException(status_code=404, detail="Концепция не найдена")
+
+            # Восстанавливаем данные для валидации
+            service = await get_concept_service()
+            from app.schemas.concept import (
+                AestheticProfile, DynamicsProfile, MechanicSet,
+                CoreLoopCandidate, USPCandidate,
+            )
+
+            aesthetic_profile = AestheticProfile(**(concept.aesthetic_profile or {}))
+            dynamics_profile = DynamicsProfile(**(concept.dynamics_profile or {}))
+            mechanic_set = MechanicSet(**(concept.mechanic_set or {}))
+            core_loop_candidates = [CoreLoopCandidate(**c) for c in (concept.core_loop_candidates or [])]
+            usp_candidates = [USPCandidate(**u) for u in (concept.usp_candidates or [])]
+
+            validation_report = await service.validate_concept(
+                idea=concept.input_data.get("idea", "") if concept.input_data else "",
+                genre_result={"genre": concept.genre or "unknown"},
+                aesthetic_profile=aesthetic_profile,
+                dynamics_profile=dynamics_profile,
+                mechanic_set=mechanic_set,
+                core_loop_candidates=core_loop_candidates,
+                usp_candidates=usp_candidates,
+            )
+
+            # Сохраняем отчёт валидации
+            concept.validation_report = validation_report.model_dump()
+            await session.commit()
+
+            return {
+                "id": concept_id,
+                "validation_report": validation_report.model_dump(),
+                "overall_score": validation_report.overall_score,
+                "overall_passed": validation_report.overall_passed,
+            }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error validating concept: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Ошибка валидации концепции")
 
 
 # ============================================================

@@ -1,6 +1,6 @@
 """
 Gidede — Prompt Registry (PROMPT_REGISTRY)
-Фаза 4.A.8: Реестр всех 31 AI-промптов
+Фаза 4.A.8: Реестр всех 34 AI-промптов
 
 Спецификация 3.9.2: Полный каталог промптов из алгоритмов 3.1–3.8.
 Спецификация 3.9.3: Формализация интерфейсов каждого промпта.
@@ -16,10 +16,10 @@ Gidede — Prompt Registry (PROMPT_REGISTRY)
 - estimated — оценка стоимости и латентности
 
 Статистика:
-- Всего промптов: 31
+- Всего промптов: 34
 - Креативные (Sonnet/GPT-4): 18 (58%)
 - Рутинные (Haiku/GPT-3.5): 13 (42%)
-- Блок 1 (Концепция): 4
+- Блок 1 (Концепция): 7
 - Блок 2 (Core Loop): 4
 - Блок 3 (MDA): 5
 - Блок 4 (Баланс): 5
@@ -55,7 +55,7 @@ _POWERFUL_FALLBACK = ModelSpec(provider=AIProviderType.OPENAI, model="gpt-4o", m
 
 
 # ============================================================
-# БЛОК 1: КОНЦЕПЦИЯ (алгоритм 3.1) — 4 промпта
+# БЛОК 1: КОНЦЕПЦИЯ (алгоритм 3.1) — 7 промптов
 # ============================================================
 
 CLASSIFY_GENRE = PromptSpec(
@@ -311,6 +311,208 @@ USP должен:
         cache_ttl=None,
     ),
     estimated=EstimatedMetrics(input_tokens=600, output_tokens=1200, cost_min=0.01, cost_max=0.06, latency_min_ms=2000, latency_max_ms=12000),
+)
+
+# ============================================================
+# БЛОК 1: КОНЦЕПЦИЯ — Промпты 4.B.4 (Этапы 6–7)
+# ============================================================
+
+VALIDATE_TRIANGLE = PromptSpec(
+    id="VALIDATE_TRIANGLE",
+    module=ModuleType.CONCEPT,
+    algorithm="3.1",
+    version="1.0.0",
+    taskType=PromptTaskType.EVALUATION,
+    inputs=[
+        PromptInput(name="idea", type="string", required=True,
+                    description="Описание идеи игры"),
+        PromptInput(name="genre", type="string", required=True,
+                    description="Жанр игры"),
+        PromptInput(name="aesthetics", type="array", required=True,
+                    description="Целевые эстетики"),
+        PromptInput(name="mechanics", type="array", required=True,
+                    description="Выбранные механики"),
+    ],
+    outputFormat=OutputFormat.JSON,
+    outputSchema={
+        "type": "object",
+        "properties": {
+            "score": {"type": "number", "minimum": 0, "maximum": 1},
+            "characters": {"type": "object"},
+            "world": {"type": "object"},
+            "activities": {"type": "object"},
+            "weird_corners_count": {"type": "integer"},
+            "warnings": {"type": "array"},
+            "suggestions": {"type": "array"},
+        },
+        "required": ["score", "characters", "world", "activities", "weird_corners_count"],
+    },
+    system_prompt="""Ты — эксперт по валидации концепций игр через Triangle of Weirdness (Level Up! — Скотт Роджерс).
+
+Triangle of Weirdness оценивает концепцию по 3 осям:
+1. Персонажи (Characters) — насколько необычны герои/враги/NPC?
+2. Мир (World) — насколько уникален сеттинг/мир?
+3. Активности (Activities) — насколько оригинальны действия игрока?
+
+Правила:
+- Если 0 или 1 угол "странный" — концепция продаваема
+- Если 2 угла "странные" — нужна осторожность, нишевый продукт
+- Если 3 угла "странные" — концепция труднопродаваема, нужна доработка
+- Оцени score (0-1): насколько концепция жизнеспособна
+- Укажи weird_corners_count: сколько углов "странные" (0-3)
+- Для каждого проблемного угла предложи конкретные улучшения
+
+Формат: строго JSON.""",
+    user_prompt_template="Идея: {idea}\nЖанр: {genre}\nЭстетики: {aesthetics}\nМеханики: {mechanics}",
+    modelRequirements=ModelRequirements(
+        primary=_POWERFUL_MODEL,
+        fallback=_POWERFUL_FALLBACK,
+        min_context_window=4096,
+        temperature=0.5,
+        max_tokens=1200,
+        response_format=OutputFormat.JSON,
+    ),
+    guarantees=PromptGuarantees(
+        deterministic=False, json_output=True, max_retries=2,
+        fallback_on_failure=True, cacheable=False, cache_ttl=None,
+    ),
+    estimated=EstimatedMetrics(input_tokens=600, output_tokens=800, cost_min=0.008, cost_max=0.05, latency_min_ms=2000, latency_max_ms=10000),
+)
+
+VALIDATE_IDEA_FILTERS = PromptSpec(
+    id="VALIDATE_IDEA_FILTERS",
+    module=ModuleType.CONCEPT,
+    algorithm="3.1",
+    version="1.0.0",
+    taskType=PromptTaskType.EVALUATION,
+    inputs=[
+        PromptInput(name="idea", type="string", required=True,
+                    description="Описание идеи игры"),
+        PromptInput(name="genre", type="string", required=True,
+                    description="Жанр игры"),
+        PromptInput(name="aesthetics", type="array", required=True,
+                    description="Целевые эстетики"),
+        PromptInput(name="mechanics", type="array", required=True,
+                    description="Выбранные механики"),
+        PromptInput(name="usp", type="string", required=False,
+                    description="Сформулированный USP", default=""),
+        PromptInput(name="core_loop_steps", type="array", required=False,
+                    description="Шаги Core Loop", default=[]),
+        PromptInput(name="constraints", type="object", required=False,
+                    description="Ограничения (бюджет, команда)", default={}),
+        PromptInput(name="references", type="array", required=False,
+                    description="Референтные игры", default=[]),
+    ],
+    outputFormat=OutputFormat.JSON,
+    outputSchema={
+        "type": "object",
+        "properties": {
+            "score": {"type": "number", "minimum": 0, "maximum": 1},
+            "filters": {
+                "type": "object",
+                "additionalProperties": {
+                    "type": "object",
+                    "properties": {
+                        "score": {"type": "number"},
+                        "reason": {"type": "string"},
+                        "improvement": {"type": "string"},
+                    },
+                },
+            },
+        },
+        "required": ["score", "filters"],
+    },
+    system_prompt="""Ты — эксперт по оценке жизнеспособности концепций игр. Примени 8 фильтров идеи (The Art of Game Design — Джесси Шелл):
+
+1. f1_experience — Создаёт ли концепция чёткий опыт? (MDA-профиль определён?)
+2. f2_audience — Понятна ли целевая аудитория? (мотивации, платформа)
+3. f3_motivation — Почему игрок будет играть? (внутренняя мотивация)
+4. f4_uniqueness — Отличается ли от конкурентов? (USP проверяем)
+5. f5_feasibility — Реализуема ли концепция? (масштаб, бюджет, команда)
+6. f6_scope — Адекватен ли масштаб? (не слишком маленький/амбициозный)
+7. f7_fun — Есть ли веселье в Core Loop? (30 секунд веселья)
+8. f8_prototype — Можно ли прототипировать за неделю? (MVP)
+
+Для каждого фильтра:
+- Оцени score (0-1)
+- Укажи причину если score < 0.6
+- Предложи improvement если score < 0.6
+
+Общий score — среднее по 8 фильтрам.
+
+Формат: строго JSON.""",
+    user_prompt_template="Идея: {idea}\nЖанр: {genre}\nЭстетики: {aesthetics}\nМеханики: {mechanics}\nUSP: {usp}\nCore Loop: {core_loop_steps}\nОграничения: {constraints}\nРеференты: {references}",
+    modelRequirements=ModelRequirements(
+        primary=_POWERFUL_MODEL,
+        fallback=_POWERFUL_FALLBACK,
+        min_context_window=8192,
+        temperature=0.5,
+        max_tokens=2048,
+        response_format=OutputFormat.JSON,
+    ),
+    guarantees=PromptGuarantees(
+        deterministic=False, json_output=True, max_retries=2,
+        fallback_on_failure=True, cacheable=False, cache_ttl=None,
+    ),
+    estimated=EstimatedMetrics(input_tokens=800, output_tokens=1500, cost_min=0.01, cost_max=0.08, latency_min_ms=3000, latency_max_ms=15000),
+)
+
+ASSEMBLE_ONE_PAGER = PromptSpec(
+    id="ASSEMBLE_ONE_PAGER",
+    module=ModuleType.CONCEPT,
+    algorithm="3.1",
+    version="1.0.0",
+    taskType=PromptTaskType.GENERATION,
+    inputs=[
+        PromptInput(name="idea", type="string", required=True,
+                    description="Описание идеи игры"),
+        PromptInput(name="genre", type="string", required=True,
+                    description="Жанр игры"),
+        PromptInput(name="aesthetics", type="array", required=True,
+                    description="Целевые эстетики"),
+        PromptInput(name="mechanics", type="array", required=True,
+                    description="Выбранные механики"),
+        PromptInput(name="core_loop", type="object", required=False,
+                    description="Core Loop данные", default={}),
+        PromptInput(name="usp", type="string", required=False,
+                    description="USP формулировка", default=""),
+    ],
+    outputFormat=OutputFormat.JSON,
+    outputSchema={
+        "type": "object",
+        "properties": {
+            "story_synopsis": {"type": "string"},
+            "gameplay_description": {"type": "string"},
+        },
+        "required": ["story_synopsis", "gameplay_description"],
+    },
+    system_prompt="""Ты — креативный геймдизайнер. На основе данных о концепции сгенерируй два текстовых описания для One-Pager:
+
+1. story_synopsis — Краткий синопсис сюжета/сеттинга (2-3 предложения). Опиши мир, главного героя и центральный конфликт. Текст должен быть увлекательным и передавать атмосферу игры.
+
+2. gameplay_description — Описание геймплея (3-5 предложений). Опиши основные механики, Core Loop и ключевые игровые ситуации. Используй глаголы действий игрока. Упомяни уникальные фичи и USP.
+
+Правила:
+- Пиши на русском языке
+- Текст должен быть конкретным, не общим
+- Учитывай жанр и целевые эстетики
+- Не придумывай новые механики, используй только указанные
+
+Формат: строго JSON.""",
+    user_prompt_template="Идея: {idea}\nЖанр: {genre}\nЭстетики: {aesthetics}\nМеханики: {mechanics}\nCore Loop: {core_loop}\nUSP: {usp}",
+    modelRequirements=ModelRequirements(
+        primary=_POWERFUL_MODEL,
+        fallback=_POWERFUL_FALLBACK,
+        min_context_window=8192,
+        temperature=0.7,
+        max_tokens=1500,
+        response_format=OutputFormat.JSON,
+    ),
+    guarantees=PromptGuarantees(
+        deterministic=False, json_output=True, max_retries=2,
+        fallback_on_failure=True, cacheable=False, cache_ttl=None,
+    ),
+    estimated=EstimatedMetrics(input_tokens=800, output_tokens=1000, cost_min=0.01, cost_max=0.06, latency_min_ms=2000, latency_max_ms=12000),
 )
 
 
@@ -1746,15 +1948,18 @@ GENERATE_REMEDIATION = PromptSpec(
 
 
 # ============================================================
-# PROMPT REGISTRY — все 31 промптов
+# PROMPT REGISTRY — все 34 промптов
 # ============================================================
 
 PROMPT_REGISTRY: dict[str, PromptSpec] = {
-    # Блок 1: Концепция (4)
+    # Блок 1: Концепция (7)
     "CLASSIFY_GENRE": CLASSIFY_GENRE,
     "EXTRACT_AESTHETICS": EXTRACT_AESTHETICS,
     "GENERATE_CORE_LOOPS": GENERATE_CORE_LOOPS,
     "GENERATE_USP": GENERATE_USP,
+    "VALIDATE_TRIANGLE": VALIDATE_TRIANGLE,
+    "VALIDATE_IDEA_FILTERS": VALIDATE_IDEA_FILTERS,
+    "ASSEMBLE_ONE_PAGER": ASSEMBLE_ONE_PAGER,
 
     # Блок 2: Core Loop (4)
     "DECOMPOSE_STEP": DECOMPOSE_STEP,

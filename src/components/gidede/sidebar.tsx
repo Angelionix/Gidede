@@ -289,7 +289,7 @@ export function GidedeSidebar() {
         )}
 
         <p className="text-xs text-muted-foreground px-2 pt-1">
-          Фаза 4.B • v0.3.0
+          Фаза 4.B • v0.5.0
         </p>
       </SidebarFooter>
     </Sidebar>

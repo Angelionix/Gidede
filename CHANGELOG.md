@@ -9,6 +9,55 @@
 
 ---
 
+## [0.5.0] — 2026-05-18
+
+### Добавлено
+
+#### Основные модули (Фаза 4.B, завершение Блока 1)
+- Блок 1: Backend — валидация концепции и сборка One-Pager (Этапы 6–7) — 4.B.4
+  - **Этап 6: Валидация концепции** — 3 формальных валидатора:
+    - Валидатор 1: Triangle of Weirdness (Кн. 8, Роджерс) — оценка «странности» по 3 осям (Персонажи, Мир, Активности)
+    - Валидатор 2: 5 вопросов кор-геймплея (Кн. 10, Гэри) — проверка полноты Core Loop
+    - Валидатор 3: 8 фильтров идеи (Кн. 1, Шелл) — проверка жизнеспособности концепции
+    - Каждый валидатор возвращает score (0–1) + warnings + suggestions
+    - Агрегированный overall_score и overall_passed (порог 0.6)
+  - **Этап 7: Сборка One-Pager** — итоговый документ концепции (8 полей Роджерса + Gidede):
+    - AI-генерация story_synopsis и gameplay_description через ASSEMBLE_ONE_PAGER промпт
+    - Автоматическая оценка возрастного рейтинга (ESRB)
+    - Расчёт score уникальности комбинации (0–100)
+    - Полная структура OnePager со вложенными профилями и отчётом валидации
+
+#### Схемы данных
+- `ValidationResult` — результат одного валидатора (score, passed, warnings, suggestions, details)
+- `ValidationWarning` — предупреждение валидатора (validator, code, message, severity)
+- `ValidationSuggestion` — предложение по улучшению (validator, target, suggestion, priority)
+- `ValidationReport` — полный отчёт валидации (3 валидатора + агрегация)
+- `OnePager` — итоговый документ концепции (8 полей Роджерса + эстетика + динамики + механики + Core Loop + USP + валидация + мета)
+
+#### AI-промпты
+- `VALIDATE_TRIANGLE` — AI-валидация Triangle of Weirdness (Кн. 8)
+- `VALIDATE_IDEA_FILTERS` — AI-валидация 8 фильтров идеи (Кн. 1)
+- `ASSEMBLE_ONE_PAGER` — AI-генерация описаний для One-Pager (story_synopsis, gameplay_description)
+
+#### API
+- POST `/api/v1/concept/generate` — обновлён: полный пайплайн Этапов 1–7 с OnePager
+- POST `/api/v1/concept/{concept_id}/validate` — отдельная валидация (Этап 6)
+- completion_percent обновлён с 30% до 100% после завершения Этапов 6–7
+
+### Изменено
+- `concept_service.py` — полный пайплайн Этапов 1–7
+- `generate_full()` теперь включает validate_concept() и assemble_one_pager()
+- API `/generate` возвращает полный OnePager с validation_report и all stages completed
+- Версия обновлена с 0.4.0 до 0.5.0
+
+### Тестовая документация
+- Актуализирован полный перечень программных и UI тестов (покрытие всего функционала)
+- Добавлены тест-кейсы для валидации концепции (Этап 6)
+- Добавлены тест-кейсы для сборки One-Pager (Этап 7)
+- Обновлён список API-тестов
+
+---
+
 ## [0.3.0] — 2026-05-18
 
 ### Добавлено

@@ -1,6 +1,6 @@
 """
 Gidede — Concept Schemas (Pydantic Models)
-Фаза 4.B.2-4.B.3: Схемы для Блока 1 — Генератор концепции
+Фаза 4.B.2-4.B.4: Схемы для Блока 1 — Генератор концепции
 
 Модели синхронизированы с shared/types/python/models.py (4.A.12)
 и shared/types/typescript/interfaces.ts.
@@ -74,3 +74,92 @@ class USPCandidate(BaseModel):
     usp: str = Field("", description="Формулировка USP")
     triangle_check: dict = Field(default_factory=dict, description="Triangle of Weirdness: weird/appealing/credible")
     competitive_differentiation: str = Field("", description="Отличие от конкурентов")
+
+
+# ============================================================
+# ВАЛИДАЦИЯ КОНЦЕПЦИИ (алгоритм 3.1.8, Этап 6)
+# ============================================================
+
+class ValidationWarning(BaseModel):
+    """Предупреждение валидатора."""
+    validator: str = Field(..., description="ID валидатора: triangle/core_questions/idea_filters")
+    code: str = Field("", description="Код предупреждения")
+    message: str = Field(..., description="Текст предупреждения")
+    severity: str = Field("warning", description="Уровень: info/warning/error")
+
+
+class ValidationSuggestion(BaseModel):
+    """Предложение по улучшению от валидатора."""
+    validator: str = Field(..., description="ID валидатора")
+    target: str = Field("", description="Что улучшить")
+    suggestion: str = Field(..., description="Текст предложения")
+    priority: str = Field("medium", description="Приоритет: low/medium/high")
+
+
+class ValidationResult(BaseModel):
+    """Результат одного валидатора (score + warnings + suggestions)."""
+    validator_id: str = Field(..., description="ID валидатора")
+    validator_name: str = Field("", description="Человекочитаемое название")
+    score: float = Field(0.0, description="Score валидации (0.0–1.0)")
+    passed: bool = Field(False, description="Прошёл ли валидацию (score >= 0.6)")
+    warnings: list[ValidationWarning] = Field(default_factory=list)
+    suggestions: list[ValidationSuggestion] = Field(default_factory=list)
+    details: dict = Field(default_factory=dict, description="Детали валидации (специфичные для валидатора)")
+
+
+class ValidationReport(BaseModel):
+    """
+    Полный отчёт валидации концепции (алгоритм 3.1.8, Этап 6).
+    Три валидатора: Triangle of Weirdness, 5 вопросов, 8 фильтров.
+    """
+    triangle_of_weirdness: Optional[ValidationResult] = Field(
+        None, description="Валидатор 1: Triangle of Weirdness (Кн. 8)"
+    )
+    core_questions: Optional[ValidationResult] = Field(
+        None, description="Валидатор 2: 5 вопросов кор-геймплея (Кн. 10)"
+    )
+    idea_filters: Optional[ValidationResult] = Field(
+        None, description="Валидатор 3: 8 фильтров идеи (Кн. 1)"
+    )
+    overall_score: float = Field(0.0, description="Общий score (среднее по трём валидаторам)")
+    overall_passed: bool = Field(False, description="Общий результат (средний score >= 0.6)")
+    warnings: list[ValidationWarning] = Field(default_factory=list, description="Все предупреждения")
+    suggestions: list[ValidationSuggestion] = Field(default_factory=list, description="Все предложения")
+
+
+# ============================================================
+# ONE-PAGER (алгоритм 3.1.9, Этап 7)
+# ============================================================
+
+class OnePager(BaseModel):
+    """
+    One-Pager — итоговый документ концепции (алгоритм 3.1.9, Этап 7).
+    8 полей шаблона Роджерса + дополнительные поля Gidede.
+    """
+    # 8 полей шаблона Роджерса
+    title: str = Field("", description="Название игры")
+    platform: list[str] = Field(default_factory=list, description="Целевые платформы")
+    target_audience: str = Field("", description="Описание целевой аудитории")
+    rating: str = Field("", description="Возрастной рейтинг (ESRB)")
+
+    # Описания (AI-сгенерированные с валидацией)
+    story_synopsis: str = Field("", description="Краткий синопсис сюжета (2-3 предложения)")
+    gameplay_description: str = Field("", description="Описание геймплея (3-5 предложений)")
+    unique_features: list[str] = Field(default_factory=list, description="3 уникальные фичи")
+    competitors: list[str] = Field(default_factory=list, description="Сравнение с 2-3 конкурентами")
+
+    # Дополнительные поля Gidede
+    aesthetic_profile: Optional[dict] = Field(None, description="Эстетический профиль (из Этапа 2)")
+    dynamics_profile: Optional[dict] = Field(None, description="Профиль динамик (из Этапа 3)")
+    mechanic_set: Optional[dict] = Field(None, description="Набор механик (из Этапа 4)")
+    core_loop_candidates: list[dict] = Field(default_factory=list, description="3 варианта Core Loop (из Этапа 5)")
+    usp_candidates: list[dict] = Field(default_factory=list, description="3 варианта USP (из Этапа 5)")
+    validation_report: Optional[dict] = Field(None, description="Отчёт валидации (из Этапа 6)")
+
+    # Мета
+    loop_type: str = Field("hybrid", description="Структурный тип Core Loop")
+    compatibility_score: float = Field(0.0, description="Совместимость механик (0-100)")
+    uniqueness_score: float = Field(0.0, description="Уникальность комбинации (0-100)")
+    stages_completed: list[int] = Field(default_factory=lambda: [1, 2, 3, 4, 5, 6, 7])
+    latency_ms: int = Field(0)
+    models_used: list[str] = Field(default_factory=list)

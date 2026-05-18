@@ -1,6 +1,6 @@
 """
 Gidede — Concept Service
-Фаза 4.B.2-4.B.3: Блок 1 — алгоритм генерации концепции (Этапы 1–5)
+Фаза 4.B.2-4.B.4: Блок 1 — алгоритм генерации концепции (Этапы 1–7)
 
 Реализация пайплайна генерации концепции из алгоритма 3.1:
 - Этап 1: Анализ и определение жанра (CLASSIFY_GENRE)
@@ -8,6 +8,8 @@ Gidede — Concept Service
 - Этап 3: Reverse MDA — вывод динамик (SUGGEST_DYNAMICS + маппинг ЦА→эстетика→динамика)
 - Этап 4: Выбор механик из MechanicsDB — 7-шаговый процесс (SUGGEST_MECHANICS)
 - Этап 5: Генерация Core Loop и USP (GENERATE_CORE_LOOPS, GENERATE_USP)
+- Этап 6: Валидация концепции — 3 валидатора (Triangle, 5 вопросов, 8 фильтров)
+- Этап 7: Сборка One-Pager — итоговый документ концепции
 
 Каждый метод вызывает PromptExecutor и валидирует выход.
 Результат сохраняется в project_concepts.
@@ -33,6 +35,11 @@ from app.schemas.concept import (
     MechanicSet,
     CoreLoopCandidate,
     USPCandidate,
+    ValidationReport,
+    ValidationResult,
+    ValidationWarning,
+    ValidationSuggestion,
+    OnePager,
 )
 
 # MechanicsDB — 128 механик в 15 группах (SW.BAND, Кн. 15)
@@ -119,7 +126,7 @@ GENRE_AESTHETIC_PROFILES: dict[str, list[str]] = {
 class ConceptService:
     """
     Блок 1: Генератор концепции.
-    Реализует алгоритм 3.1 — Этапы 1–5.
+    Реализует алгоритм 3.1 — Этапы 1–7.
 
     Методы:
     - classify_genre() — Этап 1: определение жанра
@@ -128,9 +135,11 @@ class ConceptService:
     - select_mechanics() — Этап 4: выбор механик из MechanicsDB (7-шаговый процесс)
     - generate_core_loops() — Этап 5: генерация 3 вариантов Core Loop
     - generate_usp() — Этап 5: генерация 3 вариантов USP
-    - generate_stages_1_3() — полный пайплайн Этапов 1–3
-    - generate_stages_4_5() — полный пайплайн Этапов 4–5
-    - generate_full() — полный пайплайн Этапов 1–5
+    - validate_concept() — Этап 6: валидация через 3 валидатора
+    - assemble_one_pager() — Этап 7: сборка One-Pager
+    - generate_stages_1_3() — пайплайн Этапов 1–3
+    - generate_stages_4_5() — пайплайн Этапов 4–5
+    - generate_full() — полный пайплайн Этапов 1–7
     """
 
     def __init__(self, executor: PromptExecutor):
@@ -1285,8 +1294,794 @@ class ConceptService:
         ]
 
     # ========================================================
-    # Полный пайплайн: Этапы 4–5
+    # Этап 6: Валидация концепции (3.1.8)
     # ========================================================
+
+    async def validate_concept(
+        self,
+        idea: str,
+        genre_result: dict,
+        aesthetic_profile: AestheticProfile,
+        dynamics_profile: DynamicsProfile,
+        mechanic_set: MechanicSet,
+        core_loop_candidates: list[CoreLoopCandidate],
+        usp_candidates: list[USPCandidate],
+        platforms: Optional[list[str]] = None,
+        constraints: Optional[dict] = None,
+        reference_games: Optional[list[str]] = None,
+        project_state: Optional[dict] = None,
+    ) -> ValidationReport:
+        """
+        Этап 6: Валидация концепции через 3 формальных валидатора (алгоритм 3.1.8).
+
+        Валидаторы:
+        1. Triangle of Weirdness (Кн. 8, Роджерс) — проверяет «странность» по 3 осям
+        2. 5 вопросов кор-геймплея (Кн. 10, Гэри) — проверяет полноту Core Loop
+        3. 8 фильтров идеи (Кн. 1, Шелл) — проверяет жизнеспособность концепции
+
+        Каждый валидатор возвращает score (0–1) + warnings + suggestions.
+        Валидация не отвергает концепцию, а выявляет проблемы и предлагает улучшения.
+
+        Returns:
+            ValidationReport с результатами трёх валидаторов и агрегированным score
+        """
+        start = time.time()
+
+        # Собираем контекст концепции для валидации
+        genre = genre_result.get("genre", "unknown")
+        aesthetics = [aesthetic_profile.primary, aesthetic_profile.secondary, aesthetic_profile.tertiary]
+        core_loop = core_loop_candidates[0] if core_loop_candidates else None
+        usp = usp_candidates[0] if usp_candidates else None
+
+        # Формируем сводку механик
+        all_mechanics = []
+        for category in ["base", "combat", "progression", "spatial", "social"]:
+            for m in getattr(mechanic_set, category, []):
+                all_mechanics.append(m.get("name", ""))
+
+        # === Валидатор 1: Triangle of Weirdness ===
+        triangle_result = await self._validate_triangle(
+            idea=idea,
+            genre=genre,
+            aesthetics=aesthetics,
+            mechanics=all_mechanics,
+            core_loop=core_loop,
+            usp=usp,
+            project_state=project_state,
+        )
+
+        # === Валидатор 2: 5 вопросов кор-геймплея ===
+        core_questions_result = self._validate_core_questions(
+            core_loop=core_loop,
+            mechanic_set=mechanic_set,
+            aesthetics=aesthetics,
+        )
+
+        # === Валидатор 3: 8 фильтров идеи ===
+        idea_filters_result = await self._validate_idea_filters(
+            idea=idea,
+            genre=genre,
+            aesthetics=aesthetics,
+            mechanics=all_mechanics,
+            core_loop=core_loop,
+            usp=usp,
+            constraints=constraints,
+            reference_games=reference_games,
+            project_state=project_state,
+        )
+
+        # Агрегация результатов
+        scores = []
+        all_warnings: list[ValidationWarning] = []
+        all_suggestions: list[ValidationSuggestion] = []
+
+        for result in [triangle_result, core_questions_result, idea_filters_result]:
+            if result:
+                scores.append(result.score)
+                all_warnings.extend(result.warnings)
+                all_suggestions.extend(result.suggestions)
+
+        overall_score = sum(scores) / len(scores) if scores else 0.0
+        overall_passed = overall_score >= 0.6
+
+        report = ValidationReport(
+            triangle_of_weirdness=triangle_result,
+            core_questions=core_questions_result,
+            idea_filters=idea_filters_result,
+            overall_score=round(overall_score, 3),
+            overall_passed=overall_passed,
+            warnings=all_warnings,
+            suggestions=all_suggestions,
+        )
+
+        logger.info(
+            f"[Stage 6] Validation completed: "
+            f"overall_score={overall_score:.2f}, passed={overall_passed}, "
+            f"warnings={len(all_warnings)}, suggestions={len(all_suggestions)} "
+            f"({time.time() - start:.2f}s)"
+        )
+        return report
+
+    async def _validate_triangle(
+        self,
+        idea: str,
+        genre: str,
+        aesthetics: list[str],
+        mechanics: list[str],
+        core_loop: Optional[CoreLoopCandidate],
+        usp: Optional[USPCandidate],
+        project_state: Optional[dict],
+    ) -> ValidationResult:
+        """
+        Валидатор 1: Triangle of Weirdness (Кн. 8, Роджерс).
+
+        Три оси: Персонажи (Characters), Мир (World), Активности (Activities).
+        Если более 1 оси «странная» — концепция может быть труднопродаваемой.
+        Оценка — от 0.0 до 1.0.
+        """
+        warnings: list[ValidationWarning] = []
+        suggestions: list[ValidationSuggestion] = []
+        details: dict = {}
+
+        try:
+            prompt_result: PromptResult = await self.executor.execute(
+                prompt_id="VALIDATE_TRIANGLE",
+                inputs={
+                    "idea": idea,
+                    "genre": genre,
+                    "aesthetics": aesthetics,
+                    "mechanics": mechanics,
+                },
+                project_state=project_state,
+                options=PromptExecutionOptions(skip_cache=True),
+            )
+
+            data = prompt_result.data
+            if isinstance(data, dict):
+                score = float(data.get("score", 0.7))
+                details = {
+                    "characters": data.get("characters", {}),
+                    "world": data.get("world", {}),
+                    "activities": data.get("activities", {}),
+                    "weird_corners_count": data.get("weird_corners_count", 0),
+                }
+
+                weird_count = details.get("weird_corners_count", 0)
+                if weird_count > 1:
+                    warnings.append(ValidationWarning(
+                        validator="triangle",
+                        code="too_many_weird_corners",
+                        message=f"Более 1 «странного» угла ({weird_count}) — концепция может быть труднопродаваемой",
+                        severity="warning",
+                    ))
+                    suggestions.append(ValidationSuggestion(
+                        validator="triangle",
+                        target="weird_corners",
+                        suggestion="Выберите один странный угол, остальные сделайте привычными для жанра",
+                        priority="high",
+                    ))
+
+                if data.get("warnings"):
+                    for w in data["warnings"]:
+                        if isinstance(w, dict):
+                            warnings.append(ValidationWarning(
+                                validator="triangle",
+                                code=w.get("code", "unknown"),
+                                message=w.get("message", str(w)),
+                                severity=w.get("severity", "warning"),
+                            ))
+                        elif isinstance(w, str):
+                            warnings.append(ValidationWarning(
+                                validator="triangle",
+                                code="ai_warning",
+                                message=w,
+                                severity="warning",
+                            ))
+
+                if data.get("suggestions"):
+                    for s in data["suggestions"]:
+                        if isinstance(s, dict):
+                            suggestions.append(ValidationSuggestion(
+                                validator="triangle",
+                                target=s.get("target", ""),
+                                suggestion=s.get("suggestion", str(s)),
+                                priority=s.get("priority", "medium"),
+                            ))
+                        elif isinstance(s, str):
+                            suggestions.append(ValidationSuggestion(
+                                validator="triangle",
+                                target="",
+                                suggestion=s,
+                                priority="medium",
+                            ))
+            else:
+                score = self._fallback_triangle_score(aesthetics, mechanics)
+
+        except Exception as e:
+            logger.warning(f"[Stage 6] Triangle validation AI failed: {e}")
+            score = self._fallback_triangle_score(aesthetics, mechanics)
+
+        return ValidationResult(
+            validator_id="triangle",
+            validator_name="Triangle of Weirdness",
+            score=min(1.0, max(0.0, score)),
+            passed=score >= 0.6,
+            warnings=warnings,
+            suggestions=suggestions,
+            details=details,
+        )
+
+    def _fallback_triangle_score(self, aesthetics: list[str], mechanics: list[str]) -> float:
+        """
+        Fallback-оценка Triangle of Weirdness без AI.
+        Базовый скор на основе разнообразия эстетик и механик.
+        """
+        score = 0.7  # Базовый score
+
+        # Уникальные эстетики → меньше странности → лучше
+        unique_aesthetics = len(set(aesthetics))
+        if unique_aesthetics >= 2:
+            score += 0.1
+
+        # Большой набор механик → больше активности → лучше
+        if len(mechanics) >= 10:
+            score += 0.1
+
+        return min(1.0, score)
+
+    def _validate_core_questions(
+        self,
+        core_loop: Optional[CoreLoopCandidate],
+        mechanic_set: MechanicSet,
+        aesthetics: list[str],
+    ) -> ValidationResult:
+        """
+        Валидатор 2: 5 вопросов кор-геймплея (Кн. 10, Гэри).
+
+        Вопросы:
+        1. Определён ли Core Loop (≥3 шагов)?
+        2. Есть ли главный конфликт?
+        3. Есть ли ресурсные механики?
+        4. Определён тип взаимодействия?
+        5. Есть ли условие победы/цель?
+        """
+        warnings: list[ValidationWarning] = []
+        suggestions: list[ValidationSuggestion] = []
+        details: dict = {}
+        answered = 0
+
+        # Q1: Определён ли Core Loop?
+        has_core_loop = core_loop is not None and len(core_loop.steps) >= 3
+        details["q1_loop"] = has_core_loop
+        if has_core_loop:
+            answered += 1
+        else:
+            warnings.append(ValidationWarning(
+                validator="core_questions",
+                code="q1_no_core_loop",
+                message="Core Loop не определён или содержит менее 3 шагов",
+                severity="error",
+            ))
+            suggestions.append(ValidationSuggestion(
+                validator="core_questions",
+                target="core_loop",
+                suggestion="Определите Core Loop с 3–5 шагами, описанными как действия игрока",
+                priority="high",
+            ))
+
+        # Q2: Есть ли главный конфликт?
+        has_conflict = core_loop is not None and any(
+            kw in str(core_loop.steps).lower()
+            for kw in ["враг", "сраж", "бой", "препятств", "вызов", "угроз", "враги", "боев", "атак"]
+        )
+        details["q2_conflict"] = has_conflict
+        if has_conflict:
+            answered += 1
+        else:
+            warnings.append(ValidationWarning(
+                validator="core_questions",
+                code="q2_no_conflict",
+                message="Главный конфликт не обнаружен в Core Loop",
+                severity="warning",
+            ))
+            suggestions.append(ValidationSuggestion(
+                validator="core_questions",
+                target="conflict",
+                suggestion="Добавьте в Core Loop шаг, связанный с преодолением препятствия или врага",
+                priority="high",
+            ))
+
+        # Q3: Есть ли ресурсные механики?
+        resource_mechanics = ["Инвентарь", "Экономика", "Крафт", "Очки опыта", "Ресурсы", "Здоровье"]
+        all_mech_names = []
+        for cat in ["base", "combat", "progression", "spatial", "social"]:
+            for m in getattr(mechanic_set, cat, []):
+                all_mech_names.append(m.get("name", ""))
+        has_resources = any(rm in all_mech_names for rm in resource_mechanics)
+        details["q3_resources"] = has_resources
+        if has_resources:
+            answered += 1
+        else:
+            warnings.append(ValidationWarning(
+                validator="core_questions",
+                code="q3_no_resources",
+                message="Нет ресурсных механик — неясно, чем управляет игрок",
+                severity="warning",
+            ))
+            suggestions.append(ValidationSuggestion(
+                validator="core_questions",
+                target="resources",
+                suggestion="Добавьте механику управления ресурсами (инвентарь, экономика, крафт)",
+                priority="medium",
+            ))
+
+        # Q4: Определён тип взаимодействия?
+        interaction_types = ["social", "fellowship"]
+        has_interaction = "fellowship" in aesthetics or any(
+            kw in " ".join(all_mech_names).lower()
+            for kw in ["кооперац", "социальн", "торг", "рейтинг"]
+        )
+        details["q4_interaction"] = has_interaction
+        # Это опциональный вопрос — не штрафуем за отсутствие
+        answered += 1
+
+        # Q5: Есть ли условие победы/цель?
+        has_goal = core_loop is not None and any(
+            kw in str(core_loop.steps).lower()
+            for kw in ["наград", "побед", "достижен", "цель", "заверш", "выигрыш"]
+        )
+        details["q5_goal"] = has_goal
+        if has_goal:
+            answered += 1
+        else:
+            warnings.append(ValidationWarning(
+                validator="core_questions",
+                code="q5_no_goal",
+                message="Условие победы или цель не обнаружены в Core Loop",
+                severity="warning",
+            ))
+            suggestions.append(ValidationSuggestion(
+                validator="core_questions",
+                target="goal",
+                suggestion="Добавьте в Core Loop шаг получения награды или достижения цели",
+                priority="medium",
+            ))
+
+        score = answered / 5.0
+
+        return ValidationResult(
+            validator_id="core_questions",
+            validator_name="5 вопросов кор-геймплея",
+            score=round(score, 3),
+            passed=score >= 0.6,
+            warnings=warnings,
+            suggestions=suggestions,
+            details=details,
+        )
+
+    async def _validate_idea_filters(
+        self,
+        idea: str,
+        genre: str,
+        aesthetics: list[str],
+        mechanics: list[str],
+        core_loop: Optional[CoreLoopCandidate],
+        usp: Optional[USPCandidate],
+        constraints: Optional[dict],
+        reference_games: Optional[list[str]],
+        project_state: Optional[dict],
+    ) -> ValidationResult:
+        """
+        Валидатор 3: 8 фильтров идеи (Кн. 1, Шелл).
+
+        Фильтры:
+        1. Создаёт ли чёткий опыт?
+        2. Понятна ли ЦА?
+        3. Почему игрок будет играть?
+        4. Отличается ли от конкурентов?
+        5. Реализуема ли концепция?
+        6. Адекватен ли масштаб?
+        7. Есть ли веселье в Core Loop?
+        8. Можно ли прототипировать за неделю?
+        """
+        warnings: list[ValidationWarning] = []
+        suggestions: list[ValidationSuggestion] = []
+        details: dict = {}
+
+        try:
+            prompt_result: PromptResult = await self.executor.execute(
+                prompt_id="VALIDATE_IDEA_FILTERS",
+                inputs={
+                    "idea": idea,
+                    "genre": genre,
+                    "aesthetics": aesthetics,
+                    "mechanics": mechanics,
+                    "usp": usp.usp if usp else "",
+                    "core_loop_steps": core_loop.steps if core_loop else [],
+                    "constraints": constraints or {},
+                    "references": reference_games or [],
+                },
+                project_state=project_state,
+                options=PromptExecutionOptions(skip_cache=True),
+            )
+
+            data = prompt_result.data
+            if isinstance(data, dict):
+                score = float(data.get("score", 0.6))
+                filter_results = data.get("filters", {})
+
+                for filter_id, filter_data in filter_results.items():
+                    filter_score = float(filter_data.get("score", 0.5)) if isinstance(filter_data, dict) else 0.5
+                    details[filter_id] = filter_data
+
+                    if filter_score < 0.6:
+                        reason = filter_data.get("reason", "") if isinstance(filter_data, dict) else ""
+                        improvement = filter_data.get("improvement", "") if isinstance(filter_data, dict) else ""
+
+                        filter_names = {
+                            "f1_experience": "Чёткий опыт",
+                            "f2_audience": "Понятная ЦА",
+                            "f3_motivation": "Мотивация игрока",
+                            "f4_uniqueness": "Уникальность",
+                            "f5_feasibility": "Реализуемость",
+                            "f6_scope": "Масштаб",
+                            "f7_fun": "Веселье в Core Loop",
+                            "f8_prototype": "Прототипируемость",
+                        }
+                        filter_label = filter_names.get(filter_id, filter_id)
+
+                        if reason:
+                            warnings.append(ValidationWarning(
+                                validator="idea_filters",
+                                code=f"filter_{filter_id}",
+                                message=f"{filter_label}: {reason}",
+                                severity="warning" if filter_score >= 0.4 else "error",
+                            ))
+                        if improvement:
+                            suggestions.append(ValidationSuggestion(
+                                validator="idea_filters",
+                                target=filter_id,
+                                suggestion=improvement,
+                                priority="high" if filter_score < 0.4 else "medium",
+                            ))
+
+            elif isinstance(data, list):
+                # Формат списка
+                filter_scores = []
+                for item in data:
+                    if isinstance(item, dict):
+                        fs = float(item.get("score", 0.5))
+                        filter_scores.append(fs)
+                        if fs < 0.6:
+                            warnings.append(ValidationWarning(
+                                validator="idea_filters",
+                                code=item.get("filter", "unknown"),
+                                message=item.get("reason", str(item)),
+                                severity="warning",
+                            ))
+                            if item.get("improvement"):
+                                suggestions.append(ValidationSuggestion(
+                                    validator="idea_filters",
+                                    target=item.get("filter", ""),
+                                    suggestion=item["improvement"],
+                                    priority="medium",
+                                ))
+                score = sum(filter_scores) / len(filter_scores) if filter_scores else 0.5
+            else:
+                score = self._fallback_idea_filters_score(
+                    idea, aesthetics, mechanics, usp, constraints
+                )
+
+        except Exception as e:
+            logger.warning(f"[Stage 6] Idea filters validation AI failed: {e}")
+            score = self._fallback_idea_filters_score(
+                idea, aesthetics, mechanics, usp, constraints
+            )
+
+        return ValidationResult(
+            validator_id="idea_filters",
+            validator_name="8 фильтров идеи",
+            score=min(1.0, max(0.0, score)),
+            passed=score >= 0.6,
+            warnings=warnings,
+            suggestions=suggestions,
+            details=details,
+        )
+
+    def _fallback_idea_filters_score(
+        self,
+        idea: str,
+        aesthetics: list[str],
+        mechanics: list[str],
+        usp: Optional[USPCandidate],
+        constraints: Optional[dict],
+    ) -> float:
+        """
+        Fallback-оценка 8 фильтров без AI.
+        Эвристическая оценка на основе структурных признаков.
+        """
+        score = 0.5
+
+        # f1: Чёткий опыт — есть ≥2 эстетики
+        if len(set(aesthetics)) >= 2:
+            score += 0.05
+
+        # f4: Уникальность — есть USP
+        if usp and usp.usp:
+            score += 0.1
+
+        # f5: Реализуемость — есть ограничения
+        if constraints:
+            scope = constraints.get("scope", "")
+            if scope in ("small", "medium"):
+                score += 0.1
+
+        # f6: Масштаб — количество механик
+        if 8 <= len(mechanics) <= 18:
+            score += 0.1
+
+        # f8: Прототипируемость — короткий Core Loop
+        if mechanics and len(mechanics) <= 12:
+            score += 0.05
+
+        return min(1.0, score)
+
+    # ========================================================
+    # Этап 7: Сборка One-Pager (3.1.9)
+    # ========================================================
+
+    async def assemble_one_pager(
+        self,
+        idea: str,
+        genre_result: dict,
+        aesthetic_profile: AestheticProfile,
+        dynamics_profile: DynamicsProfile,
+        mechanic_set: MechanicSet,
+        core_loop_candidates: list[CoreLoopCandidate],
+        usp_candidates: list[USPCandidate],
+        validation_report: ValidationReport,
+        platforms: Optional[list[str]] = None,
+        target_audience: Optional[str] = None,
+        constraints: Optional[dict] = None,
+        reference_games: Optional[list[str]] = None,
+        project_state: Optional[dict] = None,
+    ) -> OnePager:
+        """
+        Этап 7: Сборка One-Pager — итогового документа концепции (алгоритм 3.1.9).
+
+        Объединяет все результаты Этапов 1–6 в структуру OnePager
+        из 8 полей шаблона Роджерса + дополнительные поля Gidede.
+
+        AI генерирует story_synopsis, gameplay_description, rating.
+        Остальные поля заполняются из результатов предыдущих этапов.
+
+        Returns:
+            OnePager — итоговый документ концепции
+        """
+        start = time.time()
+        genre = genre_result.get("genre", "unknown")
+
+        # Формируем сводку механик
+        all_mechanics = []
+        for category in ["base", "combat", "progression", "spatial", "social"]:
+            for m in getattr(mechanic_set, category, []):
+                all_mechanics.append(m.get("name", ""))
+
+        # Уникальные фичи (берём топ-3 из различных категорий)
+        unique_features: list[str] = []
+        for category in ["base", "combat", "progression", "spatial", "social"]:
+            for m in getattr(mechanic_set, category, []):
+                if len(unique_features) >= 3:
+                    break
+                name = m.get("name", "")
+                if name and name not in unique_features:
+                    unique_features.append(name)
+            if len(unique_features) >= 3:
+                break
+
+        # AI-генерация описаний (story_synopsis, gameplay_description)
+        story_synopsis = ""
+        gameplay_description = ""
+
+        try:
+            prompt_result: PromptResult = await self.executor.execute(
+                prompt_id="ASSEMBLE_ONE_PAGER",
+                inputs={
+                    "idea": idea,
+                    "genre": genre,
+                    "aesthetics": [aesthetic_profile.primary, aesthetic_profile.secondary, aesthetic_profile.tertiary],
+                    "mechanics": all_mechanics,
+                    "core_loop": core_loop_candidates[0].model_dump() if core_loop_candidates else {},
+                    "usp": usp_candidates[0].usp if usp_candidates else "",
+                },
+                project_state=project_state,
+                options=PromptExecutionOptions(skip_cache=True),
+            )
+
+            data = prompt_result.data
+            if isinstance(data, dict):
+                story_synopsis = data.get("story_synopsis", "")
+                gameplay_description = data.get("gameplay_description", "")
+            elif isinstance(data, str):
+                # Если AI вернул строку, используем как gameplay_description
+                gameplay_description = data
+
+        except Exception as e:
+            logger.warning(f"[Stage 7] AI One-Pager generation failed, using fallback: {e}")
+
+        # Fallback — если AI не сгенерировал описания
+        if not story_synopsis:
+            story_synopsis = self._fallback_story_synopsis(idea, genre, aesthetic_profile)
+        if not gameplay_description:
+            gameplay_description = self._fallback_gameplay_description(
+                genre, mechanic_set, core_loop_candidates
+            )
+
+        # Возрастной рейтинг
+        rating = self._estimate_rating(genre, aesthetic_profile)
+
+        # Оценка уникальности
+        uniqueness_score = self._calculate_uniqueness_score(
+            aesthetic_profile, mechanic_set, usp_candidates
+        )
+
+        # Заголовок
+        title = self._generate_game_title(idea, genre)
+
+        one_pager = OnePager(
+            title=title,
+            platform=platforms or [],
+            target_audience=target_audience or self._build_audience_description(
+                aesthetic_profile, genre
+            ),
+            rating=rating,
+            story_synopsis=story_synopsis,
+            gameplay_description=gameplay_description,
+            unique_features=unique_features,
+            competitors=reference_games or [],
+            aesthetic_profile=aesthetic_profile.model_dump(),
+            dynamics_profile=dynamics_profile.model_dump(),
+            mechanic_set=mechanic_set.model_dump(),
+            core_loop_candidates=[c.model_dump() for c in core_loop_candidates],
+            usp_candidates=[c.model_dump() for c in usp_candidates],
+            validation_report=validation_report.model_dump(),
+            loop_type=core_loop_candidates[0].loop_type if core_loop_candidates else "hybrid",
+            compatibility_score=mechanic_set.compatibility_score,
+            uniqueness_score=uniqueness_score,
+            stages_completed=[1, 2, 3, 4, 5, 6, 7],
+        )
+
+        logger.info(
+            f"[Stage 7] One-Pager assembled: "
+            f"title='{title}', rating={rating}, "
+            f"uniqueness={uniqueness_score:.0f} "
+            f"({time.time() - start:.2f}s)"
+        )
+        return one_pager
+
+    def _fallback_story_synopsis(
+        self, idea: str, genre: str, aesthetic_profile: AestheticProfile
+    ) -> str:
+        """Fallback-генерация синопсиса без AI."""
+        aesthetic_names_ru = {
+            "sensation": "Чувственное", "fantasy": "Фантазия",
+            "narrative": "Нарратив", "challenge": "Вызов",
+            "fellowship": "Товарищество", "discovery": "Открытие",
+            "expression": "Выражение", "submission": "Подчинение",
+        }
+        primary = aesthetic_names_ru.get(aesthetic_profile.primary, aesthetic_profile.primary)
+        return (
+            f"Игра в жанре {genre}, основанная на эстетике «{primary}». "
+            f"Исходная идея: {idea[:200]}."
+        )
+
+    def _fallback_gameplay_description(
+        self,
+        genre: str,
+        mechanic_set: MechanicSet,
+        core_loop_candidates: list[CoreLoopCandidate],
+    ) -> str:
+        """Fallback-генерация описания геймплея без AI."""
+        all_mechanics = []
+        for category in ["base", "combat", "progression", "spatial", "social"]:
+            for m in getattr(mechanic_set, category, []):
+                all_mechanics.append(m.get("name", ""))
+
+        mechanics_str = ", ".join(all_mechanics[:6])
+        if len(all_mechanics) > 6:
+            mechanics_str += " и другие"
+
+        core_loop_desc = ""
+        if core_loop_candidates:
+            cl = core_loop_candidates[0]
+            steps_str = " → ".join(
+                s.get("action", str(s)) if isinstance(s, dict) else str(s)
+                for s in cl.steps[:5]
+            )
+            core_loop_desc = f" Основной цикл: {steps_str}."
+
+        return (
+            f"{genre.upper()} с механиками: {mechanics_str}."
+            f"{core_loop_desc}"
+            f" Игрок исследует мир, развивает персонажа и достигает целей."
+        )
+
+    def _estimate_rating(self, genre: str, aesthetic_profile: AestheticProfile) -> str:
+        """Оценка возрастного рейтинга на основе жанра и эстетики."""
+        mature_genres = {"horror", "survival_horror", "shooter", "fighting"}
+        mature_aesthetics = {"sensation"}  # Чувственное может быть интенсивным
+
+        if genre in mature_genres:
+            return "M (Mature 17+)"
+        elif aesthetic_profile.primary in mature_aesthetics:
+            return "T (Teen 13+)"
+        elif genre in {"party", "educational", "puzzle", "racing"}:
+            return "E (Everyone)"
+        else:
+            return "T (Teen 13+)"
+
+    def _calculate_uniqueness_score(
+        self,
+        aesthetic_profile: AestheticProfile,
+        mechanic_set: MechanicSet,
+        usp_candidates: list[USPCandidate],
+    ) -> float:
+        """Расчёт score уникальности комбинации (0–100)."""
+        score = 50.0  # Базовый скор
+
+        # Бонус за нетипичные комбинации эстетик
+        aesthetics = [aesthetic_profile.primary, aesthetic_profile.secondary, aesthetic_profile.tertiary]
+        # Проверяем нетипичные пары
+        rare_pairs = {("challenge", "narrative"), ("sensation", "submission"), ("expression", "challenge")}
+        for pair in rare_pairs:
+            if pair[0] in aesthetics and pair[1] in aesthetics:
+                score += 10.0
+
+        # Бонус за USP, прошедший Triangle of Weirdness
+        if usp_candidates:
+            usp = usp_candidates[0]
+            triangle = usp.triangle_check
+            if isinstance(triangle, dict):
+                if triangle.get("weird") and triangle.get("appealing"):
+                    score += 15.0
+                if triangle.get("credible"):
+                    score += 5.0
+
+        # Бонус за синергии
+        synergy_count = len(mechanic_set.synergies_detected)
+        score += min(synergy_count * 3, 20.0)
+
+        return min(100.0, max(0.0, score))
+
+    def _generate_game_title(self, idea: str, genre: str) -> str:
+        """Сгенерировать предварительное название игры."""
+        # Берём ключевые слова из идеи
+        words = idea.split()[:5]
+        title = " ".join(words)
+        if len(title) > 40:
+            title = title[:40] + "..."
+        return title
+
+    def _build_audience_description(
+        self, aesthetic_profile: AestheticProfile, genre: str
+    ) -> str:
+        """Построить описание целевой аудитории."""
+        aesthetic_names_ru = {
+            "sensation": "любители насыщенных впечатлений",
+            "fantasy": "поклонники погружения в мир",
+            "narrative": "ценители сюжета",
+            "challenge": "искатели вызова",
+            "fellowship": "социальные игроки",
+            "discovery": "исследователи",
+            "expression": "творческие личности",
+            "submission": "любители рутинного удовольствия",
+        }
+        primary_ru = aesthetic_names_ru.get(aesthetic_profile.primary, "геймеры")
+        secondary_ru = aesthetic_names_ru.get(aesthetic_profile.secondary, "")
+        desc = f"Жанр {genre}, основная аудитория — {primary_ru}"
+        if secondary_ru:
+            desc += f", также {secondary_ru}"
+        return desc
 
     async def generate_stages_4_5(
         self,
@@ -1390,7 +2185,7 @@ class ConceptService:
         project_state: Optional[dict] = None,
     ) -> dict[str, Any]:
         """
-        Полный пайплайн генерации концепции — Этапы 1–5 алгоритма 3.1.
+        Полный пайплайн генерации концепции — Этапы 1–7 алгоритма 3.1.
 
         Выполняет все этапы последовательно:
         1. Классификацию жанра
@@ -1398,9 +2193,11 @@ class ConceptService:
         3. Вывод динамик
         4. Выбор механик
         5. Генерацию Core Loop и USP
+        6. Валидацию концепции (3 валидатора)
+        7. Сборку One-Pager
 
         Returns:
-            Полный результат генерации концепции
+            Полный результат генерации концепции (OnePager)
         """
         pipeline_start = time.time()
         all_models_used: list[str] = []
@@ -1435,17 +2232,61 @@ class ConceptService:
         )
         all_models_used.extend(stages_4_5.get("models_used", []))
 
-        total_latency_ms = int((time.time() - pipeline_start) * 1000)
+        # Восстанавливаем Pydantic-модели из dict
+        mechanic_set = MechanicSet(**stages_4_5["mechanic_set"])
+        core_loop_candidates = [CoreLoopCandidate(**c) for c in stages_4_5["core_loop_candidates"]]
+        usp_candidates = [USPCandidate(**u) for u in stages_4_5["usp_candidates"]]
 
-        return {
-            "genre_result": stages_1_3["genre_result"],
-            "aesthetic_profile": stages_1_3["aesthetic_profile"],
-            "dynamics_profile": stages_1_3["dynamics_profile"],
-            "mechanic_set": stages_4_5["mechanic_set"],
-            "core_loop_candidates": stages_4_5["core_loop_candidates"],
-            "usp_candidates": stages_4_5["usp_candidates"],
-            "loop_type": stages_4_5["loop_type"],
-            "stages_completed": [1, 2, 3, 4, 5],
-            "latency_ms": total_latency_ms,
-            "models_used": all_models_used,
-        }
+        # Этап 6: Валидация концепции
+        target_audience_str = ""
+        if target_motivations:
+            target_audience_str = f"Мотивации: {', '.join(target_motivations)}"
+            if experience_level:
+                target_audience_str += f" | Уровень: {experience_level}"
+
+        validation_report = await self.validate_concept(
+            idea=idea,
+            genre_result=stages_1_3["genre_result"],
+            aesthetic_profile=aesthetic_profile,
+            dynamics_profile=dynamics_profile,
+            mechanic_set=mechanic_set,
+            core_loop_candidates=core_loop_candidates,
+            usp_candidates=usp_candidates,
+            platforms=platforms,
+            constraints=constraints,
+            reference_games=reference_games,
+            project_state=project_state,
+        )
+        all_models_used.append("VALIDATE_TRIANGLE")
+        all_models_used.append("VALIDATE_IDEA_FILTERS")
+
+        # Этап 7: Сборка One-Pager
+        one_pager = await self.assemble_one_pager(
+            idea=idea,
+            genre_result=stages_1_3["genre_result"],
+            aesthetic_profile=aesthetic_profile,
+            dynamics_profile=dynamics_profile,
+            mechanic_set=mechanic_set,
+            core_loop_candidates=core_loop_candidates,
+            usp_candidates=usp_candidates,
+            validation_report=validation_report,
+            platforms=platforms,
+            target_audience=target_audience_str,
+            constraints=constraints,
+            reference_games=reference_games,
+            project_state=project_state,
+        )
+        all_models_used.append("ASSEMBLE_ONE_PAGER")
+
+        total_latency_ms = int((time.time() - pipeline_start) * 1000)
+        one_pager.latency_ms = total_latency_ms
+        one_pager.models_used = all_models_used
+
+        logger.info(
+            f"[Pipeline 1-7] Full concept generation completed in {total_latency_ms}ms. "
+            f"Validation: score={validation_report.overall_score:.2f}, "
+            f"passed={validation_report.overall_passed}. "
+            f"Models used: {len(all_models_used)}"
+        )
+
+        return one_pager.model_dump()

@@ -1,7 +1,8 @@
 # Gidede — Подготовка тестовой инфраструктуры
 
-> **Фаза**: 4.A.11–4.A.12  
+> **Фаза**: 4.B.4 (полное покрытие)  
 > **Дата**: 2026-05-18  
+> **Версия**: 0.5.0  
 > **Статус**: Активный
 
 ---
@@ -27,9 +28,12 @@
 │  │ test_health    │  │  │ components     │              │
 │  │ test_auth      │  │  │ auth           │              │
 │  │ test_projects  │  │  │ api-client     │              │
-│  │ test_rag       │  │  └────────────────┘              │
-│  │ test_registry  │  │                                  │
-│  │ test_chunker   │  │                                  │
+│  │ test_rag       │  │  │ concept-form   │ ★            │
+│  │ test_registry  │  │  │ sidebar        │ ★            │
+│  │ test_chunker   │  │  └────────────────┘              │
+│  │ test_concept   │ ★  │                                  │
+│  │ test_validate  │ ★  │                                  │
+│  │ test_one_pager │ ★  │                                  │
 │  └────────────────┘  │                                  │
 ├──────────────────────┴──────────────────────────────────┤
 │               Shared Types (4.A.12)                      │
@@ -43,6 +47,8 @@
 │  run_tests.sh — единый запуск                            │
 │  .pre-commit-config.yaml — хуки                          │
 └─────────────────────────────────────────────────────────┘
+
+★ — добавлено в v0.5.0 (4.B.4)
 ```
 
 ---
@@ -55,11 +61,14 @@
 |-----------|------|-----------|
 | Фикстуры | `tests/conftest.py` | Общие тестовые данные, моки, БД |
 | Health Check | `tests/test_health.py` | API health-эндпоинт |
-| Авторизация | `tests/test_auth.py` | Регистрация, логин, JWT |
+| Авторизация | `tests/test_auth.py` | Регистрация, логин, JWT, refresh |
 | Проекты | `tests/test_projects.py` | CRUD проектов |
 | RAG-сервис | `tests/test_rag_service.py` | Векторный поиск, чанкинг |
-| Реестр промптов | `tests/test_prompt_registry.py` | 31 PromptSpec |
+| Реестр промптов | `tests/test_prompt_registry.py` | 34 PromptSpec |
 | TextChunker | `tests/test_text_chunker.py` | Разбиение текста |
+| ★ Concept Service | `tests/test_concept_service.py` | Этапы 1–7 генерации концепции |
+| ★ Валидация | `tests/test_validation.py` | Triangle, 5Q, 8F валидаторы |
+| ★ One-Pager | `tests/test_one_pager.py` | Сборка OnePager |
 
 **Ключевые фикстуры:**
 
@@ -71,6 +80,13 @@
 | `mock_ai_provider` | Мок AI-провайдера (без реальных вызовов) |
 | `sample_project_state` | Тестовый Project State |
 | `sample_concept_input` | Тестовый ConceptInput |
+| `sample_aesthetic_profile` | Тестовый AestheticProfile |
+| `sample_dynamics_profile` | Тестовый DynamicsProfile |
+| `sample_mechanic_set` | Тестовый MechanicSet (10–15 механик) |
+| `sample_core_loop_candidates` | Тестовые 3 варианта CoreLoopCandidate |
+| `sample_usp_candidates` | Тестовые 3 варианта USPCandidate |
+| `sample_validation_report` | Тестовый ValidationReport |
+| `sample_one_pager` | Тестовый OnePager |
 
 ### 2.2 Frontend: vitest
 
@@ -80,6 +96,8 @@
 | UI-компоненты | `src/__tests__/components.test.tsx` | Базовый рендеринг |
 | Авторизация | `src/__tests__/auth.test.tsx` | Формы логина/регистрации |
 | API-клиент | `src/__tests__/api-client.test.ts` | HTTP-запросы, обработка ошибок |
+| ★ Форма концепции | `src/__tests__/concept-form.test.tsx` | Поля ввода Блока 1 |
+| ★ Sidebar | `src/__tests__/sidebar.test.tsx` | Навигация, статусы, версия |
 
 **Моки в setup.ts:**
 - `next/navigation` — useRouter, usePathname, useSearchParams
@@ -118,12 +136,18 @@
 | Модуль | Файлов | Тестов | Покрытие |
 |--------|--------|--------|----------|
 | Health API | 1 | 2 | — |
-| Auth API | 1 | 6 | — |
-| Projects API | 1 | 4 | — |
-| RAG Service | 1 | 8 | — |
+| Auth API | 1 | 8 | — |
+| Projects API | 1 | 5 | — |
+| RAG Service | 1 | 10 | — |
 | Prompt Registry | 1 | 7 | — |
 | TextChunker | 1 | 5 | — |
-| **Итого** | **6** | **32** | **baseline** |
+| Concept Service (1–3) | 1 | 10 | — |
+| Concept Service (4–5) | 1 | 19 | — |
+| ★ Validation (6) | 1 | 14 | — |
+| ★ One-Pager (7) | 1 | 11 | — |
+| ★ Full Pipeline | 1 | 4 | — |
+| ★ Concept API | 1 | 7 | — |
+| **Итого** | **12** | **102** | **baseline** |
 
 ### 3.2 Frontend — текущее покрытие
 
@@ -132,7 +156,10 @@
 | UI Components | 1 | 3 | — |
 | Auth Pages | 1 | 2 | — |
 | API Client | 1 | 3 | — |
-| **Итого** | **3** | **8** | **baseline** |
+| ★ Concept Form | 1 | 2 | — |
+| ★ Sidebar | 1 | 3 | — |
+| ★ Main Page | 1 | 2 | — |
+| **Итого** | **6** | **15** | **baseline** |
 
 ### 3.3 Целевое покрытие (критерий C8 из ROADMAP)
 

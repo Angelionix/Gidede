@@ -1,0 +1,144 @@
+{
+  "description": "Golden dataset: эталонные входы и ожидаемые результаты для MDA-анализа (алгоритм 3.3, Этапы 1-6). Используется для регрессионного тестирования полного MDA-пайплайна.",
+  "version": "1.0.0",
+  "created": "2026-03-05",
+  "td_reference": "TD-012 / DEFERRED-005",
+
+  "samples": [
+    {
+      "id": "mda-001",
+      "name": "Алхимик-RPG: Fantasy + Discovery",
+      "input": {
+        "genre": "RPG",
+        "subgenre": "roguelike",
+        "aesthetics": ["Fantasy", "Discovery", "Expression"],
+        "mechanics": ["Сбор ресурсов", "Крафт", "Исследование", "Торговля", "Рецепты"],
+        "concept_summary": "Алхимик варит зелья в подземной лаборатории, исследует шахты для ингредиентов и продаёт зелья горожанам"
+      },
+      "expected_stages": {
+        "stage1_extract_dynamics": {
+          "expected_dynamics": [
+            "Ресурсный цикл: сбор → крафт → продажа → инвестиции",
+            "Исследование как драйвер: новые области = новые рецепты",
+            "Экспрессия через комбинации ингредиентов"
+          ],
+          "min_dynamics_count": 5
+        },
+        "stage2_suggest_mechanics": {
+          "expected_mechanic_groups": ["Прогрессионные", "Пространственные", "Социальные"],
+          "min_mechanics_count": 5
+        },
+        "stage3_build_aesthetic_profile": {
+          "expected_top_aesthetics": ["Fantasy", "Discovery", "Expression"],
+          "aesthetic_weights_sum_range": [0.8, 1.0]
+        },
+        "stage4_classic_mda_pass": {
+          "expected_convergence": "medium-high",
+          "expected_feedback_loops": ["positive: крафт → исследования", "negative: истощение ингредиентов"],
+          "expected_emergent_dynamics": ["комбинации рецептов", "торговые стратегии"]
+        },
+        "stage5_validate_lenses": {
+          "priority_lenses": ["Lens #1: Essential Experience", "Lens #9: Elemental Tetrad", "Lens #31: Challenge"],
+          "expected_min_lens_score": 0.4,
+          "expected_issues": ["возможный дисбаланс крафта", "нехватка социального аспекта"]
+        },
+        "stage6_validate_bond_matrix": {
+          "expected_ludonarrative_harmony": "medium",
+          "expected_fixed_elements": ["правила крафта", "рецепты", "сеттинг"],
+          "expected_dynamic_elements": ["комбинации зелий", "рыночные цены", "события в шахтах"],
+          "expected_cultural_elements": ["обмен рецептами", "рейтинги алхимиков"]
+        }
+      }
+    },
+    {
+      "id": "mda-002",
+      "name": "Шутер: Challenge + Sensation",
+      "input": {
+        "genre": "Action",
+        "subgenre": "FPS",
+        "aesthetics": ["Challenge", "Sensation", "Fellowship"],
+        "mechanics": ["Атака", "Защита", "Уклонение", "Combo", "Кооперация"],
+        "concept_summary": "Командный шутер от первого лица, 5 на 5, разрушаемое окружение, уникальные способности персонажей"
+      },
+      "expected_stages": {
+        "stage1_extract_dynamics": {
+          "expected_dynamics": [
+            "Командная координация: роль + синергия",
+            "Skill-based combat: точность + тайминг",
+            "Map control: контроль территорий и ресурсов"
+          ],
+          "min_dynamics_count": 5
+        },
+        "stage2_suggest_mechanics": {
+          "expected_mechanic_groups": ["Боевые", "Пространственные", "Социальные"],
+          "min_mechanics_count": 5
+        },
+        "stage3_build_aesthetic_profile": {
+          "expected_top_aesthetics": ["Challenge", "Sensation", "Fellowship"],
+          "aesthetic_weights_sum_range": [0.8, 1.0]
+        },
+        "stage4_classic_mda_pass": {
+          "expected_convergence": "high",
+          "expected_feedback_loops": ["positive: skill improvement", "negative: death/respawn balance"],
+          "expected_emergent_dynamics": ["мета-стратегии", "team compositions", "map strategies"]
+        },
+        "stage5_validate_lenses": {
+          "priority_lenses": ["Lens #31: Challenge", "Lens #44: Competition", "Lens #16: The Player"],
+          "expected_min_lens_score": 0.5,
+          "expected_issues": ["баланс персонажей", "matchmaking"]
+        },
+        "stage6_validate_bond_matrix": {
+          "expected_ludonarrative_harmony": "medium",
+          "expected_fixed_elements": ["правила боя", "карты", "персонажи"],
+          "expected_dynamic_elements": ["мета-игра", "командная стратегия", "экономика матча"],
+          "expected_cultural_elements": ["eSports", "стримы", "рейтинги"]
+        }
+      }
+    },
+    {
+      "id": "mda-003",
+      "name": "Строитель-симулятор: Expression + Submission",
+      "input": {
+        "genre": "Simulation",
+        "subgenre": "city-builder",
+        "aesthetics": ["Expression", "Submission", "Discovery"],
+        "mechanics": ["Размещение", "Управление ресурсами", "Разблокировки", "Территории", "Апгрейды"],
+        "concept_summary": "Градостроительный симулятор, где игрок строит город, управляет экономикой и открывает новые технологии"
+      },
+      "expected_stages": {
+        "stage1_extract_dynamics": {
+          "expected_dynamics": [
+            "Планирование: размещение → эффективность → рост",
+            "Балансировка: доходы vs расходы города",
+            "Исследование: новые технологии открывают возможности"
+          ],
+          "min_dynamics_count": 5
+        },
+        "stage2_suggest_mechanics": {
+          "expected_mechanic_groups": ["Пространственные", "Прогрессионные", "Базовые"],
+          "min_mechanics_count": 5
+        },
+        "stage3_build_aesthetic_profile": {
+          "expected_top_aesthetics": ["Expression", "Submission", "Discovery"],
+          "aesthetic_weights_sum_range": [0.8, 1.0]
+        },
+        "stage4_classic_mda_pass": {
+          "expected_convergence": "medium",
+          "expected_feedback_loops": ["positive: рост города", "negative: потребности населения"],
+          "expected_emergent_dynamics": ["оптимальные стратегии застройки", "кризисы управления"]
+        },
+        "stage5_validate_lenses": {
+          "priority_lenses": ["Lens #25: Model", "Lens #68: Balance", "Lens #1: Essential Experience"],
+          "expected_min_lens_score": 0.4,
+          "expected_issues": ["risk of grind", "depth vs accessibility"]
+        },
+        "stage6_validate_bond_matrix": {
+          "expected_ludonarrative_harmony": "medium-high",
+          "expected_fixed_elements": ["правила строительства", "типы зданий", "дерево технологий"],
+          "expected_dynamic_elements": ["экономика города", "потребности жителей", "события"],
+          "expected_cultural_elements": ["моды", "шаринг городов", "скоростные прохождения"]
+        }
+      }
+    }
+  ]
+}

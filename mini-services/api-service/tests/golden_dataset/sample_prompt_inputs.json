@@ -1,0 +1,264 @@
+{
+  "description": "Golden dataset: эталонные входы и ожидаемые выходы для ключевых AI-промптов Gidede. Используется для регрессионного тестирования качества AI-ответов.",
+  "version": "1.0.0",
+  "created": "2026-03-05",
+  "td_reference": "TD-012 / DEFERRED-005",
+
+  "CLASSIFY_GENRE": {
+    "description": "Классификация жанра по описанию идеи игры",
+    "prompt_id": "CLASSIFY_GENRE",
+    "samples": [
+      {
+        "id": "cg-001",
+        "input": {
+          "idea": "Игра про алхимика, который варит зелья в подземной лаборатории, исследует заброшенные шахты для ингредиентов и продаёт зелья горожанам"
+        },
+        "expected_output": {
+          "genre": "RPG",
+          "subgenre": "roguelike",
+          "confidence_range": [0.7, 1.0],
+          "expected_keywords": ["RPG", "roguelike", "крафт", "алхимия"]
+        }
+      },
+      {
+        "id": "cg-002",
+        "input": {
+          "idea": "Командный шутер от первого лица, где 5 на 5 игроков сражаются на картах с разрушаемым окружением, каждый персонаж имеет уникальные способности"
+        },
+        "expected_output": {
+          "genre": "Action",
+          "subgenre": "shooter",
+          "confidence_range": [0.8, 1.0],
+          "expected_keywords": ["Action", "shooter", "FPS", "командный"]
+        }
+      },
+      {
+        "id": "cg-003",
+        "input": {
+          "idea": "Головоломка, где игрок перемещает цветные блоки по сетке, чтобы создать определённые паттерны. Каждый уровень добавляет новые правила и ограничения."
+        },
+        "expected_output": {
+          "genre": "Puzzle",
+          "subgenre": "logic",
+          "confidence_range": [0.85, 1.0],
+          "expected_keywords": ["Puzzle", "logic", "головоломка"]
+        }
+      }
+    ]
+  },
+
+  "EXTRACT_AESTHETICS": {
+    "description": "Извлечение целевых эстетик ЛеБланка из идеи и жанра",
+    "prompt_id": "EXTRACT_AESTHETICS",
+    "samples": [
+      {
+        "id": "ea-001",
+        "input": {
+          "idea": "Игра про алхимика, который варит зелья в подземной лаборатории, исследует заброшенные шахты для ингредиентов и продаёт зелья горожанам",
+          "genre": "RPG"
+        },
+        "expected_output": {
+          "expected_aesthetics": ["Fantasy", "Discovery", "Expression"],
+          "min_confidence": 0.5,
+          "expected_keywords": ["Fantasy", "Discovery", "Expression", "фантазия", "исследование", "творчество"]
+        }
+      },
+      {
+        "id": "ea-002",
+        "input": {
+          "idea": "Хардкорный платформер с точным управлением, где игрок преодолевает всё более сложные уровни, полные ловушек и врагов",
+          "genre": "Action"
+        },
+        "expected_output": {
+          "expected_aesthetics": ["Challenge", "Sensation"],
+          "min_confidence": 0.6,
+          "expected_keywords": ["Challenge", "вызов", "мастерство"]
+        }
+      },
+      {
+        "id": "ea-003",
+        "input": {
+          "idea": "MMO, где игроки объединяются в гильдии, строят города, торгуют на аукционе и сражаются за территории",
+          "genre": "RPG"
+        },
+        "expected_output": {
+          "expected_aesthetics": ["Fellowship", "Expression", "Submission"],
+          "min_confidence": 0.5,
+          "expected_keywords": ["Fellowship", "товарищество", "социальное"]
+        }
+      }
+    ]
+  },
+
+  "SUGGEST_DYNAMICS": {
+    "description": "Генерация динамик для целевой эстетики и жанра",
+    "prompt_id": "SUGGEST_DYNAMICS",
+    "samples": [
+      {
+        "id": "sd-001",
+        "input": {
+          "aesthetic": "Challenge",
+          "genre": "Action"
+        },
+        "expected_output": {
+          "min_dynamics_count": 5,
+          "expected_dynamic_keywords": ["difficulty scaling", "risk/reward", "skill mastery", "pattern recognition", "resource management"],
+          "genre_fit_range": [0.5, 1.0]
+        }
+      },
+      {
+        "id": "sd-002",
+        "input": {
+          "aesthetic": "Fellowship",
+          "genre": "RPG"
+        },
+        "expected_output": {
+          "min_dynamics_count": 5,
+          "expected_dynamic_keywords": ["cooperation", "role complementarity", "shared goals", "social bonding", "reputation"],
+          "genre_fit_range": [0.6, 1.0]
+        }
+      },
+      {
+        "id": "sd-003",
+        "input": {
+          "aesthetic": "Discovery",
+          "genre": "Adventure"
+        },
+        "expected_output": {
+          "min_dynamics_count": 5,
+          "expected_dynamic_keywords": ["exploration", "hidden areas", "lore discovery", "map reveals", "curiosity reward"],
+          "genre_fit_range": [0.7, 1.0]
+        }
+      }
+    ]
+  },
+
+  "GENERATE_CORE_LOOPS": {
+    "description": "Генерация вариантов Core Loop по механикам и эстетикам",
+    "prompt_id": "GENERATE_CORE_LOOPS",
+    "samples": [
+      {
+        "id": "gcl-001",
+        "input": {
+          "mechanics": ["Сбор ресурсов", "Крафт", "Исследование", "Торговля"],
+          "aesthetics": ["Fantasy", "Discovery", "Expression"]
+        },
+        "expected_output": {
+          "variants_count": 3,
+          "each_must_have": ["name", "steps", "loop_type", "fun_check"],
+          "min_steps_per_loop": 3,
+          "max_steps_per_loop": 7,
+          "valid_loop_types": ["Engine", "Economy", "Ecology", "Hybrid"]
+        }
+      },
+      {
+        "id": "gcl-002",
+        "input": {
+          "mechanics": ["Атака", "Защита", "Уклонение", "Combo"],
+          "aesthetics": ["Challenge", "Sensation"]
+        },
+        "expected_output": {
+          "variants_count": 3,
+          "each_must_have": ["name", "steps", "loop_type", "fun_check"],
+          "min_steps_per_loop": 3,
+          "max_steps_per_loop": 7,
+          "valid_loop_types": ["Engine", "Economy", "Ecology", "Hybrid"]
+        }
+      }
+    ]
+  },
+
+  "VALIDATE_TRIANGLE": {
+    "description": "Валидация концепции через Triangle of Weirdness",
+    "prompt_id": "VALIDATE_TRIANGLE",
+    "samples": [
+      {
+        "id": "vt-001",
+        "input": {
+          "idea": "Алхимик варит зелья в подземной лаборатории и исследует шахты",
+          "genre": "RPG",
+          "aesthetics": ["Fantasy", "Discovery", "Expression"],
+          "mechanics": ["Сбор ресурсов", "Крафт", "Исследование", "Торговля"]
+        },
+        "expected_output": {
+          "must_contain": ["score", "characters", "world", "activities", "weird_corners_count"],
+          "score_range": [0.0, 1.0],
+          "weird_corners_range": [0, 3],
+          "likely_weird_corners": 1
+        }
+      },
+      {
+        "id": "vt-002",
+        "input": {
+          "idea": "Кибернетический единорог собирает нейронные листья в параллельном измерении из чистого звука",
+          "genre": "Puzzle",
+          "aesthetics": ["Sensation", "Expression", "Discovery"],
+          "mechanics": ["Движение", "Время", "Поворот", "Пространство"]
+        },
+        "expected_output": {
+          "must_contain": ["score", "characters", "world", "activities", "weird_corners_count"],
+          "score_range": [0.0, 1.0],
+          "weird_corners_range": [0, 3],
+          "likely_weird_corners": 3
+        }
+      }
+    ]
+  },
+
+  "ASSEMBLE_ONE_PAGER": {
+    "description": "Сборка One-Pager из данных концепции",
+    "prompt_id": "ASSEMBLE_ONE_PAGER",
+    "samples": [
+      {
+        "id": "aop-001",
+        "input": {
+          "idea": "Алхимик варит зелья в подземной лаборатории и исследует шахты для ингредиентов",
+          "genre": "RPG",
+          "aesthetics": ["Fantasy", "Discovery", "Expression"],
+          "mechanics": ["Сбор ресурсов", "Крафт", "Исследование", "Торговля"],
+          "core_loop": {
+            "name": "Alchemist Loop",
+            "steps": [
+              {"action": "Исследовать шахты", "resource": "ингредиенты"},
+              {"action": "Варить зелья", "resource": "зелья"},
+              {"action": "Продавать горожанам", "resource": "золото"},
+              {"action": "Покупать оборудование", "resource": "лучшее оборудование"}
+            ]
+          },
+          "usp": "Алхимическая варка зелий как основа боевой системы"
+        },
+        "expected_output": {
+          "must_contain": ["story_synopsis", "gameplay_description"],
+          "language": "ru",
+          "min_synopsis_length": 50,
+          "min_gameplay_length": 80
+        }
+      },
+      {
+        "id": "aop-002",
+        "input": {
+          "idea": "Хардкорный платформер с точным управлением и нарастающей сложностью",
+          "genre": "Action",
+          "aesthetics": ["Challenge", "Sensation"],
+          "mechanics": ["Движение", "Прыжок", "Уклонение", "Тайминг"],
+          "core_loop": {
+            "name": "Precision Loop",
+            "steps": [
+              {"action": "Начать уровень", "resource": "попытки"},
+              {"action": "Преодолеть препятствия", "resource": "прогресс"},
+              {"action": "Умереть и переиграть", "resource": "знание паттернов"},
+              {"action": "Пройти уровень", "resource": "новый уровень"}
+            ]
+          },
+          "usp": "Каждый уровень — мини-головоломка на реакцию и память"
+        },
+        "expected_output": {
+          "must_contain": ["story_synopsis", "gameplay_description"],
+          "language": "ru",
+          "min_synopsis_length": 50,
+          "min_gameplay_length": 80
+        }
+      }
+    ]
+  }
+}

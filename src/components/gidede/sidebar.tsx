@@ -58,7 +58,7 @@ const blocks = [
     name: "MDA Lab",
     icon: FlaskConical,
     href: "/blocks/3",
-    status: "skeleton" as const,
+    status: "active" as const,
     algorithm: "3.3",
   },
   {
@@ -289,7 +289,7 @@ export function GidedeSidebar() {
         )}
 
         <p className="text-xs text-muted-foreground px-2 pt-1">
-          Фаза 4.B • v0.8.0
+          Фаза 4.B • v0.9.0
         </p>
       </SidebarFooter>
     </Sidebar>

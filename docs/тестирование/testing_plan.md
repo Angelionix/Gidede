@@ -1,8 +1,8 @@
 # Gidede — Документ тестирования
 
-> **Фаза**: 4.B.5–4.B.8 (полное покрытие)  
+> **Фаза**: 4.B.5–4.B.9 (полное покрытие)  
 > **Дата**: 2026-05-18  
-> **Версия**: 0.8.0  
+> **Версия**: 0.9.0  
 > **Статус**: Активный  
 > **Подход**: Локальное тестирование (без GitHub Actions)
 
@@ -375,6 +375,83 @@ mini-services/api-service/tests/
 | B-170 | `test_jwt_secret_dev_auto_generated` | jwt_secret auto-generated при DEBUG=true и пустом env |
 | B-171 | `test_jwt_secret_production_error` | RuntimeError при DEBUG=false и пустом JWT_SECRET_KEY |
 
+##### MDA Service — Этап 1: Целевые динамики (4.B.9) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-172 | `test_determine_target_dynamics` | Определение целевых динамик из эстетического профиля |
+| B-173 | `test_aesthetic_dynamics_map_sensation` | Маппинг «Чувственное → динамики» содержит 4 динамики |
+| B-174 | `test_aesthetic_dynamics_map_all_8` | Все 8 эстетик имеют маппинг в AESTHETIC_DYNAMICS_MAP |
+| B-175 | `test_genre_filtering_warning` | Предупреждение при нетипичной динамике для жанра |
+| B-176 | `test_genre_filtering_puzzle` | Жанр «puzzle» получает предупреждения о кооперации |
+| B-177 | `test_ai_enrichment_suggest_dynamics` | AI-обогащение через SUGGEST_DYNAMICS |
+| B-178 | `test_ai_enrichment_fallback` | Fallback при недоступности AI — только формализованные динамики |
+| B-179 | `test_prioritization_multi_aesthetic_first` | Динамики, обслуживающие несколько эстетик, приоритетнее |
+| B-180 | `test_emergence_level_strong` | Уровень эмерджентности «strong» для sandbox с 8+ динамиками |
+| B-181 | `test_emergence_level_nominal` | Уровень эмерджентности «nominal» для <3 динамик |
+| B-182 | `test_emergence_level_multiple` | Уровень эмерджентности «multiple» для 6+ динамик |
+
+##### MDA Service — Этап 2: Маппинг «Динамика → Механики» (4.B.9) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-183 | `test_map_dynamics_to_mechanics` | Маппинг динамик в механики — основной метод |
+| B-184 | `test_formal_mechanics_from_db` | Формализованный отбор механик из MechanicsDB |
+| B-185 | `test_formal_mechanics_from_dynamics_map` | Механики из формализованного маппинга DYNAMICS_MECHANICS_MAP |
+| B-186 | `test_adams_pattern_mechanics` | Механики из паттернов Adams/Dormans |
+| B-187 | `test_ai_enrichment_suggest_mechanics` | AI-расширение пула через SUGGEST_MECHANICS |
+| B-188 | `test_ai_enrichment_fallback_mechanics` | Fallback при недоступности AI |
+| B-189 | `test_set_cover_optimization` | Жадная аппроксимация Set Cover покрывает все динамики |
+| B-190 | `test_set_cover_uncovered_dynamics` | Непокрытые динамики отмечены в результате |
+| B-191 | `test_synergy_mechanics_added` | Синергетические механики добавлены до max_mechanics |
+| B-192 | `test_conflict_detection` | Конфликты между выбранными механиками обнаружены |
+| B-193 | `test_forbidden_mechanics_excluded` | Запрещённые механики исключены из пула |
+| B-194 | `test_aesthetic_coverage_calculation` | Покрытие эстетик рассчитано корректно |
+
+##### MDA Service — Этап 3: Сборка набора механик (4.B.9) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-195 | `test_assemble_mechanic_set` | Сборка и оптимизация набора механик |
+| B-196 | `test_conflict_resolution_required_wins` | Обязательная механика побеждает в конфликте |
+| B-197 | `test_conflict_resolution_coverage_wins` | Механика с большим покрытием побеждает в конфликте |
+| B-198 | `test_required_mechanics_added` | Обязательные механики добавлены даже если не в пуле |
+| B-199 | `test_forbidden_mechanics_removed` | Запрещённые механики удалены из набора |
+| B-200 | `test_aesthetic_coverage_sufficient` | Проверка покрытия эстетик (>= 2 механики) |
+| B-201 | `test_aesthetic_coverage_insufficient_warning` | Предупреждение при недостаточном покрытии |
+| B-202 | `test_adams_patterns_engine_detected` | Паттерн «Static Engine» обнаружен при наличии XP/ресурсов |
+| B-203 | `test_adams_patterns_friction_detected` | Паттерн «Static Friction» обнаружен при наличии маны/патронов |
+| B-204 | `test_adams_patterns_escalation_detected` | Паттерн «Escalating Challenge» обнаружен |
+| B-205 | `test_adams_patterns_missing_suggestion` | Рекомендация при отсутствии паттерна |
+| B-206 | `test_mechanic_grouping_base` | Группировка базовых механик (Группа 1) |
+| B-207 | `test_mechanic_grouping_combat` | Группировка боевых механик (Группы 4, 8) |
+| B-208 | `test_mechanic_grouping_progression` | Группировка прогрессионных (Группы 2, 9) |
+| B-209 | `test_mechanic_grouping_spatial` | Группировка пространственных (Группы 3, 5, 11) |
+| B-210 | `test_mechanic_grouping_social` | Группировка социальных (Группы 7, 14) |
+| B-211 | `test_compatibility_score_calculation` | Расчёт score совместимости (0-100) |
+| B-212 | `test_synergy_score_calculation` | Расчёт score синергии (0-100) |
+
+##### MDA Service — Полный пайплайн (4.B.9) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-213 | `test_analyze_stages_1_3` | Полный пайплайн Этапов 1–3 |
+| B-214 | `test_analyze_iterations_convergence` | Сходимость при достаточном покрытии эстетик |
+| B-215 | `test_analyze_iterations_max` | Остановка при достижении maxIterations=3 |
+| B-216 | `test_analyze_dynamics_target_filled` | DynamicsTarget заполнен в результате |
+| B-217 | `test_analyze_mechanic_set_filled` | StructuredMechanicSet заполнен в результате |
+| B-218 | `test_analyze_stages_completed` | stages_completed = [1,2,3] |
+
+##### API-эндпоинты MDA Lab (4.B.9) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-219 | `test_api_mda_analyze` | POST /api/v1/mda/analyze — полный MDAProfile |
+| B-220 | `test_api_mda_analyze_invalid_input` | 400 при невалидных данных |
+| B-221 | `test_api_mda_analyze_custom_aesthetics` | Произвольные эстетики в запросе |
+| B-222 | `test_api_mda_analyze_forbidden_mechanics` | Запрещённые механики исключены из результата |
+| B-223 | `test_api_mda_analyze_iterations` | maxIterations параметр работает |
+
 ### 2.2 Frontend — vitest
 
 #### Структура тестов
@@ -402,8 +479,8 @@ src/__tests__/
 | F-05 | API Client: авторизация | JWT-токен в заголовках |
 | F-06 | API Client: обработка 401 | Обработка ошибки авторизации |
 | F-07 | Sidebar: навигация по блокам | 8 блоков в sidebar |
-| F-08 | Sidebar: статус блоков | Блок 1, 2 — «Активен» |
-| F-09 | Sidebar: версия | Отображение «v0.8.0» |
+| F-08 | Sidebar: статус блоков | Блок 1, 2, 3 — «Активен» |
+| F-09 | Sidebar: версия | Отображение «v0.9.0» |
 | F-10 | Главная страница: блоки | Карточки 8 блоков |
 | F-11 | Форма концепции: поля | Поля идея, жанр, платформа |
 | F-12 | ★ OnePagerCard: рендер | Карточка с 8 полями отображается |
@@ -430,6 +507,15 @@ src/__tests__/
 | F-33 | ★ RecommendationsPanel: список | Рекомендации с приоритетами |
 | F-34 | ★ RecommendationsPanel: категории | Категория (fun/closedness/resource/pathology/structure) |
 | F-35 | ★ JWT secret: property | settings.jwt_secret возвращает env или auto-generated dev-ключ |
+| F-36 | ★ MDA Lab: рендер | Страница /blocks/3 отображается |
+| F-37 | ★ MDA Lab: форма | Поля conceptId, genre, primaryAesthetic, secondaryAesthetic, tertiaryAesthetic |
+| F-38 | ★ MDA Lab: кнопка | Кнопка «Анализ MDA» активна при заполненных полях |
+| F-39 | ★ DynamicsTarget: динамики | Список core и supporting динамик |
+| F-40 | ★ DynamicsTarget: emergence | Уровень эмерджентности с описанием |
+| F-41 | ★ MechanicCandidateSet: покрытие | Карта покрытия динамик механиками |
+| F-42 | ★ StructuredMechanicSet: группы | 5 групп механик (base/combat/progression/spatial/social) |
+| F-43 | ★ StructuredMechanicSet: эстетики | Покрытие эстетик (sufficient/insufficient) |
+| F-44 | ★ StructuredMechanicSet: паттерны | Обнаруженные паттерны Adams/Dormans |
 
 ---
 
@@ -483,7 +569,7 @@ src/__tests__/
 | 2 | Кликнуть «Блок 2» | Открылась страница /blocks/2 |
 | 3 | Кликнуть каждый блок 1–8 | Каждая страница открывается |
 | 4 | Проверить активное состояние | Текущий блок выделен в sidebar |
-| 5 | Проверить версию в footer | Отображается «Фаза 4.B • v0.8.0» |
+| 5 | Проверить версию в footer | Отображается «Фаза 4.B • v0.9.0» |
 
 #### UI-05: Генератор концепции — ввод (Блок 1, Этапы 1–5)
 
@@ -614,6 +700,39 @@ src/__tests__/
 | 13 | Проверить ValidationPanel | 5 критериев, overall_passed, прогресс-бар |
 | 14 | Проверить RecommendationsPanel | Список рекомендаций с приоритетами и категориями |
 | 15 | Проверить мета-информацию | stages_completed, latency_ms, models_used |
+
+#### UI-25: MDA Lab — Backend (Блок 3, 4.B.9) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | POST /api/v1/mda/analyze с concept_id | MDAProfile с dynamics_target |
+| 2 | Проверить dynamics_target | core_dynamics (6), supporting_dynamics (6), emergence_level |
+| 3 | Проверить mechanic_candidate_set | mechanics (8-18), dynamics_coverage, synergy_pairs, conflict_pairs |
+| 4 | Проверить mechanic_set | base/combat/progression/spatial/social группы |
+| 5 | Проверить aesthetic_coverage | 3 эстетики с sufficient=true |
+| 6 | Проверить patterns_detected | Список паттернов Adams/Dormans |
+| 7 | Проверить stages_completed | [1,2,3] |
+| 8 | Проверить iterations_done | >= 1 |
+| 9 | Проверить статус в sidebar | «Активен» |
+
+#### UI-26: MDA Lab — UI (Блок 3, 4.B.9) ★
+
+| Шаг | Действие | Ожидаемый результат |
+|------|----------|-------------------|
+| 1 | Открыть /blocks/3 | Страница MDA Lab с формой |
+| 2 | Проверить Badge | «Активен» в заголовке |
+| 3 | Ввести concept_id | Поле принимает ввод |
+| 4 | Выбрать жанр | Dropdown с жанрами |
+| 5 | Выбрать primary эстетику | Dropdown: 8 эстетик ЛеБланка |
+| 6 | Выбрать secondary эстетику | Dropdown |
+| 7 | Выбрать tertiary эстетику | Dropdown |
+| 8 | Нажать «Анализ MDA» | Индикатор загрузки → результат |
+| 9 | Проверить DynamicsTarget | core_dynamics, supporting_dynamics, emergence_level |
+| 10 | Проверить MechanicSet | 5 групп механик + compatibility_score + synergy_score |
+| 11 | Проверить AestheticCoverage | 3 эстетики с индикаторами sufficient/insufficient |
+| 12 | Проверить AdamsDormansPatterns | Список паттернов (engine/friction/escalation) |
+| 13 | Проверить warnings | Предупреждения о конфликтах и недостаточном покрытии |
+| 14 | Проверить мета-информацию | stages_completed, iterations_done, latency_ms |
 
 #### UI-15: MDA Lab (Блок 3, скелет)
 

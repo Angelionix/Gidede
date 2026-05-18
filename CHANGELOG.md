@@ -9,6 +9,65 @@
 
 ---
 
+## [0.9.0] — 2026-05-18
+
+### Добавлено
+
+#### Основные модули (Фаза 4.B, Блок 3 Backend)
+- Блок 3: Backend — алгоритм MDA Lab (Этапы 1–3) — 4.B.9
+  - **Этап 1: Reverse MDA — определение целевых динамик** (3.3.3)
+    - Формализованный маппинг «Эстетика → Динамика» (8 эстетик × 4 динамики)
+    - Жанровая фильтрация (предупреждения о нетипичных динамико-жанровых комбинациях)
+    - AI-обогащение через SUGGEST_DYNAMICS промпт
+    - Приоритизация: динамики, обслуживающие несколько эстетик, приоритетнее
+    - Оценка эмерджентности: nominal/weak/multiple/strong (типология Фромма)
+  - **Этап 2: Reverse MDA — маппинг «Динамика → Механики»** (3.3.4)
+    - Генерация пула кандидатов из MechanicsDB (128 механик × 15 групп)
+    - Паттерны Adams/Dormans (8 паттернов: Static/Dynamic Engine, Engine Building, Static Friction, Escalating Challenge/Complexity, Trade, Play-Style Reinforcement)
+    - AI-расширение пула через SUGGEST_MECHANICS промпт
+    - Перекрёстный анализ покрытия (coverage_map)
+    - Оптимизация покрытия: жадная аппроксимация Set Cover
+    - Добавление синергетических механик до max_mechanics
+  - **Этап 3: Сборка и оптимизация набора механик** (3.3.5)
+    - Обработка конфликтов: обязательная механика побеждает / больший coverage побеждает
+    - Добавление обязательных механик (required_mechanics)
+    - Удаление запрещённых механик (forbidden_mechanics)
+    - Проверка покрытия эстетик (минимум 2 механики на эстетику)
+    - Обнаружение паттернов Adams/Dormans (5 паттернов: Engine, Friction, Escalation, Engine Building, Trade)
+    - Группировка механик по структурным ролям (base/combat/progression/spatial/social)
+    - Расчёт compatibility_score и synergy_score
+  - **Итеративный цикл**: maxIterations=3, convergenceThreshold=0.8
+
+#### Схемы данных (MDA Lab)
+- `DynamicItem` — динамика с метаданными (aesthetics_served, genre_fit, source, warning)
+- `DynamicsTarget` — целевые динамики (core, supporting, context, emergence_level)
+- `MechanicCandidate` — кандидат-механика (dynamics_affinity, genre_affinity, source)
+- `MechanicCandidateSet` — набор кандидатов (mechanics, dynamics_coverage, uncovered_dynamics)
+- `AestheticCoverage` — покрытие эстетики (count, sufficient)
+- `AdamsDormansPattern` — обнаруженный паттерн (present, supporting_mechanics, suggestion)
+- `StructuredMechanicSet` — структурированный набор (5 групп + метаданные)
+- `MDAProfile` — итоговый профиль MDA (Этапы 1–3)
+
+#### API
+- POST `/api/v1/mda/analyze` — MDA-анализ (Этапы 1–3), заменена заглушка на полную реализацию
+
+### Изменено
+- Sidebar: Блок 3 «MDA Lab» статус изменён с «Скелет» на «Активен»
+- Sidebar: версия обновлена до v0.9.0
+- Главная страница: Блок 3 статус обновлён с «skeleton» на «active»
+- Версия обновлена с 0.8.0 до 0.9.0
+
+### Тестовая документация
+- Актуализирован полный перечень программных и UI тестов
+- Добавлены тест-кейсы для MDA Service — Этап 1: Целевые динамики (B-172–B-182)
+- Добавлены тест-кейсы для MDA Service — Этап 2: Маппинг динамик (B-183–B-194)
+- Добавлены тест-кейсы для MDA Service — Этап 3: Сборка набора (B-195–B-212)
+- Добавлены тест-кейсы для полного пайплайна MDA (B-213–B-218)
+- Добавлены тест-кейсы для API MDA Lab (B-219–B-223)
+- Добавлены тест-кейсы для UI MDA Lab (F-36–F-44, UI-25, UI-26)
+
+---
+
 ## [0.8.0] — 2026-05-18
 
 ### Добавлено

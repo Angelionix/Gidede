@@ -54,7 +54,7 @@ const blocks = [
       "Интерактивная среда для работы с MDA-фреймворком: Reverse MDA, Classic MDA, линзы Шелла, матрица Бонда.",
     icon: FlaskConical,
     href: "/blocks/3",
-    status: "skeleton" as const,
+    status: "active" as const,
     algorithm: "Алгоритм 3.3",
   },
   {

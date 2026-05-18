@@ -1,8 +1,8 @@
 # Gidede — Документ тестирования
 
-> **Фаза**: 4.C.8 (UI — Экономика и прогрессия)
+> **Фаза**: 4.C.9 (Сквозной пайплайн: Блоки 1–5)
 > **Дата**: 2026-05-19
-> **Версия**: 0.25.0
+> **Версия**: 0.26.0
 > **Статус**: Активный
 > **Подход**: Локальное тестирование + CI/CD (GitHub Actions)
 
@@ -60,7 +60,7 @@ npx eslint src/            # TypeScript
 
 ## 2. Реальные автоматизированные тесты (текущее состояние)
 
-### 2.1 Backend — pytest (180 тестов в 8 файлах)
+### 2.1 Backend — pytest (209 тестов в 9 файлах)
 
 ```
 mini-services/api-service/tests/
@@ -74,8 +74,10 @@ mini-services/api-service/tests/
 ├── test_balance_service.py        # Balance Service — транзитивный, интранзитивный,
 │                                   #   ситуационный, Q-фактор, Monte Carlo,
 │                                   #   Machinations (77 тестов)
-└── test_economy_service.py        # Economy Service — все 8 этапов
-                                    #   алгоритма 3.6 (83 теста)
+├── test_economy_service.py        # Economy Service — все 8 этапов
+│                                   #   алгоритма 3.6 (83 теста)
+└── test_pipeline_service.py       # Pipeline Service — сквозной пайплайн 1→5,
+                                    #   зависимости блоков, stale-каскад (29 тестов)
 ```
 
 #### 2.1.1 Инфраструктура (4.A)
@@ -160,108 +162,78 @@ mini-services/api-service/tests/
 | ECO-14 | `test_identify_resources_max_resources` | Ограничение количества ресурсов |
 | ECO-15 | `test_identify_resources_initial_values` | Начальные значения по классу |
 
-**Stage 2: Классификация экономики (3.6.4) — 15 тестов**
+**Stage 2–7 и Full Pipeline — 68 тестов** (ECO-16 — ECO-83, см. предыдущую версию)
+
+#### 2.1.9 Pipeline Service (4.C.9) — 29 тестов
+
+**Подготовка входных данных для Блока 4 (_prepare_balance_input) — 4 теста**
 
 | ID | Тест | Что проверяет |
 |----|------|---------------|
-| ECO-16 | `test_classify_rpg_engine` | RPG → engine |
-| ECO-17 | `test_classify_strategy_economy` | Strategy → economy |
-| ECO-18 | `test_classify_survival_ecology` | Survival → ecology |
-| ECO-19 | `test_classify_sub_type_braked_engine` | Engine с braking → braked_engine |
-| ECO-20 | `test_classify_sub_type_pure_engine` | Engine без braking → pure_engine |
-| ECO-21 | `test_classify_sub_type_multi_currency` | Economy с 2+ валютами → multi_currency |
-| ECO-22 | `test_classify_sub_type_single_currency` | Economy с 1 валютой → single_currency |
-| ECO-23 | `test_classify_dominant_loop_reinforcing` | Больше усиливающих петель |
-| ECO-24 | `test_classify_dominant_loop_balancing` | Больше балансирующих петель |
-| ECO-25 | `test_classify_interaction_type_conversion` | 2+ валюты → conversion |
-| ECO-26 | `test_classify_interaction_type_single` | 1 валюта → single_resource |
-| ECO-27 | `test_classify_interaction_type_exchange` | Торговая механика → exchange |
-| ECO-28 | `test_classify_openness` | Openness по жанру |
-| ECO-29 | `test_classify_pricing_type` | Pricing type по жанру |
-| ECO-30 | `test_classify_pricing_type_f2p` | Freemium → f2p pricing |
-| ECO-31 | `test_classify_risk_level` | Risk level по экономическому типу |
+| PIPE-01 | `test_balance_input_with_all_blocks` | Все блоки заполнены — полные данные с genre, concept_data, core_loop_data, mda_data |
+| PIPE-02 | `test_balance_input_missing_concept` | Нет концепции — предупреждение |
+| PIPE-03 | `test_balance_input_missing_core_loop` | Нет Core Loop — предупреждение о циклах |
+| PIPE-04 | `test_balance_input_missing_mda` | Нет MDA — предупреждение о механиках |
 
-**Stage 3: Machinations-модель (3.6.5) — 10 тестов**
+**Подготовка входных данных для Блока 5 (_prepare_progression_and_economy_input) — 4 теста**
 
 | ID | Тест | Что проверяет |
 |----|------|---------------|
-| ECO-32 | `test_build_machinations_has_pools` | Pool-узлы для каждого ресурса |
-| ECO-33 | `test_build_machinations_has_sources` | Source-узлы (faucets) |
-| ECO-34 | `test_build_machinations_has_drains` | Drain-узлы для потребляемых |
-| ECO-35 | `test_build_machinations_has_converters` | Converter-узлы |
-| ECO-36 | `test_build_machinations_has_flows` | Потоки Source → Pool → Drain |
-| ECO-37 | `test_build_machinations_has_state_connections` | State connections (обратная связь) |
-| ECO-38 | `test_build_machinations_has_feedback_loops` | Feedback loops |
-| ECO-39 | `test_build_machinations_node_count` | Количество узлов |
-| ECO-40 | `test_build_machinations_trader` | Trader-узел при торговле |
-| ECO-41 | `test_build_machinations_gate` | Gate-узел для anchor |
+| PIPE-05 | `test_full_input_with_all_blocks` | Все 4 блока заполнены — progression_input + economy_input |
+| PIPE-06 | `test_progression_input_extracts_resources` | Ресурсы извлекаются из CoreLoop шагов |
+| PIPE-07 | `test_progression_input_with_existing_progression` | Связь прогрессии с экономикой |
+| PIPE-08 | `test_missing_all_previous_blocks` | 4 предупреждения при пустых блоках |
 
-**Stage 4: Граф конверсий (3.6.6) — 8 тестов**
+**Зависимости и STALE_DOWNSTREAM — 5 тестов**
 
 | ID | Тест | Что проверяет |
 |----|------|---------------|
-| ECO-42 | `test_build_conversion_graph_basic` | Цепочки конверсий из progression |
-| ECO-43 | `test_build_conversion_graph_profitability` | Profitability корректна |
-| ECO-44 | `test_build_conversion_graph_grind_risk` | Предупреждение при profitability > 1.5 |
-| ECO-45 | `test_build_conversion_graph_frustration_risk` | Предупреждение при profitability < 0.7 |
-| ECO-46 | `test_build_conversion_graph_tier_coverage` | Tier coverage |
-| ECO-47 | `test_build_conversion_graph_default` | Default конверсии при отсутствии progression |
-| ECO-48 | `test_build_conversion_graph_avg_profitability` | Средняя profitability |
-| ECO-49 | `test_build_conversion_graph_suggestions` | Рекомендации для экстремальной profitability |
+| PIPE-09 | `test_block_1_stale_downstream` | Блок 1 → stale Блоки 2-8 |
+| PIPE-10 | `test_block_4_stale_downstream` | Блок 4 → stale Блоки 5, 6, 8 |
+| PIPE-11 | `test_block_5_stale_downstream` | Блок 5 → stale Блоки 6, 8 |
+| PIPE-12 | `test_block_dependencies_chain` | Цепочка 1→2→3→4→5 |
+| PIPE-13 | `test_all_blocks_have_events` | Блоки 1-6 генерируют события |
 
-**Stage 5: Диагностика патологий (3.6.7) — 10 тестов**
+**Уведомления и stale-механика — 4 теста**
 
 | ID | Тест | Что проверяет |
 |----|------|---------------|
-| ECO-50 | `test_diagnose_runaway` | Runaway detection |
-| ECO-51 | `test_diagnose_runaway_with_braking` | Runaway с торможением → info |
-| ECO-52 | `test_diagnose_stall` | Stall detection |
-| ECO-53 | `test_diagnose_inflation` | Inflation при faucet >> drain |
-| ECO-54 | `test_diagnose_inflation_no_drain` | Потребляемый без drain |
-| ECO-55 | `test_diagnose_stagnation` | Stagnation при faucet = 0 |
-| ECO-56 | `test_diagnose_arbitrage` | Arbitrage при profitability > 1.0 |
-| ECO-57 | `test_diagnose_arbitrage_cycle` | Замкнутый цикл арбитража |
-| ECO-58 | `test_diagnose_faucet_drain_ratios` | Faucet/drain ratios |
-| ECO-59 | `test_diagnose_overall_severity` | Агрегация severity |
+| PIPE-14 | `test_notify_block_4_marks_5_6_8_stale` | Обновление Блока 4 → stale 5, 6, 8 |
+| PIPE-15 | `test_notify_block_1_marks_many_stale` | Обновление Блока 1 → 7 stale-блоков |
+| PIPE-16 | `test_notify_unknown_block_ignored` | Неизвестный блок не генерирует событий |
+| PIPE-17 | `test_clear_stale_no_redis` | Без Redis clear_stale всегда успешен |
 
-**Stage 6: Балансировка faucet/drain (3.6.8) — 8 тестов**
+**Модели данных — 5 тестов**
 
 | ID | Тест | Что проверяет |
 |----|------|---------------|
-| ECO-60 | `test_balance_deficit_increase_faucet` | Дефицит → increase faucet |
-| ECO-61 | `test_balance_deficit_decrease_drain` | Дефицит → decrease drain |
-| ECO-62 | `test_balance_surplus_increase_drain` | Профицит → increase drain |
-| ECO-63 | `test_balance_surplus_decrease_faucet` | Профицит → decrease faucet |
-| ECO-64 | `test_balance_add_faucet` | Добавить faucet |
-| ECO-65 | `test_balance_add_drain` | Добавить drain |
-| ECO-66 | `test_balance_phase_targets` | Целевые ratio по фазам |
-| ECO-67 | `test_balance_updates_graph` | Обновление графа после корректировок |
+| PIPE-18 | `test_block_progress_to_dict` | Сериализация BlockProgress |
+| PIPE-19 | `test_pipeline_state_to_dict` | Сериализация PipelineState |
+| PIPE-20 | `test_block_status_values` | Все 4 статуса корректны |
+| PIPE-21 | `test_pipeline_event_values` | Все события пайплайна |
+| PIPE-22 | `test_flag_key_mapping` | Маппинг block_id → флаг для всех 8 блоков |
 
-**Stage 7: Симуляция экономики (3.6.9) — 8 тестов**
+**Уведомления — 3 теста**
 
 | ID | Тест | Что проверяет |
 |----|------|---------------|
-| ECO-68 | `test_simulate_economy_basic` | Базовая симуляция |
-| ECO-69 | `test_simulate_economy_archetypes` | 4 архетипа игроков |
-| ECO-70 | `test_simulate_economy_runaway_frequency` | Частота runaway |
-| ECO-71 | `test_simulate_economy_stall_frequency` | Частота stall |
-| ECO-72 | `test_simulate_economy_build_gap` | Build gap между optimal и casual |
-| ECO-73 | `test_simulate_economy_stability_index` | Индекс стабильности |
-| ECO-74 | `test_simulate_economy_quality` | Quality assessment |
-| ECO-75 | `test_simulate_economy_snapshots` | Снапшоты для визуализации |
+| PIPE-23 | `test_stale_block_5_notification` | Stale Блок 5 → уведомление |
+| PIPE-24 | `test_no_notifications_for_completed` | Завершённые блоки не генерируют уведомлений |
+| PIPE-25 | `test_multiple_stale_blocks` | Несколько stale → несколько уведомлений |
 
-**Full Pipeline (3.6.10) — 8 тестов**
+**Определение следующего блока — 3 теста**
 
 | ID | Тест | Что проверяет |
 |----|------|---------------|
-| ECO-76 | `test_economy_design_full_pipeline` | Полный пайплайн Этапов 1–8 |
-| ECO-77 | `test_economy_design_full_stages_completed` | stages_completed = [1,2,3,4,5,6,7,8] |
-| ECO-78 | `test_economy_design_full_inventory` | Inventory заполнен |
-| ECO-79 | `test_economy_design_full_classification` | Classification заполнена |
-| ECO-80 | `test_economy_design_full_diagnostics` | Diagnostics заполнена |
-| ECO-81 | `test_economy_design_full_balance` | Balance заполнена |
-| ECO-82 | `test_economy_design_full_sim_result` | SimResult заполнен |
-| ECO-83 | `test_economy_design_full_latency_ms` | Время выполнения записано |
+| PIPE-26 | `test_first_empty_block` | Первый пустой блок — следующий |
+| PIPE-27 | `test_stale_block_when_all_filled` | Все заполнены, но stale → первый stale |
+| PIPE-28 | `test_all_good_returns_none` | Все OK → None |
+
+**API endpoint для полного пайплайна — 1 тест**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| PIPE-29 | `test_run_full_pipeline_endpoint_exists` | POST /run-full-pipeline/{project_id} доступен |
 
 ### 2.2 Frontend — vitest (9 тестов в 3 файлах)
 
@@ -327,7 +299,7 @@ src/__tests__/
 | UI-01 | Логин | 1. Открыть /login 2. Ввести email/password 3. Нажать Login | Редирект на главную страницу |
 | UI-02 | Регистрация | 1. Открыть /register 2. Заполнить форму 3. Нажать Register | Успешная регистрация, редирект на логин |
 | UI-03 | Навигация по блокам | 1. Кликнуть на каждый блок 1–8 в sidebar | Открывается соответствующая страница |
-| UI-04 | Отображение версии | 1. Проверить sidebar | Отображается текущая версия (0.25.0) |
+| UI-04 | Отображение версии | 1. Проверить sidebar | Отображается текущая версия (0.26.0) |
 
 ### 4.2 Блок 1: Генератор концепции
 
@@ -400,24 +372,30 @@ src/__tests__/
 | UI-49 | Переключение прогрессия/экономика | 1. Переключаться между вкладками | Корректное отображение |
 | UI-50 | Пустое состояние | 1. Открыть /blocks/5 без запуска | Placeholder с иконками |
 
-### 4.7 Сквозной пайплайн
+### 4.7 Сквозной пайплайн (1→5)
 
 | ID | Сценарий | Шаги | Ожидаемый результат |
 |----|----------|------|---------------------|
-| UI-42 | Progress Sidebar | 1. Проверить индикатор прогресса | Статус по блокам |
-| UI-43 | Автозаполнение | 1. Заполнить Блок 1 → перейти в Блок 2 | Данные предзаполнены |
-| UI-44 | Уведомления | 1. Обновить данные в Блоке 1 | Уведомление о пересчёте |
-| UI-45 | Pipeline Flow Indicator | 1. Проверить индикатор потока данных | Визуализация потока 1→2→3 |
+| UI-51 | Progress Sidebar | 1. Проверить индикатор прогресса | Статус по 8 блокам, цветовая индикация |
+| UI-52 | Автозаполнение Блок 2 из Блока 1 | 1. Заполнить Блок 1 → перейти в Блок 2 | Данные предзаполнены из OnePager |
+| UI-53 | Автозаполнение Блок 3 из 1+2 | 1. Заполнить Блок 2 → перейти в Блок 3 | mechanics + core_loop_data заполнены |
+| UI-54 | Автозаполнение Блок 4 из 1+2+3 | 1. Заполнить Блок 3 → перейти в Блок 4 | concept_data, core_loop_data, mda_data |
+| UI-55 | Автозаполнение Блок 5 из 1+2+3+4 | 1. Заполнить Блок 4 → перейти в Блок 5 | progression_input + economy_input |
+| UI-56 | Уведомления stale | 1. Обновить данные в Блоке 1 | Уведомление о пересчёте Блоков 2-8 |
+| UI-57 | Pipeline Flow Indicator 1→5 | 1. Проверить индикатор потока | Визуализация потока 1→2→3→4→5 |
+| UI-58 | Кнопка «Пересчитать всё» | 1. Нажать «Запустить пайплайн 1→5» | Последовательный запуск всех 5 блоков |
+| UI-59 | Cascade-обновление | 1. Изменить жанр в Блоке 1 | Блоки 2-5 помечены stale (жёлтый/оранжевый) |
+| UI-60 | Stale-уведомления для Блока 5 | 1. Обновить Блок 4 | Уведомление «Рекомендуется пересчитать прогрессию и экономику» |
 
 ### 4.8 Общие UI-тесты
 
 | ID | Сценарий | Шаги | Ожидаемый результат |
 |----|----------|------|---------------------|
-| UI-46 | Responsive дизайн | 1. Изменить размер окна | Адаптивная верстка |
-| UI-47 | Тёмная/светлая тема | 1. Переключить тему | Корректная смена стилей |
-| UI-48 | Страница проектов | 1. Открыть /projects | Список проектов |
-| UI-49 | Создание проекта | 1. Нажать «Новый проект» | Модальное окно |
-| UI-50 | Настройки | 1. Открыть /settings | Страница настроек |
+| UI-61 | Responsive дизайн | 1. Изменить размер окна | Адаптивная верстка |
+| UI-62 | Тёмная/светлая тема | 1. Переключить тему | Корректная смена стилей |
+| UI-63 | Страница проектов | 1. Открыть /projects | Список проектов |
+| UI-64 | Создание проекта | 1. Нажать «Новый проект» | Модальное окно |
+| UI-65 | Настройки | 1. Открыть /settings | Страница настроек |
 
 ---
 
@@ -431,6 +409,7 @@ src/__tests__/
 | E2E-04 | Monte Carlo + Machinations | Запуск обеих симуляций, анализ расхождения |
 | E2E-05 | Проектирование прогрессии | Настройка кривых, проверка валидации, просмотр контент-плана |
 | E2E-06 | Экономическое моделирование | Идентификация ресурсов → классификация → Machinations → диагностика → балансировка → симуляция |
+| E2E-07 | Сквозной пайплайн 1→5 | Ввод идеи → Концепция → Core Loop → MDA → Баланс → Прогрессия → Экономика за одну операцию (run-full-pipeline) |
 
 ---
 
@@ -440,25 +419,25 @@ src/__tests__/
 
 | Категория | Файлов | Тестов |
 |-----------|--------|--------|
-| Backend (pytest) | 8 | 180 |
+| Backend (pytest) | 9 | 209 |
 | Frontend (vitest) | 3 | 9 |
-| **Итого** | **11** | **189** |
+| **Итого** | **12** | **218** |
 
 ### 6.2 Плановые автоматизированные тесты
 
 | Категория | Тестов |
 |-----------|--------|
-| Backend (новые модули) | ~340 |
+| Backend (новые модули) | ~320 |
 | Frontend (новые компоненты) | ~112 |
-| **Итого плановых** | **~452** |
+| **Итого плановых** | **~432** |
 
 ### 6.3 Ручные UI/E2E тесты
 
 | Категория | Кейс |
 |-----------|------|
-| UI-тесты | 58 |
+| UI-тесты | 65 |
 | E2E-сценарии | 6 |
-| **Итого** | **64** |
+| **Итого** | **71** |
 
 ### 6.4 Целевое покрытие (критерий C8 из ROADMAP)
 

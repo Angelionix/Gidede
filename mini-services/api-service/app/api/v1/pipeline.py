@@ -1,12 +1,14 @@
 """
 Gidede — Сквозной пайплайн: API endpoints.
 Фаза 4.B.12: Блок 1 → Блок 2 → Блок 3
+Фаза 4.C.9:  Расширение до Блоков 1–5
 
 Endpoints:
 - GET /state/{project_id} — состояние пайплайна (статусы блоков, stale-уведомления)
 - GET /prepare-input/{project_id}/{block_id} — подготовить входные данные для блока
 - POST /notify-updated — уведомить об обновлении блока
-- POST /run-pipeline/{project_id} — запустить полный пайплайн 1→2→3
+- POST /run-pipeline/{project_id} — запустить пайплайн 1→2→3
+- POST /run-full-pipeline/{project_id} — запустить полный пайплайн 1→5 (4.C.9)
 - DELETE /stale/{project_id}/{block_id} — снять stale-статус с блока
 """
 
@@ -217,3 +219,55 @@ async def clear_stale_status(
         return {"status": "ok", "project_id": project_id, "block_id": block_id}
     else:
         raise HTTPException(status_code=500, detail="Не удалось снять stale-статус")
+
+
+@router.post("/run-full-pipeline/{project_id}")
+async def run_full_pipeline(
+    project_id: str,
+    request: RunPipelineRequest,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Запустить полный пайплайн: Блок 1 → Блок 2 → Блок 3 → Блок 4 → Блок 5.
+
+    Фаза 4.C.9: Сквозной пайплайн Блоки 1–5.
+
+    Последовательно выполняет:
+    1. Генерацию концепции (алгоритм 3.1)
+    2. Проектирование Core Loop (алгоритм 3.2)
+    3. MDA-анализ (алгоритм 3.3)
+    4. Балансировка (алгоритм 3.4)
+    5. Прогрессия + Экономика (алгоритмы 3.5, 3.6)
+
+    Результаты каждого блока автоматически передаются следующему.
+    cascade-обновление зависимых блоков с уведомлением пользователя.
+    """
+    service = await get_pipeline_service(db)
+
+    concept_input = {
+        "idea": request.idea,
+        "genre": request.genre,
+        "target_audience": request.target_audience,
+        "platform": request.platform,
+        "constraints": request.constraints,
+        "reference_games": request.reference_games,
+        "forbidden_mechanics": request.forbidden_mechanics,
+    }
+
+    try:
+        result = await service.run_pipeline_blocks_1_to_5(
+            project_id=project_id,
+            user_id=current_user.id,
+            concept_input=concept_input,
+        )
+
+        return result
+
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        raise HTTPException(status_code=503, detail="AI-сервис временно недоступен")
+    except Exception as e:
+        logger.error(f"Full pipeline execution failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Ошибка выполнения полного пайплайна")

@@ -1,13 +1,15 @@
 """
-Gidede — Сквозной пайплайн: Блок 1 → Блок 2 → Блок 3
+Gidede — Сквозной пайплайн: Блок 1 → Блок 2 → Блок 3 → Блок 4 → Блок 5
 Фаза 4.B.12: Автоматическая передача данных между блоками
+Фаза 4.C.9:  Расширение пайплайна до Блока 5
 
 Функционал:
-1. Автоматическая передача данных: OnePager → CoreLoopInput → MDAInput
+1. Автоматическая передача данных: OnePager → CoreLoopInput → MDAInput → BalanceInput → ProgressionInput/EconomyInput
 2. Отслеживание статуса заполненности блоков
 3. Уведомления об устаревших данных через Redis Event Bus
 4. Проверка «свежести» зависимых блоков
 5. Вычисление прогресса проекта
+6. Полный пайплайн 1→5 (4.C.9)
 
 Потоки данных:
   Блок 1 (ConceptGenerator)
@@ -15,11 +17,17 @@ Gidede — Сквозной пайплайн: Блок 1 → Блок 2 → Бл
       → Блок 2 (CoreLoopDesigner) CoreLoopInput
         → CoreLoopProfile
           → Блок 3 (MDALab) MDAInput
+            → MDAProfile
+              → Блок 4 (Balance) BalanceInput
+                → BalanceResult
+                  → Блок 5 (Progression + Economy) ProgressionInput / EconomyInput
 
 События (через Redis Pub/Sub):
-  - concept_updated:   Блок 1 обновлён → пометить Блок 2, 3 как stale
-  - core_loop_updated: Блок 2 обновлён → пометить Блок 3 как stale
-  - mda_updated:       Блок 3 обновлён (зависимостей нет)
+  - concept_updated:   Блок 1 обновлён → пометить Блоки 2-8 как stale
+  - core_loop_updated: Блок 2 обновлён → пометить Блоки 3-8 как stale
+  - mda_updated:       Блок 3 обновлён → пометить Блоки 4-8 как stale
+  - balance_updated:   Блок 4 обновлён → пометить Блоки 5, 6, 8 как stale
+  - progression_updated / economy_updated: Блок 5 → пометить Блоки 6, 8 как stale
 """
 
 from __future__ import annotations
@@ -39,6 +47,9 @@ from app.models.db import (
     ProjectConcept,
     ProjectCoreLoop,
     ProjectMDAProfile,
+    ProjectBalanceResult,
+    ProjectProgression,
+    ProjectEconomy,
 )
 from app.services.project_service import compute_block_flags, compute_completion_percent
 
@@ -326,12 +337,30 @@ class PipelineService:
         if not project:
             return {"error": "Проект не найден"}
 
+        # Загружаем дополнительные связи для Блоков 4-5
+        from sqlalchemy.orm import selectinload as sel
+        if target_block >= 4:
+            stmt = stmt.options(
+                sel(Project.balance_result),
+            )
+        if target_block >= 5:
+            stmt = stmt.options(
+                sel(Project.progression),
+                sel(Project.economy),
+            )
+            result = await self.db.execute(stmt)
+            project = result.unique().scalar_one_or_none()
+            if not project:
+                return {"error": "Проект не найден"}
+
         if target_block == 2:
             return await self._prepare_core_loop_input(project)
         elif target_block == 3:
             return await self._prepare_mda_input(project)
         elif target_block == 4:
             return await self._prepare_balance_input(project)
+        elif target_block == 5:
+            return await self._prepare_progression_and_economy_input(project)
         else:
             return {"project_id": project_id, "block": target_block}
 
@@ -484,13 +513,162 @@ class PipelineService:
         core_loop = project.core_loop
         mda = project.mda_profile
 
-        return {
+        has_concept = concept is not None and concept.aesthetic_profile is not None
+        has_core_loop = core_loop is not None and core_loop.steps_data is not None
+        has_mda = mda is not None and mda.mechanic_set is not None
+
+        result = {
             "project_id": project.id,
             "status": "ready",
-            "has_concept": concept is not None and concept.aesthetic_profile is not None,
-            "has_core_loop": core_loop is not None and core_loop.steps_data is not None,
-            "has_mda": mda is not None and mda.mechanic_set is not None,
+            "has_concept": has_concept,
+            "has_core_loop": has_core_loop,
+            "has_mda": has_mda,
         }
+
+        # Обогащаем данными из предыдущих блоков для полноценной балансировки
+        if has_concept:
+            result["genre"] = concept.genre
+            result["concept_data"] = {
+                "genre": concept.genre,
+                "aesthetic_profile": concept.aesthetic_profile,
+                "mechanic_set": concept.mechanic_set or {},
+            }
+
+        if has_core_loop:
+            result["core_loop_data"] = {
+                "structural_type": core_loop.structural_type,
+                "steps": core_loop.steps_data,
+                "pathologies": core_loop.pathologies,
+            }
+
+        if has_mda:
+            result["mda_data"] = {
+                "mechanic_set": mda.mechanic_set,
+                "target_dynamics": mda.target_dynamics,
+                "primary_aesthetic": mda.primary_aesthetic,
+                "secondary_aesthetic": mda.secondary_aesthetic,
+            }
+
+        # Предупреждения о неполноте данных
+        warnings = []
+        if not has_concept:
+            warnings.append("Блок 1 (Концепция) не заполнен — балансировка будет ограниченной")
+        if not has_core_loop:
+            warnings.append("Блок 2 (Core Loop) не заполнен — невозможно проанализировать циклы")
+        if not has_mda:
+            warnings.append("Блок 3 (MDA) не заполнен — нет данных о механиках для балансировки")
+        if warnings:
+            result["warnings"] = warnings
+
+        return result
+
+    async def _prepare_progression_and_economy_input(self, project: Project) -> dict:
+        """
+        Подготовить входные данные для Блока 5 (Прогрессия + Экономика)
+        из результатов Блоков 1–4.
+
+        ProgressionInput зависит от:
+        - MDAProfile (механики, эстетика)
+        - BalanceResult (сбалансированные элементы)
+
+        EconomyInput зависит от:
+        - CoreLoopProfile (ресурсные потоки)
+        - MDAProfile (механики)
+        - ProgressionProfile (связь прогрессии с экономикой)
+        """
+        concept = project.concept
+        core_loop = project.core_loop
+        mda = project.mda_profile
+        balance = project.balance_result
+
+        has_concept = concept is not None and concept.aesthetic_profile is not None
+        has_core_loop = core_loop is not None and core_loop.steps_data is not None
+        has_mda = mda is not None and mda.mechanic_set is not None
+        has_balance = balance is not None and balance.elements is not None
+
+        result = {
+            "project_id": project.id,
+            "status": "ready",
+            "has_concept": has_concept,
+            "has_core_loop": has_core_loop,
+            "has_mda": has_mda,
+            "has_balance": has_balance,
+        }
+
+        # ---- Данные для Прогрессии (алгоритм 3.5) ----
+        progression_input = {}
+
+        if has_concept:
+            progression_input["genre"] = concept.genre
+            progression_input["idea"] = (concept.input_data or {}).get("idea", "") if concept.input_data else ""
+            progression_input["aesthetic_profile"] = concept.aesthetic_profile
+            progression_input["mechanic_set"] = concept.mechanic_set or {}
+
+        if has_core_loop:
+            progression_input["core_loop_type"] = core_loop.structural_type
+            progression_input["core_loop_steps"] = core_loop.steps_data
+            progression_input["loop_hierarchy"] = core_loop.loop_hierarchy
+
+        if has_mda:
+            progression_input["mda_mechanics"] = mda.mechanic_set
+            progression_input["target_dynamics"] = mda.target_dynamics
+            progression_input["primary_aesthetic"] = mda.primary_aesthetic
+
+        if has_balance:
+            progression_input["balance_elements"] = balance.elements
+            progression_input["balance_score"] = balance.overall_balance_score
+
+        result["progression_input"] = progression_input
+
+        # ---- Данные для Экономики (алгоритм 3.6) ----
+        economy_input = {}
+
+        if has_core_loop:
+            # Из Core Loop извлекаем ресурсы и их потоки
+            resources = set()
+            if core_loop.steps_data:
+                for step in core_loop.steps_data:
+                    if isinstance(step, dict):
+                        for key in ["resource_in", "resource_out", "resource"]:
+                            r = step.get(key)
+                            if r:
+                                resources.add(r if isinstance(r, str) else str(r))
+            economy_input["core_loop_resources"] = list(resources)
+            economy_input["core_loop_type"] = core_loop.structural_type
+            economy_input["core_loop_steps"] = core_loop.steps_data
+            economy_input["inner_loops"] = core_loop.inner_loops
+            economy_input["outer_loops"] = core_loop.outer_loops
+
+        if has_mda:
+            economy_input["mda_mechanics"] = mda.mechanic_set
+            economy_input["machinations_model"] = mda.machinations_model
+
+        if has_concept:
+            economy_input["genre"] = concept.genre
+            economy_input["mechanic_set"] = concept.mechanic_set or {}
+
+        # Если прогрессия уже есть — связываем с экономикой
+        if project.progression and project.progression.curves:
+            economy_input["progression_curves"] = project.progression.curves
+            economy_input["tier_model"] = project.progression.tier_model
+            economy_input["total_levels"] = project.progression.total_levels
+
+        result["economy_input"] = economy_input
+
+        # ---- Предупреждения ----
+        warnings = []
+        if not has_concept:
+            warnings.append("Блок 1 (Концепция) не заполнен — параметры прогрессии будут по умолчанию")
+        if not has_core_loop:
+            warnings.append("Блок 2 (Core Loop) не заполнен — невозможно извлечь ресурсы для экономики")
+        if not has_mda:
+            warnings.append("Блок 3 (MDA) не заполнен — нет механик для моделирования экономики")
+        if not has_balance:
+            warnings.append("Блок 4 (Баланс) не заполнен — экономика может быть несбалансированной")
+        if warnings:
+            result["warnings"] = warnings
+
+        return result
 
     # ============================================================
     # 3. ОБНОВЛЕНИЕ СТАТУСА И УВЕДОМЛЕНИЯ
@@ -924,6 +1102,162 @@ class PipelineService:
                 "block": 3,
                 "error": str(e),
                 "message": "Ошибка MDA-анализа",
+            })
+
+        # Финальное состояние пайплайна
+        pipeline_state = await self.get_pipeline_state(project_id, user_id)
+        if pipeline_state:
+            results["pipeline_state"] = pipeline_state.to_dict()
+
+        return results
+
+    # ============================================================
+    # 6. ПОЛНЫЙ ПАЙПЛАЙН (Блок 1 → 2 → 3 → 4 → 5) [4.C.9]
+    # ============================================================
+
+    async def run_pipeline_blocks_1_to_5(
+        self,
+        project_id: str,
+        user_id: str,
+        concept_input: dict,
+    ) -> dict:
+        """
+        Запустить полный пайплайн Блок 1 → Блок 2 → Блок 3 → Блок 4 → Блок 5.
+        Фаза 4.C.9: Сквозной пайплайн Блоки 1–5.
+
+        Вызывает каждый блок по очереди, передавая результаты предыдущего.
+        При ошибке в любом блоке — последующие не выполняются, но уже
+        выполненные результаты возвращаются.
+
+        Args:
+            project_id: ID проекта
+            user_id: ID пользователя
+            concept_input: Входные данные для Блока 1
+
+        Returns:
+            Результат всех блоков + pipeline_state
+        """
+        # Сначала запускаем Блоки 1-3 (существующий метод)
+        results = await self.run_pipeline_blocks_1_2_3(
+            project_id=project_id,
+            user_id=user_id,
+            concept_input=concept_input,
+        )
+
+        # Если Блок 1 не выполнен — дальнейший пайплайн невозможен
+        if 1 not in results.get("blocks_completed", []):
+            return results
+
+        # Подготавливаем AI executor (переиспользуем, если уже создан)
+        try:
+            from app.ai.executor import PromptExecutor
+            from app.ai.cache import PromptCache
+            from app.ai.router import PromptRouter
+            from app.ai.validator import PromptValidator
+
+            cache = PromptCache()
+            router_instance = PromptRouter()
+            validator = PromptValidator()
+            executor = PromptExecutor(
+                router=router_instance,
+                cache=cache,
+                validator=validator,
+            )
+        except Exception as e:
+            logger.error(f"Pipeline: failed to initialize AI executor: {e}")
+            results["errors"].append({
+                "block": 4,
+                "error": str(e),
+                "message": "Ошибка инициализации AI-сервиса",
+            })
+            return results
+
+        # Блок 4: Баланс и симуляция
+        try:
+            from app.services.balance_service import BalanceService
+
+            balance_service = BalanceService(executor=executor)
+
+            # Подготавливаем входные данные
+            balance_input = await self.prepare_block_input(project_id, 4)
+            if balance_input.get("status") == "missing_concept":
+                raise ValueError("Нет данных для балансировки — заполните предыдущие блоки")
+
+            # Запускаем transitive-анализ (основной метод)
+            balance_result = await balance_service.transitive_balance(
+                elements=balance_input.get("concept_data", {}).get("mechanic_set", {}),
+                genre=balance_input.get("genre"),
+            )
+
+            results["block_4"] = balance_result.model_dump() if hasattr(balance_result, "model_dump") else balance_result
+            results["blocks_completed"].append(4)
+
+            # Уведомляем об обновлении баланса
+            await self.notify_block_updated(project_id, 4, user_id)
+
+        except Exception as e:
+            logger.error(f"Pipeline Block 4 failed: {e}", exc_info=True)
+            results["errors"].append({
+                "block": 4,
+                "error": str(e),
+                "message": "Ошибка балансировки",
+            })
+            # Блок 5 зависит от 4 — не продолжаем
+            return results
+
+        # Блок 5: Прогрессия и Экономика
+        try:
+            from app.services.progression_service import ProgressionService
+            from app.services.economy_service import EconomyService
+
+            # Подготавливаем входные данные для Блока 5
+            block5_input = await self.prepare_block_input(project_id, 5)
+            if block5_input.get("status") == "missing_concept":
+                raise ValueError("Нет данных для прогрессии — заполните предыдущие блоки")
+
+            progression_input = block5_input.get("progression_input", {})
+            economy_input = block5_input.get("economy_input", {})
+
+            # 5a: Прогрессия (алгоритм 3.5)
+            progression_service = ProgressionService(executor=executor)
+            progression_result = await progression_service.design_full(
+                genre=progression_input.get("genre"),
+                idea=progression_input.get("idea"),
+                core_loop_type=progression_input.get("core_loop_type"),
+                aesthetic_profile=progression_input.get("aesthetic_profile"),
+            )
+
+            results["block_5_progression"] = (
+                progression_result.model_dump()
+                if hasattr(progression_result, "model_dump")
+                else progression_result
+            )
+
+            # 5b: Экономика (алгоритм 3.6)
+            economy_service = EconomyService(executor=executor)
+            economy_result = await economy_service.build_economy_model(
+                core_loop_type=economy_input.get("core_loop_type"),
+                genre=economy_input.get("genre"),
+                core_loop_steps=economy_input.get("core_loop_steps"),
+            )
+
+            results["block_5_economy"] = (
+                economy_result.model_dump()
+                if hasattr(economy_result, "model_dump")
+                else economy_result
+            )
+
+            results["blocks_completed"].append(5)
+
+            # Уведомляем об обновлении прогрессии/экономики
+            await self.notify_block_updated(project_id, 5, user_id)
+
+        except Exception as e:
+            logger.error(f"Pipeline Block 5 failed: {e}", exc_info=True)
+            results["errors"].append({
+                "block": 5,
+                "error": str(e),
+                "message": "Ошибка проектирования прогрессии/экономики",
             })
 
         # Финальное состояние пайплайна

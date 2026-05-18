@@ -186,6 +186,47 @@ export function usePipeline(projectId: string | null) {
     return () => clearInterval(interval);
   }, [projectId, fetchState]);
 
+  // Запустить полный пайплайн 1→5 (4.C.9)
+  const runFullPipeline = useCallback(
+    async (conceptInput: {
+      idea: string;
+      genre?: string;
+      target_audience?: Record<string, unknown>;
+      platform?: string[];
+      constraints?: Record<string, unknown>;
+      reference_games?: string[];
+      forbidden_mechanics?: string[];
+    }) => {
+      if (!projectId) return null;
+
+      try {
+        const res = await apiFetch(
+          `${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/v1/pipeline/run-full-pipeline/${projectId}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(conceptInput),
+          }
+        );
+
+        if (!res.ok) {
+          throw new Error(`HTTP ${res.status}`);
+        }
+
+        const result = await res.json();
+
+        // Обновляем состояние пайплайна после выполнения
+        await fetchState();
+
+        return result;
+      } catch (err) {
+        console.error("Failed to run full pipeline:", err);
+        return null;
+      }
+    },
+    [projectId, apiFetch, fetchState]
+  );
+
   return {
     state,
     loading,
@@ -194,6 +235,7 @@ export function usePipeline(projectId: string | null) {
     prepareInput,
     notifyUpdated,
     clearStale,
+    runFullPipeline,
     // Удобные геттеры
     notifications: state?.notifications || [],
     staleBlocks: (state?.blocks || []).filter((b) => b.status === "stale"),

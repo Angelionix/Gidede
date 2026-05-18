@@ -7,12 +7,16 @@ import { usePipeline, type BlockStatus } from "@/hooks/use-pipeline";
 
 interface PipelineFlowIndicatorProps {
   currentBlock: number;
+  /** Максимальный отображаемый блок (по умолчанию 5, было 3) */
+  maxBlock?: number;
 }
 
 const BLOCK_LABELS = [
   { id: 1, name: "Блок 1" },
   { id: 2, name: "Блок 2" },
   { id: 3, name: "Блок 3" },
+  { id: 4, name: "Блок 4" },
+  { id: 5, name: "Блок 5" },
 ];
 
 function StatusIcon({ status }: { status: BlockStatus | undefined }) {
@@ -29,7 +33,7 @@ function StatusIcon({ status }: { status: BlockStatus | undefined }) {
   }
 }
 
-export function PipelineFlowIndicator({ currentBlock }: PipelineFlowIndicatorProps) {
+export function PipelineFlowIndicator({ currentBlock, maxBlock = 5 }: PipelineFlowIndicatorProps) {
   const projectId = typeof window !== "undefined" ? localStorage.getItem("gidede_active_project") : null;
   const { state } = usePipeline(projectId);
 
@@ -37,9 +41,11 @@ export function PipelineFlowIndicator({ currentBlock }: PipelineFlowIndicatorPro
     return state?.blocks?.find((b) => b.block_id === blockId)?.status;
   };
 
+  const visibleBlocks = BLOCK_LABELS.filter((b) => b.id <= maxBlock);
+
   return (
-    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-muted/30">
-      {BLOCK_LABELS.map((block, idx) => {
+    <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-muted/30 flex-wrap">
+      {visibleBlocks.map((block, idx) => {
         const status = getBlockStatus(block.id);
         const isCurrent = block.id === currentBlock;
 
@@ -64,7 +70,7 @@ export function PipelineFlowIndicator({ currentBlock }: PipelineFlowIndicatorPro
                 </Badge>
               )}
             </div>
-            {idx < BLOCK_LABELS.length - 1 && (
+            {idx < visibleBlocks.length - 1 && (
               <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
             )}
           </React.Fragment>

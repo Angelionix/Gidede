@@ -9,6 +9,53 @@
 
 ---
 
+## [0.15.0] — 2026-05-18
+
+### Добавлено
+
+#### Продвинутые модули (Фаза 4.C, Блок 4 Backend)
+- Блок 4: Backend — Transitive-анализ баланса — 4.C.1
+  - **Этап 1: Классификация задачи балансировки** (3.4.3)
+    - Определение доминирующей модели балансировки (transitive/intransitive/situational/mixed)
+    - Выбор якорного ресурса (HP/Валюта/Победные очки/XP)
+    - Определение типа суммы игры (positive/zero/negative)
+    - Определение типа обратной связи (reinforcing/balancing/both)
+    - Карта балансировки: 12 типов баланса Шелла с применимостью к проекту
+  - **Этап 2: Транзитивный анализ (cost-power кривые)** (3.4.4)
+    - Расчёт весов атрибутов через метод наименьших квадратов (на «ванильных» объектах)
+    - AI-оценка весов через ESTIMATE_WEIGHTS промпт (при недостатке данных)
+    - Равномерные веса как fallback
+    - Расчёт мощности (Power) = взвешенная сумма атрибутов
+    - Расчёт Cost/Power ratio и отклонения от кривой стоимости
+    - 3 модели кривых: тождество (PvP), сдвинутая тождественная (PvPvE), прогрессия ценности (PvE)
+    - Пороговые значения: PvP=10%, PvE=15%, casual=20%
+    - Выявление переоценённых (overpowered), недооценённых (underpowered), сбалансированных и «идеальный дисбаланс» объектов
+  - **Этап 3: Анализ стабильности петель ОС**
+    - Матрица стабильности Шрайбера (3 типа суммы × 3 типа ОС = 9 комбинаций)
+    - Обнаружение патологий: runaway, deadlock, stall
+    - Рекомендации по коррекции нестабильности
+
+#### Схемы данных (Блок 4)
+- `BalanceObject` — игровой объект для балансировки (id, name, type, attributes, cost, tier, tags)
+- `BalanceInput` — входные данные (objects, resources, balance_type, game_mode, genre)
+- `ObjectBalanceReport` — отчёт по объекту (power, effective_cost, cp_ratio, distance_from_curve, status)
+- `TransitiveResult` — результат транзитивного анализа (attribute_weights, cost_curve_model, objects, warnings, suggestions)
+- `BalanceMap` — карта балансировки (primary/secondary models, anchor, game_sum, feedback)
+- `BalanceResult` — итоговый результат (balance_map, transitive_result, stages_completed)
+
+#### API
+- POST `/api/v1/balance/transitive` — транзитивный анализ баланса
+- POST `/api/v1/balance/analyze` — полный анализ балансировки (все этапы)
+- GET `/api/v1/balance/{project_id}` — получение результатов балансировки проекта
+
+#### Тесты
+- 26 тестов для BalanceService: classify (3), transitive (8), stability (3), full pipeline (3), API (2), helpers (7)
+
+### Изменено
+- Версия обновлена с 0.14.0 до 0.15.0
+
+---
+
 ## [0.14.0] — 2026-05-18
 
 ### Добавлено

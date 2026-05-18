@@ -1,8 +1,8 @@
 # Gidede — Документ тестирования
 
-> **Фаза**: 4.B.5–4.B.12 (полное покрытие)  
+> **Фаза**: 4.C.1 (Блок 4: Transitive-анализ баланса)  
 > **Дата**: 2026-05-18  
-> **Версия**: 0.14.0  
+> **Версия**: 0.15.0  
 > **Статус**: Активный  
 > **Подход**: Локальное тестирование (без GitHub Actions)
 
@@ -1345,6 +1345,62 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 | B-311 | test_api_pipeline_notify_updated | POST /api/v1/pipeline/notify-updated |
 | B-312 | test_api_pipeline_run_pipeline | POST /api/v1/pipeline/run-pipeline |
 | B-313 | test_api_pipeline_clear_stale | DELETE /api/v1/pipeline/stale |
+
+##### Balance Service — Классификация (4.C.1) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-314 | test_classify_balance_task_pvp | PvP → primary=transitive, secondary=intransitive |
+| B-315 | test_classify_balance_task_pve | PvE → primary=transitive, secondary=situational |
+| B-316 | test_classify_balance_task_pvpve | PvPvE → primary=mixed, secondary=mixed |
+
+##### Balance Service — Транзитивный анализ (4.C.1) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-317 | test_transitive_balance_basic | Базовый транзитивный анализ с объектами |
+| B-318 | test_transitive_balance_with_costs | Анализ с явно заданными стоимостями объектов |
+| B-319 | test_transitive_balance_overpowered | Обнаружение переоценённых объектов (distance < -threshold) |
+| B-320 | test_transitive_balance_underpowered | Обнаружение недооценённых объектов (distance > threshold) |
+| B-321 | test_transitive_balance_ideal_imbalance | Обнаружение «идеального дисбаланса» (5-15% отклонение) |
+| B-322 | test_transitive_balance_attribute_weights | Расчёт весов атрибутов через least squares |
+| B-323 | test_transitive_balance_cost_curve_identity | Модель кривой тождества для PvP |
+| B-324 | test_transitive_balance_cost_curve_progression | Модель прогрессии ценности для PvE |
+
+##### Balance Service — Стабильность (4.C.1) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-325 | test_analyze_stability_stable | Стабильные петли ОС — без патологий |
+| B-326 | test_analyze_stability_runaway | Обнаружение runaway-патологии |
+| B-327 | test_analyze_stability_deadlock | Обнаружение deadlock-патологии |
+
+##### Balance Service — Полный пайплайн (4.C.1) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-328 | test_balance_full_pipeline | Полный пайплайн: classify → transitive → stability |
+| B-329 | test_balance_full_stages_completed | stages_completed = [1, 2, 3] |
+| B-330 | test_balance_full_with_mda | Полный пайплайн с MDA-профилем |
+
+##### Balance Service — API (4.C.1) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-331 | test_api_balance_transitive | POST /api/v1/balance/transitive — транзитивный анализ |
+| B-332 | test_api_balance_analyze | POST /api/v1/balance/analyze — полный анализ балансировки |
+
+##### Balance Service — Вспомогательные методы (4.C.1) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-333 | test_least_squares_weights | Метод наименьших квадратов для расчёта весов |
+| B-334 | test_solve_linear_system | Решение системы линейных уравнений |
+| B-335 | test_calculate_power | Расчёт мощности объекта |
+| B-336 | test_calculate_effective_cost | Расчёт эффективной стоимости объекта |
+| B-337 | test_get_threshold | Пороговые значения для PvP/PvE/casual |
+| B-338 | test_generate_warnings | Генерация предупреждений для несбалансированных объектов |
+| B-339 | test_generate_suggestions | Генерация предложений коррекции |
 
 ---
 ## 8. Pre-commit хуки

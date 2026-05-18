@@ -49,10 +49,7 @@ class ZAIProvider(AIProvider):
         try:
             import asyncio
 
-            async def _create():
-                import ZAI from 'z-ai-web-dev-sdk'
-                return await ZAI.create()
-            # SDK — JS-пакет, для Python используем HTTP API
+            # SDK — JS-пакет (z-ai-web-dev-sdk), для Python используем HTTP API
             # Проверяем наличие ключа
             api_key = os.getenv("ZAI_API_KEY", "")
             base_url = os.getenv("ZAI_BASE_URL", "https://api.z.ai/v1")

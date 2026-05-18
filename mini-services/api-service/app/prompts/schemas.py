@@ -196,10 +196,12 @@ class PromptSpec(BaseModel):
     )
     output_schema: Optional[dict[str, Any]] = Field(
         default=None,
+        alias="outputSchema",
         description="JSON-Schema для валидации выхода",
     )
     output_examples: list[str] = Field(
         default_factory=list,
+        alias="outputExamples",
         description="Примеры корректного выхода",
     )
 
@@ -215,7 +217,8 @@ class PromptSpec(BaseModel):
 
     # === Модель и параметры ===
     model_requirements: ModelRequirements = Field(
-        ..., description="Требования к модели (primary + fallback)",
+        ..., alias="modelRequirements",
+        description="Требования к модели (primary + fallback)",
     )
 
     # === Гарантии ===

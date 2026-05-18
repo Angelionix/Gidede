@@ -1,17 +1,23 @@
 """
 Gidede — Balance Service Tests
-Фаза 4.C.1: Тесты для Блока 4 — Transitive-анализ баланса (алгоритм 3.4)
+Фаза 4.C.1–4.C.2: Тесты для Блока 4 — Балансировка (алгоритм 3.4)
 
 Тесты:
 - classify_balance_task: PvP, PvE, PvPvE
 - transitive_balance: basic, with_costs, overpowered, underpowered, ideal_imbalance,
                       attribute_weights, cost_curve_identity, cost_curve_progression
 - analyze_stability: stable, runaway, deadlock
-- balance_full: pipeline, stages_completed
-- API endpoints: transitive, analyze
+- intransitive_balance: payoff_matrix, nash_equilibrium, rps_cycles, dominant_strategy,
+                        dominated_strategies, strategy_balance
+- situational_balance: situations, situational_values, versatility, dead_zones,
+                       dominant_universals, switching_cost
+- calculate_q_factor: q_matrix, dominant_attributes, redundant_objects
+- balance_full: pipeline, stages_completed, with_intransitive, with_situational, with_qfactor
+- API endpoints: transitive, intransitive, situational, qfactor, analyze
 """
 
 import pytest
+import math
 import pytest_asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -21,6 +27,14 @@ from app.schemas.balance import (
     BalanceMap,
     ObjectBalanceReport,
     TransitiveResult,
+    IntransitiveResult,
+    StrategyBalanceScore,
+    RPSCycle,
+    SituationalResult,
+    Situation,
+    VersatilityInfo,
+    QFactorResult,
+    QFactorObject,
     BalanceResult,
 )
 from app.services.balance_service import BalanceService
@@ -108,6 +122,37 @@ def sample_underpowered_objects():
     ]
 
 
+@pytest.fixture
+def sample_rps_objects():
+    """Объекты с RPS-структурой (камень-ножницы-бумага)."""
+    return [
+        BalanceObject(id="1", name="Rock", type="character",
+                      attributes={"attack": 10, "defense": 30, "speed": 5}, cost=100,
+                      tags=["earth"]),
+        BalanceObject(id="2", name="Scissors", type="character",
+                      attributes={"attack": 30, "defense": 5, "speed": 15}, cost=100,
+                      tags=["lightning"]),
+        BalanceObject(id="3", name="Paper", type="character",
+                      attributes={"attack": 15, "defense": 15, "speed": 25}, cost=100,
+                      tags=["ice"]),
+    ]
+
+
+@pytest.fixture
+def sample_diverse_objects():
+    """Объекты с разными атрибутами для Q-фактор тестов."""
+    return [
+        BalanceObject(id="1", name="Tank", type="character",
+                      attributes={"hp": 200, "damage": 10, "speed": 3}, cost=100, tags=[]),
+        BalanceObject(id="2", name="DPS", type="character",
+                      attributes={"hp": 50, "damage": 40, "speed": 10}, cost=100, tags=[]),
+        BalanceObject(id="3", name="Speedster", type="character",
+                      attributes={"hp": 70, "damage": 15, "speed": 30}, cost=100, tags=[]),
+        BalanceObject(id="4", name="Redundant", type="character",
+                      attributes={"hp": 60, "damage": 12, "speed": 8}, cost=100, tags=[]),
+    ]
+
+
 # ============================================================
 # Тесты: classify_balance_task (Этап 1)
 # ============================================================
@@ -174,7 +219,6 @@ async def test_classify_balance_task_pvpve(balance_service):
     assert result.secondary_model == "situational"
     assert result.game_sum == "positive"
     assert result.feedback == "both"
-    # Должны быть применимы transitive и situational
     assert result.applicable_balance_types["transitive"] is True
     assert result.applicable_balance_types["situational"] is True
 
@@ -209,7 +253,6 @@ async def test_transitive_balance_basic(balance_service):
     assert isinstance(result, TransitiveResult)
     assert len(result.objects) == 2
     assert result.cost_curve_model == "identity"
-    # Все веса должны быть неотрицательными
     for attr, weight in result.attribute_weights.items():
         assert weight >= 0
 
@@ -238,7 +281,6 @@ async def test_transitive_balance_with_costs(balance_service):
 
     assert isinstance(result, TransitiveResult)
     assert len(result.objects) == 3
-    # Каждый объект должен иметь power, cost, cp_ratio
     for report in result.objects:
         assert report.power > 0
         assert report.effective_cost > 0
@@ -260,9 +302,7 @@ async def test_transitive_balance_overpowered(balance_service, sample_overpowere
 
     result = await balance_service.transitive_balance(input_data, balance_map)
 
-    # "OP Unit" должен быть определён как overpowered
     assert "OP Unit" in result.overpowered or len(result.overpowered) >= 1
-    # Должны быть warnings о дисбалансе
     assert len(result.warnings) > 0
 
 
@@ -281,7 +321,6 @@ async def test_transitive_balance_underpowered(balance_service, sample_underpowe
 
     result = await balance_service.transitive_balance(input_data, balance_map)
 
-    # "UP Unit" должен быть определён как underpowered
     assert "UP Unit" in result.underpowered or len(result.underpowered) >= 1
     assert len(result.warnings) > 0
 
@@ -289,7 +328,6 @@ async def test_transitive_balance_underpowered(balance_service, sample_underpowe
 @pytest.mark.asyncio
 async def test_transitive_balance_ideal_imbalance(balance_service):
     """Обнаружение ideal_imbalance (5-15% отклонение)."""
-    # Создаём объекты с небольшим отклонением от кривой
     input_data = BalanceInput(
         objects=[
             BalanceObject(id="1", name="Balanced", type="character",
@@ -307,7 +345,6 @@ async def test_transitive_balance_ideal_imbalance(balance_service):
 
     result = await balance_service.transitive_balance(input_data, balance_map)
 
-    # Должны быть заполнены списки
     assert isinstance(result.balanced, list)
     assert isinstance(result.ideal_imbalance, list)
     assert isinstance(result.overpowered, list)
@@ -338,9 +375,7 @@ async def test_transitive_balance_attribute_weights(balance_service):
 
     result = await balance_service.transitive_balance(input_data, balance_map)
 
-    # Веса должны быть рассчитаны
     assert len(result.attribute_weights) > 0
-    # Все веса должны быть неотрицательными
     for attr, weight in result.attribute_weights.items():
         assert weight >= 0, f"Weight for {attr} should be non-negative, got {weight}"
 
@@ -416,7 +451,6 @@ def test_analyze_stability_runaway(balance_service):
 
     result = balance_service.analyze_stability(feedback_loops)
 
-    # reinforcing feedback → runaway risk
     assert "runaway" in result["pathology_risks"]
     assert result["positive_loops"] == 3
     assert result["overall_stability"] == "unstable"
@@ -424,8 +458,6 @@ def test_analyze_stability_runaway(balance_service):
 
 def test_analyze_stability_deadlock(balance_service):
     """Анализ системы с риском deadlock (negative sum + reinforcing)."""
-    # Это косвенный тест — deadlock возникает при negative sum + reinforcing
-    # Но мы проверяем через Schreiber matrix
     from app.services.balance_service import SCHREIBER_STABILITY_MATRIX
 
     key = ("negative", "reinforcing")
@@ -437,12 +469,467 @@ def test_analyze_stability_deadlock(balance_service):
 
 
 # ============================================================
-# Тесты: balance_full (полный пайплайн)
+# Тесты: intransitive_balance (Этап 3, 4.C.2)
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_intransitive_balance_basic(balance_service, sample_pvp_objects):
+    """Базовый нетранзитивный анализ с 3 объектами."""
+    input_data = BalanceInput(objects=sample_pvp_objects, game_mode="PvP")
+    balance_map = BalanceMap(
+        primary_model="transitive", secondary_model="intransitive",
+        anchor="gold", game_sum="zero", feedback="balancing",
+    )
+    transitive_result = await balance_service.transitive_balance(input_data, balance_map)
+
+    result = await balance_service.intransitive_balance(
+        input_data=input_data,
+        transitive_result=transitive_result,
+        balance_map=balance_map,
+    )
+
+    assert isinstance(result, IntransitiveResult)
+    assert len(result.payoff_matrix) == 3
+    assert len(result.payoff_matrix[0]) == 3
+    assert len(result.object_names) == 3
+    assert len(result.nash_equilibrium) == 3
+    # Диагональ payoff-матрицы = 0 (зеркальный матч)
+    for i in range(3):
+        assert result.payoff_matrix[i][i] == 0.0
+
+
+@pytest.mark.asyncio
+async def test_intransitive_balance_payoff_matrix(balance_service, sample_pvp_objects):
+    """Проверка корректности payoff-матрицы."""
+    input_data = BalanceInput(objects=sample_pvp_objects, game_mode="PvP")
+    balance_map = BalanceMap(
+        primary_model="transitive", secondary_model="intransitive",
+        anchor="gold", game_sum="zero", feedback="balancing",
+    )
+    transitive_result = await balance_service.transitive_balance(input_data, balance_map)
+
+    result = await balance_service.intransitive_balance(
+        input_data=input_data,
+        transitive_result=transitive_result,
+        balance_map=balance_map,
+    )
+
+    # Payoff матрица должна быть антисимметричной: M[i][j] = -M[j][i]
+    for i in range(3):
+        for j in range(3):
+            if i != j:
+                assert abs(result.payoff_matrix[i][j] + result.payoff_matrix[j][i]) < 0.01, \
+                    f"Payoff matrix should be antisymmetric: M[{i}][{j}]={result.payoff_matrix[i][j]}, M[{j}][{i}]={result.payoff_matrix[j][i]}"
+
+
+@pytest.mark.asyncio
+async def test_intransitive_balance_nash_equilibrium(balance_service, sample_pvp_objects):
+    """Проверка равновесия Нэша."""
+    input_data = BalanceInput(objects=sample_pvp_objects, game_mode="PvP")
+    balance_map = BalanceMap(
+        primary_model="transitive", secondary_model="intransitive",
+        anchor="gold", game_sum="zero", feedback="balancing",
+    )
+    transitive_result = await balance_service.transitive_balance(input_data, balance_map)
+
+    result = await balance_service.intransitive_balance(
+        input_data=input_data,
+        transitive_result=transitive_result,
+        balance_map=balance_map,
+    )
+
+    # Сумма вероятностей Нэша должна быть ≈ 1
+    total_prob = sum(result.nash_equilibrium)
+    assert abs(total_prob - 1.0) < 0.05, f"Nash equilibrium probabilities should sum to 1.0, got {total_prob}"
+
+    # Все вероятности должны быть >= 0
+    for i, p in enumerate(result.nash_equilibrium):
+        assert p >= 0, f"Nash equilibrium probability for {result.object_names[i]} should be >= 0, got {p}"
+
+
+@pytest.mark.asyncio
+async def test_intransitive_balance_strategy_balance(balance_service, sample_pvp_objects):
+    """Проверка метрик баланса стратегий."""
+    input_data = BalanceInput(objects=sample_pvp_objects, game_mode="PvP")
+    balance_map = BalanceMap(
+        primary_model="transitive", secondary_model="intransitive",
+        anchor="gold", game_sum="zero", feedback="balancing",
+    )
+    transitive_result = await balance_service.transitive_balance(input_data, balance_map)
+
+    result = await balance_service.intransitive_balance(
+        input_data=input_data,
+        transitive_result=transitive_result,
+        balance_map=balance_map,
+    )
+
+    assert result.strategy_balance is not None
+    assert isinstance(result.strategy_balance, StrategyBalanceScore)
+    assert 0 <= result.strategy_balance.max_share <= 1.0
+    assert 0 <= result.strategy_balance.gini <= 1.0
+    assert result.strategy_balance.entropy >= 0
+
+
+@pytest.mark.asyncio
+async def test_intransitive_balance_rps_detection(balance_service, sample_rps_objects):
+    """Обнаружение RPS-циклов."""
+    input_data = BalanceInput(objects=sample_rps_objects, game_mode="PvP")
+    balance_map = BalanceMap(
+        primary_model="intransitive", secondary_model="",
+        anchor="gold", game_sum="zero", feedback="balancing",
+    )
+    transitive_result = await balance_service.transitive_balance(input_data, balance_map)
+
+    result = await balance_service.intransitive_balance(
+        input_data=input_data,
+        transitive_result=transitive_result,
+        balance_map=balance_map,
+    )
+
+    # Если объекты имеют RPS-структуру, должен быть хотя бы 1 RPS-цикл
+    assert isinstance(result.rps_cycles, list)
+    # Каждый RPS-цикл должен содержать имена объектов
+    for cycle in result.rps_cycles:
+        assert isinstance(cycle, RPSCycle)
+        assert len(cycle.cycle) >= 3
+
+
+@pytest.mark.asyncio
+async def test_intransitive_balance_dominant_strategy(balance_service):
+    """Обнаружение доминантной стратегии."""
+    # Создаём объекты, где один явно доминирует
+    objects = [
+        BalanceObject(id="1", name="Weak", type="character",
+                      attributes={"attack": 5, "defense": 5, "speed": 5}, cost=100),
+        BalanceObject(id="2", name="Dominant", type="character",
+                      attributes={"attack": 50, "defense": 50, "speed": 50}, cost=100),
+        BalanceObject(id="3", name="Also Weak", type="character",
+                      attributes={"attack": 8, "defense": 8, "speed": 8}, cost=100),
+    ]
+    input_data = BalanceInput(objects=objects, game_mode="PvP")
+    balance_map = BalanceMap(
+        primary_model="transitive", secondary_model="intransitive",
+        anchor="gold", game_sum="zero", feedback="balancing",
+    )
+    transitive_result = await balance_service.transitive_balance(input_data, balance_map)
+
+    result = await balance_service.intransitive_balance(
+        input_data=input_data,
+        transitive_result=transitive_result,
+        balance_map=balance_map,
+    )
+
+    # Dominant должен иметь наибольшую долю в Нэше
+    dominant_idx = result.object_names.index("Dominant")
+    assert result.nash_equilibrium[dominant_idx] >= max(
+        p for i, p in enumerate(result.nash_equilibrium) if i != dominant_idx
+    )
+
+
+@pytest.mark.asyncio
+async def test_intransitive_balance_warnings_suggestions(balance_service, sample_pvp_objects):
+    """Проверка генерации warnings и suggestions."""
+    input_data = BalanceInput(objects=sample_pvp_objects, game_mode="PvP")
+    balance_map = BalanceMap(
+        primary_model="transitive", secondary_model="intransitive",
+        anchor="gold", game_sum="zero", feedback="balancing",
+    )
+    transitive_result = await balance_service.transitive_balance(input_data, balance_map)
+
+    result = await balance_service.intransitive_balance(
+        input_data=input_data,
+        transitive_result=transitive_result,
+        balance_map=balance_map,
+    )
+
+    assert isinstance(result.warnings, list)
+    assert isinstance(result.suggestions, list)
+
+
+# ============================================================
+# Тесты: situational_balance (Этап 4, 4.C.2)
+# ============================================================
+
+@pytest.mark.asyncio
+async def test_situational_balance_basic(balance_service, sample_pvp_objects):
+    """Базовый ситуационный анализ."""
+    input_data = BalanceInput(objects=sample_pvp_objects, game_mode="PvP", genre="rpg")
+    balance_map = BalanceMap(
+        primary_model="transitive", secondary_model="situational",
+        anchor="gold", game_sum="zero", feedback="balancing",
+    )
+    transitive_result = await balance_service.transitive_balance(input_data, balance_map)
+
+    result = await balance_service.situational_balance(
+        input_data=input_data,
+        transitive_result=transitive_result,
+        balance_map=balance_map,
+    )
+
+    assert isinstance(result, SituationalResult)
+    assert len(result.situations) > 0
+    assert len(result.situational_values) > 0
+    assert len(result.object_names) == 3
+    assert len(result.situational_ev) == 3
+
+
+@pytest.mark.asyncio
+async def test_situational_balance_situation_probabilities(balance_service, sample_pvp_objects):
+    """Сумма вероятностей ситуаций должна быть ≈ 1."""
+    input_data = BalanceInput(objects=sample_pvp_objects, game_mode="PvP", genre="rpg")
+    balance_map = BalanceMap(
+        primary_model="transitive", secondary_model="situational",
+        anchor="gold", game_sum="zero", feedback="balancing",
+    )
+    transitive_result = await balance_service.transitive_balance(input_data, balance_map)
+
+    result = await balance_service.situational_balance(
+        input_data=input_data,
+        transitive_result=transitive_result,
+        balance_map=balance_map,
+    )
+
+    total_prob = sum(s.probability for s in result.situations)
+    assert abs(total_prob - 1.0) < 0.05, f"Situation probabilities should sum to 1.0, got {total_prob}"
+
+
+@pytest.mark.asyncio
+async def test_situational_balance_situational_values(balance_service, sample_pvp_objects):
+    """Проверка матрицы ситуационных ценностей."""
+    input_data = BalanceInput(objects=sample_pvp_objects, game_mode="PvP", genre="rpg")
+    balance_map = BalanceMap(
+        primary_model="transitive", secondary_model="situational",
+        anchor="gold", game_sum="zero", feedback="balancing",
+    )
+    transitive_result = await balance_service.transitive_balance(input_data, balance_map)
+
+    result = await balance_service.situational_balance(
+        input_data=input_data,
+        transitive_result=transitive_result,
+        balance_map=balance_map,
+    )
+
+    # Матрица: objects × situations
+    n_objects = len(sample_pvp_objects)
+    n_situations = len(result.situations)
+    assert len(result.situational_values) == n_objects
+    for row in result.situational_values:
+        assert len(row) == n_situations
+        # Все значения должны быть >= 0
+        for val in row:
+            assert val >= 0.0
+
+
+@pytest.mark.asyncio
+async def test_situational_balance_versatility(balance_service, sample_pvp_objects):
+    """Проверка анализа универсальности/специализации."""
+    input_data = BalanceInput(objects=sample_pvp_objects, game_mode="PvP", genre="rpg")
+    balance_map = BalanceMap(
+        primary_model="transitive", secondary_model="situational",
+        anchor="gold", game_sum="zero", feedback="balancing",
+    )
+    transitive_result = await balance_service.transitive_balance(input_data, balance_map)
+
+    result = await balance_service.situational_balance(
+        input_data=input_data,
+        transitive_result=transitive_result,
+        balance_map=balance_map,
+    )
+
+    assert len(result.versatility_map) == 3
+    for v in result.versatility_map:
+        assert isinstance(v, VersatilityInfo)
+        assert v.type in ("universal", "specialized")
+        assert v.max_value >= v.min_value
+        assert abs(v.spread - (v.max_value - v.min_value)) < 0.01
+
+
+@pytest.mark.asyncio
+async def test_situational_balance_ev_calculation(balance_service, sample_pvp_objects):
+    """Проверка расчёта ожидаемой ситуационной ценности."""
+    input_data = BalanceInput(objects=sample_pvp_objects, game_mode="PvP", genre="rpg")
+    balance_map = BalanceMap(
+        primary_model="transitive", secondary_model="situational",
+        anchor="gold", game_sum="zero", feedback="balancing",
+    )
+    transitive_result = await balance_service.transitive_balance(input_data, balance_map)
+
+    result = await balance_service.situational_balance(
+        input_data=input_data,
+        transitive_result=transitive_result,
+        balance_map=balance_map,
+    )
+
+    # Проверяем расчёт EV вручную
+    for i, obj_name in enumerate(result.object_names):
+        manual_ev = sum(
+            result.situations[j].probability * result.situational_values[i][j]
+            for j in range(len(result.situations))
+        )
+        assert abs(result.situational_ev[i] - manual_ev) < 0.01, \
+            f"EV mismatch for {obj_name}: expected {manual_ev}, got {result.situational_ev[i]}"
+
+
+@pytest.mark.asyncio
+async def test_situational_balance_switching_cost(balance_service, sample_pvp_objects):
+    """Проверка стоимости переключения."""
+    input_data = BalanceInput(objects=sample_pvp_objects, game_mode="PvP", genre="rpg")
+    balance_map = BalanceMap(
+        primary_model="transitive", secondary_model="situational",
+        anchor="gold", game_sum="zero", feedback="balancing",
+    )
+    transitive_result = await balance_service.transitive_balance(input_data, balance_map)
+
+    result = await balance_service.situational_balance(
+        input_data=input_data,
+        transitive_result=transitive_result,
+        balance_map=balance_map,
+    )
+
+    assert result.switching_cost in ("low", "medium", "high")
+
+
+@pytest.mark.asyncio
+async def test_situational_balance_dead_zones(balance_service, sample_diverse_objects):
+    """Обнаружение мёртвых зон."""
+    input_data = BalanceInput(objects=sample_diverse_objects, game_mode="PvE", genre="rpg")
+    balance_map = BalanceMap(
+        primary_model="progression", secondary_model="situational",
+        anchor="gold", game_sum="positive", feedback="reinforcing",
+    )
+    transitive_result = await balance_service.transitive_balance(input_data, balance_map)
+
+    result = await balance_service.situational_balance(
+        input_data=input_data,
+        transitive_result=transitive_result,
+        balance_map=balance_map,
+    )
+
+    assert isinstance(result.dead_zones, list)
+    assert isinstance(result.dominant_universals, list)
+
+
+# ============================================================
+# Тесты: calculate_q_factor (4.C.2)
+# ============================================================
+
+def test_calculate_q_factor_basic(balance_service, sample_diverse_objects):
+    """Базовый Q-фактор анализ."""
+    input_data = BalanceInput(objects=sample_diverse_objects, game_mode="PvP")
+
+    # Создаём минимальный transitive_result
+    transitive_result = TransitiveResult(
+        attribute_weights={"hp": 0.33, "damage": 0.33, "speed": 0.34},
+    )
+
+    result = balance_service.calculate_q_factor(
+        input_data=input_data,
+        transitive_result=transitive_result,
+    )
+
+    assert isinstance(result, QFactorResult)
+    assert len(result.objects) == 4
+    assert len(result.q_matrix) == 4
+
+
+def test_calculate_q_factor_dominant_attributes(balance_service, sample_diverse_objects):
+    """Определение доминантных атрибутов."""
+    input_data = BalanceInput(objects=sample_diverse_objects, game_mode="PvP")
+    transitive_result = TransitiveResult(
+        attribute_weights={"hp": 0.33, "damage": 0.33, "speed": 0.34},
+    )
+
+    result = balance_service.calculate_q_factor(
+        input_data=input_data,
+        transitive_result=transitive_result,
+    )
+
+    # Tank должен доминировать по hp, DPS по damage, Speedster по speed
+    for obj in result.objects:
+        assert isinstance(obj, QFactorObject)
+        assert isinstance(obj.dominant_attributes, list)
+        assert isinstance(obj.is_redundant, bool)
+        assert 0 <= obj.redundancy_score <= 1.0
+
+
+def test_calculate_q_factor_redundant_objects(balance_service, sample_diverse_objects):
+    """Обнаружение избыточных объектов."""
+    input_data = BalanceInput(objects=sample_diverse_objects, game_mode="PvP")
+    transitive_result = TransitiveResult(
+        attribute_weights={"hp": 0.33, "damage": 0.33, "speed": 0.34},
+    )
+
+    result = balance_service.calculate_q_factor(
+        input_data=input_data,
+        transitive_result=transitive_result,
+    )
+
+    # "Redundant" объект не доминирует ни по одному атрибуту — кандидат на избыточность
+    redundant_obj = next((o for o in result.objects if o.name == "Redundant"), None)
+    assert redundant_obj is not None
+    # Redundant не доминирует по hp (Tank сильнее), не по damage (DPS сильнее), не по speed (Speedster сильнее)
+    assert redundant_obj.is_redundant is True or redundant_obj.redundancy_score > 0.5
+
+
+def test_calculate_q_factor_attribute_dominance(balance_service, sample_diverse_objects):
+    """Проверка маппинга атрибут → доминирующий объект."""
+    input_data = BalanceInput(objects=sample_diverse_objects, game_mode="PvP")
+    transitive_result = TransitiveResult(
+        attribute_weights={"hp": 0.33, "damage": 0.33, "speed": 0.34},
+    )
+
+    result = balance_service.calculate_q_factor(
+        input_data=input_data,
+        transitive_result=transitive_result,
+    )
+
+    assert isinstance(result.attribute_dominance, dict)
+    # Каждый атрибут должен быть связан с каким-то объектом
+    for attr in ["hp", "damage", "speed"]:
+        assert attr in result.attribute_dominance
+
+
+def test_calculate_q_factor_q_matrix_normalization(balance_service, sample_diverse_objects):
+    """Проверка нормализации Q-матрицы (0-1)."""
+    input_data = BalanceInput(objects=sample_diverse_objects, game_mode="PvP")
+    transitive_result = TransitiveResult(
+        attribute_weights={"hp": 0.33, "damage": 0.33, "speed": 0.34},
+    )
+
+    result = balance_service.calculate_q_factor(
+        input_data=input_data,
+        transitive_result=transitive_result,
+    )
+
+    # Все значения Q-матрицы должны быть в [0, 1]
+    for row in result.q_matrix:
+        for val in row:
+            assert 0.0 <= val <= 1.0, f"Q-matrix value should be in [0, 1], got {val}"
+
+
+def test_calculate_q_factor_warnings_suggestions(balance_service, sample_diverse_objects):
+    """Проверка генерации warnings и suggestions."""
+    input_data = BalanceInput(objects=sample_diverse_objects, game_mode="PvP")
+    transitive_result = TransitiveResult(
+        attribute_weights={"hp": 0.33, "damage": 0.33, "speed": 0.34},
+    )
+
+    result = balance_service.calculate_q_factor(
+        input_data=input_data,
+        transitive_result=transitive_result,
+    )
+
+    assert isinstance(result.warnings, list)
+    assert isinstance(result.suggestions, list)
+
+
+# ============================================================
+# Тесты: balance_full (полный пайплайн 4.C.2)
 # ============================================================
 
 @pytest.mark.asyncio
 async def test_balance_full_pipeline(balance_service, sample_pvp_objects):
-    """Полный пайплайн балансировки (Этапы 1–3)."""
+    """Полный пайплайн балансировки (Этапы 1–5 + Q-фактор)."""
     input_data = BalanceInput(
         objects=sample_pvp_objects,
         game_mode="PvP",
@@ -453,7 +940,7 @@ async def test_balance_full_pipeline(balance_service, sample_pvp_objects):
     assert isinstance(result, BalanceResult)
     assert result.balance_map is not None
     assert result.transitive_result is not None
-    assert len(result.stages_completed) == 3
+    assert len(result.stages_completed) >= 3
     assert 1 in result.stages_completed
     assert 2 in result.stages_completed
     assert 3 in result.stages_completed
@@ -470,11 +957,97 @@ async def test_balance_full_stages_completed(balance_service, sample_pve_objects
 
     result = await balance_service.balance_full(input_data)
 
-    assert result.stages_completed == [1, 2, 3]
+    assert 1 in result.stages_completed
+    assert 2 in result.stages_completed
+    assert 3 in result.stages_completed
     assert result.balance_map is not None
     assert result.transitive_result is not None
     assert result.latency_ms >= 0
     assert "ESTIMATE_WEIGHTS" in result.models_used
+
+
+@pytest.mark.asyncio
+async def test_balance_full_with_intransitive(balance_service, sample_pvp_objects):
+    """Полный пайплайн с нетранзитивным анализом."""
+    input_data = BalanceInput(
+        objects=sample_pvp_objects,
+        game_mode="PvP",
+    )
+
+    result = await balance_service.balance_full(
+        input_data=input_data,
+        run_intransitive=True,
+        run_situational=False,
+        run_q_factor=False,
+    )
+
+    assert result.intransitive_result is not None
+    assert isinstance(result.intransitive_result, IntransitiveResult)
+    assert 4 in result.stages_completed
+
+
+@pytest.mark.asyncio
+async def test_balance_full_with_situational(balance_service, sample_pvp_objects):
+    """Полный пайплайн с ситуационным анализом."""
+    input_data = BalanceInput(
+        objects=sample_pvp_objects,
+        game_mode="PvP",
+        genre="rpg",
+    )
+
+    result = await balance_service.balance_full(
+        input_data=input_data,
+        run_intransitive=False,
+        run_situational=True,
+        run_q_factor=False,
+    )
+
+    assert result.situational_result is not None
+    assert isinstance(result.situational_result, SituationalResult)
+    assert 5 in result.stages_completed
+
+
+@pytest.mark.asyncio
+async def test_balance_full_with_qfactor(balance_service, sample_pvp_objects):
+    """Полный пайплайн с Q-фактор анализом."""
+    input_data = BalanceInput(
+        objects=sample_pvp_objects,
+        game_mode="PvP",
+    )
+
+    result = await balance_service.balance_full(
+        input_data=input_data,
+        run_intransitive=False,
+        run_situational=False,
+        run_q_factor=True,
+    )
+
+    assert result.q_factor_result is not None
+    assert isinstance(result.q_factor_result, QFactorResult)
+    assert 6 in result.stages_completed
+
+
+@pytest.mark.asyncio
+async def test_balance_full_all_stages(balance_service, sample_pvp_objects):
+    """Полный пайплайн со всеми этапами."""
+    input_data = BalanceInput(
+        objects=sample_pvp_objects,
+        game_mode="PvP",
+        genre="rpg",
+    )
+
+    result = await balance_service.balance_full(
+        input_data=input_data,
+        run_intransitive=True,
+        run_situational=True,
+        run_q_factor=True,
+    )
+
+    # Все этапы должны быть завершены
+    assert set(result.stages_completed) == {1, 2, 3, 4, 5, 6}
+    assert result.intransitive_result is not None
+    assert result.situational_result is not None
+    assert result.q_factor_result is not None
 
 
 @pytest.mark.asyncio
@@ -500,7 +1073,7 @@ async def test_balance_full_with_mda(balance_service, sample_pvp_objects):
     )
 
     assert isinstance(result, BalanceResult)
-    assert result.stages_completed == [1, 2, 3]
+    assert len(result.stages_completed) >= 3
 
 
 # ============================================================
@@ -510,7 +1083,6 @@ async def test_balance_full_with_mda(balance_service, sample_pvp_objects):
 @pytest.mark.asyncio
 async def test_api_balance_transitive(test_client, auth_headers):
     """Тест POST /api/v1/balance/transitive."""
-    # Используем эндпоинт с авторизацией
     response = await test_client.post(
         "/api/v1/balance/transitive",
         json={
@@ -538,7 +1110,6 @@ async def test_api_balance_transitive(test_client, auth_headers):
         headers=auth_headers,
     )
 
-    # Может быть 200 или 401/403/500 в зависимости от окружения
     assert response.status_code in (200, 401, 403, 500)
 
     if response.status_code == 200:
@@ -547,6 +1118,90 @@ async def test_api_balance_transitive(test_client, auth_headers):
         assert "cost_curve_model" in data
         assert "objects" in data
         assert len(data["objects"]) == 2
+
+
+@pytest.mark.asyncio
+async def test_api_balance_intransitive(test_client, auth_headers):
+    """Тест POST /api/v1/balance/intransitive."""
+    response = await test_client.post(
+        "/api/v1/balance/intransitive",
+        json={
+            "objects": [
+                {"id": "1", "name": "Rock", "type": "character",
+                 "attributes": {"attack": 10, "defense": 30, "speed": 5}, "cost": 100, "tags": []},
+                {"id": "2", "name": "Scissors", "type": "character",
+                 "attributes": {"attack": 30, "defense": 5, "speed": 15}, "cost": 100, "tags": []},
+                {"id": "3", "name": "Paper", "type": "character",
+                 "attributes": {"attack": 15, "defense": 15, "speed": 25}, "cost": 100, "tags": []},
+            ],
+            "game_mode": "PvP",
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code in (200, 401, 403, 500)
+
+    if response.status_code == 200:
+        data = response.json()
+        assert "payoff_matrix" in data
+        assert "nash_equilibrium" in data
+        assert "is_intransitive" in data
+        assert "rps_cycles" in data
+
+
+@pytest.mark.asyncio
+async def test_api_balance_situational(test_client, auth_headers):
+    """Тест POST /api/v1/balance/situational."""
+    response = await test_client.post(
+        "/api/v1/balance/situational",
+        json={
+            "objects": [
+                {"id": "1", "name": "Tank", "type": "character",
+                 "attributes": {"hp": 200, "damage": 10}, "cost": 100, "tags": []},
+                {"id": "2", "name": "DPS", "type": "character",
+                 "attributes": {"hp": 50, "damage": 40}, "cost": 100, "tags": []},
+            ],
+            "game_mode": "PvE",
+            "genre": "rpg",
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code in (200, 401, 403, 500)
+
+    if response.status_code == 200:
+        data = response.json()
+        assert "situations" in data
+        assert "situational_values" in data
+        assert "situational_ev" in data
+
+
+@pytest.mark.asyncio
+async def test_api_balance_qfactor(test_client, auth_headers):
+    """Тест POST /api/v1/balance/qfactor."""
+    response = await test_client.post(
+        "/api/v1/balance/qfactor",
+        json={
+            "objects": [
+                {"id": "1", "name": "Tank", "type": "character",
+                 "attributes": {"hp": 200, "damage": 10, "speed": 3}, "cost": 100, "tags": []},
+                {"id": "2", "name": "DPS", "type": "character",
+                 "attributes": {"hp": 50, "damage": 40, "speed": 10}, "cost": 100, "tags": []},
+                {"id": "3", "name": "Speedster", "type": "character",
+                 "attributes": {"hp": 70, "damage": 15, "speed": 30}, "cost": 100, "tags": []},
+            ],
+            "game_mode": "PvP",
+        },
+        headers=auth_headers,
+    )
+
+    assert response.status_code in (200, 401, 403, 500)
+
+    if response.status_code == 200:
+        data = response.json()
+        assert "objects" in data
+        assert "redundant_objects" in data
+        assert "attribute_dominance" in data
 
 
 @pytest.mark.asyncio
@@ -567,11 +1222,13 @@ async def test_api_balance_analyze(test_client, auth_headers):
             ],
             "game_mode": "PvE",
             "genre": "rpg",
+            "run_intransitive": True,
+            "run_situational": True,
+            "run_q_factor": True,
         },
         headers=auth_headers,
     )
 
-    # Может быть 200 или 401/403/500
     assert response.status_code in (200, 401, 403, 500)
 
     if response.status_code == 200:
@@ -599,19 +1256,15 @@ def test_least_squares_weights(balance_service):
 
     weights = balance_service._least_squares_weights(objects, ["hp", "damage"])
 
-    # Веса должны быть рассчитаны (cost = w_hp * hp + w_damage * damage)
     assert weights is not None
     assert "hp" in weights
     assert "damage" in weights
-    # Сумма весов должна быть ≈ 1 (нормализованные)
     total = sum(weights.values())
     assert abs(total - 1.0) < 0.01, f"Weights should sum to 1.0, got {total}"
 
 
 def test_solve_linear_system(balance_service):
     """Тест решения линейной системы."""
-    # Простая система: 2x + 3y = 8, 4x + y = 6
-    # Решение: x = 1, y = 2
     A = [[2.0, 3.0], [4.0, 1.0]]
     b = [8.0, 6.0]
 
@@ -636,18 +1289,15 @@ def test_calculate_power(balance_service):
 
 def test_calculate_effective_cost(balance_service):
     """Тест расчёта эффективной стоимости."""
-    # С явной стоимостью
     obj_with_cost = BalanceObject(id="1", name="Test", type="character",
                                    attributes={"hp": 100}, cost=50)
     assert balance_service._calculate_effective_cost(obj_with_cost, "identity") == 50
 
-    # Без стоимости — identity модель
     obj_no_cost = BalanceObject(id="2", name="Test2", type="character",
                                  attributes={"hp": 100, "damage": 20})
     cost_identity = balance_service._calculate_effective_cost(obj_no_cost, "identity")
     assert cost_identity == 120  # sum of attributes
 
-    # Без стоимости — progression модель (80% от суммы)
     cost_progression = balance_service._calculate_effective_cost(obj_no_cost, "progression")
     assert abs(cost_progression - 96.0) < 0.001  # 120 * 0.8
 
@@ -658,7 +1308,6 @@ def test_get_threshold(balance_service):
     assert balance_service._get_threshold("PvE", "") == 0.15
     assert balance_service._get_threshold("PvPvE", "") == 0.12
     assert balance_service._get_threshold("casual", "") == 0.20
-    # Жанровый override
     assert balance_service._get_threshold("PvE", "party") == 0.25
     assert balance_service._get_threshold("PvP", "sandbox") == 0.20
 

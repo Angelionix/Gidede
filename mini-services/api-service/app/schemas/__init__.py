@@ -2,6 +2,7 @@
 Gidede — Pydantic схемы для валидации API
 Фаза 4.A.4–4.A.5: Схемы Project State + Auth
 Фаза 4.B.6: Схемы Core Loop Designer
+Фаза 4.C.1–4.C.2: Схемы Balance Service
 """
 
 from app.schemas.auth import (
@@ -15,6 +16,14 @@ from app.schemas.coreloop import (
     CoreLoopStep, ResourceProfile, RiskProfile, StructuralType,
     LoopProfile, LoopHierarchy, Pathology, PathologyReport, CoreLoopProfile,
 )
+from app.schemas.balance import (
+    BalanceObject, BalanceInput, BalanceMap,
+    ObjectBalanceReport, TransitiveResult,
+    IntransitiveResult, StrategyBalanceScore, RPSCycle,
+    SituationalResult, Situation, VersatilityInfo,
+    QFactorResult, QFactorObject,
+    BalanceResult,
+)
 
 __all__ = [
     "UserRegister", "UserLogin", "UserResponse", "TokenResponse",
@@ -22,4 +31,10 @@ __all__ = [
     "ProjectCreate", "ProjectUpdate", "ProjectResponse", "ProjectListResponse",
     "CoreLoopStep", "ResourceProfile", "RiskProfile", "StructuralType",
     "LoopProfile", "LoopHierarchy", "Pathology", "PathologyReport", "CoreLoopProfile",
+    "BalanceObject", "BalanceInput", "BalanceMap",
+    "ObjectBalanceReport", "TransitiveResult",
+    "IntransitiveResult", "StrategyBalanceScore", "RPSCycle",
+    "SituationalResult", "Situation", "VersatilityInfo",
+    "QFactorResult", "QFactorObject",
+    "BalanceResult",
 ]

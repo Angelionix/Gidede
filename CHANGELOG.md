@@ -9,6 +9,66 @@
 
 ---
 
+## [0.16.0] — 2026-05-18
+
+### Добавлено
+
+#### Продвинутые модули (Фаза 4.C, Блок 4 Backend — продолжение)
+- Блок 4: Backend — Intransitive-анализ и ситуационный баланс — 4.C.2
+  - **Этап 3: Нетранзитивный анализ (RPS-структуры)** (3.4.5)
+    - Построение payoff-матрицы N×N (объекты × оппоненты, EV при встрече)
+    - Антисимметричная матрица: M[i][j] = -M[j][i], диагональ = 0
+    - Учёт стихийных преимуществ через теги объектов (ELEMENTAL_ADVANTAGES)
+    - Обнаружение нетранзитивных (RPS) циклов: A > B > C > A
+    - Поиск равновесия Нэша через итеративный метод multiplicative weights update
+    - Выявление доминируемых стратегий (вероятность = 0 в равновесии)
+    - Метрики баланса стратегий: энтропия, доля доминанта (max_share), коэффициент Джини
+    - Обнаружение доминантной стратегии (доля > 50%) с AI-коррекциями через SUGGEST_INTRANSITIVE_CORRECTIONS
+    - Проверка «КНБ со стоимостью» (эффект Шрайбера: усиление может снизить использование)
+  - **Этап 4: Ситуационный анализ (контекстная ценность)** (3.4.6)
+    - Жанровые ситуации: RPG (5), Action (5), Strategy/RTS (4), fallback — default
+    - Оценка ценности каждого объекта в каждой ситуации (0.0–2.0, 1.0 = средняя)
+    - Расчёт ожидаемой ситуационной ценности: EV = Σ P(ситуация) × Ценность
+    - Классификация универсальность/специализация (порог spread = 0.3)
+    - Обнаружение мёртвых зон (объекты, не доминирующие ни в одной ситуации)
+    - Обнаружение доминантных универсальных объектов (EV > 1.2)
+    - Оценка стоимости переключения (low/medium/high по жанру)
+  - **Q-фактор анализ (Роллингс/Моррис, Кн. 12)**
+    - Построение Q-матрицы: объекты × атрибуты (нормализация min-max 0–1)
+    - Определение доминантных атрибутов для каждого объекта
+    - Выявление избыточных объектов (не доминируют ни по одному атрибуту)
+    - Расчёт оценки избыточности (0 = уникален, 1 = полностью избыточен)
+    - Маппинг «атрибут → доминирующий объект»
+
+#### Схемы данных (Блок 4 — Intransitive/Situational/Q-Factor)
+- `IntransitiveResult` — результат нетранзитивного анализа (payoff_matrix, nash_equilibrium, rps_cycles, strategy_balance, warnings, suggestions)
+- `StrategyBalanceScore` — метрики баланса стратегий (entropy, max_share, gini)
+- `RPSCycle` — нетранзитивный цикл (cycle, strength)
+- `SituationalResult` — результат ситуационного анализа (situations, situational_values, situational_ev, versatility_map, dead_zones, dominant_universals)
+- `Situation` — игровая ситуация (name, probability)
+- `VersatilityInfo` — универсальность/специализация (max_value, min_value, spread, type)
+- `QFactorResult` — результат Q-фактор анализа (objects, redundant_objects, attribute_dominance, q_matrix)
+- `QFactorObject` — Q-фактор одного объекта (name, dominant_attributes, is_redundant, redundancy_score)
+- `BalanceResult` — расширен: добавлены поля intransitive_result, situational_result, q_factor_result
+
+#### API
+- POST `/api/v1/balance/intransitive` — нетранзитивный анализ баланса (payoff-матрица, Нэш, RPS-циклы)
+- POST `/api/v1/balance/situational` — ситуационный анализ (EV, универсальность, мёртвые зоны)
+- POST `/api/v1/balance/qfactor` — Q-фактор анализ (избыточные объекты, доминантные атрибуты)
+- POST `/api/v1/balance/analyze` — обновлён: полный пайплайн Этапов 1–5 + Q-фактор с параметрами run_intransitive, run_situational, run_q_factor
+
+#### Тесты
+- 50+ тестов для BalanceService: classify (3), transitive (8), stability (3), intransitive (8), situational (8), q_factor (5), full pipeline (8), API (6), helpers (7)
+
+### Изменено
+- `balance_service.py` — расширен с Этапов 1–3 до Этапов 1–5 + Q-фактор (2175 строк)
+- `balance_full()` — обновлён: добавлены параметры run_intransitive, run_situational, run_q_factor
+- `services/__init__.py` — добавлен экспорт BalanceService
+- `schemas/__init__.py` — добавлен экспорт balance schemas
+- Версия обновлена с 0.15.0 до 0.16.0
+
+---
+
 ## [0.15.0] — 2026-05-18
 
 ### Добавлено

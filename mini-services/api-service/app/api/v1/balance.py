@@ -1,10 +1,13 @@
 """
 Блок 4: Баланс и симуляция — API endpoints.
-Фаза 4.C.1: Полная реализация Этапов 1–3 алгоритма 3.4.
+Фаза 4.C.1–4.C.2: Полная реализация Этапов 1–5 + Q-фактор алгоритма 3.4.
 
 Endpoints:
 - POST /transitive — transitive-анализ баланса (Этап 2)
-- POST /analyze — полный анализ баланса (Этапы 1–3)
+- POST /intransitive — нетранзитивный анализ (Этап 3)
+- POST /situational — ситуационный анализ (Этап 4)
+- POST /qfactor — Q-фактор анализ
+- POST /analyze — полный анализ баланса (Этапы 1–5 + Q-фактор)
 - GET /{project_id} — получить результаты балансировки для проекта
 """
 
@@ -22,6 +25,9 @@ from app.schemas.balance import (
     BalanceInput,
     BalanceResult,
     TransitiveResult,
+    IntransitiveResult,
+    SituationalResult,
+    QFactorResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -61,8 +67,39 @@ class TransitiveBalanceRequest(BaseModel):
     target_levels: Optional[int] = Field(None, description="Целевое количество уровней")
 
 
+class IntransitiveBalanceRequest(BaseModel):
+    """Входные данные для нетранзитивного анализа (алгоритм 3.4, Этап 3)."""
+    objects: List[BalanceObjectRequest] = Field(
+        ..., description="Список объектов для анализа",
+    )
+    game_mode: str = Field("PvP", description="PvP/PvE/PvPvE")
+    genre: str = Field("", description="Жанр игры")
+    balance_type: str = Field("mixed", description="transitive/intransitive/situational/mixed")
+    anchor_resource: Optional[str] = Field(None, description="Якорный ресурс")
+
+
+class SituationalBalanceRequest(BaseModel):
+    """Входные данные для ситуационного анализа (алгоритм 3.4, Этап 4)."""
+    objects: List[BalanceObjectRequest] = Field(
+        ..., description="Список объектов для анализа",
+    )
+    game_mode: str = Field("PvE", description="PvP/PvE/PvPvE")
+    genre: str = Field("", description="Жанр игры")
+    balance_type: str = Field("mixed", description="transitive/intransitive/situational/mixed")
+    anchor_resource: Optional[str] = Field(None, description="Якорный ресурс")
+
+
+class QFactorRequest(BaseModel):
+    """Входные данные для Q-фактор анализа."""
+    objects: List[BalanceObjectRequest] = Field(
+        ..., description="Список объектов для анализа",
+    )
+    game_mode: str = Field("PvE", description="PvP/PvE/PvPvE")
+    genre: str = Field("", description="Жанр игры")
+
+
 class FullBalanceRequest(BaseModel):
-    """Входные данные для полного анализа баланса (алгоритм 3.4, Этапы 1–3)."""
+    """Входные данные для полного анализа баланса (алгоритм 3.4, Этапы 1–5 + Q)."""
     objects: List[BalanceObjectRequest] = Field(
         ..., description="Список объектов для балансировки",
     )
@@ -76,6 +113,9 @@ class FullBalanceRequest(BaseModel):
     target_duration: Optional[float] = Field(None, description="Целевая длительность (с)")
     target_levels: Optional[int] = Field(None, description="Целевое количество уровней")
     mda_profile: Optional[dict] = Field(None, description="MDA-профиль (из Блока 3)")
+    run_intransitive: bool = Field(True, description="Запустить нетранзитивный анализ")
+    run_situational: bool = Field(True, description="Запустить ситуационный анализ")
+    run_q_factor: bool = Field(True, description="Запустить Q-фактор анализ")
 
 
 class TransitiveBalanceResponse(BaseModel):
@@ -92,11 +132,51 @@ class TransitiveBalanceResponse(BaseModel):
     suggestions: List[str]
 
 
+class IntransitiveBalanceResponse(BaseModel):
+    """Результат нетранзитивного анализа."""
+    payoff_matrix: List[List[float]]
+    object_names: List[str]
+    nash_equilibrium: List[float]
+    is_intransitive: bool
+    dominated_strategies: List[int]
+    strategy_balance: Optional[dict] = None
+    rps_cycles: List[dict]
+    has_dominant_strategy: bool
+    warnings: List[str]
+    suggestions: List[str]
+
+
+class SituationalBalanceResponse(BaseModel):
+    """Результат ситуационного анализа."""
+    situations: List[dict]
+    situational_values: List[List[float]]
+    object_names: List[str]
+    situational_ev: List[float]
+    versatility_map: List[dict]
+    dead_zones: List[str]
+    dominant_universals: List[str]
+    switching_cost: str
+    warnings: List[str]
+    suggestions: List[str]
+
+
+class QFactorResponse(BaseModel):
+    """Результат Q-фактор анализа."""
+    objects: List[dict]
+    redundant_objects: List[str]
+    attribute_dominance: dict[str, str]
+    warnings: List[str]
+    suggestions: List[str]
+
+
 class FullBalanceResponse(BaseModel):
     """Результат полного анализа баланса."""
     id: str
     balance_map: Optional[dict] = None
     transitive_result: Optional[dict] = None
+    intransitive_result: Optional[dict] = None
+    situational_result: Optional[dict] = None
+    q_factor_result: Optional[dict] = None
     stability: Optional[dict] = None
     stages_completed: List[int] = []
     latency_ms: int = 0
@@ -182,6 +262,14 @@ def _convert_objects(request_objects: List[BalanceObjectRequest]) -> list[Balanc
     ]
 
 
+def _build_balance_input(request_objects: List[BalanceObjectRequest], **kwargs) -> BalanceInput:
+    """Собрать BalanceInput из запроса."""
+    return BalanceInput(
+        objects=_convert_objects(request_objects),
+        **{k: v for k, v in kwargs.items() if v is not None},
+    )
+
+
 # ============================================================
 # Endpoints
 # ============================================================
@@ -208,12 +296,8 @@ async def transitive_balance(
     try:
         service = await get_balance_service()
 
-        # Конвертируем объекты
-        balance_objects = _convert_objects(input_data.objects)
-
-        # Строим BalanceInput
-        balance_input = BalanceInput(
-            objects=balance_objects,
+        balance_input = _build_balance_input(
+            input_data.objects,
             game_mode=input_data.game_mode,
             genre=input_data.genre,
             balance_type=input_data.balance_type,
@@ -222,7 +306,7 @@ async def transitive_balance(
             target_levels=input_data.target_levels,
         )
 
-        # Сначала классифицируем задачу (нужен BalanceMap)
+        # Сначала классифицируем задачу
         balance_map = await service.classify_balance_task(
             input_data=balance_input,
         )
@@ -259,18 +343,217 @@ async def transitive_balance(
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
 
 
+@router.post("/intransitive", response_model=IntransitiveBalanceResponse)
+async def intransitive_balance(
+    input_data: IntransitiveBalanceRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Нетранзитивный анализ баланса (алгоритм 3.4, Этап 3).
+
+    Выполняет:
+    1. Построение payoff-матрицы
+    2. Поиск RPS-циклов (нетранзитивных отношений)
+    3. Расчёт равновесия Нэша
+    4. Анализ распределения стратегий
+    5. Обнаружение доминантных стратегий
+
+    Возвращает IntransitiveResult с payoff-матрицей и анализом.
+    """
+    user_id = current_user.id
+    logger.info(f"Intransitive balance analysis for user {user_id}")
+
+    try:
+        service = await get_balance_service()
+
+        balance_input = _build_balance_input(
+            input_data.objects,
+            game_mode=input_data.game_mode,
+            genre=input_data.genre,
+            balance_type=input_data.balance_type,
+            anchor_resource=input_data.anchor_resource,
+        )
+
+        # Классификация + transitive (необходимы для intransitive)
+        balance_map = await service.classify_balance_task(input_data=balance_input)
+        transitive_result = await service.transitive_balance(
+            input_data=balance_input, balance_map=balance_map,
+        )
+
+        # Нетранзитивный анализ
+        result = await service.intransitive_balance(
+            input_data=balance_input,
+            transitive_result=transitive_result,
+            balance_map=balance_map,
+        )
+
+        response = IntransitiveBalanceResponse(
+            payoff_matrix=result.payoff_matrix,
+            object_names=result.object_names,
+            nash_equilibrium=result.nash_equilibrium,
+            is_intransitive=result.is_intransitive,
+            dominated_strategies=result.dominated_strategies,
+            strategy_balance=result.strategy_balance.model_dump() if result.strategy_balance else None,
+            rps_cycles=[c.model_dump() for c in result.rps_cycles],
+            has_dominant_strategy=result.has_dominant_strategy,
+            warnings=result.warnings,
+            suggestions=result.suggestions,
+        )
+
+        return response
+
+    except ValueError as e:
+        logger.error(f"Validation error in intransitive balance: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        logger.error(f"Runtime error in intransitive balance: {e}")
+        raise HTTPException(status_code=503, detail="AI-сервис временно недоступен. Попробуйте позже.")
+    except Exception as e:
+        logger.error(f"Unexpected error in intransitive balance: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
+
+
+@router.post("/situational", response_model=SituationalBalanceResponse)
+async def situational_balance(
+    input_data: SituationalBalanceRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Ситуационный анализ баланса (алгоритм 3.4, Этап 4).
+
+    Выполняет:
+    1. Определение игровых ситуаций
+    2. Оценку ценности каждого объекта в каждой ситуации
+    3. Расчёт ожидаемой ситуационной ценности (EV)
+    4. Анализ универсальности vs специализации
+
+    Возвращает SituationalResult с матрицей ценности и анализом.
+    """
+    user_id = current_user.id
+    logger.info(f"Situational balance analysis for user {user_id}")
+
+    try:
+        service = await get_balance_service()
+
+        balance_input = _build_balance_input(
+            input_data.objects,
+            game_mode=input_data.game_mode,
+            genre=input_data.genre,
+            balance_type=input_data.balance_type,
+            anchor_resource=input_data.anchor_resource,
+        )
+
+        # Классификация + transitive
+        balance_map = await service.classify_balance_task(input_data=balance_input)
+        transitive_result = await service.transitive_balance(
+            input_data=balance_input, balance_map=balance_map,
+        )
+
+        # Ситуационный анализ
+        result = await service.situational_balance(
+            input_data=balance_input,
+            transitive_result=transitive_result,
+            balance_map=balance_map,
+        )
+
+        response = SituationalBalanceResponse(
+            situations=[s.model_dump() for s in result.situations],
+            situational_values=result.situational_values,
+            object_names=result.object_names,
+            situational_ev=result.situational_ev,
+            versatility_map=[v.model_dump() for v in result.versatility_map],
+            dead_zones=result.dead_zones,
+            dominant_universals=result.dominant_universals,
+            switching_cost=result.switching_cost,
+            warnings=result.warnings,
+            suggestions=result.suggestions,
+        )
+
+        return response
+
+    except ValueError as e:
+        logger.error(f"Validation error in situational balance: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        logger.error(f"Runtime error in situational balance: {e}")
+        raise HTTPException(status_code=503, detail="AI-сервис временно недоступен. Попробуйте позже.")
+    except Exception as e:
+        logger.error(f"Unexpected error in situational balance: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
+
+
+@router.post("/qfactor", response_model=QFactorResponse)
+async def q_factor_analysis(
+    input_data: QFactorRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Q-фактор анализ (Роллингс/Моррис, Кн. 12).
+
+    Выполняет:
+    1. Построение Q-матрицы (нормализованные значения 0-1)
+    2. Определение доминантных атрибутов
+    3. Выявление избыточных объектов
+
+    Возвращает QFactorResult с анализом избыточности.
+    """
+    user_id = current_user.id
+    logger.info(f"Q-factor analysis for user {user_id}")
+
+    try:
+        service = await get_balance_service()
+
+        balance_input = _build_balance_input(
+            input_data.objects,
+            game_mode=input_data.game_mode,
+            genre=input_data.genre,
+        )
+
+        # Transitive нужен для weights
+        balance_map = await service.classify_balance_task(input_data=balance_input)
+        transitive_result = await service.transitive_balance(
+            input_data=balance_input, balance_map=balance_map,
+        )
+
+        # Q-фактор
+        result = service.calculate_q_factor(
+            input_data=balance_input,
+            transitive_result=transitive_result,
+        )
+
+        response = QFactorResponse(
+            objects=[o.model_dump() for o in result.objects],
+            redundant_objects=result.redundant_objects,
+            attribute_dominance=result.attribute_dominance,
+            warnings=result.warnings,
+            suggestions=result.suggestions,
+        )
+
+        return response
+
+    except ValueError as e:
+        logger.error(f"Validation error in Q-factor: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error in Q-factor: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
+
+
 @router.post("/analyze", response_model=FullBalanceResponse)
 async def analyze_balance(
     input_data: FullBalanceRequest,
     current_user: User = Depends(get_current_user),
 ):
     """
-    Полный анализ баланса (алгоритм 3.4, Этапы 1–3).
+    Полный анализ баланса (алгоритм 3.4, Этапы 1–5 + Q-фактор).
 
     Выполняет:
     1. Классификацию задачи балансировки → BalanceMap
     2. Transitive-анализ → TransitiveResult
-    3. Анализ устойчивости (Schreiber) → StabilityAssessment
+    3. Анализ устойчивости (Schreiber)
+    4. Нетранзитивный анализ → IntransitiveResult
+    5. Ситуационный анализ → SituationalResult
+    Q. Q-фактор анализ → QFactorResult
 
     Возвращает BalanceResult с результатами всех этапов.
     """
@@ -280,12 +563,8 @@ async def analyze_balance(
     try:
         service = await get_balance_service()
 
-        # Конвертируем объекты
-        balance_objects = _convert_objects(input_data.objects)
-
-        # Строим BalanceInput
         balance_input = BalanceInput(
-            objects=balance_objects,
+            objects=_convert_objects(input_data.objects),
             resources=input_data.resources,
             game_mode=input_data.game_mode,
             genre=input_data.genre,
@@ -299,6 +578,9 @@ async def analyze_balance(
         result = await service.balance_full(
             input_data=balance_input,
             mda_profile=input_data.mda_profile,
+            run_intransitive=input_data.run_intransitive,
+            run_situational=input_data.run_situational,
+            run_q_factor=input_data.run_q_factor,
         )
 
         # Извлекаем stability из warnings (Stage 3)
@@ -315,6 +597,9 @@ async def analyze_balance(
             id=result_id,
             balance_map=result.balance_map.model_dump() if result.balance_map else None,
             transitive_result=result.transitive_result.model_dump() if result.transitive_result else None,
+            intransitive_result=result.intransitive_result.model_dump() if result.intransitive_result else None,
+            situational_result=result.situational_result.model_dump() if result.situational_result else None,
+            q_factor_result=result.q_factor_result.model_dump() if result.q_factor_result else None,
             stability=stability,
             stages_completed=result.stages_completed,
             latency_ms=result.latency_ms,
@@ -348,12 +633,12 @@ async def get_balance_result(
     привязанные к проекту.
     """
     try:
-        # TODO: Полная реализация сохранения в БД (Фаза 4.C.2+)
+        # TODO: Полная реализация сохранения в БД (Фаза 4.C.3+)
         # Пока возвращаем stub
         return {
             "project_id": project_id,
             "status": "not_found",
-            "message": "Сохранение результатов балансировки будет реализовано в Фазе 4.C.2",
+            "message": "Сохранение результатов балансировки будет реализовано в Фазе 4.C.3",
         }
     except Exception as e:
         logger.error(f"Error fetching balance result: {e}")

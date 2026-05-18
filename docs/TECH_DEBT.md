@@ -92,6 +92,8 @@
 | 2026-05-18 | TD-010 → Resolved: README заполнен в v0.9.0 |
 | 2026-03-05 | TD-005 → Resolved: docs/glossary.md с 70+ терминами; TD-011 → Resolved: .github/workflows/ci.yml; TD-012 → Resolved: golden dataset (15 промпт-примеров + 3 MDA-сценария); DEFERRED-002, DEFERRED-005 → Resolved |
 | 2026-05-18 | TD-007 → Resolved: 26 тестов balance_service + 290+ тестов для всех сервисов (4.C.1) |
+| 2026-05-18 | DEFERRED-004 → Partially Resolved: SUGGEST_INTRANSITIVE_CORRECTIONS и EVALUATE_SITUATIONAL_VALUE промпты добавлены в registry (4.C.2) |
+| 2026-05-18 | TD-013 → In Progress: Начата реализация Machinations-симуляции (базовые узлы) в 4.C.2, полная реализация в 4.C.3 |
 
 ---
 

@@ -1,8 +1,8 @@
 # Gidede — Документ тестирования
 
-> **Фаза**: 4.C.1 (Блок 4: Transitive-анализ баланса)  
+> **Фаза**: 4.C.2 (Блок 4: Intransitive-анализ и ситуационный баланс)  
 > **Дата**: 2026-05-18  
-> **Версия**: 0.15.0  
+> **Версия**: 0.16.0  
 > **Статус**: Активный  
 > **Подход**: Локальное тестирование (без GitHub Actions)
 
@@ -1401,6 +1401,58 @@ python scripts/load_knowledge.py --file ../../docs/bible/bible_2_3_mda_framework
 | B-337 | test_get_threshold | Пороговые значения для PvP/PvE/casual |
 | B-338 | test_generate_warnings | Генерация предупреждений для несбалансированных объектов |
 | B-339 | test_generate_suggestions | Генерация предложений коррекции |
+
+##### Balance Service — Нетранзитивный анализ (4.C.2) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-340 | test_intransitive_balance_basic | Базовый нетранзитивный анализ с 3 объектами |
+| B-341 | test_intransitive_balance_payoff_matrix | Антисимметричность payoff-матрицы: M[i][j] = -M[j][i] |
+| B-342 | test_intransitive_balance_nash_equilibrium | Равновесие Нэша: сумма вероятностей ≈ 1.0, все ≥ 0 |
+| B-343 | test_intransitive_balance_strategy_balance | Метрики баланса стратегий (entropy, max_share, gini) |
+| B-344 | test_intransitive_balance_rps_detection | Обнаружение RPS-циклов в структуре объектов |
+| B-345 | test_intransitive_balance_dominant_strategy | Обнаружение доминантной стратегии (max_share > 50%) |
+| B-346 | test_intransitive_balance_warnings_suggestions | Генерация warnings и suggestions |
+
+##### Balance Service — Ситуационный анализ (4.C.2) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-347 | test_situational_balance_basic | Базовый ситуационный анализ с ситуациями |
+| B-348 | test_situational_balance_situation_probabilities | Сумма вероятностей ситуаций ≈ 1.0 |
+| B-349 | test_situational_balance_situational_values | Матрица ценности: objects × situations, все ≥ 0 |
+| B-350 | test_situational_balance_versatility | Классификация universal/specialized по spread |
+| B-351 | test_situational_balance_ev_calculation | Расчёт EV = Σ P(situation) × value |
+| B-352 | test_situational_balance_switching_cost | Стоимость переключения low/medium/high |
+| B-353 | test_situational_balance_dead_zones | Обнаружение мёртвых зон и доминантных универсалов |
+
+##### Balance Service — Q-фактор анализ (4.C.2) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-354 | test_calculate_q_factor_basic | Базовый Q-фактор анализ с 4 объектами |
+| B-355 | test_calculate_q_factor_dominant_attributes | Определение доминантных атрибутов для каждого объекта |
+| B-356 | test_calculate_q_factor_redundant_objects | Обнаружение избыточных объектов (не доминируют ни по одному атрибуту) |
+| B-357 | test_calculate_q_factor_attribute_dominance | Маппинг «атрибут → доминирующий объект» |
+| B-358 | test_calculate_q_factor_q_matrix_normalization | Нормализация Q-матрицы (0–1) |
+| B-359 | test_calculate_q_factor_warnings_suggestions | Генерация warnings и suggestions для избыточных объектов |
+
+##### Balance Service — Полный пайплайн 4.C.2 (обновлён) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-360 | test_balance_full_with_intransitive | Полный пайплайн с нетранзитивным анализом (stage 4) |
+| B-361 | test_balance_full_with_situational | Полный пайплайн с ситуационным анализом (stage 5) |
+| B-362 | test_balance_full_with_qfactor | Полный пайплайн с Q-фактор анализом (stage 6) |
+| B-363 | test_balance_full_all_stages | Полный пайплайн stages_completed = [1,2,3,4,5,6] |
+
+##### Balance Service — API 4.C.2 (новые эндпоинты) ★
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B-364 | test_api_balance_intransitive | POST /api/v1/balance/intransitive — payoff-матрица, Нэш, RPS |
+| B-365 | test_api_balance_situational | POST /api/v1/balance/situational — EV, универсальность |
+| B-366 | test_api_balance_qfactor | POST /api/v1/balance/qfactor — избыточные объекты |
 
 ---
 ## 8. Pre-commit хуки

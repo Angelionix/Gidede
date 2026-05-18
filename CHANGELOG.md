@@ -9,6 +9,34 @@
 
 ---
 
+## [0.25.0] — 2026-05-19
+
+### Добавлено
+
+#### Продвинутые модули (Фаза 4.C, Блок 5 UI)
+- Блок 5: UI — Экономика и прогрессия — 4.C.8
+  - **EconomyProgressionPage** — страница `/blocks/5` с двумя вкладками и формами ввода
+  - **Прогрессия** — вкладка с формой ввода и 5 поддкладками результатов:
+    - Форма: жанр, длительность, уровни, тип прогрессии, монетизация, pacing
+    - Макро-параметры: totalLevels, targetDuration, progressionType, contentRequirements, emergenceRatio, lockKeyModel
+    - Этапы/Tiers: таблица с 8 колонками (Tier, Level Range, Scale, Dominant Mechanic, Balance Type, Difficulty Curve, Resource State, Transition Trigger)
+    - Кривые: 4 Recharts LineChart (XP→Level, Level→Power, Level→Cost, Difficulty) с формулами и параметрами
+    - Контент-план: таблица tier_plans, таблица unlock_tree, график воспринимаемой сложности
+    - Валидация: overall_score, severity counts, pass/fail проверки (no_grind, no_walls, no_empty_levels, no_runaway, no_build_gaps, aesthetic_alignment)
+  - **Экономика** — вкладка с формой ввода и 5 поддкладками результатов:
+    - Форма: жанр, монетизация, openness
+    - Ресурсы: таблица ресурсов с группировкой (core/subsidiary), boolean-иконки
+    - Классификация: economic type, sub_type, dominant_loop, interaction_type, openness, pricing_type, risk_level с цветокодированными бейджами
+    - Machinations: узлы с типоспецифичными иконками, resource flows, state connections, feedback loops, structural patterns
+    - Диагностика: pathologies с severity badges, faucet/drain ratios таблица, overall severity
+    - Симуляция: multi-line resource curves chart (Recharts), quality assessment (6 проверок), stability index, build gap, runaway/stall frequency
+
+### Изменено
+- Версия обновлена с 0.24.0 до 0.25.0
+- Страница `/blocks/5` заменена с placeholder на полнофункциональный UI (1899 строк)
+
+---
+
 ## [0.24.0] — 2026-05-19
 
 ### Добавлено

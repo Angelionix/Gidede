@@ -70,7 +70,7 @@
 
 | ID | Задача | Причина переноса | Плановая фаза | Статус |
 |----|--------|------------------|---------------|--------|
-| DEFERRED-003 | Генерация PDF-версии Библии геймдизайна | Требует инструмент для компиляции 12 markdown-файлов | Фаза 4.D (GDD Generator) | 🔧 Partially Resolved — scripts/compile_bible_pdf.py создан: компиляция 12 разделов, Markdown → HTML → PDF (WeasyPrint), поддерживает fallback HTML, оглавление, CSS-стили. Полная генерация требует установки weasyprint. |
+| DEFERRED-003 | Генерация PDF-версии Библии геймдизайна | Требует инструмент для компиляции 12 markdown-файлов | Фаза 4.D (GDD Generator) | ✅ Resolved — weasyprint установлен, scripts/compile_bible_pdf.py полностью работает: компиляция 12 разделов → Markdown → HTML → PDF (0.6 МБ), оглавление, CSS-стили. PDF сгенерирован: docs/bible/Gidede_Game_Design_Bible.pdf |
 
 ### Из Фазы 3
 
@@ -110,6 +110,10 @@
 | 2026-05-19 | Версия обновлена до 0.35.0: реализован AI-ассистент (4.D.6–4.D.8), ROADMAP 4.D.2, 4.D.3, 4.D.6–4.D.8 отмечены ✅ |
 | 2026-05-19 | Версия обновлена до 0.36.1: UI AI-ассистент (4.D.8) — SSE streaming, AIHintButton, ContextualSuggestionCard, Chat History |
 | 2026-05-19 | Версия обновлена до 0.36.0: 80 тестов для AI-ассистента (4.D.7), conftest.py исправлен (hash_password), тестовая документация актуализирована |
+| 2026-05-19 | DEFERRED-003 → Resolved: weasyprint установлен, Библия геймдизайна скомпилирована в PDF (0.6 МБ). scripts/compile_bible_pdf.py полностью работает |
+| 2026-05-19 | Pipeline Service: добавлены backward-compatible exports (BLOCK_DEPENDENCIES, BLOCK_EVENTS, STALE_DOWNSTREAM, BLOCK_NAMES) из BLOCK_REGISTRY |
+| 2026-05-19 | 4.D.9: 60 интеграционных тестов для пайплайна Блоков 6-7 (test_pipeline_4d9_integration.py) |
+| 2026-05-19 | Версия обновлена до 0.38.0: TECH_DEBT актуализирован, тестовая документация полностью переписана (761 тест-кейс), Bible PDF скомпилирован |
 
 ---
 

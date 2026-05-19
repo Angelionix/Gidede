@@ -24,6 +24,7 @@ from app.services.project_service import (
     create_project, get_project, get_project_with_blocks,
     update_project, delete_project, list_projects,
     compute_block_flags, compute_completion_percent,
+    get_full_project_state,
 )
 
 router = APIRouter()
@@ -180,3 +181,31 @@ async def delete_existing_project(
         )
 
     await delete_project(db, project)
+
+
+@router.get("/{project_id}/state")
+async def get_project_state(
+    project_id: str,
+    current_user: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Получить полный Project State проекта.
+
+    Фаза 4.D.9: Единый API для получения данных всех блоков.
+    Используется GDD Generator (Блок 6), AI-ассистентом (Блок 7),
+    чек-листами (алгоритм 3.8) и экспортом.
+
+    Возвращает dict с полной структурой ProjectState:
+    - concept, core_loop, mda_profile, balance_result
+    - progression_profile, economy_profile
+    - gdd_profile, checklist_results
+    - block_flags, blocks_available, completion_percent
+    """
+    project_state = await get_full_project_state(db, project_id, current_user.id)
+    if not project_state:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Проект не найден",
+        )
+    return project_state

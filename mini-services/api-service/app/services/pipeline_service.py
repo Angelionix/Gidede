@@ -1,15 +1,17 @@
 """
-Gidede — Сквозной пайплайн: Блок 1 → Блок 2 → Блок 3 → Блок 4 → Блок 5
+Gidede — Сквозной пайплайн: Блок 1 → Блок 2 → Блок 3 → Блок 4 → Блок 5 → Блок 6-7
 Фаза 4.B.12: Автоматическая передача данных между блоками
 Фаза 4.C.9:  Расширение пайплайна до Блока 5
+Фаза 4.D.9:  Расширение пайплайна до Блоков 6-7 (GDD + AI-ассистент)
 
 Функционал:
-1. Автоматическая передача данных: OnePager → CoreLoopInput → MDAInput → BalanceInput → ProgressionInput/EconomyInput
+1. Автоматическая передача данных: OnePager → CoreLoopInput → MDAInput → BalanceInput → ProgressionInput/EconomyInput → GDDInput
 2. Отслеживание статуса заполненности блоков
 3. Уведомления об устаревших данных через Redis Event Bus
 4. Проверка «свежести» зависимых блоков
 5. Вычисление прогресса проекта
 6. Полный пайплайн 1→5 (4.C.9)
+7. Полный пайплайн 1→7 (4.D.9)
 
 Потоки данных:
   Блок 1 (ConceptGenerator)
@@ -146,6 +148,26 @@ BLOCK_REGISTRY: dict[int, BlockConfig] = {
         dependencies=[1, 2, 3, 4, 5, 6], stale_downstream=[],
         relation_attr="checklist",
     ),
+}
+
+# ============================================================
+# BACKWARD-COMPATIBLE EXPORTS (для тестов и внешних модулей)
+# ============================================================
+
+BLOCK_DEPENDENCIES: dict[int, list[int]] = {
+    bid: cfg.dependencies for bid, cfg in BLOCK_REGISTRY.items()
+}
+
+STALE_DOWNSTREAM: dict[int, list[int]] = {
+    bid: cfg.stale_downstream for bid, cfg in BLOCK_REGISTRY.items()
+}
+
+BLOCK_EVENTS: dict[int, PipelineEvent] = {
+    bid: cfg.event for bid, cfg in BLOCK_REGISTRY.items() if cfg.event is not None
+}
+
+BLOCK_NAMES: dict[int, str] = {
+    bid: cfg.name for bid, cfg in BLOCK_REGISTRY.items()
 }
 
 
@@ -386,6 +408,12 @@ class PipelineService:
             return await self._prepare_balance_input(project)
         elif target_block == 5:
             return await self._prepare_progression_and_economy_input(project)
+        elif target_block == 6:
+            # 4.D.9: Блок 6 — GDD Generator автоматически заполняется из Блоков 1-5
+            return await self._prepare_gdd_input(project)
+        elif target_block == 7:
+            # 4.D.9: Блок 7 — AI-ассистент «видит» данные всех блоков
+            return await self._prepare_ai_assistant_input(project)
         else:
             return {"project_id": project_id, "block": target_block}
 
@@ -694,6 +722,268 @@ class PipelineService:
             result["warnings"] = warnings
 
         return result
+
+    # ============================================================
+    # 4.D.9: ПОДГОТОВКА ВХОДНЫХ ДАННЫХ ДЛЯ БЛОКОВ 6-7
+    # ============================================================
+
+    async def _prepare_gdd_input(self, project: Project) -> dict:
+        """
+        Подготовить входные данные для Блока 6 (GDD Generator)
+        из результатов Блоков 1–5.
+
+        Фаза 4.D.9: GDD автоматически заполняется данными из Блоков 1-5.
+
+        GDDGenerationInput требует:
+        - concept (OnePager) — из Блока 1
+        - core_loop (CoreLoopProfile) — из Блока 2
+        - mda_profile (MDAProfile) — из Блока 3
+        - balance_result (BalanceResult) — из Блока 4
+        - progression_profile (ProgressionProfile) — из Блока 5
+        - economy_profile (EconomyProfile) — из Блока 5
+        """
+        concept = project.concept
+        core_loop = project.core_loop
+        mda = project.mda_profile
+        balance = project.balance_result
+
+        has_concept = concept is not None and concept.aesthetic_profile is not None
+        has_core_loop = core_loop is not None and core_loop.steps_data is not None
+        has_mda = mda is not None and mda.mechanic_set is not None
+        has_balance = balance is not None and balance.elements is not None
+        has_progression = project.progression is not None and project.progression.curves is not None
+        has_economy = project.economy is not None and project.economy.resource_model is not None
+
+        gdd_input = {
+            "project_id": project.id,
+            "status": "ready",
+            "has_concept": has_concept,
+            "has_core_loop": has_core_loop,
+            "has_mda": has_mda,
+            "has_balance": has_balance,
+            "has_progression": has_progression,
+            "has_economy": has_economy,
+        }
+
+        # ---- Concept (Блок 1) → GDD ----
+        if has_concept:
+            gdd_input["concept"] = {
+                "genre": concept.genre,
+                "title": (concept.one_pager_data or {}).get("title", project.name),
+                "description": (concept.input_data or {}).get("idea", ""),
+                "aesthetic_profile": concept.aesthetic_profile,
+                "dynamics_profile": concept.dynamics_profile or {},
+                "mechanic_set": concept.mechanic_set or {},
+                "one_pager": concept.one_pager_data or {},
+                "usp": concept.usp,
+                "platforms": (concept.input_data or {}).get("platforms", []),
+            }
+
+        # ---- Core Loop (Блок 2) → GDD ----
+        if has_core_loop:
+            gdd_input["core_loop"] = {
+                "structural_type": core_loop.structural_type,
+                "steps": core_loop.steps_data,
+                "inner_loops": core_loop.inner_loops or [],
+                "outer_loops": core_loop.outer_loops or [],
+                "meta_loop": core_loop.meta_loop,
+                "loop_hierarchy": core_loop.loop_hierarchy,
+                "pathologies": core_loop.pathologies,
+                "recommendations": core_loop.recommendations or [],
+                "full_profile": core_loop.full_profile,
+            }
+
+        # ---- MDA (Блок 3) → GDD ----
+        if has_mda:
+            gdd_input["mda_profile"] = {
+                "primary_aesthetic": mda.primary_aesthetic,
+                "secondary_aesthetic": mda.secondary_aesthetic,
+                "mechanic_set": mda.mechanic_set,
+                "target_dynamics": mda.target_dynamics,
+                "observed_dynamics": mda.observed_dynamics,
+                "predicted_aesthetics": mda.predicted_aesthetics,
+                "match_scores": mda.match_scores,
+                "lens_validation": mda.lens_validation,
+                "bond_validation": mda.bond_validation,
+                "ludonarrative_check": mda.ludonarrative_check,
+                "full_profile": mda.full_profile,
+            }
+
+        # ---- Balance (Блок 4) → GDD ----
+        if has_balance:
+            gdd_input["balance_result"] = {
+                "balance_type": balance.balance_type,
+                "overall_balance_score": balance.overall_balance_score,
+                "elements": balance.elements,
+                "cost_power_curves": balance.cost_power_curves,
+                "intransitive_matrix": balance.intransitive_matrix,
+                "nash_equilibrium": balance.nash_equilibrium,
+                "monte_carlo_results": balance.monte_carlo_results,
+                "pathologies": balance.pathologies,
+                "corrections": balance.corrections,
+                "full_result": balance.full_result,
+            }
+
+        # ---- Progression (Блок 5) → GDD ----
+        if has_progression:
+            gdd_input["progression_profile"] = {
+                "total_levels": project.progression.total_levels,
+                "tier_count": project.progression.tier_count,
+                "curve_type": project.progression.curve_type,
+                "macro_model": project.progression.macro_model,
+                "tier_model": project.progression.tier_model,
+                "curves": project.progression.curves,
+                "content_plan": project.progression.content_plan,
+                "validation": project.progression.validation,
+                "full_profile": project.progression.full_profile,
+            }
+
+        # ---- Economy (Блок 5) → GDD ----
+        if has_economy:
+            gdd_input["economy_profile"] = {
+                "system_type": project.economy.system_type,
+                "resource_count": project.economy.resource_count,
+                "resource_model": project.economy.resource_model,
+                "machinations_model": project.economy.machinations_model,
+                "conversion_chains": project.economy.conversion_chains,
+                "pathologies": project.economy.pathologies,
+                "corrections": project.economy.corrections,
+                "simulation_results": project.economy.simulation_results,
+                "monetization_model": project.economy.monetization_model,
+                "full_profile": project.economy.full_profile,
+            }
+
+        # ---- GDD-specific defaults ----
+        gdd_input["project_stage"] = project.project_stage
+        gdd_input["language"] = "ru"
+
+        # Предупреждения о неполноте данных
+        warnings = []
+        if not has_concept:
+            warnings.append("Блок 1 (Концепция) не заполнен — GDD будет минимальным")
+        if not has_core_loop:
+            warnings.append("Блок 2 (Core Loop) не заполнен — секция Core Loop будет пустой")
+        if not has_mda:
+            warnings.append("Блок 3 (MDA) не заполнен — секция механик будет ограниченной")
+        if not has_balance:
+            warnings.append("Блок 4 (Баланс) не заполнен — секция баланса будет пустой")
+        if not has_progression:
+            warnings.append("Блок 5 (Прогрессия) не заполнен — секция прогрессии будет пустой")
+        if not has_economy:
+            warnings.append("Блок 5 (Экономика) не заполнен — секция экономики будет пустой")
+
+        # Coverage score: сколько блоков из 5 имеют данные
+        filled = sum([has_concept, has_core_loop, has_mda, has_balance, has_progression or has_economy])
+        gdd_input["coverage_score"] = round(filled / 5, 2)
+        if warnings:
+            gdd_input["warnings"] = warnings
+
+        return gdd_input
+
+    async def _prepare_ai_assistant_input(self, project: Project) -> dict:
+        """
+        Подготовить входные данные для Блока 7 (AI-ассистент).
+
+        Фаза 4.D.9: AI-ассистент «видит» данные всех блоков.
+        Использует get_full_project_state для получения единого контекста.
+
+        Возвращает:
+        - Полный Project State для контекста AI
+        - Proactive alerts
+        - Контекстные подсказки
+        """
+        from app.services.project_service import compute_block_flags
+
+        flags = compute_block_flags(project)
+
+        assistant_input = {
+            "project_id": project.id,
+            "project_name": project.name,
+            "genre": project.genre,
+            "status": "ready",
+            "block_flags": flags,
+            "has_concept": flags.get("has_concept", False),
+            "has_core_loop": flags.get("has_core_loop", False),
+            "has_mda": flags.get("has_mda", False),
+            "has_balance": flags.get("has_balance", False),
+            "has_progression": flags.get("has_progression", False),
+            "has_economy": flags.get("has_economy", False),
+            "has_gdd": flags.get("has_gdd", False),
+            "has_checklist": flags.get("has_checklist", False),
+        }
+
+        # Контекстные данные из каждого блока (для AI-ассистента)
+        concept = project.concept
+        if concept:
+            assistant_input["concept_context"] = {
+                "genre": concept.genre,
+                "usp": concept.usp,
+                "primary_aesthetic": concept.primary_aesthetic,
+                "aesthetic_profile": concept.aesthetic_profile,
+                "dynamics_profile": concept.dynamics_profile,
+                "mechanic_set": concept.mechanic_set,
+            }
+
+        core_loop = project.core_loop
+        if core_loop and core_loop.steps_data:
+            assistant_input["core_loop_context"] = {
+                "structural_type": core_loop.structural_type,
+                "step_count": core_loop.step_count,
+                "pathologies": core_loop.pathologies,
+                "recommendations": core_loop.recommendations,
+            }
+
+        mda = project.mda_profile
+        if mda and mda.mechanic_set:
+            assistant_input["mda_context"] = {
+                "primary_aesthetic": mda.primary_aesthetic,
+                "secondary_aesthetic": mda.secondary_aesthetic,
+                "mechanic_set": mda.mechanic_set,
+                "overall_match": mda.overall_match,
+            }
+
+        balance = project.balance_result
+        if balance and balance.elements:
+            assistant_input["balance_context"] = {
+                "balance_type": balance.balance_type,
+                "overall_balance_score": balance.overall_balance_score,
+                "imbalance_count": balance.imbalance_count,
+                "pathologies": balance.pathologies,
+            }
+
+        if project.progression and project.progression.curves:
+            assistant_input["progression_context"] = {
+                "total_levels": project.progression.total_levels,
+                "curve_type": project.progression.curve_type,
+                "validation": project.progression.validation,
+            }
+
+        if project.economy and project.economy.resource_model:
+            assistant_input["economy_context"] = {
+                "system_type": project.economy.system_type,
+                "has_pathology": project.economy.has_pathology,
+                "pathologies": project.economy.pathologies,
+            }
+
+        gdd = project.gdd
+        if gdd and gdd.sections:
+            assistant_input["gdd_context"] = {
+                "format": gdd.format,
+                "section_count": gdd.section_count,
+                "completeness_percent": gdd.completeness_percent,
+                "consistency_issues": gdd.consistency_issues,
+            }
+
+        checklist = project.checklist
+        if checklist and checklist.issues:
+            assistant_input["checklist_context"] = {
+                "overall_score": checklist.overall_score,
+                "readiness_level": checklist.readiness_level,
+                "critical_issue_count": checklist.critical_issue_count,
+                "issues": checklist.issues,
+            }
+
+        return assistant_input
 
     # ============================================================
     # 3. ОБНОВЛЕНИЕ СТАТУСА И УВЕДОМЛЕНИЯ

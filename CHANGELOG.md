@@ -9,6 +9,30 @@
 
 ---
 
+## [0.38.0] - 2026-05-19
+
+### Added
+- **4.D.9**: Интеграционные тесты пайплайна Блоков 6-7
+  - `test_pipeline_4d9_integration.py` — 60 тестов:
+    - TestPrepareGddInput (17): полные/частичные/пустые данные, coverage_score, GDD defaults
+    - TestPrepareAiAssistantInput (13): контекст из всех блоков, block_flags, alerts
+    - TestPrepareBlockInputRouting (5): маршрутизация block 6/7/unknown
+    - TestGetFullProjectState (7): API signature, ProjectState keys, compatibility aliases
+    - TestBlockRegistryBlocks678 (18): конфигурация блоков 6-7-8, backward-compat exports
+- **TECH_DEBT**: DEFERRED-003 → Resolved (Библия геймдизайна скомпилирована в PDF)
+- **Тестовая документация**: полный пересмотр testing_plan.md — 761 тест-кейс (572 backend + 14 frontend + 165 UI + 10 E2E)
+
+### Fixed
+- **Pipeline Service**: добавлены backward-compatible exports (BLOCK_DEPENDENCIES, BLOCK_EVENTS, STALE_DOWNSTREAM, BLOCK_NAMES) из BLOCK_REGISTRY — исправлена ошибка ImportError в test_pipeline_service.py
+
+### Changed
+- Версия обновлена с 0.37.0 до 0.38.0
+- `pipeline_service.py` — добавлены 4 производных dict из BLOCK_REGISTRY для совместимости с тестами
+- `docs/тестирование/testing_plan.md` — полностью переписан (1370 строк, 761 тест-кейс)
+- `docs/bible/Gidede_Game_Design_Bible.pdf` — сгенерирован PDF Библии геймдизайна (0.6 МБ)
+
+---
+
 ## [0.36.1] - 2026-05-19
 
 ### Added

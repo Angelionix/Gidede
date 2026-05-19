@@ -1,8 +1,9 @@
 # Gidede — Коллекция примеров Game Design Documents (GDD)
 
 > **Дата создания**: 2026-05-19
+> **Последнее обновление**: 2026-05-19
 > **Назначение**: Репрезентативная выборка реальных GDD для валидации шаблонов (TD-006, DEFERRED-001)
-> **Статус**: Собрано, изучение запланировано после завершения стадии 4.C
+> **Статус**: Коллекция собрана, структурный анализ выполнен → `GDD_ANALYSIS.md`
 
 ---
 
@@ -20,7 +21,7 @@
 
 ---
 
-## 2. Скачанные PDF (локальные копии)
+## 2. Скачанные PDF — основная коллекция
 
 ### 2.1 Классические GDD (1990-е)
 
@@ -61,99 +62,211 @@
 
 ---
 
-## 3. Веб-ресурсы (только онлайн, не скачаны)
+## 3. Скачанные PDF — коллекция Dropbox (`dropbox/`)
 
-### 3.1 Прямые ссылки на GDD
+> Добавлено 2026-05-19 из Dropbox-папки пользователя. 39 файлов запушены, 1 исключён (dirty_bomb 139 МБ > GitHub 100MB).
+
+### 3.1 AAA и крупные проекты
+
+| # | Игра | Файл | Жанр | Стр. | Размер |
+|---|------|------|------|------|--------|
+| 1 | **Halo** | `dropbox/Halo-GDD.pdf` | FPS | 29 | 1.2 MB |
+| 2 | **Red Dead Redemption 2** | `dropbox/Red-Dead-Redemption-2-GDD.pdf` | Open World | 35 | 8.4 MB |
+| 3 | **Far Cry** | `dropbox/Far-Cry-GDD.pdf` | FPS/Open World | 80 | 3.2 MB |
+| 4 | **Saints Row** | `dropbox/Saints-Row-GDD.pdf` | Open World | 122 | 4.1 MB |
+| 5 | **Diablo** Pitch | `dropbox/diablo_pitch.pdf` | RPG | 8 | 7.0 MB |
+| 6 | **Silent Hill** | `dropbox/silent-hill-design-document.pdf` | Horror | 60 | 7.6 MB |
+| 7 | **Star Wars: Shadows of the Empire** | `dropbox/Shadows-of-the-Empire-GDD.pdf` | Action | 23 | 2.9 MB |
+| 8 | **Star Wars CD** | `dropbox/Star-Wars-CD.pdf` | Action | 35 | 3.4 MB |
+| 9 | **Dirty Bomb** | `dropbox/dirty_bomb-game_design_document.pdf` | FPS | 316 | 139 MB* |
+
+*\*Файл dirty_bomb исключён из Git (>100 МБ), доступен локально в `/home/z/my-project/download/dropbox/`*
+
+### 3.2 Классические квесты и адвенчуры
+
+| # | Игра | Файл | Жанр | Стр. | Размер |
+|---|------|------|------|------|--------|
+| 1 | **Sam & Max Hit the Road** | `dropbox/Sam-and-Max-Hit-the-Road-GDD.pdf` | Adventure | 28 | 3.7 MB |
+| 2 | **Indiana Jones and the Last Crusade** | `dropbox/Indiana-Jones-and-the-Last-Crusade-GDD.pdf` | Adventure | 6 | 1.0 MB |
+| 3 | **Labyrinth** | `dropbox/Labyrinth-GDD.pdf` | Adventure | 5 | 763 KB |
+| 4 | **Torin's Passage** | `dropbox/Torin Design.pdf` | Adventure | 76 | 469 KB |
+| 5 | **Freddy Pharkas** | `dropbox/Freddy Design.pdf` | Adventure | 112 | 575 KB |
+
+### 3.3 Серия Leisure Suit Larry
+
+| # | Игра | Файл | Стр. | Размер |
+|---|------|------|------|--------|
+| 1 | **Larry 5** | `dropbox/Larry5-Design.pdf` | 86 | 475 KB |
+| 2 | **Larry 6** | `dropbox/Larry6-Design.pdf` | 68 | 514 KB |
+| 3 | **Larry 7** | `dropbox/Larry7-Design.pdf` | 67 | 472 KB |
+| 4 | **Larry's Casino** | `dropbox/Larrys-Casino-Design.pdf` | 31 | 338 KB |
+
+### 3.4 Платформеры и экшн
+
+| # | Игра | Файл | Жанр | Стр. | Размер |
+|---|------|------|------|------|--------|
+| 1 | **Super Mario** | `dropbox/Super-Mario-GDD.pdf` | Platformer | 36 | 20 MB |
+| 2 | **Super Mario Bros. 3** | `dropbox/Super-Mario-Brothers-3-GDD.pdf` | Platformer | 24 | 493 KB |
+| 3 | **Prince of Persia 2** | `dropbox/Prince-of-Persia-2-GDD.pdf` | Platformer | 217 | 19 MB |
+| 4 | **Claw Design Bible** | `dropbox/Claw-Design-Bible-GDD.pdf` | Platformer | 112 | 801 KB |
+| 5 | **Ninja Dojo** | `dropbox/Ninja-Dojo-GDD.pdf` | Action | 43 | 726 KB |
+| 6 | **Burnt-Out Cop** | `dropbox/BURNT-OUT-COP-Design-Overview.pdf` | Action | 72 | 11 MB |
+
+### 3.5 Стратегии и пазлы
+
+| # | Игра | Файл | Жанр | Стр. | Размер |
+|---|------|------|------|------|--------|
+| 1 | **Monaco** | `dropbox/Monaco-GDD.pdf` | Stealth/Heist | 16 | 1.4 MB |
+| 2 | **Terminal Tactics** | `dropbox/Terminal-Tactics-GDD.pdf` | Strategy | 35 | 707 KB |
+| 3 | **Star Raiders II** | `dropbox/Star-Raiders-II-GDD.pdf` | Strategy | 17 | 207 KB |
+| 4 | **F15 Pac-Man** | `dropbox/F15_Pacman-GDD.pdf` | Arcade/Puzzle | 26 | 1.0 MB |
+| 5 | **Descend the Dungeon** | `dropbox/Descend-the-Dungeon-GDD.pdf` | Roguelike | 4 | 118 KB |
+| 6 | **The Coded Treasure** | `dropbox/The-Coded-Treasure-GDD.pdf` | Puzzle | 5 | 247 KB |
+| 7 | **Tic-Tac-Toe** | `dropbox/Tic-tac-toe-GDD.pdf` | Strategy | 6 | 198 KB |
+
+### 3.6 RPG и нарративные игры
+
+| # | Игра | Файл | Жанр | Стр. | Размер |
+|---|------|------|------|------|--------|
+| 1 | **GenetiX** | `dropbox/GenetiX-GDD.pdf` | RPG/Puzzle | 24 | 729 KB |
+| 2 | **The Vanishing** | `dropbox/The-Vanishing-a-fantasy-RPG..pdf` | RPG | 27 | 2.0 MB |
+| 3 | **Fallout BoS2** (Ver2) | `dropbox/Fallout_BoS2_Design_Ver2.pdf` | RPG/Action | 5 | 191 KB |
+
+### 3.7 Гонки и прочие
+
+| # | Игра | Файл | Жанр | Стр. | Размер |
+|---|------|------|------|------|--------|
+| 1 | **Wipeout** | `dropbox/WipeoutDesignDocument_text.pdf` | Racing | 36 | 4.9 MB |
+| 2 | **Ion Storm** Design Docs | `dropbox/Ion Storm Design Docs - Joe Martin.pdf` | FPS | 76 | 2.1 MB |
+| 3 | **BioShock** Pitch (dup) | `dropbox/The-Bioshock-pitch-GDD.pdf` | FPS/RPG | 17 | 3.9 MB |
+
+### 3.8 Шаблоны
+
+| # | Название | Файл | Стр. | Размер |
+|---|----------|------|------|--------|
+| 1 | **Zombie Island** GDD Template | `dropbox/Zombie-Island-Game-Design-Document-Template.pdf` | 11 | 323 KB |
+
+---
+
+## 4. Веб-ресурсы (только онлайн, не скачаны)
+
+### 4.1 Прямые ссылки на GDD
 
 | # | Игра | URL | Причина |
 |---|------|-----|---------|
 | 1 | **Deus Ex** Design Document | https://web.archive.org/web/20160328183626/http://legacytoolsofutopia.securos.org/deusex_docs/ | Веб-архив, многостраничный |
 | 2 | **Anachronox** Design Document | https://ftp.aaai.org/aimagazine/JulyAug97/anachronox-design.pdf | TLS-ошибка при скачивании |
-| 3 | **Diablo** Pitch Document | https://askagamedev.tumblr.com/post/141550668010/diablo-pitch-document-1994 | Tumblr-пост |
-| 4 | **Grim Fandango** GDD (Polygon) | https://www.polygon.com/2020/2/12/21134458/grim-fandango-game-design-document-pdf | Статья |
-| 5 | **Wipeout** Design Document | https://archive.org/details/WipeoutDesignDocument | Archive.org |
-| 6 | **Rogue Legacy** Design Notes | https://gamedocs.org/rogue-legacy-design-notes | Веб-страница |
-| 7 | **Guacamelee** Design Pitch | https://gamedocs.org/guacamelee-design-pitch | Веб-страница |
-| 8 | **Doom Bible** (вики) | https://doomwiki.org/wiki/Doom_Bible | 403 при прямом скачивании |
+| 3 | **Grim Fandango** GDD (Polygon) | https://www.polygon.com/2020/2/12/21134458/grim-fandango-game-design-document-pdf | Статья |
+| 4 | **Rogue Legacy** Design Notes | https://gamedocs.org/rogue-legacy-design-notes | Веб-страница |
+| 5 | **Guacamelee** Design Pitch | https://gamedocs.org/guacamelee-design-pitch | Веб-страница |
+| 6 | **Doom Bible** (вики) | https://doomwiki.org/wiki/Doom_Bible | 403 при прямом скачивании |
 
-### 3.2 GameScrye (captcha-защита)
-
-| # | Игра | URL | Примечание |
-|---|------|-----|------------|
-| 1 | **Monaco** | https://gamescrye.com/wp-content/uploads/2023/02/Monaco-GDD.pdf | Требует браузер |
-| 2 | **Pid** | https://gamescrye.com/wp-content/uploads/2023/02/Pid-Game-Design-Document.pdf | Требует браузер |
-| 3 | **Sam & Max Hit the Road** | https://gamescrye.com/wp-content/uploads/2023/02/Sam-and-Max-Hit-the-Road-GDD.pdf | Требует браузер |
-| 4 | **Saints Row** | https://gamescrye.com/wp-content/uploads/2023/02/Saints-Row-GDD.pdf | Требует браузер |
-
-### 3.3 Scribd (платный доступ)
+### 4.2 Scribd (платный доступ)
 
 | # | Игра | URL | Примечание |
 |---|------|-----|------------|
 | 1 | **Apocalypse Now** | https://www.scribd.com/document/358623314/Apocalypse-Now-Game-Design-Document-Official | Требует подписку |
-| 2 | **Dirty Bomb** | https://www.scribd.com/document/409782645/dirty-bomb-game-design-document-pdf | Требует подписку |
 
-### 3.4 Прочее
+### 4.3 Прочее
 
 | # | Ресурс | URL | Примечание |
 |---|--------|-----|------------|
 | 1 | **The Flame in the Flood** Pitch | https://www.slideshare.net/slideshow/the-flame-in-the-flood-game-pitch-deck/254528132 | SlideShare |
-| 2 | **One-Page GDD** (Renz) | https://www.renz.is/one-page-game-design-document/download/one-page-game-design-document.pdf | 404 при скачивании |
-| 3 | **Deus Ex** + **Thief 4** | https://gamedocs.org/deus-ex-design-document-and-thief-4-submission-document | GameDocs |
+| 2 | **Deus Ex** + **Thief 4** | https://gamedocs.org/deus-ex-design-document-and-thief-4-submission-document | GameDocs |
 
 ---
 
-## 4. Сводка по коллекции
+## 5. Сводка по коллекции
 
-### 4.1 Скачанные файлы
+### 5.1 Скачанные файлы
 
 | Категория | Файлов | Общий объём |
 |-----------|--------|-------------|
-| Классические GDD | 6 | ~6 MB |
-| Питч-деки | 2 | ~6 MB |
-| Современные GDD | 2 | ~1 MB |
-| Шаблоны | 1 | 92 KB |
-| Дизайн-арты | 8 JPG | 808 KB |
-| **Итого** | **19** | **~14 MB** |
+| Основная коллекция (PDF) | 11 | ~14 MB |
+| Dropbox-коллекция (PDF) | 39 | ~294 MB |
+| Дизайн-арты (JPG) | 8 | 808 KB |
+| **Итого** | **58** | **~308 MB** |
 
-### 4.2 Только онлайн
-
-| Категория | Количество |
-|-----------|------------|
-| Веб-архивы / статьи | 8 |
-| GameScrye (captcha) | 4 |
-| Scribd (платный) | 2 |
-| Прочее | 3 |
-| **Итого** | **17** |
-
-### 4.3 Покрытие по жанрам
+### 5.2 Покрытие по жанрам
 
 | Жанр | GDD в коллекции | Количество |
 |------|----------------|------------|
-| FPS / Shooter | Doom Bible, Diablo, Fallout BoS2, Dirty Bomb, Apocalypse Now | 5 |
-| RPG | Torment, Anachronox, BioShock, Fallout BoS2 | 4 |
-| Adventure | Sam & Max, Grim Fandango | 2 |
-| Platformer / Puzzle | Narbacular Drop, Pid, Monolith Claw | 3 |
+| FPS / Shooter | Doom, Halo, BioShock, Dirty Bomb, Far Cry, Ion Storm | 6+ |
+| RPG | Torment, GenetiX, The Vanishing, Diablo, Fallout BoS2 | 5+ |
+| Adventure | Sam & Max, Larry series, Indiana Jones, Torin, Freddy, Labyrinth | 8+ |
+| Platformer | Claw, Super Mario, SMB3, Prince of Persia 2, Ninja Dojo | 5+ |
 | Stealth / Heist | Monaco, MGS2 | 2 |
-| Open World | GTA, Saints Row | 2 |
-| Immersive Sim | Deus Ex | 1 |
+| Open World | GTA, Saints Row, RDR2 | 3 |
+| Horror | Silent Hill, Burnt-Out Cop | 2 |
+| Puzzle | Narbacular Drop, Tic-tac-toe, Descend the Dungeon, Coded Treasure | 4+ |
+| Strategy | Terminal Tactics, Star Raiders II | 2 |
 | Racing | Wipeout | 1 |
+| Roguelike | Descend the Dungeon | 1 |
+
+### 5.3 Покрытие по форматам
+
+| Формат | Количество | Примеры |
+|--------|------------|---------|
+| Полный GDD (50+ стр.) | 15 | Dirty Bomb, Saints Row, Doom Bible, Claw, Larry5/7, Torin |
+| Краткий GDD (10-50 стр.) | 20 | Halo, Silent Hill, Monaco, Narbacular Drop, Wipeout |
+| Концепт / Outline (<10 стр.) | 5 | Tic-tac-toe, Descend the Dungeon, Fallout BoS2 Ver2 |
+| Pitch Deck | 4 | BioShock, Diablo, Monaco, The-Bioshock-pitch |
+| Design Bible | 2 | Doom Bible, Claw Design Bible |
+| Game Plan | 1 | MGS2 |
+| Vision Statement | 1 | Torment |
+| Template | 2 | Ubisoft TDG, Zombie Island |
+| Technical Design | 1 | Narbacular Drop Technical |
+| Design Overview | 1 | Burnt-Out Cop |
+| Puzzle Document | 1 | Grim Fandango |
 
 ---
 
-## 5. План изучения (после стадии 4.C)
+## 6. Анализ коллекции
 
-1. **Структурный анализ**: сравнить разделы каждого GDD с шаблоном из `docs/bible/bible_2_11_gdd_templates_checklists.md`
-2. **Валидация полноты**: какие разделы присутствуют/отсутствуют в реальных GDD
-3. **Анализ жанровых отличий**: как структура GDD меняется по жанру
-4. **Эволюция во времени**: как менялся формат GDD от 1990-х к 2020-м
-5. **Извлечение паттернов**: общие элементы всех успешных GDD
-6. **Обновление шаблонов**: внести корректировки в GDD Generator (Блок 6) на основе анализа
+> **Полный анализ**: [`GDD_ANALYSIS.md`](./GDD_ANALYSIS.md)
+
+### 6.1 Ключевые результаты анализа
+
+| Метрика | Значение |
+|---------|----------|
+| Документов проанализировано | 51 |
+| С текстом | 38 (75%) |
+| Сканы (нужен OCR) | 13 (25%) |
+| Общий объём текста | ~580 000 слов |
+| Среднее секций на GDD | 17 из 38 Роджерса |
+| Наиболее полные GDD | Dirty Bomb (26 секций), Saints Row (26 секций) |
+| Золотой стандарт | Narbacular Drop GDD (академический, формальный) |
+
+### 6.2 Топ-5 секций по встречаемости
+
+1. **UI / Интерфейс** — 92% всех GDD
+2. **Враги / AI** — 92%
+3. **Арт / Визуальный стиль** — 87%
+4. **Технологии / Платформа** — 84%
+5. **Сюжет / Нарратив** — 82%
+
+### 6.3 Наименее представленные секции
+
+1. **Core Loop** — 16% (формализован только в современных GDD)
+2. **Локализация** — 16%
+3. **Прототип** — 24%
+4. **Риски** — 39%
+5. **Прогрессия** — 42%
+
+### 6.4 Рекомендации для Gidede
+
+1. Core Loop Diagram (M-02) — генерировать первым после Concept Card
+2. Economy Spec (M-05) + Progression Spec (M-06) — уникальное преимущество Gidede
+3. Example of Play — добавить как обязательный подраздел M-01/M-02
+4. Визуальные диаграммы — генерировать во всех модулях, не только текст
+5. Обоснование решений («почему») — конкурентное преимущество AI-генерации
 
 ---
 
-## 6. Связь с техдолгом
+## 7. Связь с техдолгом
 
-| ID | Описание | Статус после сбора |
-|----|----------|-------------------|
-| TD-006 | Нет репрезентативной выборки реальных GDD | ✅ Resolved — 19 локальных файлов + 17 онлайн-ресурсов из 8 жанров |
-| DEFERRED-001 | Сбор 5-10 реальных GDD для валидации шаблонов | ✅ Resolved — 20+ GDD собрано, значительно превышает минимум 5-10 |
+| ID | Описание | Статус |
+|----|----------|--------|
+| TD-006 | Нет репрезентативной выборки реальных GDD | ✅ Resolved — 51 локальный PDF из 12+ жанров |
+| DEFERRED-001 | Сбор 5-10 реальных GDD для валидации шаблонов | ✅ Resolved — 51 GDD, значительно превышает минимум |
+| TD-006+ | Структурный анализ GDD для валидации шаблонов | ✅ Resolved — `GDD_ANALYSIS.md`: 11 разделов, сравнение с 38 секциями Роджерса, паттерны, анти-паттерны, рекомендации для генератора |

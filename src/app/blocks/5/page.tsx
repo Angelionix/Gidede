@@ -80,19 +80,7 @@ import { usePipeline } from "@/hooks/use-pipeline";
 // ============================================================
 
 import { API_BASE_URL, apiRoutes } from "@/config/api";
-
-const GENRES = [
-  { value: "action", label: "Action" },
-  { value: "rpg", label: "RPG" },
-  { value: "strategy", label: "Strategy" },
-  { value: "shooter", label: "Shooter" },
-  { value: "fighting", label: "Fighting" },
-  { value: "moba", label: "MOBA" },
-  { value: "rts", label: "RTS" },
-  { value: "tbs", label: "TBS" },
-  { value: "sandbox", label: "Sandbox" },
-  { value: "roguelike", label: "Roguelike" },
-];
+import { GENRES } from "@/config/genres";
 
 const PROGRESSION_TYPES = [
   { value: "linear", label: "Linear" },
@@ -487,7 +475,7 @@ function CurvesTab({ result }: { result: ProgressionDesignResponse | null }) {
                       <LineChart data={chartData} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
                         <XAxis dataKey="level" tick={{ fontSize: 10 }} />
                         <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip formatter={(value: number) => [value.toFixed(2), entry.label]} />
+                        <Tooltip formatter={(value) => [Number(value).toFixed(2), entry.label]} />
                         <Line type="monotone" dataKey="value" stroke="#22c55e" dot={false} strokeWidth={2} />
                       </LineChart>
                     </ResponsiveContainer>

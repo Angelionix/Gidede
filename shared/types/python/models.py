@@ -698,25 +698,130 @@ class ChecklistResult(BaseModel):
 
 
 # ============================================================
-# PROJECT STATE — ЕДИНАЯ МОДЕЛЬ ПРОЕКТА (алгоритм 3.10)
+# PROJECT STATE — БЛОЧНЫЕ МОДЕЛИ (ISP, алгоритм 3.10)
+# ============================================================
+
+class ConceptBlock(BaseModel):
+    """Блок 1: Концепция — жанр, аудитория, эстетика, механики."""
+    genre: Optional[dict] = None
+    target_audience: Optional[dict] = None
+    platform: Optional[list] = None
+    constraints: Optional[dict] = None
+    one_pager: Optional[dict] = None
+    usp: str = ""
+    reference_games: list[str] = []
+    aesthetic_profile: Optional[dict] = None
+    dynamics_profile: Optional[dict] = None
+    mechanic_set: Optional[dict] = None
+
+
+class CoreLoopBlock(BaseModel):
+    """Блок 2: Core Loop — структурный тип, петли, патологии."""
+    structural_type: Optional[str] = None
+    steps: Optional[list] = None
+    inner_loops: Optional[list] = None
+    outer_loops: Optional[list] = None
+    meta_loop: Optional[dict] = None
+    pathologies: Optional[dict] = None
+    recommendations: Optional[list] = None
+    loop_hierarchy: Optional[dict] = None
+
+
+class MDAProfileBlock(BaseModel):
+    """Блок 3: MDA-профиль — эстетика, динамика, валидация."""
+    target_aesthetics: Optional[dict] = None
+    target_dynamics: Optional[dict] = None
+    mechanic_set: Optional[dict] = None
+    observed_dynamics: Optional[list] = None
+    predicted_aesthetics: Optional[dict] = None
+    match_scores: Optional[dict] = None
+    overall_match: Optional[float] = None
+    lens_validation: Optional[dict] = None
+    bond_validation: Optional[dict] = None
+    machinations_model: Optional[dict] = None
+
+
+class BalanceBlock(BaseModel):
+    """Блок 4: Баланс — карты, анализ, симуляция."""
+    balance_map: Optional[dict] = None
+    transitive_result: Optional[dict] = None
+    stability: Optional[dict] = None
+    intransitive_result: Optional[dict] = None
+    situational_result: Optional[dict] = None
+    q_factor_result: Optional[dict] = None
+    monte_carlo_result: Optional[dict] = None
+    machinations_result: Optional[dict] = None
+    stages_completed: list[int] = []
+    latency_ms: int = 0
+    models_used: list[str] = []
+    warnings: list[str] = []
+    suggestions: list[str] = []
+
+
+class ProgressionBlock(BaseModel):
+    """Блок 4.5: Прогрессия — макромодель, кривые, контент-план."""
+    macro_model: Optional[dict] = None
+    tier_model: Optional[dict] = None
+    curves: Optional[dict] = None
+    content_plan: Optional[dict] = None
+    economy_link: Optional[dict] = None
+    validation: Optional[dict] = None
+
+
+class EconomyBlock(BaseModel):
+    """Блок 5: Экономика — ресурсы, конверсии, симуляция, монетизация."""
+    resource_model: Optional[dict] = None
+    system_type: Optional[str] = None
+    machinations_model: Optional[dict] = None
+    conversion_chains: Optional[list] = None
+    pathologies: Optional[list] = None
+    corrections: Optional[list] = None
+    simulation_results: Optional[dict] = None
+    monetization_model: Optional[dict] = None
+
+
+class GDDBlock(BaseModel):
+    """Блок 6: GDD — генерация документации."""
+    format: Optional[str] = None
+    sections: Optional[list] = None
+    visual_elements: Optional[dict] = None
+    consistency_issues: Optional[list] = None
+    completeness: Optional[dict] = None
+
+
+class ValidationBlock(BaseModel):
+    """Блок 7: Валидация — общая оценка и чеки."""
+    overall_score: Optional[float] = None
+    readiness_level: Optional[str] = None
+    issues: Optional[list] = None
+    remediation_plan: Optional[list] = None
+    mda_check: Optional[dict] = None
+    balance_check: Optional[dict] = None
+    narrative_check: Optional[dict] = None
+    economy_check: Optional[dict] = None
+    lens_check: Optional[dict] = None
+
+
+# ============================================================
+# PROJECT STATE — СОСТАВНАЯ МОДЕЛЬ (алгоритм 3.10)
 # ============================================================
 
 class ProjectState(BaseModel):
-    """Единая модель проекта — источник истины для всех блоков."""
+    """Единая модель проекта — композит из блочных моделей (ISP)."""
     id: str = ""
     name: str = ""
     created_at: Optional[str] = None
     updated_at: Optional[str] = None
     version: int = 1
 
-    concept: Optional[dict] = None
-    core_loop: Optional[dict] = None
-    mda_profile: Optional[dict] = None
-    balance: Optional[dict] = None
-    progression: Optional[dict] = None
-    economy: Optional[dict] = None
-    gdd: Optional[dict] = None
-    validation: Optional[dict] = None
+    concept: Optional[ConceptBlock] = None
+    core_loop: Optional[CoreLoopBlock] = None
+    mda_profile: Optional[MDAProfileBlock] = None
+    balance: Optional[BalanceBlock] = None
+    progression: Optional[ProgressionBlock] = None
+    economy: Optional[EconomyBlock] = None
+    gdd: Optional[GDDBlock] = None
+    validation: Optional[ValidationBlock] = None
 
     project_stage: ProjectStageName = ProjectStageName.CONCEPT
     completion_percent: int = 0

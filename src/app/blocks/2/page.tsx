@@ -59,6 +59,7 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { usePipeline } from "@/hooks/use-pipeline";
 import { apiRoutes } from "@/config/api";
+import { GENRES } from "@/config/genres";
 
 // ============================================================
 // Константы
@@ -69,30 +70,6 @@ const LOOP_TYPES = [
   { value: "economy", label: "Economy (Экономика)", description: "Смешанные петли, конвертация ресурсов. RPG, Strategy, Simulation." },
   { value: "ecology", label: "Ecology (Экология)", description: "Балансирующие петли, равновесие. Horror, Survival, Sandbox." },
   { value: "hybrid", label: "Hybrid (Гибрид)", description: "Смешанная структура. Adventure, Roguelike, Tower Defense." },
-];
-
-const GENRES = [
-  { value: "action", label: "Action" },
-  { value: "platformer", label: "Платформер" },
-  { value: "shooter", label: "Шутер" },
-  { value: "fighting", label: "Fighting" },
-  { value: "stealth", label: "Stealth" },
-  { value: "survival_horror", label: "Survival Horror" },
-  { value: "rhythm", label: "Rhythm" },
-  { value: "adventure", label: "Adventure" },
-  { value: "rpg", label: "RPG" },
-  { value: "action_rpg", label: "Action RPG" },
-  { value: "mmorpg", label: "MMORPG" },
-  { value: "roguelike", label: "Roguelike" },
-  { value: "simulation", label: "Симулятор" },
-  { value: "strategy", label: "Стратегия" },
-  { value: "rts", label: "RTS" },
-  { value: "tbs", label: "TBS" },
-  { value: "tower_defense", label: "Tower Defense" },
-  { value: "puzzle", label: "Квест/Пазл" },
-  { value: "sandbox", label: "Sandbox" },
-  { value: "horror", label: "Хоррор" },
-  { value: "metroidvania", label: "Metroidvania" },
 ];
 
 const DEFAULT_MECHANICS = "Враги, Здоровье, Очки опыта, Уровни";
@@ -864,16 +841,16 @@ export default function Block2Page() {
     }
     setIsLoadingPipeline(true);
     try {
-      const data = await pipeline.prepareInput(2);
+      const data = await pipeline.prepareInput(2) as Record<string, unknown> | null;
       if (!data) {
         toast({ title: "Нет данных", description: "Не удалось загрузить данные из пайплайна. Убедитесь, что Блок 1 заполнен.", variant: "destructive" });
         return;
       }
       const updates: Partial<CoreLoopFormState> = {};
-      if (data.concept_id) updates.conceptId = data.concept_id;
-      if (data.genre) updates.genre = data.genre;
+      if (data.concept_id) updates.conceptId = data.concept_id as string;
+      if (data.genre) updates.genre = data.genre as string;
       if (Array.isArray(data.mechanics) && data.mechanics.length > 0) {
-        updates.mechanics = data.mechanics.join(", ");
+        updates.mechanics = (data.mechanics as string[]).join(", ");
       }
       if (Object.keys(updates).length > 0) {
         setForm((prev) => ({ ...prev, ...updates }));
@@ -938,21 +915,13 @@ export default function Block2Page() {
         body.custom_steps = customStepsList;
       }
 
-      const response = await apiFetch("/api/v1/coreloop/design", {
+      const data = await apiFetch<CoreLoopDesignResult>("/api/v1/coreloop/design", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.detail || `Ошибка сервера: ${response.status}`
-        );
-      }
-
-      const data = await response.json();
-      setResult(data as CoreLoopDesignResult);
+      setResult(data);
 
       // Уведомляем pipeline об обновлении Блока 2
       try {

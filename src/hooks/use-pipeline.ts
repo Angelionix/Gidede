@@ -41,6 +41,13 @@ export interface PipelineState {
   notifications: PipelineNotification[];
 }
 
+/** Тип ответа API для операций с HTTP-статусом */
+interface ApiResponse {
+  ok: boolean;
+  status: number;
+  data?: unknown;
+}
+
 // ============================================================
 // ХУК usePipeline
 // ============================================================
@@ -59,22 +66,16 @@ export function usePipeline(projectId: string | null) {
     setError(null);
 
     try {
-      const res = await apiFetch(
+      const data = await apiFetch<PipelineState>(
         apiRoutes.pipeline.state(projectId)
       );
-
-      if (!res.ok) {
-        if (res.status === 404) {
-          // Проект не найден — не ошибка, просто нет данных
-          setState(null);
-          return;
-        }
-        throw new Error(`HTTP ${res.status}`);
-      }
-
-      const data = await res.json();
       setState(data);
     } catch (err) {
+      // 404 — проект не найден, это не ошибка
+      if (err instanceof Error && err.message.includes("404")) {
+        setState(null);
+        return;
+      }
       console.error("Failed to fetch pipeline state:", err);
       setError(err instanceof Error ? err.message : "Неизвестная ошибка");
     } finally {
@@ -84,19 +85,14 @@ export function usePipeline(projectId: string | null) {
 
   // Подготовить входные данные для блока
   const prepareInput = useCallback(
-    async (blockId: number) => {
+    async (blockId: number): Promise<unknown> => {
       if (!projectId) return null;
 
       try {
-        const res = await apiFetch(
+        const result = await apiFetch<unknown>(
           apiRoutes.pipeline.prepare(projectId, blockId)
         );
-
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-
-        return await res.json();
+        return result;
       } catch (err) {
         console.error(`Failed to prepare input for block ${blockId}:`, err);
         return null;
@@ -111,7 +107,7 @@ export function usePipeline(projectId: string | null) {
       if (!projectId) return null;
 
       try {
-        const res = await apiFetch(
+        const result = await apiFetch<ApiResponse>(
           apiRoutes.pipeline.notify(),
           {
             method: "POST",
@@ -123,12 +119,6 @@ export function usePipeline(projectId: string | null) {
             }),
           }
         );
-
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-
-        const result = await res.json();
 
         // Обновляем состояние после уведомления
         await fetchState();
@@ -148,14 +138,10 @@ export function usePipeline(projectId: string | null) {
       if (!projectId) return false;
 
       try {
-        const res = await apiFetch(
+        await apiFetch<ApiResponse>(
           apiRoutes.pipeline.stale(projectId, blockId),
           { method: "DELETE" }
         );
-
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
 
         // Обновляем состояние
         await fetchState();
@@ -201,7 +187,7 @@ export function usePipeline(projectId: string | null) {
       if (!projectId) return null;
 
       try {
-        const res = await apiFetch(
+        const result = await apiFetch<ApiResponse>(
           apiRoutes.pipeline.runPipeline(projectId),
           {
             method: "POST",
@@ -209,12 +195,6 @@ export function usePipeline(projectId: string | null) {
             body: JSON.stringify(conceptInput),
           }
         );
-
-        if (!res.ok) {
-          throw new Error(`HTTP ${res.status}`);
-        }
-
-        const result = await res.json();
 
         // Обновляем состояние пайплайна после выполнения
         await fetchState();

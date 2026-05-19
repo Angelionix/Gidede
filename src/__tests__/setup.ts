@@ -6,6 +6,7 @@
  */
 
 import "@testing-library/jest-dom/vitest";
+import { vi } from "vitest";
 
 // Мок для next/navigation
 vi.mock("next/navigation", () => ({
@@ -21,16 +22,5 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(),
 }));
 
-// Мок для next-auth
-vi.mock("next-auth/react", () => ({
-  useSession: () => ({
-    data: null,
-    status: "unauthenticated",
-  }),
-  signIn: vi.fn(),
-  signOut: vi.fn(),
-  SessionProvider: ({ children }: { children: React.ReactNode }) => children,
-}));
-
 // Мок для fetch
-global.fetch = vi.fn();
+global.fetch = vi.fn() as unknown as typeof fetch;

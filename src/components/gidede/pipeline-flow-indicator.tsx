@@ -34,7 +34,7 @@ export function PipelineFlowIndicator({ currentBlock, maxBlock = 5 }: PipelineFl
     return state?.blocks?.find((b) => b.block_id === blockId)?.status;
   };
 
-  const visibleBlocks = BLOCK_LABELS.filter((b) => b.id <= maxBlock);
+  const visibleBlocks = BLOCKS.filter((b: { id: number }) => b.id <= maxBlock);
 
   return (
     <div className="flex items-center gap-2 px-3 py-2 rounded-lg border bg-muted/30 flex-wrap">

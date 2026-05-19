@@ -60,78 +60,13 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { usePipeline } from "@/hooks/use-pipeline";
 import { apiRoutes } from "@/config/api";
+import { GENRES } from "@/config/genres";
+import { AESTHETIC_MAP, YEE_MOTIVATIONS } from "@/config/aesthetics";
 import {
   AestheticProfile,
   DynamicsProfile,
   ValidationReport,
 } from "../../../../shared/types/typescript/interfaces";
-
-// ============================================================
-// Константы (из таксономии Роджерса, модели Йи, MechanicsDB)
-// ============================================================
-
-const GENRES = [
-  { value: "action", label: "Action" },
-  { value: "platformer", label: "Платформер" },
-  { value: "shooter", label: "Шутер" },
-  { value: "fighting", label: "Fighting" },
-  { value: "stealth", label: "Stealth" },
-  { value: "survival_horror", label: "Survival Horror" },
-  { value: "rhythm", label: "Rhythm" },
-  { value: "adventure", label: "Adventure" },
-  { value: "rpg", label: "RPG" },
-  { value: "action_rpg", label: "Action RPG" },
-  { value: "jrpg", label: "JRPG" },
-  { value: "tactical_rpg", label: "Tactical RPG" },
-  { value: "mmorpg", label: "MMORPG" },
-  { value: "roguelike", label: "Roguelike" },
-  { value: "simulation", label: "Симулятор" },
-  { value: "strategy", label: "Стратегия" },
-  { value: "rts", label: "RTS" },
-  { value: "tbs", label: "TBS" },
-  { value: "tower_defense", label: "Tower Defense" },
-  { value: "puzzle", label: "Квест/Пазл" },
-  { value: "party", label: "Party" },
-  { value: "educational", label: "Educational" },
-  { value: "racing", label: "Гонки" },
-  { value: "sports", label: "Спорт" },
-  { value: "sandbox", label: "Sandbox" },
-  { value: "horror", label: "Хоррор" },
-  { value: "metroidvania", label: "Metroidvania" },
-  { value: "idle", label: "Idle" },
-  { value: "visual_novel", label: "Visual Novel" },
-];
-
-/** Мотивации по модели Йи (3 кластера, 12 мотиваций) */
-const YEE_MOTIVATIONS = [
-  {
-    cluster: "Действие-Социальность",
-    items: [
-      { value: "destruction", label: "Разрушение" },
-      { value: "excitement", label: "Возбуждение" },
-      { value: "competition", label: "Соревнование" },
-      { value: "community", label: "Сообщество" },
-    ],
-  },
-  {
-    cluster: "Мастерство-Достижение",
-    items: [
-      { value: "challenge", label: "Вызов" },
-      { value: "strategy", label: "Стратегия" },
-      { value: "completion", label: "Завершение" },
-      { value: "power", label: "Мощь" },
-    ],
-  },
-  {
-    cluster: "Погружение-Творчество",
-    items: [
-      { value: "fantasy_yee", label: "Фантазия" },
-      { value: "story", label: "Сюжет" },
-      { value: "design", label: "Дизайн" },
-      { value: "discovery_yee", label: "Открытие" },
-    ],
-  },
-];
 
 const PLATFORMS = [
   { value: "pc", label: "PC" },
@@ -154,20 +89,7 @@ const EXPERIENCE_LEVELS = [
   { value: "hardcore", label: "Хардкор" },
 ];
 
-// ============================================================
-// Эстетические цвета (Hunicke's 8 aesthetics)
-// ============================================================
-
-const AESTHETIC_MAP: Record<string, { emoji: string; label: string; color: string }> = {
-  sensation: { emoji: "\u{1F534}", label: "Чувственное", color: "bg-red-100 text-red-800 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800" },
-  fantasy: { emoji: "\u{1F7E3}", label: "Фантазия", color: "bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800" },
-  narrative: { emoji: "\u{1F535}", label: "Нарратив", color: "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800" },
-  challenge: { emoji: "\u{1F7E0}", label: "Вызов", color: "bg-orange-100 text-orange-800 border-orange-300 dark:bg-orange-950/40 dark:text-orange-300 dark:border-orange-800" },
-  fellowship: { emoji: "\u{1F7E2}", label: "Товарищество", color: "bg-green-100 text-green-800 border-green-300 dark:bg-green-950/40 dark:text-green-300 dark:border-green-800" },
-  discovery: { emoji: "\u{1F7E1}", label: "Открытие", color: "bg-yellow-100 text-yellow-800 border-yellow-300 dark:bg-yellow-950/40 dark:text-yellow-300 dark:border-yellow-800" },
-  expression: { emoji: "\u{1FA79}", label: "Выражение", color: "bg-pink-100 text-pink-800 border-pink-300 dark:bg-pink-950/40 dark:text-pink-300 dark:border-pink-800" },
-  submission: { emoji: "\u26AA", label: "Подчинение", color: "bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-950/40 dark:text-gray-300 dark:border-gray-800" },
-};
+// (AESTHETIC_MAP moved to @/config/aesthetics)
 
 // ============================================================
 // Типы
@@ -415,7 +337,7 @@ function MechanicSetView({ mechanicSet }: { mechanicSet: Record<string, unknown>
             </Badge>
           ))}
           {synergiesDetected.map((s, i) => {
-            const label = typeof s === "string" ? s : (s.name as string || s as string || `Синергия ${i + 1}`);
+            const label = typeof s === "string" ? s : ((s as Record<string, unknown>).name as unknown as string || s as unknown as string || `Синергия ${i + 1}`);
             return (
               <Badge key={i} variant="outline" className="text-xs border-green-400 text-green-700 dark:text-green-400">
                 <Zap className="h-3 w-3 mr-1" />
@@ -442,7 +364,7 @@ function MechanicSetView({ mechanicSet }: { mechanicSet: Record<string, unknown>
                   <div className="space-y-3 pt-1">
                     {items.map((mech, i) => {
                       const m = mech as Record<string, unknown>;
-                      const name = (m.name as string) || (m as string) || `Механика ${i + 1}`;
+                      const name = (m.name as unknown as string) || (m as unknown as string) || `Механика ${i + 1}`;
                       const groupVal = (m.group as string) || group.key;
                       const description = (m.description as string) || "";
                       return (
@@ -734,9 +656,9 @@ function ValidationReportView({ report }: { report: ValidationReport }) {
     : [];
 
   // Try to get the three validators from both possible structures
-  const triangleCheck = (report as Record<string, unknown>).triangle_check ?? (report as Record<string, unknown>).triangle_of_weirdness;
-  const coreQuestions = (report as Record<string, unknown>).core_questions ?? (report as Record<string, unknown>).five_questions;
-  const ideaFilters = (report as Record<string, unknown>).idea_filters ?? (report as Record<string, unknown>).eight_filters;
+  const triangleCheck = (report as unknown as Record<string, unknown>).triangle_check ?? (report as unknown as Record<string, unknown>).triangle_of_weirdness;
+  const coreQuestions = (report as unknown as Record<string, unknown>).core_questions ?? (report as unknown as Record<string, unknown>).five_questions;
+  const ideaFilters = (report as unknown as Record<string, unknown>).idea_filters ?? (report as unknown as Record<string, unknown>).eight_filters;
 
   return (
     <Card>
@@ -759,7 +681,7 @@ function ValidationReportView({ report }: { report: ValidationReport }) {
         <Separator />
 
         {/* Validator 1: Triangle of Weirdness */}
-        {triangleCheck && (
+        {Boolean(triangleCheck) && (
           <ValidatorSection
             title="Triangle of Weirdness"
             description="Кн. 8 — баланс странности, привлекательности и достоверности"
@@ -768,7 +690,7 @@ function ValidationReportView({ report }: { report: ValidationReport }) {
         )}
 
         {/* Validator 2: 5 Core Questions */}
-        {coreQuestions && (
+        {Boolean(coreQuestions) && (
           <ValidatorSection
             title="5 вопросов кор-геймплея"
             description="Кн. 10 — проверка ядра геймплея"
@@ -777,7 +699,7 @@ function ValidationReportView({ report }: { report: ValidationReport }) {
         )}
 
         {/* Validator 3: 8 Idea Filters */}
-        {ideaFilters && (
+        {Boolean(ideaFilters) && (
           <ValidatorSection
             title="8 фильтров идеи"
             description="Кн. 1 — фильтрация качества идеи"
@@ -994,7 +916,11 @@ export default function Block1Page() {
         forbidden_mechanics: form.forbiddenMechanics.length > 0 ? form.forbiddenMechanics : null,
       };
 
-      const response = await apiFetch(
+      const data = await apiFetch<{
+        concept_result?: ConceptGenerationResult;
+        stages_completed?: number[];
+        detail?: string;
+      }>(
         apiRoutes.pipeline.runPartial(projectId),
         {
           method: "POST",
@@ -1003,12 +929,9 @@ export default function Block1Page() {
         }
       );
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.detail || `Ошибка сервера: ${response.status}`);
+      if (data.detail) {
+        throw new Error(data.detail);
       }
-
-      const data = await response.json();
       setCurrentStage(null);
 
       // Если вернулся результат концепции, показываем его

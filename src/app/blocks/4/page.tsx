@@ -96,24 +96,12 @@ import { usePipeline } from "@/hooks/use-pipeline";
 // ============================================================
 
 import { API_BASE_URL, apiRoutes } from "@/config/api";
+import { GENRES } from "@/config/genres";
 
 const GAME_MODES = [
   { value: "PvP", label: "PvP" },
   { value: "PvE", label: "PvE" },
   { value: "PvPvE", label: "PvPvE" },
-];
-
-const GENRES = [
-  { value: "action", label: "Action" },
-  { value: "rpg", label: "RPG" },
-  { value: "strategy", label: "Strategy" },
-  { value: "shooter", label: "Shooter" },
-  { value: "fighting", label: "Fighting" },
-  { value: "moba", label: "MOBA" },
-  { value: "rts", label: "RTS" },
-  { value: "tbs", label: "TBS" },
-  { value: "sandbox", label: "Sandbox" },
-  { value: "roguelike", label: "Roguelike" },
 ];
 
 const BALANCE_TYPES = [
@@ -974,7 +962,7 @@ function SimulationChartsTab({ result }: { result: FullBalanceResponse | null })
                 <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} domain={[0, 100]} unit="%" />
                 <Tooltip
-                  formatter={(value: number) => [`${value.toFixed(1)}%`, "Win Rate"]}
+                  formatter={(value) => [`${Number(value).toFixed(1)}%`, "Win Rate"]}
                 />
                 <Bar dataKey="winRate" radius={[4, 4, 0, 0]}>
                   {winRateData.map((entry, index) => (
@@ -1002,7 +990,7 @@ function SimulationChartsTab({ result }: { result: FullBalanceResponse | null })
                 <XAxis dataKey="name" tick={{ fontSize: 12 }} />
                 <YAxis tick={{ fontSize: 12 }} />
                 <Tooltip
-                  formatter={(value: number) => [`${value.toFixed(1)}`, "Avg Duration"]}
+                  formatter={(value) => [`${Number(value).toFixed(1)}`, "Avg Duration"]}
                 />
                 <Bar dataKey="duration" fill="#6366f1" radius={[4, 4, 0, 0]} />
               </BarChart>

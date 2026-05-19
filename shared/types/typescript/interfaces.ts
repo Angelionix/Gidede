@@ -1077,9 +1077,115 @@ export interface ChecklistResult {
 
 
 // ============================================================
-// PROJECT STATE — ЕДИНАЯ МОДЕЛЬ ПРОЕКТА (алгоритм 3.10)
+// PROJECT STATE — БЛОЧНЫЕ ИНТЕРФЕЙСЫ (ISP, алгоритм 3.10)
 // ============================================================
 
+/** Блок 1: Концепция — жанр, аудитория, эстетика, механики */
+export interface ConceptBlock {
+  genre: GenreProfile;
+  targetAudience: AudienceInput;
+  platform: Platform[];
+  constraints: ConstraintsInput;
+  onePager: OnePager;
+  usp: string;
+  referenceGames: string[];
+  aestheticProfile: AestheticProfile;
+  dynamicsProfile: DynamicsProfile;
+  mechanicSet: MechanicSet;
+}
+
+/** Блок 2: Core Loop — структурный тип, петли, патологии */
+export interface CoreLoopBlock {
+  structuralType: StructuralType;
+  steps: CoreLoopStep[];
+  innerLoops: InnerLoop[];
+  outerLoops: OuterLoop[];
+  metaLoop: MetaLoop;
+  pathologies: PathologyReport;
+  recommendations: Recommendation[];
+  loopHierarchy: LoopHierarchy;
+}
+
+/** Блок 3: MDA-профиль — эстетика, динамика, валидация */
+export interface MDAProfileBlock {
+  targetAesthetics: AestheticProfile;
+  targetDynamics: DynamicsTarget;
+  mechanicSet: StructuredMechanicSet;
+  observedDynamics: string[];
+  predictedAesthetics: Record<AestheticType, number>;
+  matchScores: Record<AestheticType, number>;
+  overallMatch: number;
+  lensValidation: LensValidation;
+  bondValidation: BondValidation;
+  machinationsModel: MachinationsGraph;
+}
+
+/** Блок 4: Баланс — карты, анализ, симуляция */
+export interface BalanceBlock {
+  balance_map: BalanceMap | null;
+  transitive_result: TransitiveResult | null;
+  stability: StabilityAnalysis | null;
+  intransitive_result: IntransitiveResult | null;
+  situational_result: SituationalResult | null;
+  q_factor_result: QFactorResult | null;
+  monte_carlo_result: MonteCarloResult | null;
+  machinations_result: MachinationsSimResult | null;
+  stages_completed: number[];
+  latency_ms: number;
+  models_used: string[];
+  warnings: string[];
+  suggestions: string[];
+}
+
+/** Блок 4.5: Прогрессия — макромодель, кривые, контент-план */
+export interface ProgressionBlock {
+  macroModel: ProgressionMacroModel;
+  tierModel: TierModel;
+  curves: ProgressionCurves;
+  contentPlan: ContentPlan;
+  economyLink: ProgressionEconomyLink;
+  validation: ProgressionValidation;
+}
+
+/** Блок 5: Экономика — ресурсы, конверсии, симуляция, монетизация */
+export interface EconomyBlock {
+  resourceModel: ResourceInventory;
+  systemType: string;
+  machinationsModel: MachinationsGraph;
+  conversionChains: ConversionChain[];
+  pathologies: EconomyPathology[];
+  corrections: EconomyCorrection[];
+  simulationResults: SimulationResult;
+  monetizationModel: MonetizationSpec;
+}
+
+/** Блок 6: GDD — генерация документации */
+export interface GDDBlock {
+  format: GDDFormat;
+  sections: GDDSection[];
+  visualElements: Record<string, VisualElement>;
+  consistencyIssues: ConsistencyIssue[];
+  completeness: CompletenessReport;
+}
+
+/** Блок 7: Валидация — общая оценка и чеки */
+export interface ValidationBlock {
+  overallScore: number;
+  readinessLevel: string;
+  issues: ValidationIssue[];
+  remediationPlan: RemediationItem[];
+  mdaCheck: MDACheckResult;
+  balanceCheck: BalanceCheckResult;
+  narrativeCheck: NarrativeCheckResult;
+  economyCheck: EconomyCheckResult;
+  lensCheck: LensCheckResult;
+}
+
+// ============================================================
+// PROJECT STATE — СОСТАВНОЙ ИНТЕРФЕЙС (алгоритм 3.10)
+// ============================================================
+
+/** Единая модель проекта — композит из блочных интерфейсов (ISP) */
 export interface ProjectState {
   id: string;
   name: string;
@@ -1087,98 +1193,14 @@ export interface ProjectState {
   updatedAt: string;
   version: number;
 
-  concept: {
-    genre: GenreProfile;
-    targetAudience: AudienceInput;
-    platform: Platform[];
-    constraints: ConstraintsInput;
-    onePager: OnePager;
-    usp: string;
-    referenceGames: string[];
-    aestheticProfile: AestheticProfile;
-    dynamicsProfile: DynamicsProfile;
-    mechanicSet: MechanicSet;
-  };
-
-  coreLoop: {
-    structuralType: StructuralType;
-    steps: CoreLoopStep[];
-    innerLoops: InnerLoop[];
-    outerLoops: OuterLoop[];
-    metaLoop: MetaLoop;
-    pathologies: PathologyReport;
-    recommendations: Recommendation[];
-    loopHierarchy: LoopHierarchy;
-  };
-
-  mdaProfile: {
-    targetAesthetics: AestheticProfile;
-    targetDynamics: DynamicsTarget;
-    mechanicSet: StructuredMechanicSet;
-    observedDynamics: string[];
-    predictedAesthetics: Record<AestheticType, number>;
-    matchScores: Record<AestheticType, number>;
-    overallMatch: number;
-    lensValidation: LensValidation;
-    bondValidation: BondValidation;
-    machinationsModel: MachinationsGraph;
-  };
-
-  balance: {
-    balance_map: BalanceMap | null;
-    transitive_result: TransitiveResult | null;
-    stability: StabilityAnalysis | null;
-    intransitive_result: IntransitiveResult | null;
-    situational_result: SituationalResult | null;
-    q_factor_result: QFactorResult | null;
-    monte_carlo_result: MonteCarloResult | null;
-    machinations_result: MachinationsSimResult | null;
-    stages_completed: number[];
-    latency_ms: number;
-    models_used: string[];
-    warnings: string[];
-    suggestions: string[];
-  };
-
-  progression: {
-    macroModel: ProgressionMacroModel;
-    tierModel: TierModel;
-    curves: ProgressionCurves;
-    contentPlan: ContentPlan;
-    economyLink: ProgressionEconomyLink;
-    validation: ProgressionValidation;
-  };
-
-  economy: {
-    resourceModel: ResourceInventory;
-    systemType: string;
-    machinationsModel: MachinationsGraph;
-    conversionChains: ConversionChain[];
-    pathologies: EconomyPathology[];
-    corrections: EconomyCorrection[];
-    simulationResults: SimulationResult;
-    monetizationModel: MonetizationSpec;
-  };
-
-  gdd: {
-    format: GDDFormat;
-    sections: GDDSection[];
-    visualElements: Record<string, VisualElement>;
-    consistencyIssues: ConsistencyIssue[];
-    completeness: CompletenessReport;
-  };
-
-  validation: {
-    overallScore: number;
-    readinessLevel: string;
-    issues: ValidationIssue[];
-    remediationPlan: RemediationItem[];
-    mdaCheck: MDACheckResult;
-    balanceCheck: BalanceCheckResult;
-    narrativeCheck: NarrativeCheckResult;
-    economyCheck: EconomyCheckResult;
-    lensCheck: LensCheckResult;
-  };
+  concept: ConceptBlock;
+  coreLoop: CoreLoopBlock;
+  mdaProfile: MDAProfileBlock;
+  balance: BalanceBlock;
+  progression: ProgressionBlock;
+  economy: EconomyBlock;
+  gdd: GDDBlock;
+  validation: ValidationBlock;
 
   projectStage: ProjectStageName;
   completionPercent: number;

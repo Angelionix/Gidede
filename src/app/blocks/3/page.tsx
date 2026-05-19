@@ -53,45 +53,12 @@ import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { usePipeline } from "@/hooks/use-pipeline";
 import { apiRoutes } from "@/config/api";
+import { GENRES } from "@/config/genres";
+import { AESTHETICS } from "@/config/aesthetics";
 
 // ============================================================
 // Константы
 // ============================================================
-
-const AESTHETICS = [
-  { value: "sensation", label: "Чувственное", icon: Zap, color: "bg-pink-100 text-pink-800 border-pink-300 dark:bg-pink-950/40 dark:text-pink-300 dark:border-pink-800" },
-  { value: "fantasy", label: "Фантазия", icon: Sparkles, color: "bg-purple-100 text-purple-800 border-purple-300 dark:bg-purple-950/40 dark:text-purple-300 dark:border-purple-800" },
-  { value: "narrative", label: "Нарратив", icon: MessageSquare, color: "bg-indigo-100 text-indigo-800 border-indigo-300 dark:bg-indigo-950/40 dark:text-indigo-300 dark:border-indigo-800" },
-  { value: "challenge", label: "Вызов", icon: Shield, color: "bg-red-100 text-red-800 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800" },
-  { value: "fellowship", label: "Товарищество", icon: BrainCircuit, color: "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800" },
-  { value: "discovery", label: "Открытие", icon: Search, color: "bg-green-100 text-green-800 border-green-300 dark:bg-green-950/40 dark:text-green-300 dark:border-green-800" },
-  { value: "expression", label: "Выражение", icon: Lightbulb, color: "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800" },
-  { value: "submission", label: "Подчинение", icon: RotateCcw, color: "bg-gray-100 text-gray-800 border-gray-300 dark:bg-gray-950/40 dark:text-gray-300 dark:border-gray-800" },
-];
-
-const GENRES = [
-  { value: "action", label: "Action" },
-  { value: "platformer", label: "Платформер" },
-  { value: "shooter", label: "Шутер" },
-  { value: "fighting", label: "Fighting" },
-  { value: "stealth", label: "Stealth" },
-  { value: "survival_horror", label: "Survival Horror" },
-  { value: "rhythm", label: "Rhythm" },
-  { value: "adventure", label: "Adventure" },
-  { value: "rpg", label: "RPG" },
-  { value: "action_rpg", label: "Action RPG" },
-  { value: "mmorpg", label: "MMORPG" },
-  { value: "roguelike", label: "Roguelike" },
-  { value: "simulation", label: "Симулятор" },
-  { value: "strategy", label: "Стратегия" },
-  { value: "rts", label: "RTS" },
-  { value: "tbs", label: "TBS" },
-  { value: "tower_defense", label: "Tower Defense" },
-  { value: "puzzle", label: "Квест/Пазл" },
-  { value: "sandbox", label: "Sandbox" },
-  { value: "horror", label: "Хоррор" },
-  { value: "metroidvania", label: "Metroidvania" },
-];
 
 const PRIORITY_LENSES = [
   { id: 9, name: "Тетрада", focus: "Согласованность Механика/История/Эстетика/Технология", category: "целостность" },
@@ -1176,23 +1143,23 @@ export default function Block3Page() {
     setIsLoadingPipeline(true);
     setPipelineWarning(null);
     try {
-      const data = await pipeline.prepareInput(3);
+      const data = await pipeline.prepareInput(3) as Record<string, unknown> | null;
       if (!data) {
         toast({ title: "Нет данных", description: "Не удалось загрузить данные из пайплайна. Убедитесь, что предыдущие блоки заполнены.", variant: "destructive" });
         return;
       }
       const updates: Partial<MDAFormState> = {};
-      if (data.concept_id) updates.conceptId = data.concept_id;
-      if (data.genre) updates.genre = data.genre;
-      if (data.primary_aesthetic) updates.primaryAesthetic = data.primary_aesthetic;
-      if (data.secondary_aesthetic) updates.secondaryAesthetic = data.secondary_aesthetic;
-      if (data.tertiary_aesthetic) updates.tertiaryAesthetic = data.tertiary_aesthetic;
-      if (data.idea) updates.idea = data.idea;
+      if (data.concept_id) updates.conceptId = data.concept_id as string;
+      if (data.genre) updates.genre = data.genre as string;
+      if (data.primary_aesthetic) updates.primaryAesthetic = data.primary_aesthetic as string;
+      if (data.secondary_aesthetic) updates.secondaryAesthetic = data.secondary_aesthetic as string;
+      if (data.tertiary_aesthetic) updates.tertiaryAesthetic = data.tertiary_aesthetic as string;
+      if (data.idea) updates.idea = data.idea as string;
       if (Array.isArray(data.existing_mechanics) && data.existing_mechanics.length > 0) {
-        updates.existingMechanics = data.existing_mechanics.join(", ");
+        updates.existingMechanics = (data.existing_mechanics as string[]).join(", ");
       }
       if (data.warning) {
-        setPipelineWarning(data.warning);
+        setPipelineWarning(data.warning as string);
       }
       if (data.has_core_loop === false) {
         setPipelineWarning("Блок 2 (Core Loop) ещё не заполнен. Результаты могут быть неполными.");
@@ -1267,21 +1234,13 @@ export default function Block3Page() {
       if (requiredList.length > 0) body.required_mechanics = requiredList;
       if (forbiddenList.length > 0) body.forbidden_mechanics = forbiddenList;
 
-      const response = await apiFetch("/api/v1/mda/analyze", {
+      const data = await apiFetch<MDAAnalysisResult>("/api/v1/mda/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(
-          errorData.detail || `Ошибка сервера: ${response.status}`
-        );
-      }
-
-      const data = await response.json();
-      setResult(data as MDAAnalysisResult);
+      setResult(data);
 
       // Уведомляем pipeline об обновлении Блока 3
       try {

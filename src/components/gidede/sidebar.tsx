@@ -98,7 +98,6 @@ export function GidedeSidebar() {
 
   // Pipeline-состояние — используем projectId из URL или localStorage
   // Для простоты берём последний активный проект из localStorage
-  const [activeProjectId, setActiveProjectId] = import.meta.env ? undefined : undefined;
   const projectId = typeof window !== "undefined"
     ? localStorage.getItem("gidede_active_project") || null
     : null;

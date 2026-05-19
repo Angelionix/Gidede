@@ -23,7 +23,11 @@ MechanicsDB — База данных игровых механик для си�
       educational, racing, sports, sandbox, horror, metroidvania, idle, visual_novel
   - conflicts_with (list[str]): названия механик на русском, с которыми конфликтует
   - synergies_with (list[str]): названия механик на русском, с которыми синергизирует
+
+4.E.3: Добавлены предвычисленные индексы для O(1) поиска по группе, жанру и названию.
 """
+
+from typing import Optional
 
 MECHANICS_DB_DATA: list[dict] = [
     # ================================================================
@@ -1494,3 +1498,61 @@ MECHANICS_DB_DATA: list[dict] = [
         "synergies_with": ["Микротранзакции", "Достижения", "DLC", "Уровни", "Рейтинги"]
     },
 ]
+
+
+# ============================================================
+# 4.E.3: Cached access functions for MechanicsDB
+# ============================================================
+
+# Pre-computed indexes for fast lookups (populated once on module load)
+_by_group: dict[int, list[dict]] = {}
+_by_genre: dict[str, list[dict]] = {}
+_by_name: dict[str, dict] = {}
+
+
+def _build_indexes() -> None:
+    """Построить индексы для быстрого поиска. Вызывается один раз при загрузке модуля."""
+    global _by_group, _by_genre, _by_name
+
+    for m in MECHANICS_DB_DATA:
+        # Group index
+        gid = m.get("group_id")
+        if gid is not None:
+            _by_group.setdefault(gid, []).append(m)
+
+        # Name index
+        name = m.get("mechanic_name")
+        if name:
+            _by_name[name] = m
+
+        # Genre index
+        for genre in m.get("genre_affinity", {}):
+            _by_genre.setdefault(genre, []).append(m)
+
+
+# Build indexes on module load
+_build_indexes()
+
+
+def get_mechanics_by_group(group_id: int) -> list[dict]:
+    """
+    Получить все механики указанной группы.
+    4.E.3: Использует предвычисленный индекс вместо линейного поиска.
+    """
+    return _by_group.get(group_id, [])
+
+
+def get_mechanics_by_genre(genre: str) -> list[dict]:
+    """
+    Получить все механики с аффинностью к указанному жанру.
+    4.E.3: Использует предвычисленный индекс вместо линейного поиска.
+    """
+    return _by_genre.get(genre, [])
+
+
+def get_mechanic_by_name(name: str) -> Optional[dict]:
+    """
+    Найти механику по названию.
+    4.E.3: Использует предвычисленный индекс O(1) вместо O(n).
+    """
+    return _by_name.get(name)

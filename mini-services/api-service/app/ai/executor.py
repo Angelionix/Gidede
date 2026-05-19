@@ -2,6 +2,8 @@
 Gidede — Prompt Executor
 Фаза 4.A.7: Ядро AI-интеграции
 Фаза 4.A.10: RAG-интеграция (обогащение промптов контекстом из базы знаний)
+Фаза 4.E.3: Batch/parallel execution, performance optimization
+Фаза 4.E.4: Timeout handling, exponential backoff retry
 
 Единый интерфейс вызова AI-промптов с:
 - Трёхслойной архитектурой (System + Context + Task)
@@ -11,12 +13,20 @@ Gidede — Prompt Executor
 - Fallback-цепочками
 - Валидацией выхода
 - Логированием каждого вызова
+- Таймауты: 30s для Sonnet-level, 15s для Haiku-level
+- Экспоненциальный backoff при ошибках (макс. 3 попытки)
+- Batch/parallel выполнение через asyncio.gather
 
 Интерфейс (из спецификации 3.9.6):
     executor = PromptExecutor(providers, cache, router, validator)
     result = await executor.execute("CLASSIFY_GENRE", {"idea": "..."})
+    results = await executor.execute_batch([
+        ("CLASSIFY_GENRE", {"idea": "..."}),
+        ("EXTRACT_AESTHETICS", {"idea": "...", "genre": "rpg"}),
+    ])
 """
 
+import asyncio
 import time
 import uuid
 import logging
@@ -35,6 +45,22 @@ logger = logging.getLogger(__name__)
 # Data classes
 # ============================================================
 
+# ============================================================
+# Timeout configuration (4.E.4)
+# ============================================================
+
+# Sonnet-level models: generation/analysis — 30s timeout
+SONNET_LEVEL_TIMEOUT = 30
+# Haiku-level models: classification/evaluation/recommendation — 15s timeout
+HAIKU_LEVEL_TIMEOUT = 15
+# Default max retries with exponential backoff
+DEFAULT_MAX_RETRIES = 3
+# Base delay for exponential backoff (in seconds)
+BACKOFF_BASE_DELAY = 1.0
+# Maximum backoff delay (in seconds)
+BACKOFF_MAX_DELAY = 10.0
+
+
 @dataclass
 class PromptExecutionOptions:
     """Опции выполнения промпта."""
@@ -44,7 +70,7 @@ class PromptExecutionOptions:
     max_retries: Optional[int] = None            # Максимум попыток
     temperature: Optional[float] = None          # Переопределить температуру
     max_tokens: Optional[int] = None             # Переопределить max_tokens
-    timeout: Optional[int] = None                # Таймаут в ms
+    timeout: Optional[int] = None                # Таймаут в секундах
 
 
 @dataclass
@@ -200,6 +226,93 @@ class PromptExecutor:
         self.validator = validator
         self._system_prompt = SYSTEM_PROMPT
 
+    # ========================================================
+    # Timeout helper (4.E.4)
+    # ========================================================
+
+    def _get_timeout_for_task(self, task_type: str, options: PromptExecutionOptions) -> int:
+        """
+        Определить таймаут для типа задачи.
+        Sonnet-level (generation, analysis) → 30s
+        Haiku-level (classification, evaluation, recommendation) → 15s
+        """
+        if options.timeout is not None:
+            return options.timeout
+
+        sonnet_tasks = {"generation", "analysis"}
+        if task_type in sonnet_tasks:
+            return SONNET_LEVEL_TIMEOUT
+        return HAIKU_LEVEL_TIMEOUT
+
+    # ========================================================
+    # Exponential backoff helper (4.E.4)
+    # ========================================================
+
+    @staticmethod
+    def _calculate_backoff_delay(attempt: int) -> float:
+        """
+        Рассчитать задержку для exponential backoff.
+        attempt 0 → 1s, attempt 1 → 2s, attempt 2 → 4s, capped at 10s.
+        """
+        delay = BACKOFF_BASE_DELAY * (2 ** attempt)
+        return min(delay, BACKOFF_MAX_DELAY)
+
+    # ========================================================
+    # Batch/parallel execution (4.E.3)
+    # ========================================================
+
+    async def execute_batch(
+        self,
+        tasks: list[tuple[str, dict[str, Any]]],
+        project_state: Optional[dict] = None,
+        user_plan: str = "free",
+        options: Optional[PromptExecutionOptions] = None,
+    ) -> list[PromptResult]:
+        """
+        Выполнить несколько AI-промптов параллельно через asyncio.gather.
+
+        Args:
+            tasks: Список (prompt_id, inputs) кортежей
+            project_state: Текущее состояние проекта
+            user_plan: План пользователя (free/pro)
+            options: Опциональные настройки (применяются ко всем задачам)
+
+        Returns:
+            Список PromptResult в том же порядке, что и tasks.
+            Ошибки не прерывают другие задачи — возвращается PromptResult с ошибкой.
+        """
+        async def _safe_execute(prompt_id: str, inputs: dict[str, Any]) -> PromptResult:
+            try:
+                return await self.execute(
+                    prompt_id=prompt_id,
+                    inputs=inputs,
+                    project_state=project_state,
+                    user_plan=user_plan,
+                    options=options,
+                )
+            except Exception as e:
+                logger.error(f"Batch task {prompt_id} failed: {e}")
+                return PromptResult(
+                    data=None,
+                    metadata={
+                        "prompt_id": prompt_id,
+                        "model": "error",
+                        "provider": "none",
+                        "attempts": 0,
+                        "from_cache": False,
+                        "latency_ms": 0,
+                        "tokens_used": {"input": 0, "output": 0},
+                        "cost_usd": 0.0,
+                        "validation_passed": False,
+                        "was_repaired": False,
+                        "error": str(e),
+                    },
+                )
+
+        coroutines = [_safe_execute(pid, inp) for pid, inp in tasks]
+        results = await asyncio.gather(*coroutines)
+        return list(results)
+
     async def execute(
         self,
         prompt_id: str,
@@ -277,7 +390,7 @@ class PromptExecutor:
             override_provider=options.override_provider,
         )
 
-        # 5. Вызов AI с retry + fallback
+        # 5. Вызов AI с retry + fallback + timeout
         ai_response = await self._call_with_fallback(
             route=route,
             system_prompt=system_prompt,
@@ -285,6 +398,7 @@ class PromptExecutor:
             task_prompt=task_prompt,
             output_format=output_format,
             options=options,
+            task_type=task_type,
         )
 
         # 6. Валидация выхода
@@ -364,12 +478,21 @@ class PromptExecutor:
         task_prompt: str,
         output_format: str,
         options: PromptExecutionOptions,
+        task_type: str = "generation",
     ) -> AIResponse:
         """
-        Вызов AI с fallback-цепочкой.
-        Попытка 1: primary → Попытка 2: fallback → Попытка 3: cached → Попытка 4: degraded
+        Вызов AI с fallback-цепочкой, таймаутами и exponential backoff.
+        
+        4.E.4:
+        - Таймаут: 30s для Sonnet-level, 15s для Haiku-level
+        - Exponential backoff: max 3 retries с задержкой 1s → 2s → 4s
+        
+        Попытка 1: primary (с retry + backoff) → Попытка 2: fallback (с retry) → Ошибка
         """
-        # Основной провайдер
+        max_retries = options.max_retries if options.max_retries is not None else DEFAULT_MAX_RETRIES
+        timeout_seconds = self._get_timeout_for_task(task_type, options)
+
+        # Основной провайдер с retry + backoff
         provider = route.provider
         model = route.model
         temperature = options.temperature or route.temperature
@@ -377,35 +500,71 @@ class PromptExecutor:
 
         messages = provider.build_messages(system_prompt, context_prompt, task_prompt)
 
-        try:
-            return await provider.generate(
-                messages=messages,
-                model=model,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                response_format=route.response_format or (output_format if output_format == "json" else None),
-            )
-        except Exception as e:
-            logger.warning(f"Primary provider {provider.name} failed: {e}")
+        last_error: Optional[Exception] = None
+
+        for attempt in range(max_retries):
+            try:
+                result = await asyncio.wait_for(
+                    provider.generate(
+                        messages=messages,
+                        model=model,
+                        temperature=temperature,
+                        max_tokens=max_tokens,
+                        response_format=route.response_format or (output_format if output_format == "json" else None),
+                    ),
+                    timeout=timeout_seconds,
+                )
+                return result
+            except asyncio.TimeoutError:
+                last_error = TimeoutError(
+                    f"AI-вызов превысил таймаут {timeout_seconds}s "
+                    f"(попытка {attempt + 1}/{max_retries}, провайдер: {provider.name})"
+                )
+                logger.warning(f"Timeout on attempt {attempt + 1}/{max_retries} for {provider.name}: {timeout_seconds}s")
+            except Exception as e:
+                last_error = e
+                logger.warning(f"Primary provider {provider.name} failed (attempt {attempt + 1}/{max_retries}): {e}")
+
+            # Exponential backoff before next retry
+            if attempt < max_retries - 1:
+                delay = self._calculate_backoff_delay(attempt)
+                logger.info(f"Retrying in {delay:.1f}s (attempt {attempt + 2}/{max_retries})")
+                await asyncio.sleep(delay)
 
         # Fallback-цепочка
         if route.fallback_chain:
             for fb_provider, fb_model in route.fallback_chain:
-                try:
-                    messages = fb_provider.build_messages(system_prompt, context_prompt, task_prompt)
-                    return await fb_provider.generate(
-                        messages=messages,
-                        model=fb_model,
-                        temperature=temperature,
-                        max_tokens=max_tokens,
-                        response_format=route.response_format or (output_format if output_format == "json" else None),
-                    )
-                except Exception as fb_e:
-                    logger.warning(f"Fallback provider {fb_provider.name} failed: {fb_e}")
-                    continue
+                for attempt in range(max_retries):
+                    try:
+                        messages = fb_provider.build_messages(system_prompt, context_prompt, task_prompt)
+                        result = await asyncio.wait_for(
+                            fb_provider.generate(
+                                messages=messages,
+                                model=fb_model,
+                                temperature=temperature,
+                                max_tokens=max_tokens,
+                                response_format=route.response_format or (output_format if output_format == "json" else None),
+                            ),
+                            timeout=timeout_seconds,
+                        )
+                        return result
+                    except asyncio.TimeoutError:
+                        logger.warning(
+                            f"Fallback provider {fb_provider.name} timeout "
+                            f"(attempt {attempt + 1}/{max_retries}, {timeout_seconds}s)"
+                        )
+                    except Exception as fb_e:
+                        logger.warning(f"Fallback provider {fb_provider.name} failed (attempt {attempt + 1}): {fb_e}")
+
+                    # Backoff for fallback retries
+                    if attempt < max_retries - 1:
+                        delay = self._calculate_backoff_delay(attempt)
+                        await asyncio.sleep(delay)
 
         # Все провайдеры недоступны
-        raise RuntimeError("Все AI-провайдеры недоступны")
+        if isinstance(last_error, TimeoutError):
+            raise last_error
+        raise RuntimeError(f"Все AI-провайдеры недоступны (последняя ошибка: {last_error})")
 
     def _build_task_prompt(self, spec: dict, inputs: dict) -> str:
         """Сборка Task Prompt (Слой 3) из шаблона и входных данных."""

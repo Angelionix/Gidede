@@ -9,6 +9,54 @@
 
 ---
 
+## [0.43.0] - 2026-05-20
+
+### Changed
+- Версия обновлена с 0.42.0 до 0.43.0
+- **Тестовая документация**: полная актуализация `docs/тестирование/testing_plan.md`
+  - Реальный подсчёт backend тестов: **743 теста** в 18 файлах (было 684)
+  - Реальный подсчёт frontend тестов: **16 тестов** в 3 файлах (было 9)
+  - Выявлены 5 сервисов без выделенных тестов: Concept, CoreLoop, MDA, Progression, Project
+  - Добавлены плановые backend тесты: ~190 тестов для 5 недостающих сервисов
+  - Добавлены плановые frontend тесты: ~106 тестов по 4 приоритетам
+  - Расширены UI тест-кейсы: 70 тестов для всех 8 блоков + общий UI (было 71 → 70 уточнённых)
+  - Расширены E2E сценарии: 10 сценариев (было 6)
+  - Целевое покрытие: ~933 backend + ~122 frontend тестов
+- **TECH_DEBT.md**: ревью — все задачи Resolved или Partially Resolved (внешние блокеры)
+- **4.E.2**: подтверждена как завершённая (✅) — UI Блока 8 реализован
+
+---
+
+## [0.42.0] - 2026-05-20
+
+### Added
+- **4.E.3**: Оптимизация производительности
+  - Backend: batch/parallel выполнение AI-промптов через `asyncio.gather` в `executor.py`
+  - Backend: кэширование Project State (Redis + in-memory fallback) в `database.py`
+  - Backend: connection pool с `pool_pre_ping` и `pool_recycle` для устойчивости БД
+  - Frontend: глобальный skeleton loading (`loading.tsx`) — повторяет структуру страницы блоков
+  - Frontend: Next.js App Router автоматически code-split'ит каждую страницу блока (lazy loading)
+- **4.E.4**: Обработка ошибок и граничные случаи
+  - Backend: AI timeout (30s Sonnet, 15s Haiku) + exponential backoff (max 3 retries) в `executor.py`
+  - Backend: DB connection loss recovery с auto-reconnect (3 попытки, exponential backoff) в `database.py`
+  - Backend: Redis graceful degradation (in-memory fallback для Project State cache)
+  - Frontend: глобальный Error Boundary с retry (`error.tsx`) — определение типа ошибки (сеть/timeout/AI), кнопка «Попробовать снова», детали при повторных ошибках
+  - Frontend: apiFetch с timeout (30s), retry (max 3 попытки), exponential backoff, детальные 422 сообщения
+  - Frontend: обработка 5xx (retry), 422 (детальная валидация), timeout (AbortController), network error (информативные сообщения)
+
+### Resolved
+- TD-019: AI timeout/retry — ✅ Resolved (4.E.4)
+- TD-020: Error boundary — ✅ Resolved (4.E.4)
+- TD-021: Lazy loading — ✅ Resolved (4.E.3, встроено в Next.js App Router)
+
+### Changed
+- Версия обновлена с 0.41.0 до 0.42.0
+- ROADMAP_PHASE4.md — задачи 4.E.3 и 4.E.4 отмечены как завершённые (✅)
+- TECH_DEBT.md — добавлены TD-019, TD-020, TD-021
+- `src/lib/auth.tsx` — apiFetch полностью переработан с timeout + retry + error categorization
+
+---
+
 ## [0.41.0] - 2026-05-20
 
 ### Added

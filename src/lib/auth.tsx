@@ -288,8 +288,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [router]);
 
   // ----------------------------------------------------------
-  // Auth-aware fetch helper
+  // Auth-aware fetch helper with timeout + retry (4.E.4)
   // ----------------------------------------------------------
+
+  const API_TIMEOUT_MS = 30_000; // 30s default timeout
+  const API_MAX_RETRIES = 2; // 2 retries (3 total attempts) for network errors
+  const API_RETRY_DELAY_MS = 1_000; // 1s base delay, doubles each retry
+
   const apiFetch = useCallback(
     async <T = unknown>(path: string, options: RequestInit = {}): Promise<T> => {
       let accessToken = getAccessToken();
@@ -307,37 +312,121 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         headers.set("Content-Type", "application/json");
       }
 
-      const res = await fetch(apiUrl(path), {
-        ...options,
-        headers,
-      });
+      // 4.E.4: Retry loop for network errors with exponential backoff
+      let lastError: Error | null = null;
+      for (let attempt = 0; attempt <= API_MAX_RETRIES; attempt++) {
+        try {
+          // 4.E.4: AbortController for timeout
+          const controller = new AbortController();
+          const timeoutId = setTimeout(() => controller.abort(), API_TIMEOUT_MS);
 
-      // Handle 401 — try to refresh once
-      if (res.status === 401) {
-        const newToken = await refreshToken();
-        if (newToken) {
-          const retryHeaders = new Headers(options.headers);
-          retryHeaders.set("Authorization", `Bearer ${newToken}`);
-          const retryRes = await fetch(apiUrl(path), {
+          // Merge signal: respect caller's signal OR our timeout signal
+          const mergedSignal = options.signal
+            ? AbortSignal.any([options.signal, controller.signal])
+            : controller.signal;
+
+          const res = await fetch(apiUrl(path), {
             ...options,
-            headers: retryHeaders,
+            headers,
+            signal: mergedSignal,
           });
-          if (retryRes.status === 401) {
+
+          clearTimeout(timeoutId);
+
+          // Handle 401 — try to refresh once
+          if (res.status === 401) {
+            const newToken = await refreshToken();
+            if (newToken) {
+              const retryHeaders = new Headers(options.headers);
+              retryHeaders.set("Authorization", `Bearer ${newToken}`);
+              const retryRes = await fetch(apiUrl(path), {
+                ...options,
+                headers: retryHeaders,
+              });
+              if (retryRes.status === 401) {
+                clearTokens();
+                setState({ user: null, isLoading: false, isAuthenticated: false });
+                router.push("/login");
+                throw new Error("Сессия истекла. Войдите заново.");
+              }
+              return retryRes.json();
+            }
+
             clearTokens();
             setState({ user: null, isLoading: false, isAuthenticated: false });
             router.push("/login");
             throw new Error("Сессия истекла. Войдите заново.");
           }
-          return retryRes.json();
-        }
 
-        clearTokens();
-        setState({ user: null, isLoading: false, isAuthenticated: false });
-        router.push("/login");
-        throw new Error("Сессия истекла. Войдите заново.");
+          // Handle server errors (5xx) — retry
+          if (res.status >= 500 && attempt < API_MAX_RETRIES) {
+            lastError = new Error(`Сервер вернул ошибку ${res.status}. Повторная попытка...`);
+            const delay = API_RETRY_DELAY_MS * Math.pow(2, attempt);
+            await new Promise((r) => setTimeout(r, delay));
+            continue;
+          }
+
+          // Handle 422 with detailed error message
+          if (res.status === 422) {
+            const errData = await res.json().catch(() => ({}));
+            const details = errData.detail
+              ? (typeof errData.detail === "string"
+                ? errData.detail
+                : Array.isArray(errData.detail)
+                  ? errData.detail.map((d: { msg?: string; loc?: string[] }) => `${d.loc?.join(".") || "field"}: ${d.msg || "invalid"}`).join("; ")
+                  : JSON.stringify(errData.detail))
+              : "Ошибка валидации данных";
+            throw new Error(`Ошибка валидации: ${details}`);
+          }
+
+          // Handle other client errors (4xx)
+          if (res.status >= 400) {
+            const errData = await res.json().catch(() => ({}));
+            throw new Error(errData.detail || `Ошибка запроса (${res.status})`);
+          }
+
+          return res.json();
+        } catch (err) {
+          // Timeout error
+          if (err instanceof DOMException && err.name === "AbortError") {
+            lastError = new Error("Превышено время ожидания запроса. Попробуйте снова.");
+            if (attempt < API_MAX_RETRIES) {
+              const delay = API_RETRY_DELAY_MS * Math.pow(2, attempt);
+              await new Promise((r) => setTimeout(r, delay));
+              continue;
+            }
+          }
+
+          // Network error (fetch failed entirely)
+          if (err instanceof TypeError && err.message.includes("fetch")) {
+            lastError = new Error("Не удалось подключиться к серверу. Проверьте подключение к интернету.");
+            if (attempt < API_MAX_RETRIES) {
+              const delay = API_RETRY_DELAY_MS * Math.pow(2, attempt);
+              await new Promise((r) => setTimeout(r, delay));
+              continue;
+            }
+          }
+
+          // Non-retryable error — throw immediately
+          if (err instanceof Error && (
+            err.message.includes("Сессия истекла") ||
+            err.message.includes("Ошибка валидации") ||
+            err.message.includes("Ошибка запроса")
+          )) {
+            throw err;
+          }
+
+          lastError = err instanceof Error ? err : new Error(String(err));
+          if (attempt < API_MAX_RETRIES) {
+            const delay = API_RETRY_DELAY_MS * Math.pow(2, attempt);
+            await new Promise((r) => setTimeout(r, delay));
+            continue;
+          }
+        }
       }
 
-      return res.json();
+      // All retries exhausted
+      throw lastError || new Error("Запрос не удался после нескольких попыток.");
     },
     [refreshToken, router]
   );

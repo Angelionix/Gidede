@@ -510,7 +510,7 @@ export default function Block8Page() {
 
       {/* Main Tabs */}
       <Tabs defaultValue="connection">
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="connection" className="flex items-center gap-1.5">
             <Wifi className="h-4 w-4" />
             <span className="hidden sm:inline">Подключение</span>
@@ -599,7 +599,7 @@ export default function Block8Page() {
               {connectionStatus && (
                 <>
                   <Separator />
-                  <div className="space-y-3">
+                  <div className="space-y-3 animate-fade-in">
                     <div className="flex items-center gap-3">
                       {/* Status indicator */}
                       <div
@@ -766,7 +766,7 @@ export default function Block8Page() {
 
           {/* Sync result */}
           {syncResult && (
-            <Card>
+            <Card className="animate-fade-in">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base flex items-center gap-2">
                   {syncResult.status === "synced" ? (
@@ -904,6 +904,7 @@ export default function Block8Page() {
                   onClick={loadSyncHistory}
                   disabled={isHistoryLoading}
                   className="h-7 text-xs"
+                  aria-label="Обновить историю синхронизаций"
                 >
                   {isHistoryLoading ? (
                     <Loader2 className="h-3 w-3 animate-spin mr-1" />
@@ -1172,7 +1173,7 @@ export default function Block8Page() {
 
               {/* Webhook result */}
               {webhookResult && (
-                <div className="rounded-md border p-3 space-y-2">
+                <div className="rounded-md border p-3 space-y-2 animate-fade-in">
                   <div className="flex items-center gap-2">
                     {webhookResult.acknowledged ? (
                       <CheckCircle2 className="h-4 w-4 text-green-500" />

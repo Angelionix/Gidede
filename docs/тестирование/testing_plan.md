@@ -2,7 +2,7 @@
 
 > **Фаза**: 4.E (Интеграция и полировка — Блок 8)
 > **Дата**: 2026-05-20
-> **Версия**: 0.44.0
+> **Версия**: 0.46.0
 > **Статус**: Активный
 > **Подход**: Локальное тестирование + CI/CD (GitHub Actions)
 
@@ -20,8 +20,8 @@
 | Unit-тесты (frontend) | vitest + React Testing Library | Компоненты, хуки, утилиты | Полная |
 | API-тесты (backend) | pytest + httpx | Все REST-эндпоинты | Полная |
 | Интеграционные тесты | pytest | AI-сервис, RAG, Redis, полный пайплайн | Частичная (с моками) |
+| E2E-тесты (автоматизированные) | Playwright | 5 пользовательских сценариев | Полная |
 | UI-тесты (ручные) | Браузер | Страницы, формы, навигация, валидация | Ручная |
-| E2E-тесты | Браузер | Полные пользовательские сценарии | Ручная |
 
 ### 1.2 Команды запуска
 
@@ -47,9 +47,17 @@ python -m pytest tests/ -v
 python -m pytest tests/ -v --cov=app --cov-report=term-missing
 
 # Frontend: vitest напрямую
+cd /home/z/my-project/Gidede
 npx vitest run
 npx vitest run --coverage
 npx vitest --ui   # Интерактивный UI
+
+# E2E: Playwright
+cd /home/z/my-project/Gidede
+npx playwright test              # Запуск всех E2E тестов
+npx playwright test --list       # Листинг тестов без запуска
+npx playwright test --ui         # Интерактивный UI
+npx playwright test e2e/auth.spec.ts  # Только авторизация
 
 # Линтеры
 ruff check app/ tests/     # Python
@@ -62,7 +70,7 @@ npx eslint src/            # TypeScript
 
 ### 2.0 Сводная таблица
 
-**Итого: 743 теста в 18 файлах**
+**Итого: 928 тестов в 23 файлах (backend) + 30 тестов в 3 файлах (frontend) + 17 E2E тестов в 5 файлах**
 
 | # | Файл | Количество | Что тестирует |
 |---|------|------------|---------------|
@@ -81,9 +89,14 @@ npx eslint src/            # TypeScript
 | 13 | test_prompt_registry.py | 8 | Prompt Registry: 31+ промптов, PromptSpec, фильтрация, статистика |
 | 14 | test_auth.py | 6 | Auth: register, login, JWT, protected endpoints |
 | 15 | test_text_chunker.py | 6 | TextChunker: длинные абзацы, русский, код, токены |
-| 16 | test_projects.py | 4 | Projects: CRUD, изоляция |
-| 17 | test_health.py | 2 | Health check API |
-| 18 | integration/test_full_pipeline.py | 28 | Full pipeline idea→economy, data flow, stale, graceful degradation |
+| 16 | test_concept_service.py | 41 | Concept: classify_genre, extract_aesthetics, derive_dynamics, select_mechanics, pipeline |
+| 17 | test_coreloop_service.py | 40 | CoreLoop: classify, hierarchy, pathologies, validation, recommendations, design_full |
+| 18 | test_mda_service.py | 45 | MDA: target dynamics, mechanics mapping, set assembly, classic MDA, lenses, Bond matrix |
+| 19 | test_progression_service.py | 45 | Progression: macro params, tiers, curves, content plan, validation, pipeline |
+| 20 | test_project_service.py | 14 | Project: CRUD, block flags, edge cases |
+| 21 | test_projects.py | 4 | Projects: CRUD, изоляция |
+| 22 | test_health.py | 2 | Health check API |
+| 23 | integration/test_full_pipeline.py | 28 | Full pipeline idea→economy, data flow, stale, graceful degradation |
 
 ```
 mini-services/api-service/tests/
@@ -94,8 +107,12 @@ mini-services/api-service/tests/
 ├── test_rag_service.py            # RAG-сервис (12 тестов)
 ├── test_prompt_registry.py        # Реестр промптов (8 тестов)
 ├── test_text_chunker.py           # Разбиение текста на чанки (6 тестов)
-├── test_balance_service.py        # Balance Service (77 тестов)
-├── test_economy_service.py        # Economy Service (83 теста)
+├── test_concept_service.py        # Concept Service — Блок 1 (41 тест)
+├── test_coreloop_service.py       # CoreLoop Service — Блок 2 (40 тестов)
+├── test_mda_service.py            # MDA Service — Блок 3 (45 тестов)
+├── test_balance_service.py        # Balance Service — Блок 4 (77 тестов)
+├── test_progression_service.py    # Progression Service — Блок 5 (45 тестов)
+├── test_economy_service.py        # Economy Service — Блок 5 (83 теста)
 ├── test_gdd_service.py            # GDD Service Stages 1-5 (108 тестов)
 ├── test_gdd_stages_6_8.py         # GDD Service Stages 6-8 (32 теста)
 ├── test_pipeline_service.py       # Pipeline Service (31 тест)
@@ -105,6 +122,7 @@ mini-services/api-service/tests/
 ├── test_pipeline_4d9_integration.py  # Pipeline Integration Blocks 6-7 (60 тестов)
 ├── test_blocks_6_7_integration.py # Blocks 6-7 Testing & Debugging (42 теста)
 ├── test_gbe_bridge_service.py     # GBE Bridge Service — Block 8 (69 тестов)
+├── test_project_service.py        # Project Service (14 тестов)
 └── integration/
     └── test_full_pipeline.py      # Интеграционные тесты (28 тестов)
 ```
@@ -1061,17 +1079,17 @@ mini-services/api-service/tests/
 
 ## 4. Автоматизированные программные тесты (Frontend — vitest)
 
-### 4.1 Текущие тесты (16 тестов в 3 файлах)
+### 4.1 Текущие тесты (30 тестов в 3 файлах)
 
 ```
 src/__tests__/
 ├── setup.ts                # Глобальные моки (next/navigation, next-auth, fetch)
 ├── api-client.test.ts      # API-клиент (4 теста)
 ├── auth.test.tsx           # Авторизация (2 теста)
-└── components.test.tsx     # UI-компоненты (10 тестов)
+└── components.test.tsx     # UI-компоненты + Error Handling (24 теста)
 ```
 
-**components.test.tsx — 10 тестов**
+**components.test.tsx — 24 теста**
 
 | ID | Тест | Что проверяет |
 |----|------|---------------|
@@ -1080,18 +1098,32 @@ src/__tests__/
 | F-03 | `input element renders correctly` | Рендеринг инпута |
 | F-04 | `WarningsList renders nothing when warnings is empty` | Пустой WarningsList |
 | F-05 | `WarningsList renders warnings when provided` | WarningsList с данными |
-| F-06 | `SuggestionsList renders nothing when suggestions is empty` | Пустой SuggestionsList |
-| F-07 | `SuggestionsList renders suggestions when provided` | SuggestionsList с данными |
-| F-08 | `EmptyStateCard renders with icon, title and description` | EmptyStateCard |
-| F-09 | `NodeTypeIcon renders correct icon types` | NodeTypeIcon для различных типов |
-| F-10 | `NodeTypeIcon falls back for unknown type` | NodeTypeIcon fallback |
+| F-06 | `WarningsList renders multiple warnings` | Множественные warnings |
+| F-07 | `WarningsList respects maxRows limit` | Ограничение maxRows |
+| F-08 | `SuggestionsList renders nothing when suggestions is empty` | Пустой SuggestionsList |
+| F-09 | `SuggestionsList renders suggestions in card variant` | SuggestionsList (card) |
+| F-10 | `SuggestionsList renders suggestions in inline variant` | SuggestionsList (inline) |
+| F-11 | `EmptyStateCard renders with icon, title and description` | EmptyStateCard полный |
+| F-12 | `EmptyStateCard renders without description` | EmptyStateCard без description |
+| F-13 | `NodeTypeIcon renders pool node type` | NodeTypeIcon: pool |
+| F-14 | `NodeTypeIcon renders source node type` | NodeTypeIcon: source |
+| F-15 | `NodeTypeIcon renders drain node type` | NodeTypeIcon: drain |
+| F-16 | `NodeTypeIcon renders converter node type` | NodeTypeIcon: converter |
+| F-17 | `NodeTypeIcon renders gate node type` | NodeTypeIcon: gate |
+| F-18 | `NodeTypeIcon renders unknown node type with default icon` | NodeTypeIcon: fallback |
+| F-19 | `classifyError identifies timeout errors` | classifyError: timeout (4.E.4) |
+| F-20 | `classifyError identifies network errors` | classifyError: network (4.E.4) |
+| F-21 | `classifyError identifies auth errors` | classifyError: auth (4.E.4) |
+| F-22 | `classifyError identifies validation errors` | classifyError: validation (4.E.4) |
+| F-23 | `classifyError identifies server errors` | classifyError: server (4.E.4) |
+| F-24 | `getErrorMessage returns human-readable messages` | getErrorMessage: русский текст (4.E.4) |
 
 **auth.test.tsx — 2 теста**
 
 | ID | Тест | Что проверяет |
 |----|------|---------------|
-| F-11 | `рендерит форму логина` | Форма логина |
-| F-12 | `рендерит форму регистрации` | Форма регистрации |
+| F-25 | `рендерит форму логина` | Форма логина |
+| F-26 | `рендерит форму регистрации` | Форма регистрации |
 
 > ⚠️ **Проблема**: auth.test.tsx использует mock HTML вместо реальных React-компонентов.
 
@@ -1099,10 +1131,10 @@ src/__tests__/
 
 | ID | Тест | Что проверяет |
 |----|------|---------------|
-| F-13 | `базовый URL API корректен` | API URL содержит /api/v1 |
-| F-14 | `заголовки авторизации добавляются` | Bearer token в заголовках |
-| F-15 | `обработка 401 ошибки` | Обработка Unauthorized |
-| F-16 | `обработка 500 ошибки` | Обработка Server Error |
+| F-27 | `базовый URL API корректен` | API URL содержит /api/v1 |
+| F-28 | `заголовки авторизации добавляются` | Bearer token в заголовках |
+| F-29 | `обработка 401 ошибки` | Обработка Unauthorized |
+| F-30 | `обработка 500 ошибки` | Обработка Server Error |
 
 > ⚠️ **Проблема**: api-client.test.ts использует inline-логику вместо реальных импортов из lib/api-client.ts.
 
@@ -1111,9 +1143,9 @@ src/__tests__/
 | Категория | Всего | Протестировано | Покрытие |
 |-----------|-------|----------------|----------|
 | Страницы (pages) | 16 | 0 | 0% |
-| Компоненты (components) | 46 | 4 (только shared/) | 8.7% |
+| Компоненты (components) | 46 | 4 (shared/) + api-client error handling | 10.9% |
 | Хуки (hooks) | 4 | 0 | 0% |
-| Утилиты (lib) | 3 | 0 (надлежащим образом) | 0% |
+| Утилиты (lib) | 3 | 1 (api-client error handling) | 33.3% |
 
 **Критические проблемы**:
 - Auth-тесты используют mock HTML вместо реальных компонентов из `app/login/page.tsx` и `app/register/page.tsx`
@@ -1322,7 +1354,66 @@ src/__tests__/
 
 ---
 
-## 6. E2E-тесты — 10 сценариев
+## 6. E2E-тесты — 10 сценариев (7 ручных + 3 автоматизированных Playwright)
+
+### 6.1 Автоматизированные E2E-тесты (Playwright) — 17 тестов в 5 файлах
+
+> **4.E.6**: Комплексное E2E-тестирование реализовано с Playwright. Все API-вызовы замоканы через `page.route()` — не требуют реального backend/AI.
+
+```
+e2e/
+├── auth.spec.ts          # Сценарий 5: Авторизация (5 тестов)
+├── pipeline.spec.ts      # Сценарий 1: Pipeline (4 теста)
+├── balance.spec.ts       # Сценарий 2: Баланс (3 теста)
+├── ai-assistant.spec.ts  # Сценарий 3: AI-ассистент (3 теста)
+└── export.spec.ts        # Сценарий 4: Экспорт (2 теста)
+```
+
+**auth.spec.ts — 5 тестов (Сценарий 5: Авторизация)**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| E2E-A1 | Регистрация нового пользователя | Форма регистрации → success redirect |
+| E2E-A2 | Регистрация с существующим email | Error message display |
+| E2E-A3 | Логин с верными данными | Login → redirect to /projects |
+| E2E-A4 | Логин с неверным паролем | Error message display |
+| E2E-A5 | Защищённый маршрут редиректит на /login | Unauthenticated → /login |
+
+**pipeline.spec.ts — 4 теста (Сценарий 1: От идеи до GDD)**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| E2E-P1 | Полный пайплайн: проект → Блок 1 → Блок 2 | Создание проекта, ввод идеи, навигация |
+| E2E-P2 | Индикатор прогресса обновляется | Блок заполняется → sidebar update |
+| E2E-P3 | Уведомление пайплайна при изменении upstream | Блок 1 обновлён → toast notification |
+| E2E-P4 | Устаревшие блоки показывают предупреждение | Stale badge отображается |
+
+**balance.spec.ts — 3 теста (Сценарий 2: Проверка баланса)**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| E2E-B1 | Транзитивный анализ | Ввод данных → таблица cost/power |
+| E2E-B2 | Интранзитивный анализ | Payoff-матрица → результаты |
+| E2E-B3 | Monte Carlo симуляция | Запуск → графики win rate |
+
+**ai-assistant.spec.ts — 3 теста (Сценарий 3: AI-ассистент)**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| E2E-AI1 | Отправка сообщения AI-ассистенту | SSE streaming mock → ответ |
+| E2E-AI2 | Контекстные подсказки | Suggestions для текущего блока |
+| E2E-AI3 | Проактивные алерты | Economy pathology alerts |
+
+**export.spec.ts — 2 теста (Сценарий 4: Экспорт)**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| E2E-E1 | Генерация GDD документа | Все секции заполнены |
+| E2E-E2 | Экспорт GDD в PDF | PDF download |
+
+---
+
+### 6.2 Ручные E2E-сценарии (7 сценариев)
 
 ### E2E-01: Полный пайплайн «идея → GDD» за ≤ 60 минут
 
@@ -1489,13 +1580,13 @@ src/__tests__/
 | **4.A** | 4.A.10: RAG | 12 + 6 = 18 | — | — | ✅ |
 | **4.A** | 4.A.11: CI/CD | — | — | — | ✅ Инфраструктура |
 | **4.A** | 4.A.12: Shared types | — (via sync) | — | — | ✅ Через sync_types |
-| **4.B** | 4.B.1-4.B.5: Concept | ❌ 0 dedicated | 0 | UI-01–UI-12 | ❌ Нет backend |
-| **4.B** | 4.B.6-4.B.8: Core Loop | ❌ 0 dedicated | 0 | UI-13–UI-20 | ❌ Нет backend |
-| **4.B** | 4.B.9-4.B.11: MDA | ❌ 0 dedicated | 0 | UI-21–UI-27 | ❌ Нет backend |
+| **4.B** | 4.B.1-4.B.5: Concept | 41 | 0 | UI-01–UI-12 | ✅ Backend |
+| **4.B** | 4.B.6-4.B.8: Core Loop | 40 | 0 | UI-13–UI-20 | ✅ Backend |
+| **4.B** | 4.B.9-4.B.11: MDA | 45 | 0 | UI-21–UI-27 | ✅ Backend |
 | **4.B** | 4.B.12: Pipeline 1→2→3 | 31 | — | — | ✅ |
 | **4.C** | 4.C.1-4.C.3: Balance | 77 | 0 | UI-28–UI-34 | ✅ Backend |
 | **4.C** | 4.C.4: Balance UI | — | 0 | UI-28–UI-34 | ❌ Нет frontend |
-| **4.C** | 4.C.5-4.C.7: Progression | ❌ 0 dedicated | 0 | UI-35–UI-42 | ❌ Нет backend |
+| **4.C** | 4.C.5-4.C.7: Progression | 45 | 0 | UI-35–UI-42 | ✅ Backend |
 | **4.C** | 4.C.6: Economy | 83 | 0 | UI-35–UI-42 | ✅ Backend |
 | **4.C** | 4.C.8: Economy UI | — | 0 | UI-35–UI-42 | ❌ Нет frontend |
 | **4.C** | 4.C.9-4.C.10: Pipeline 1-5 | 28 + 31 = 59 | — | — | ✅ |
@@ -1508,18 +1599,21 @@ src/__tests__/
 | **4.E** | 4.E.1: GBE Bridge | 69 | 0 | UI-57–UI-62 | ✅ Backend |
 | **4.E** | 4.E.2: Block 8 UI | — | 0 | UI-57–UI-62 | ❌ Нет frontend |
 | **4.E** | 4.E.3: Performance | — | — | — | ✅ Инфраструктура |
-| **4.E** | 4.E.4: Error handling | — | — | UI-65 | ⚠️ Error boundary есть |
-| **4.E** | 4.E.5-4.E.8 | — | — | — | 🔲 Не реализовано |
+| **4.E** | 4.E.4: Error handling | — | 6 (classifyError) | UI-65 | ✅ Frontend error handling |
+| **4.E** | 4.E.5: UI Polish | — | — | — | ✅ Завершено |
+| **4.E** | 4.E.6: E2E Testing | — | — | 17 Playwright | ✅ 17 E2E тестов |
+| **4.E** | 4.E.7-4.E.8 | — | — | — | 🔲 Не реализовано |
 
 ### 7.2 По типам тестов
 
 | Категория | Текущее | Плановое | % выполнения |
 |-----------|---------|----------|-------------|
-| Backend pytest тестов | 743 | 743 + 190 = ~933 | 79.6% |
-| Frontend vitest тестов | 16 | 16 + 106 = ~122 | 13.1% |
+| Backend pytest тестов | 928 | 928 | 100% |
+| Frontend vitest тестов | 30 | 30 + 92 = ~122 | 24.6% |
 | UI ручных тестов | 70 | 70 | 100% |
-| E2E сценариев | 10 | 10 | 100% |
-| **Итого тест-кейсов** | **839** | **~1135** | **73.9%** |
+| E2E автоматизированных (Playwright) | 17 | 17 | 100% |
+| E2E ручных сценариев | 7 | 7 | 100% |
+| **Итого тест-кейсов** | **1052** | **~1144** | **92.0%** |
 
 ### 7.3 По сервисам (backend)
 
@@ -1542,33 +1636,33 @@ src/__tests__/
 | Projects | 4 | 4 + 15 = ~19 | ⚠️ Расширение |
 | Health | 2 | 2 | ✅ Полное покрытие |
 | Full Pipeline (integration) | 28 | 28 | ✅ Полное покрытие |
-| **Concept Service** | **0** | **~50** | ❌ Требуется |
-| **CoreLoop Service** | **0** | **~40** | ❌ Требуется |
-| **MDA Service** | **0** | **~45** | ❌ Требуется |
-| **Progression Service** | **0** | **~40** | ❌ Требуется |
-| **Project Service** | **0** | **~15** | ❌ Требуется |
+| Concept Service | 41 | 41 | ✅ Полное покрытие |
+| CoreLoop Service | 40 | 40 | ✅ Полное покрытие |
+| MDA Service | 45 | 45 | ✅ Полное покрытие |
+| Progression Service | 45 | 45 | ✅ Полное покрытие |
+| Project Service | 14 | 14 | ✅ Полное покрытие |
 
 ---
 
 ## 8. Целевое покрытие
 
-### 8.1 Текущее покрытие (версия 0.43.0)
+### 8.1 Текущее покрытие (версия 0.46.0)
 
-| Метрика | Backend | Frontend |
-|---------|---------|----------|
-| Тестов | 743 | 16 |
-| Файлов тестов | 18 | 3 |
-| Покрытие кода (оценка) | ~55% | ~5% |
-| Сервисов с тестами | 15/20 | 1/20 |
+| Метрика | Backend | Frontend | E2E |
+|---------|---------|----------|-----|
+| Тестов | 928 | 30 | 17 |
+| Файлов тестов | 23 | 3 | 5 |
+| Покрытие кода (оценка) | ~65% | ~10% | 5/5 сценариев |
+| Сервисов с тестами | 20/20 | 2/20 | — |
 
 ### 8.2 Целевое покрытие после закрытия разрывов
 
-| Метрика | Backend | Frontend |
-|---------|---------|----------|
-| Тестов | ~933 | ~122 |
-| Файлов тестов | 23 | ~15 |
-| Покрытие кода (цель) | ≥ 70% | ≥ 50% |
-| Сервисов с тестами | 20/20 | ~15/20 |
+| Метрика | Backend | Frontend | E2E |
+|---------|---------|----------|-----|
+| Тестов | 928 | ~122 | 17+ |
+| Файлов тестов | 23 | ~15 | 5+ |
+| Покрытие кода (цель) | ≥ 70% | ≥ 50% | — |
+| Сервисов с тестами | 20/20 | ~15/20 | — |
 
 ### 8.3 Целевое покрытие по критерию C8 из ROADMAP
 

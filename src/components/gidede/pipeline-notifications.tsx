@@ -73,6 +73,7 @@ function StaleNotification({ notification, onDismiss }: StaleNotificationProps) 
           setDismissed(true);
           onDismiss(notification.block_id);
         }}
+        aria-label="Закрыть уведомление"
       >
         <X className="h-3 w-3" />
       </Button>
@@ -105,7 +106,7 @@ export function PipelineNotifications({
   };
 
   return (
-    <div className="space-y-2">
+    <div className="space-y-2" role="status" aria-live="polite">
       {visible.map((n) => (
         <StaleNotification
           key={`stale-${n.block_id}`}

@@ -108,7 +108,7 @@ function ProjectCard({
   ].filter(Boolean) as string[];
 
   return (
-    <Card className="hover:shadow-md transition-shadow cursor-pointer" onClick={() => onOpen(project.id)}>
+    <Card className="hover:shadow-md transition-all duration-200 cursor-pointer" onClick={() => onOpen(project.id)}>
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between">
           <div className="flex items-center gap-2">
@@ -119,7 +119,7 @@ function ProjectCard({
             <StatusBadge status={project.status} />
             <DropdownMenu>
               <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
-                <Button variant="ghost" size="icon" className="h-8 w-8">
+                <Button variant="ghost" size="icon" className="h-8 w-8 focus-visible:ring-2 focus-visible:ring-ring" aria-label="Действия с проектом">
                   <MoreVertical className="h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -361,7 +361,7 @@ export default function ProjectsPage() {
   const totalPages = Math.ceil(total / perPage);
 
   return (
-    <div className="container max-w-6xl mx-auto py-8 px-4">
+    <div className="container max-w-6xl mx-auto py-6 md:py-8 px-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-8">
         <div>

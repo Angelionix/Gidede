@@ -351,13 +351,13 @@ export default function Block5Page() {
 
           {/* Results */}
           {progResult && (
-            <Tabs value={progSubTab} onValueChange={setProgSubTab}>
+            <Tabs value={progSubTab} onValueChange={setProgSubTab} className="animate-fade-in" aria-label="Результаты прогрессии">
               <TabsList>
-                <TabsTrigger value="macro">Макро-параметры</TabsTrigger>
-                <TabsTrigger value="tiers">Этапы</TabsTrigger>
-                <TabsTrigger value="curves">Кривые</TabsTrigger>
-                <TabsTrigger value="content">Контент-план</TabsTrigger>
-                <TabsTrigger value="validation">Валидация</TabsTrigger>
+                <TabsTrigger value="macro" className="text-xs sm:text-sm">Макро-параметры</TabsTrigger>
+                <TabsTrigger value="tiers" className="text-xs sm:text-sm">Этапы</TabsTrigger>
+                <TabsTrigger value="curves" className="text-xs sm:text-sm">Кривые</TabsTrigger>
+                <TabsTrigger value="content" className="text-xs sm:text-sm">Контент-план</TabsTrigger>
+                <TabsTrigger value="validation" className="text-xs sm:text-sm">Валидация</TabsTrigger>
               </TabsList>
               <TabsContent value="macro" className="mt-4">
                 <MacroParamsTab result={progResult} />
@@ -470,13 +470,13 @@ export default function Block5Page() {
 
           {/* Results */}
           {ecoResult && (
-            <Tabs value={ecoSubTab} onValueChange={setEcoSubTab}>
+            <Tabs value={ecoSubTab} onValueChange={setEcoSubTab} className="animate-fade-in" aria-label="Результаты экономики">
               <TabsList>
-                <TabsTrigger value="resources">Ресурсы</TabsTrigger>
-                <TabsTrigger value="classification">Классификация</TabsTrigger>
-                <TabsTrigger value="machinations">Machinations</TabsTrigger>
-                <TabsTrigger value="diagnostics">Диагностика</TabsTrigger>
-                <TabsTrigger value="simulation">Симуляция</TabsTrigger>
+                <TabsTrigger value="resources" className="text-xs sm:text-sm">Ресурсы</TabsTrigger>
+                <TabsTrigger value="classification" className="text-xs sm:text-sm">Классификация</TabsTrigger>
+                <TabsTrigger value="machinations" className="text-xs sm:text-sm">Machinations</TabsTrigger>
+                <TabsTrigger value="diagnostics" className="text-xs sm:text-sm">Диагностика</TabsTrigger>
+                <TabsTrigger value="simulation" className="text-xs sm:text-sm">Симуляция</TabsTrigger>
               </TabsList>
               <TabsContent value="resources" className="mt-4">
                 <ResourcesTab result={ecoResult} />

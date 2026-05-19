@@ -207,7 +207,7 @@ export default function Block1Page() {
   // ============================================================
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-4xl mx-auto space-y-6">
       {/* Заголовок */}
       <div className="flex items-center gap-3 mb-6">
         <Lightbulb className="h-6 w-6 text-primary" />
@@ -268,7 +268,7 @@ export default function Block1Page() {
 
       {/* === РЕЗУЛЬТАТ ГЕНЕРАЦИИ === */}
       {result && (
-        <div className="space-y-4">
+        <div className="space-y-4 animate-fade-in" aria-live="polite">
           <OnePagerCard result={result} />
 
           {result.aesthetic_profile && <AestheticProfileView profile={result.aesthetic_profile} />}

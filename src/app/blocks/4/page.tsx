@@ -328,8 +328,8 @@ export default function Block4Page() {
 
       {/* Results Tabs */}
       {result && (
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid w-full grid-cols-5">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="animate-fade-in" aria-label="Результаты анализа баланса">
+          <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5">
             <TabsTrigger value="transitive" className="text-xs sm:text-sm">
               <Target className="h-3.5 w-3.5 mr-1 hidden sm:inline" />
               Transitive

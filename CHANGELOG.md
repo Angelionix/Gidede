@@ -9,6 +9,70 @@
 
 ---
 
+## [0.46.0] - 2026-05-20
+
+### Added
+- **4.E.6**: Комплексное E2E-тестирование (Playwright)
+  - Установлен `@playwright/test@1.60.0` как dev dependency
+  - Создан `playwright.config.ts` с CI-ready настройками (parallel, retries, Chromium only)
+  - Создан `e2e/` каталог с 5 файлами E2E-тестов:
+    - `auth.spec.ts` — **5 тестов**: регистрация, дублирование email, логин, неверный пароль, редирект на /login
+    - `pipeline.spec.ts` — **4 теста**: полный пайплайн проект→Блок1→Блок2, индикатор прогресса, уведомления, stale-блоки
+    - `balance.spec.ts` — **3 теста**: транзитивный анализ, интранзитивный анализ, Monte Carlo симуляция
+    - `ai-assistant.spec.ts` — **3 теста**: отправка сообщения (SSE streaming mock), контекстные подсказки, проактивные алерты
+    - `export.spec.ts` — **2 теста**: генерация GDD, экспорт в PDF
+  - Все API-вызовы замоканы через `page.route()` — не требуют реального backend/AI
+  - Добавлен скрипт `test:e2e` в package.json
+
+### Fixed
+- **components.test.tsx**: полностью переписан — исправлены все 12 падающих тестов
+  - Добавлены моки для `lucide-react` (11 иконок) и `@/components/ui/card` (4 компонента)
+  - Расширено покрытие: WarningsList (4→4 теста), SuggestionsList (2→3), EmptyStateCard (1→2), NodeTypeIcon (2→6)
+  - Добавлена секция API Error Handling (4.E.4): 6 тестов для classifyError/getErrorMessage
+  - Итого: **30 тестов** в 3 файлах (было 16)
+- **vitest.config.ts**: добавлен `exclude: ["e2e/**", "node_modules/**"]` для предотвращения конфликта с Playwright
+
+### Changed
+- Версия обновлена с 0.45.0 до 0.46.0
+- ROADMAP_PHASE4.md — задача 4.E.6 отмечена как завершённая (✅)
+- Тестовая документация: актуализация `docs/тестирование/testing_plan.md`
+  - Реальный подсчёт: **928 backend** + **30 frontend** + **17 E2E** = **975 тестов** всего
+  - Frontend: 30 тестов (было 16) — расширены shared-компоненты + API Error Handling
+  - E2E: 17 тестов в 5 файлах (новая категория)
+
+---
+
+## [0.45.0] - 2026-05-20
+
+### Added
+- **4.E.5**: UI-полировка: дизайн, анимации, responsive, accessibility
+  - **Анимации**: создан `src/styles/animations.css` с 3 keyframe-анимациями (fadeIn, slideIn, pulse-subtle)
+  - **Fade-in**: анимация появления результатов на всех 8 страницах блоков
+  - **Pulse-subtle**: мягкая пульсация для loading-индикаторов (заменяет агрессивный animate-pulse)
+  - **Responsive**: padding `p-4 md:p-6` на всех страницах блоков, адаптивные табы
+  - **Accessibility**: aria-label на icon-only кнопках, aria-busy/aria-live на результатных контейнерах, focus-visible ring на интерактивных элементах, role="progressbar" в progress sidebar
+  - **EmptyStateCard**: увеличена иконка (16×16), добавлена анимация fadeIn, улучшена типографика
+- **185 новых backend тестов** для 5 сервисов без тестов:
+  - `test_concept_service.py` — **41 тест**: classify_genre (9), extract_aesthetics (8), derive_dynamics (8), select_mechanics (10), generate_stages_1_3 (5), constants (1)
+  - `test_coreloop_service.py` — **40 тестов**: classify_core_loop (10), build_loop_hierarchy (8), diagnose_pathologies (9), validate_core_loop (4), generate_recommendations (4), design_full (5)
+  - `test_mda_service.py` — **45 тестов**: target dynamics (9), dynamics→mechanics (6), assemble mechanic set (5), classic MDA (4), validate lenses (5), Bond matrix (4), pipeline (5), constants (7)
+  - `test_progression_service.py` — **45 тестов**: macro params (9), tiers (8), curves (8), content plan (5), validation (5), full pipeline (5), constants (5)
+  - `test_project_service.py` — **14 тестов**: CRUD (6), block flags (6), edge cases (2)
+
+### Fixed
+- **concept_service.py**: исправлен баг ValueError в `select_mechanics()` при множественных конфликтах — добавлен removed_names set и try/except
+- **mda_service.py**: исправлены 2 бага — dict.items() subscriptability и f-string conditional format
+
+### Changed
+- Версия обновлена с 0.44.0 до 0.45.0
+- **Тестовая документация**: актуализация `docs/тестирование/testing_plan.md`
+  - Реальный подсчёт: **928 backend** + **16 frontend** = **944 теста** всего
+  - Backend: 23 файла (было 18), +185 тестов для 5 новых сервисов
+- **ROADMAP_PHASE4.md**: задача 4.E.5 отмечена как завершённая (✅)
+- **TECH_DEBT.md**: добавлена запись о v0.45.0
+
+---
+
 ## [0.44.0] - 2026-05-20
 
 ### Added

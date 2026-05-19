@@ -741,7 +741,7 @@ export default function Block7Page() {
 
       {/* Main Tabs */}
       <Tabs value={mainTab} onValueChange={setMainTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-4">
           <TabsTrigger value="chat" className="flex items-center gap-1.5">
             <MessageSquare className="h-4 w-4" />
             <span className="hidden sm:inline">Чат</span>
@@ -762,7 +762,7 @@ export default function Block7Page() {
 
         {/* ====================== CHAT TAB ====================== */}
         <TabsContent value="chat" className="mt-4">
-          <Card className="flex flex-col" style={{ height: "calc(100vh - 240px)", minHeight: "400px" }}>
+          <Card className="flex flex-col animate-fade-in" style={{ height: "calc(100vh - 240px)", minHeight: "400px" }}>
             {/* Messages */}
             <CardContent className="flex-1 overflow-y-auto p-4 space-y-3">
               {messages.length === 0 && (
@@ -801,8 +801,8 @@ export default function Block7Page() {
               ))}
 
               {isSending && !isStreaming && (
-                <div className="flex gap-2 items-center text-sm text-muted-foreground">
-                  <Bot className="h-5 w-5 text-primary animate-pulse" />
+                <div className="flex gap-2 items-center text-sm text-muted-foreground" role="status" aria-busy="true">
+                  <Bot className="h-5 w-5 text-primary animate-pulse-subtle" />
                   <span>AI-ассистент думает...</span>
                 </div>
               )}
@@ -826,6 +826,7 @@ export default function Block7Page() {
                   variant="destructive"
                   size="icon"
                   title="Остановить генерацию"
+                  aria-label="Остановить генерацию"
                 >
                   <span className="text-xs font-bold">&#9632;</span>
                 </Button>
@@ -834,6 +835,7 @@ export default function Block7Page() {
                   onClick={handleSendStream}
                   disabled={isSending || !inputValue.trim()}
                   size="icon"
+                  aria-label="Отправить сообщение"
                 >
                   {isSending ? (
                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -847,6 +849,7 @@ export default function Block7Page() {
                 size="icon"
                 onClick={handleClearHistory}
                 title="Очистить историю"
+                aria-label="Очистить историю чата"
               >
                 <Trash2 className="h-4 w-4" />
               </Button>

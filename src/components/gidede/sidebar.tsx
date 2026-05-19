@@ -291,7 +291,8 @@ export function GidedeSidebar() {
               <SidebarMenuItem>
                 <SidebarMenuButton
                   onClick={() => logout()}
-                  className="text-destructive hover:text-destructive"
+                  className="text-destructive hover:text-destructive focus-visible:ring-2 focus-visible:ring-ring"
+                  aria-label="Выйти из аккаунта"
                 >
                   <LogOut className="h-4 w-4" />
                   <span>Выйти</span>
@@ -312,7 +313,7 @@ export function GidedeSidebar() {
               </SidebarMenuItem>
             </SidebarMenu>
             <SidebarSeparator />
-            <Button asChild variant="outline" className="w-full" size="sm">
+            <Button asChild variant="outline" className="w-full focus-visible:ring-2 focus-visible:ring-ring" size="sm">
               <Link href="/login">
                 <LogIn className="h-4 w-4" />
                 Войти

@@ -804,26 +804,27 @@ class ConceptService:
 
         # 6.1: Проверка конфликтов
         conflicts_resolved = []
+        removed_names = set()  # Track already-removed mechanics to avoid ValueError
         for m in all_selected[:]:
+            if m["mechanic_name"] in removed_names:
+                continue
             for conflict_name in m.get("conflicts_with", []):
-                if conflict_name in all_names:
+                if conflict_name in all_names and conflict_name not in removed_names:
                     # Удаляем механику с меньшей жанровой привязкой
                     other = next((x for x in all_selected if x["mechanic_name"] == conflict_name), None)
                     if other:
                         m_affinity = m.get("genre_affinity", {}).get(genre, 0)
                         o_affinity = other.get("genre_affinity", {}).get(genre, 0)
-                        if m_affinity <= o_affinity:
-                            all_selected.remove(m)
-                            all_names.remove(m["mechanic_name"])
+                        to_remove = m if m_affinity <= o_affinity else other
+                        try:
+                            all_selected.remove(to_remove)
+                            all_names.remove(to_remove["mechanic_name"])
+                            removed_names.add(to_remove["mechanic_name"])
                             conflicts_resolved.append(
-                                f"Удалена механика '{m['mechanic_name']}' из-за конфликта с '{conflict_name}'"
+                                f"Удалена механика '{to_remove['mechanic_name']}' из-за конфликта"
                             )
-                        else:
-                            all_selected.remove(other)
-                            all_names.remove(other["mechanic_name"])
-                            conflicts_resolved.append(
-                                f"Удалена механика '{conflict_name}' из-за конфликта с '{m['mechanic_name']}'"
-                            )
+                        except ValueError:
+                            pass  # Already removed in a previous iteration
                     break
 
         # 6.2: Проверка синергий

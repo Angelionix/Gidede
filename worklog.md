@@ -70,3 +70,59 @@ Stage Summary:
 - Ключевая находка: 5 backend сервисов без тестов (Concept, CoreLoop, MDA, Progression, Project)
 - Frontend покрытие крайне низкое: 16 тестов, 0% страниц, 8.7% компонентов
 - Целевое покрытие: 933 backend + 122 frontend тестов
+
+---
+Task ID: 5
+Agent: UI Polish Agent
+Task: 4.E.5 UI-полировка (ROADMAP_PHASE4.md)
+
+Work Log:
+1. **Animations** — Created `src/styles/animations.css` with fadeIn, slideIn, pulse-subtle keyframes and utility classes. Imported in `globals.css`.
+2. **Responsive padding** — Changed `p-6` → `p-4 md:p-6` on blocks 1, 2, 3, settings page. Blocks 4–8 already had responsive padding.
+3. **Responsive tab grids** — Updated TabsList grids for mobile: Block 3 (4→2/4), Block 4 (5→3/5), Block 5 sub-tab text sizing, Block 6 (3/6), Block 7 (4→2/4), Block 8 (4→2/4). Responsive py on projects page.
+4. **Accessibility** — Added:
+   - `aria-label` on icon-only buttons (sidebar logout, pipeline notifications close, block 7 send/stop/clear, block 8 refresh, projects dropdown)
+   - `aria-busy="true"` + `role="status"` on loading indicators (concept form stage, block 7 AI thinking)
+   - `aria-live="polite"` on result containers (blocks 1–5 results, pipeline notifications wrapper)
+   - `role="progressbar"` + `aria-valuenow/min/max/label` on progress bar in progress-sidebar
+   - `focus-visible:ring-2 focus-visible:ring-ring` on sidebar logout button, login button, projects dropdown
+5. **EmptyStateCard** — Enhanced with `animate-fade-in`, larger icon (h-16 w-16), improved typography and max-width for description.
+6. **Animations on block pages** — Added `animate-fade-in` to result sections on all 8 block pages. Added `animate-pulse-subtle` to loading indicators.
+7. **Card transitions** — Changed project cards to `transition-all duration-200`.
+8. **TypeScript check** — All pre-existing errors remain (pipelineState, token type mismatches); no new errors introduced.
+
+Stage Summary:
+- 4.E.5 UI-полировка completed
+- Animations: fadeIn, slideIn, pulse-subtle utility classes available globally
+- All 8 block pages have responsive padding and fade-in animations on results
+- Accessibility: aria attributes added to 10+ interactive elements, progress bars, loading states
+- EmptyStateCard enhanced with animation and better visual hierarchy
+- Mobile-friendly tab grids on blocks 3, 4, 7, 8
+
+---
+Task ID: 6
+Agent: Main
+Task: 5 задач пользователя (TECH_DEBT + 4.E.4→4.E.6 + версия + тесты + git)
+
+Work Log:
+- Task 1: TECH_DEBT ревью — все записи Resolved/Partially Resolved, нет доступных задач
+- Task 2: 4.E.4 уже ✅ → перешёл к 4.E.6 (E2E-тестирование)
+  - Установлен @playwright/test@1.60.0
+  - Создан playwright.config.ts
+  - Созданы 5 E2E файлов (17 тестов): auth(5), pipeline(4), balance(3), ai-assistant(3), export(2)
+  - ROADMAP 4.E.6 отмечена ✅
+- Task 3: Версия обновлена 0.45.0 → 0.46.0 (minor bump)
+- Task 4: Актуализация тестов
+  - Переписан components.test.tsx (16→30 тестов): моки для lucide-react + ui/card, API Error Handling (6 тестов)
+  - Исправлен vitest.config.ts: exclude e2e/
+  - Обновлён testing_plan.md: 928 backend + 30 frontend + 17 E2E = 975 тестов
+  - Обновлён CHANGELOG.md с записью v0.46.0
+  - Обновлён TECH_DEBT.md с записью v0.46.0
+- Task 5: Push to git (pending)
+
+Stage Summary:
+- 4.E.6 E2E-тестирование завершено (17 Playwright тестов)
+- Frontend тесты исправлены и расширены (16→30)
+- Версия 0.46.0
+- 975 тестов всего (928 backend + 30 frontend + 17 E2E)
+- ROADMAP 4.E.6 отмечена ✅

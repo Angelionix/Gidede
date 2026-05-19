@@ -455,12 +455,12 @@ export default function Block6Page() {
         </TabsContent>
 
         {/* ====================== PREVIEW TAB ====================== */}
-        <TabsContent value="preview" className="mt-4">
+        <TabsContent value="preview" className="mt-4 animate-fade-in">
           {gddProfile && <GDDPreview profile={gddProfile} />}
         </TabsContent>
 
         {/* ====================== EDITOR TAB ====================== */}
-        <TabsContent value="editor" className="mt-4">
+        <TabsContent value="editor" className="mt-4 animate-fade-in">
           {gddProfile && (
             <GDDSectionEditor
               profile={gddProfile}
@@ -470,7 +470,7 @@ export default function Block6Page() {
         </TabsContent>
 
         {/* ====================== CONSISTENCY TAB ====================== */}
-        <TabsContent value="consistency" className="mt-4">
+        <TabsContent value="consistency" className="mt-4 animate-fade-in">
           {gddProfile && (
             <ConsistencyPanel
               report={gddProfile.assembled_document?.consistency_report}
@@ -479,7 +479,7 @@ export default function Block6Page() {
         </TabsContent>
 
         {/* ====================== EXPORT TAB ====================== */}
-        <TabsContent value="export" className="mt-4">
+        <TabsContent value="export" className="mt-4 animate-fade-in">
           {gddProfile && (
             <ExportPanel profile={gddProfile} projectId={projectId} />
           )}

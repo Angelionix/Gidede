@@ -199,7 +199,7 @@ export default function Block2Page() {
   }, [form, isFormValid, apiFetch, toast]);
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3 mb-2">
         <RefreshCw className="h-6 w-6 text-primary" />
@@ -390,7 +390,7 @@ export default function Block2Page() {
 
       {/* Result */}
       {result && (
-        <div className="space-y-6">
+        <div className="space-y-6 animate-fade-in" aria-live="polite">
           {/* Meta info */}
           <Card>
             <CardContent className="py-3">

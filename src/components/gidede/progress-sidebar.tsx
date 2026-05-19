@@ -97,6 +97,11 @@ export function ProgressSidebar({
             <div
               className="h-full bg-emerald-500 transition-all duration-500 ease-out rounded-full"
               style={{ width: `${completionPercent}%` }}
+              role="progressbar"
+              aria-valuenow={completionPercent}
+              aria-valuemin={0}
+              aria-valuemax={100}
+              aria-label={`Прогресс проекта: ${completionPercent}%`}
             />
           </div>
         </div>

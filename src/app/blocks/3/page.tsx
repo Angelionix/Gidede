@@ -184,7 +184,7 @@ export default function Block3Page() {
   }, [form, isFormValid, apiFetch, toast]);
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
       {/* Header */}
       <div className="flex items-center gap-3 mb-2">
         <FlaskConical className="h-6 w-6 text-primary" />
@@ -251,8 +251,8 @@ export default function Block3Page() {
 
       {/* Results — Tabs */}
       {result && (
-        <Tabs value={activeTab} onValueChange={setActiveTab}>
-          <TabsList className="grid grid-cols-4 w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="animate-fade-in" aria-label="MDA результаты">
+          <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full">
             <TabsTrigger value="reverse" className="text-xs"><Target className="h-3.5 w-3.5 mr-1.5" />Reverse MDA</TabsTrigger>
             <TabsTrigger value="classic" className="text-xs"><Eye className="h-3.5 w-3.5 mr-1.5" />Classic MDA</TabsTrigger>
             <TabsTrigger value="lenses" className="text-xs"><Activity className="h-3.5 w-3.5 mr-1.5" />Линзы Шелла</TabsTrigger>

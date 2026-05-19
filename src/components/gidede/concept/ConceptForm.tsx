@@ -298,7 +298,7 @@ export function ConceptForm({
         </Button>
 
         {currentStage && (
-          <div className="text-center text-sm text-muted-foreground animate-pulse">{currentStage}</div>
+          <div className="text-center text-sm text-muted-foreground animate-pulse-subtle" role="status" aria-busy="true">{currentStage}</div>
         )}
       </CardContent>
     </Card>

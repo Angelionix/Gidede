@@ -2196,7 +2196,7 @@ class MDAService:
         ))
         matrix.append(BondMatrixCell(
             element="Эстетика", level="Динамический",
-            content=f"Наблюдаемая эстетика: {', '.join(f'{k}={v:.1f}' for k, v in classic_mda_result.predicted_aesthetics.items()[:5])}",
+            content=f"Наблюдаемая эстетика: {', '.join(f'{k}={v:.1f}' for k, v in list(classic_mda_result.predicted_aesthetics.items())[:5])}",
         ))
         matrix.append(BondMatrixCell(
             element="Технология", level="Динамический",
@@ -2480,8 +2480,9 @@ class MDAService:
             f"[Pipeline 1-6] Completed in {profile.latency_ms}ms. "
             f"Stages: {profile.stages_completed}, "
             f"Converged: {profile.classic_mda_result.converged if profile.classic_mda_result else 'N/A'}, "
-            f"Lens score: {profile.lens_validation.overall_score:.2f if profile.lens_validation else 'N/A'}, "
-            f"Bond consistency: {profile.bond_validation.overall_consistency:.2f if profile.bond_validation else 'N/A'}"
+            f"Lens score: {profile.lens_validation.overall_score:.2f}, "
+            f"Bond consistency: {profile.bond_validation.overall_consistency:.2f}"
+            if profile.lens_validation and profile.bond_validation else 'N/A'
         )
 
         return profile

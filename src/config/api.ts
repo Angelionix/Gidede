@@ -53,5 +53,13 @@ export const apiRoutes = {
   rag: {
     search: () => `${API_BASE_URL}/api/v1/rag/search`,
   },
+  gbe: {
+    syncTo: () => `${API_BASE_URL}/api/v1/gbe/sync-to`,
+    syncFrom: () => `${API_BASE_URL}/api/v1/gbe/sync-from`,
+    webhook: () => `${API_BASE_URL}/api/v1/gbe/webhook`,
+    status: (projectId: string) => `${API_BASE_URL}/api/v1/gbe/status/${projectId}`,
+    testConnection: () => `${API_BASE_URL}/api/v1/gbe/test-connection`,
+    syncHistory: (limit: number = 10) => `${API_BASE_URL}/api/v1/gbe/sync-history?limit=${limit}`,
+  },
   health: () => `${API_BASE_URL}/api/v1/health`,
 } as const;

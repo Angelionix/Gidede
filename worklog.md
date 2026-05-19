@@ -121,3 +121,29 @@ Work Log:
 Stage Summary:
 - v0.38.0: 632 backend тестов (572 ранее + 60 новых), Bible PDF, полный тест-план
 - Все 5 задач выполнены, изменения запушены в GitHub
+
+---
+Task ID: 8
+Agent: Main
+Task: Выполнить 5 задач: TECH_DEBT, 4.D.10, версия, тесты, git push
+
+Work Log:
+- Прочитал TECH_DEBT.md: все оставшиеся открытые задачи (TD-014, TD-015, TD-018, DEFERRED-004) отложены до 4.E или требуют внешних ресурсов — выполнять нечего
+- Создал test_blocks_6_7_integration.py: 42 теста (5 классов):
+  - TestGDDGenerationFormats (10): GDD форматы, detail levels, автоопределение
+  - TestGDDChecklistIntegration (8): Checklist на GDD, MDA/Balance/Economy→GDD
+  - TestAIAssistantGDDContext (8): AI+GDD контекст, suggestions, alerts, streaming
+  - TestFullPipelineIntegration (10): pipeline idea→GDD, экспорт MD/HTML/PDF/DOCX
+  - TestGDDAPIEndpointsIntegration (6): API endpoints, error handling
+- Все 42 теста проходят (3.15 сек)
+- Обновил VERSION: 0.38.0 → 0.39.0
+- Обновил CHANGELOG.md: секция [0.39.0]
+- Обновил ROADMAP_PHASE4.md: 4.D.10 отмечена ✅
+- Обновил TECH_DEBT.md: добавлена запись о v0.39.0
+- Обновил testing_plan.md: 614 backend тестов (+42), добавлена секция 2.15
+- Обновил test_infrastructure.md: версия, статистика
+- git push: commit 75ae65e → origin/main
+
+Stage Summary:
+- v0.39.0: 614 backend тестов (572 ранее + 42 новых), ROADMAP 4.D.10 ✅
+- Все 5 задач выполнены, изменения запушены в GitHub

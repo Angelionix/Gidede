@@ -9,6 +9,7 @@ from .progression import router as progression_router
 from .economy import router as economy_router
 from .gdd import router as gdd_router
 from .ai_assistant import router as ai_assistant_router
+from .gbe import router as gbe_router
 
 __all__ = [
     "health_router",
@@ -20,4 +21,5 @@ __all__ = [
     "economy_router",
     "gdd_router",
     "ai_assistant_router",
+    "gbe_router",
 ]

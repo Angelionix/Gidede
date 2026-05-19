@@ -9,6 +9,44 @@
 
 ---
 
+## [0.41.0] - 2026-05-20
+
+### Added
+- **4.E.1**: Блок 8 — GBE Bridge Backend (API Bridge для GDCombine, Вариант D)
+  - `GBEBridgeService` — полноценный API Bridge (mock-режим, пока приложение в разработке):
+    - `sync_to_gbe()` — экспорт Project State в формат GBE Blueprint (6 моделей маппинга: OnePager→Blueprint, MDAProfile→MDAModel, Machinations→Diagram, BalanceResult→BalanceReport, ProgressionProfile→ProgressionModel, EconomyProfile→EconomyModel)
+    - `sync_from_gbe()` — импорт Blueprint GBE в Project State (обратный маппинг: Blueprint→concept, MDAModel→mda_profile, BalanceReport→balance_result)
+    - `handle_webhook()` — обработка вебхуков от GBE (4 типа событий: blueprint.updated, diagram.changed, sync.requested, lint.completed)
+    - `get_project_status()` — получение статуса проекта из GBE (7 компонентов: concept, core_loop, mda_profile, balance, progression, economy, gdd)
+    - `test_connection()` — проверка подключения к GBE (mock всегда подключён)
+    - `get_sync_history()` — история синхронизаций
+  - Pydantic-модели: GBEBlueprint, GBEMDAModel, GBEDiagram, GBEBalanceReport, GBEProgressionModel, GBEEconomyModel, GBESyncResult, GBEWebhookPayload, GBEWebhookResult, GBEConnectionStatus
+  - API-эндпоинты: POST /sync-to, POST /sync-from, POST /webhook, GET /status/{project_id}, POST /test-connection, GET /sync-history
+  - Legacy-методы: import_gdd(), export_to_gbe(), sync_changes() (обратная совместимость)
+- **4.E.2**: UI Блока 8 — Страница интеграции GBE
+  - Полнофункциональная страница `/blocks/8` с 4 вкладками:
+    - Подключение — форма ввода URL и API-ключа, кнопка «Проверить подключение», статус подключения
+    - Синхронизация — карточки «Экспорт в GBE» и «Импорт из GBE» с результатами
+    - История — таблица записей синхронизаций
+    - Настройки — выбор направления, чекбоксы сущностей, вебхук-симуляция
+  - MOCK-бейдж (янтарный) для напоминания о mock-режиме
+- **API routes**: добавлены GBE-маршруты в `src/config/api.ts`
+- **70 тестов** для GBE Bridge Service: маппинг Gidede→GBE (12), обратный маппинг GBE→Gidede (4), sync_to_gbe (8), sync_from_gbe (4), handle_webhook (7), get_project_status (5), test_connection (3), sync_history (4), legacy (4), Pydantic models (11), edge cases (8)
+- **10 UI-тест кейсов** для Блока 8 (ручное тестирование)
+
+### Resolved
+- TD-015: API-mock для GDCombine полностью реализован в 4.E.1. Mock — целевой статус для dev-режима
+
+### Changed
+- Версия обновлена с 0.40.0 до 0.41.0
+- ROADMAP_PHASE4.md — задачи 4.E.1 и 4.E.2 отмечены как завершённые (✅)
+- TECH_DEBT.md — TD-015 → Resolved, TD-018 → Updated
+- `docs/тестирование/testing_plan.md` — актуализирован (684 backend тестов, +70 GBE Bridge)
+- `src/app/blocks/8/page.tsx` — заменена заглушка на полнофункциональный UI интеграции
+- `src/config/api.ts` — добавлены GBE API routes
+
+---
+
 ## [0.39.0] - 2026-05-19
 
 ### Added

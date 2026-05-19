@@ -1,8 +1,8 @@
 # Gidede — Комплексный план тестирования
 
-> **Фаза**: 4.D (Вывод и AI — Блоки 6-7)
-> **Дата**: 2026-05-19
-> **Версия**: 0.39.0
+> **Фаза**: 4.E (Интеграция и полировка — Блок 8)
+> **Дата**: 2026-05-20
+> **Версия**: 0.41.0
 > **Статус**: Активный
 > **Подход**: Локальное тестирование + CI/CD (GitHub Actions)
 
@@ -62,7 +62,7 @@ npx eslint src/            # TypeScript
 
 ### 2.0 Сводная таблица
 
-**Итого: 614 тестов в 20 файлах**
+**Итого: 684 теста в 21 файле**
 
 ```
 mini-services/api-service/tests/
@@ -83,6 +83,7 @@ mini-services/api-service/tests/
 ├── test_ai_assistant_api.py       # AI Assistant API (20 тестов)
 ├── test_pipeline_4d9_integration.py  # Pipeline Integration Blocks 6-7 (60 тестов)
 ├── test_blocks_6_7_integration.py # Blocks 6-7 Testing & Debugging (42 теста)
+├── test_gbe_bridge_service.py     # GBE Bridge Service — Block 8 (70 тестов)
 └── integration/
     └── test_full_pipeline.py      # Интеграционные тесты (28 тестов)
 ```
@@ -1440,4 +1441,151 @@ src/__tests__/
 
 ## Замечания
 - Заметки
+```
+
+---
+
+### 2.16 GBE Bridge Service (4.E.1) — 70 тестов
+
+**TestMappingToGBE — 12 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| GBE-01 | `test_map_concept_to_blueprint_full` | OnePager → Blueprint с полными данными |
+| GBE-02 | `test_map_concept_to_blueprint_missing_fields` | OnePager с отсутствующими полями → дефолты |
+| GBE-03 | `test_map_concept_to_blueprint_name_fallback` | 'name' вместо 'title' → корректный fallback |
+| GBE-04 | `test_map_concept_to_blueprint_idea_fallback` | 'idea' вместо 'logline' → корректный fallback |
+| GBE-05 | `test_map_mda_to_gbe_model` | MDAProfile → GBEMDAModel |
+| GBE-06 | `test_map_mda_to_gbe_model_empty` | Пустой MDA → дефолты |
+| GBE-07 | `test_map_machinations_to_gbe_diagram` | Machinations → GBEDiagram |
+| GBE-08 | `test_map_machinations_to_gbe_diagram_flows_fallback` | 'flows' вместо 'connections' |
+| GBE-09 | `test_map_balance_to_gbe_report` | BalanceResult → GBEBalanceReport |
+| GBE-10 | `test_map_progression_to_gbe_model` | ProgressionProfile → GBEProgressionModel |
+| GBE-11 | `test_map_economy_to_gbe_model` | EconomyProfile → GBEEconomyModel с вложенным Machinations |
+| GBE-12 | `test_map_economy_without_machinations` | Economy без Machinations → нет диаграммы |
+
+**TestMappingFromGBE — 4 теста**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| GBE-13 | `test_map_blueprint_to_concept` | GBE Blueprint → Gidede concept |
+| GBE-14 | `test_map_blueprint_to_concept_empty` | Пустой Blueprint → дефолты |
+| GBE-15 | `test_map_gbe_mda_to_profile` | GBE MDAModel → Gidede mda_profile |
+| GBE-16 | `test_map_gbe_balance_to_result` | GBE BalanceReport → Gidede balance_result |
+
+**TestSyncToGBE — 8 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| GBE-17 | `test_sync_to_gbe_full` | Полный Project State → все 6 компонентов |
+| GBE-18 | `test_sync_to_gbe_partial` | Частичный → synced + skipped |
+| GBE-19 | `test_sync_to_gbe_empty` | Пустой → все пропущены, warnings |
+| GBE-20 | `test_sync_to_gbe_null_values` | null-значения → компоненты пропущены |
+| GBE-21 | `test_sync_to_gbe_saves_to_history` | Запись в историю |
+| GBE-22 | `test_sync_to_gbe_concept_missing_economy_warning` | Warning о Machinations |
+| GBE-23 | `test_sync_to_gbe_sync_id_unique` | Уникальный sync_id |
+| GBE-24 | `test_sync_to_gbe_status_with_warnings` | synced_with_warnings при warnings |
+
+**TestSyncFromGBE — 4 теста**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| GBE-25 | `test_sync_from_gbe_full` | Полные GBE данные → все компоненты |
+| GBE-26 | `test_sync_from_gbe_partial` | Только blueprint → 1 синхронизирован |
+| GBE-27 | `test_sync_from_gbe_empty` | Пустые данные → все пропущены |
+| GBE-28 | `test_sync_from_gbe_saves_to_history` | Запись в историю |
+
+**TestHandleWebhook — 7 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| GBE-29 | `test_webhook_blueprint_updated` | blueprint.updated → queued |
+| GBE-30 | `test_webhook_diagram_changed` | diagram.changed → queued |
+| GBE-31 | `test_webhook_sync_requested` | sync.requested → queued |
+| GBE-32 | `test_webhook_lint_completed` | lint.completed → processed |
+| GBE-33 | `test_webhook_unknown_event` | Неизвестный тип → ignored |
+| GBE-34 | `test_webhook_has_timestamp` | Корректный timestamp |
+| GBE-35 | `test_webhook_empty_component` | Пустой component → обрабатывается |
+
+**TestGetProjectStatus — 5 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| GBE-36 | `test_get_project_status_returns_dict` | Возвращает dict |
+| GBE-37 | `test_get_project_status_has_components` | Все 7 компонентов |
+| GBE-38 | `test_get_project_status_is_mock` | Mock-режим показан |
+| GBE-39 | `test_get_project_status_has_gbe_version` | Версия GBE |
+| GBE-40 | `test_get_project_status_has_sync_history_count` | Счётчик истории |
+
+**TestConnection — 3 теста**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| GBE-41 | `test_test_connection_mock_mode` | Mock → подключение успешно |
+| GBE-42 | `test_test_connection_has_base_url` | base_url в результате |
+| GBE-43 | `test_test_connection_has_latency` | latency_ms в результате |
+
+**TestSyncHistory — 4 теста**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| GBE-44 | `test_sync_history_empty` | Изначально пуста |
+| GBE-45 | `test_sync_history_after_sync` | Запись после sync |
+| GBE-46 | `test_sync_history_multiple` | Несколько записей |
+| GBE-47 | `test_sync_history_limit` | Ограничение количества |
+
+**TestLegacyMethods — 4 теста**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| GBE-48 | `test_import_gdd_returns_dict` | import_gdd → dict |
+| GBE-49 | `test_export_to_gbe_returns_dict` | export_to_gbe → dict с legacy-полями |
+| GBE-50 | `test_export_to_gbe_validation` | validation.valid зависит от warnings |
+| GBE-51 | `test_sync_changes_returns_dict` | sync_changes → dict |
+
+**TestPydanticModels — 11 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| GBE-52 | `test_gbe_blueprint_defaults` | Дефолты GBEBlueprint |
+| GBE-53 | `test_gbe_mda_model_defaults` | Дефолты GBEMDAModel |
+| GBE-54 | `test_gbe_diagram_defaults` | Дефолты GBEDiagram |
+| GBE-55 | `test_gbe_balance_report_defaults` | Дефолты GBEBalanceReport |
+| GBE-56 | `test_gbe_progression_model_defaults` | Дефолты GBEProgressionModel |
+| GBE-57 | `test_gbe_economy_model_defaults` | Дефолты GBEEconomyModel |
+| GBE-58 | `test_gbe_sync_result_defaults` | Дефолты GBESyncResult |
+| GBE-59 | `test_gbe_webhook_result_defaults` | Дефолты GBEWebhookResult |
+| GBE-60 | `test_gbe_connection_status_defaults` | Дефолты GBEConnectionStatus |
+| GBE-61 | `test_gbe_blueprint_serialization` | Сериализация в dict |
+| GBE-62 | `test_gbe_sync_result_serialization` | Сериализация в dict |
+
+**TestEdgeCases — 8 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| GBE-63 | `test_service_with_empty_api_key` | Пустой API-ключ |
+| GBE-64 | `test_service_with_custom_url` | Кастомный URL |
+| GBE-65 | `test_sync_to_gbe_concept_with_extra_fields` | Незапланированные поля → не ломается |
+| GBE-66 | `test_sync_from_gbe_with_extra_gbe_fields` | Лишние поля GBE → не ломается |
+| GBE-67 | `test_webhook_with_data` | Вебхук с data → обработан |
+| GBE-68 | `test_map_economy_with_empty_machinations` | Пустой machinations_model → нет диаграммы |
+| GBE-69 | `test_map_economy_with_nonempty_machinations` | Непустой → диаграмма создана |
+| GBE-70 | `test_multiple_syncs_independent` | Независимость множественных синхронизаций |
+
+---
+
+### UI-тесты Блока 8: Интеграция GBE (ручные)
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| UI-66 | Страница /blocks/8 загружается | Отображается заголовок «Интеграция GBE» |
+| UI-67 | Вкладка «Подключение» | Форма с URL и API Key, кнопка «Проверить подключение» |
+| UI-68 | Проверка подключения (mock) | Нажатие кнопки → результат: connected=True, is_mock=True |
+| UI-69 | MOCK-бейдж виден | Жёлтый/янтарный бейдж «MOCK» отображается |
+| UI-70 | Вкладка «Синхронизация» | Две карточки: Экспорт и Импорт |
+| UI-71 | Экспорт в GBE | Нажатие кнопки → результат с sync_id, components_synced |
+| UI-72 | Импорт из GBE | Нажатие кнопки → результат с компонентами |
+| UI-73 | Вкладка «История» | Таблица с записями синхронизаций |
+| UI-74 | Вкладка «Настройки» | Выбор направления, чекбоксы сущностей, вебхук-симуляция |
+| UI-75 | Отправка вебхука | Выбор event_type → отправка → результат отображается |
 ```

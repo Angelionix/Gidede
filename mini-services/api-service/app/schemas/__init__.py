@@ -4,6 +4,7 @@ Gidede — Pydantic схемы для валидации API
 Фаза 4.B.6: Схемы Core Loop Designer
 Фаза 4.C.1–4.C.3: Схемы Balance Service
 Фаза 4.C.5: Схемы Progression Service
+Фаза 4.D.1: Схемы GDD Generator
 """
 
 from app.schemas.auth import (
@@ -41,6 +42,11 @@ from app.schemas.progression import (
     ProgressionValidation,
     ProgressionProfile,
 )
+from app.schemas.gdd import (
+    GDDFormatSpec, SectionMapping, SectionReadiness,
+    GDDDataMapping, SectionContent, AutoFilledSections,
+    GDDGenerationInput, GDDConstraints, GDDProfile,
+)
 
 __all__ = [
     "UserRegister", "UserLogin", "UserResponse", "TokenResponse",
@@ -68,4 +74,7 @@ __all__ = [
     "ContentPlan",
     "ProgressionValidation",
     "ProgressionProfile",
+    "GDDFormatSpec", "SectionMapping", "SectionReadiness",
+    "GDDDataMapping", "SectionContent", "AutoFilledSections",
+    "GDDGenerationInput", "GDDConstraints", "GDDProfile",
 ]

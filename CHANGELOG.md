@@ -9,6 +9,58 @@
 
 ---
 
+## [0.31.0] — 2026-05-19
+
+### Добавлено
+
+#### Блок 6: GDD Generator — Этапы 1–3 (алгоритм 3.7, задача 4.D.1)
+- **GDDService** — сервис генерации структуры GDD с 3 этапами:
+  - **Этап 1: Определение формата GDD** (алгоритм 3.7.3)
+    - 8 форматов документации: one_sheet, ten_pager, treatment, sketch_design, full_gdd, concept_doc, narrative_bible, modular
+    - Эвристика: audience → format (investor→treatment, production→full_gdd, personal→modular, team_sync→sketch_design, educational→ten_pager)
+    - Эвристика: project stage → format (concept→one_sheet, prototype→ten_pager, preproduction→sketch_design, production→full_gdd, live_ops→modular)
+    - 25 жанровых маппингов для определения уровня детализации (overview/standard/detailed/exhaustive)
+    - Оценка количества страниц с множителями по detail_level
+  - **Этап 2: Маппинг Project State → секции GDD** (алгоритм 3.7.4)
+    - 67 маппингов секций на данные Project State (38 стандартных секций + 29 формат-специфичных)
+    - 8 блоков: Overview(6), Gameplay(8), Characters/Narrative(5), Levels/World(4), Economy/Progression(4), UI/Visual(4), Multiplayer/Social(3), Technical/Business(4)
+    - Проверка готовности каждой секции: ready / ai_generatable / ai_suggestable / manual_required
+    - Расчёт coverage_score = auto_fillable / total
+  - **Этап 3: Автозаполнение секций** (алгоритм 3.7.5)
+    - Детерминированное извлечение данных из 6 блоков Project State
+    - Форматирование контента в Markdown
+    - Генерация диаграмм (Core Loop, System Map, Economy)
+    - Генерация таблиц (баланс, механики, ресурсы)
+    - Извлечение формул (прогрессия, сложность)
+    - Флаг requires_review для секций с ai_enrich
+
+#### Схемы данных (Блок 6 — GDD)
+- `GDDFormatSpec` — спецификация формата GDD
+- `SectionMapping` — маппинг секции на источник данных
+- `SectionReadiness` — статус готовности секции
+- `GDDDataMapping` — результат маппинга Project State → GDD
+- `SectionContent` — содержимое заполненной секции
+- `AutoFilledSections` — результат автозаполнения
+- `GDDGenerationInput` — входные данные для генерации GDD
+- `GDDConstraints` — ограничения генерации
+- `GDDProfile` — итоговый профиль GDD
+
+#### API
+- POST `/api/v1/gdd/format` — Этап 1: определение формата GDD
+- POST `/api/v1/gdd/map` — Этап 2: маппинг Project State → секции
+- POST `/api/v1/gdd/auto-fill` — Этап 3: автозаполнение секций
+- POST `/api/v1/gdd/generate` — полный пайплайн Этапов 1–3
+
+#### Тесты
+- 72 теста для GDDService: Stage 1 (22), Stage 2 (12), Stage 3 (16), Full Pipeline (8), Edge Cases (14)
+
+### Изменено
+- Версия обновлена с 0.30.0 до 0.31.0
+- ROADMAP_PHASE4.md — задача 4.D.1 отмечена как завершённая (✅)
+- Тестовая документация актуализирована: 303 теста backend (было 231), 72 теста GDD
+
+---
+
 ## [0.30.0] — 2026-05-19
 
 ### Рефакторинг — SOLID/KISS/DRY/YAGNI

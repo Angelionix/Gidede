@@ -1,6 +1,41 @@
 # Gidede — Worklog
 
 ---
+Task ID: Refactoring-v0.30.0
+Agent: Main Agent
+Task: SOLID/KISS/DRY/YAGNI рефакторинг frontend (6-задачный чек-лист)
+
+Work Log:
+- Аудит tsconfig.json: strict: true + noImplicitAny: true уже включены, tsc --noEmit = 0 ошибок
+- Аудит ProjectState: уже разделён на 8 блочных интерфейсов (ISP)
+- Аудит error.tsx/loading.tsx/middleware.ts: все корректно реализованы
+- Аудит GENRES/AESTHETICS: уже централизованы в src/config/
+- Удалено 5 неиспользуемых npm-пакетов: sharp, zustand, sonner, next-themes, @radix-ui/react-scroll-area
+- Удалено 2 осиротевших UI-файла: sonner.tsx, scroll-area.tsx
+- Созданы 4 общих компонента: NodeTypeIcon, WarningsList, SuggestionsList, EmptyStateCard
+- SRP-сплит Block 4 (2076→380): 6 подкомпонентов + типы + константы
+- SRP-сплит Block 5 (1887→502): 10 подкомпонентов + типы + константы
+- SRP-сплит Block 1 (1645→302): 9+ подкомпонентов + типы + константы
+- SRP-сплит Block 3 (1601→269): 5+1 подкомпонентов + типы + константы
+- SRP-сплит Block 2 (1207→448): 6 подкомпонентов + типы + константы
+- Устранено дублирование NodeTypeIcon (была копия в блоках 4 и 5)
+- Устранено дублирование SEVERITY_COLORS (была копия в блоках 3 и 5)
+- Обновлены тесты: components.test.tsx (удалён мок next-themes, добавлены тесты shared-компонентов)
+- 16/16 тестов проходят, tsc --noEmit = 0 ошибок
+- Версия обновлена: 0.29.0 → 0.30.0
+- CHANGELOG.md обновлён
+- Запушено в GitHub
+
+Stage Summary:
+- P0-T6 (noImplicitAny): ✅ уже было
+- P1-T3 (ProjectState split): ✅ уже было
+- P2-T1 (SRP split): ✅ выполнено — 8416 строк → 1901 строка в page.tsx (77% сокращение), 36+ новых подкомпонентов
+- P3-T5 (GENRES/AESTHETICS → config/): ✅ уже было
+- P3-T2 (удалить неиспользуемые deps): ✅ выполнено — 5 пакетов + 2 файла удалены
+- P4-T4 (error.tsx, loading.tsx, middleware.ts): ✅ уже было
+- v0.30.0 запушена в GitHub
+
+---
 Task ID: 4.B.8 + TD-017 + version bump
 Agent: Main Agent
 Task: Implement 4.B.8 (Core Loop Designer UI), fix TD-017 (JWT secret), bump version to 0.8.0, update tests

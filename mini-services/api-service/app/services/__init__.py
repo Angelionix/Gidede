@@ -12,4 +12,7 @@ from app.services.balance_service import BalanceService
 # Block 5: Progression (4.C.5 — Этапы 1–4 алгоритма 3.5)
 from app.services.progression_service import ProgressionService
 
-__all__ = ["ConceptService", "CoreLoopService", "BalanceService", "ProgressionService"]
+# Block 6: GDD Generator (4.D.1 — Этапы 1–3 алгоритма 3.7)
+from app.services.gdd_service import GDDService
+
+__all__ = ["ConceptService", "CoreLoopService", "BalanceService", "ProgressionService", "GDDService"]

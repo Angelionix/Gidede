@@ -60,7 +60,7 @@ npx eslint src/            # TypeScript
 
 ## 2. Реальные автоматизированные тесты (текущее состояние)
 
-### 2.1 Backend — pytest (231 тест в 10 файлах)
+### 2.1 Backend — pytest (303 теста в 12 файлах)
 
 ```
 mini-services/api-service/tests/
@@ -76,6 +76,9 @@ mini-services/api-service/tests/
 │                                   #   Machinations (77 тестов)
 ├── test_economy_service.py        # Economy Service — все 8 этапов
 │                                   #   алгоритма 3.6 (83 теста)
+├── test_gdd_service.py            # GDD Service — Этапы 1-3 алгоритма 3.7
+│                                   #   (72 теста: Stage 1=22, Stage 2=12,
+│                                   #   Stage 3=16, Pipeline=8, Edge=14)
 ├── test_pipeline_service.py       # Pipeline Service — сквозной пайплайн 1→5,
 │                                   #   зависимости блоков, stale-каскад (29 тестов)
 └── integration/
@@ -167,7 +170,46 @@ mini-services/api-service/tests/
 
 **Stage 2–7 и Full Pipeline — 68 тестов** (ECO-16 — ECO-83, см. предыдущую версию)
 
-#### 2.1.9 Pipeline Service (4.C.9) — 29 тестов
+#### 2.1.9 GDD Service (4.D.1) — 72 теста
+
+**Stage 1: Определение формата GDD (3.7.3) — 22 теста**
+
+| Категория | Количество | Описание |
+|-----------|------------|----------|
+| Явный формат | 6 | one_sheet, full_gdd, treatment, sketch_design, concept_doc, narrative_bible |
+| Audience→format | 5 | investor→treatment, production→full_gdd, personal→modular, team_sync→sketch_design, educational→ten_pager |
+| Stage→format | 4 | concept→one_sheet, prototype→ten_pager, production→full_gdd, live_ops→modular |
+| Detail level по жанру | 3 | rpg→detailed, mmorpg→exhaustive, puzzle→overview |
+| Приоритеты и дефолты | 4 | explicit > audience > stage, default=full_gdd, default detail=standard |
+
+**Stage 2: Маппинг Project State → секции GDD (3.7.4) — 12 тестов**
+
+| Категория | Количество | Описание |
+|-----------|------------|----------|
+| Секции по формату | 4 | full_gdd=38, one_sheet=6, ten_pager=10, modular=13 |
+| Готовность с данными | 2 | concept present → title ready, no data → manual_required |
+| Покрытие | 2 | all blocks → high coverage, no data → 0 coverage |
+| Классификация | 4 | auto_fillable, manual, ai_generatable, source fields |
+
+**Stage 3: Автозаполнение секций (3.7.5) — 16 тестов**
+
+| Категория | Количество | Описание |
+|-----------|------------|----------|
+| Автозаполнение из блоков | 8 | title←concept, core_loop←coreLoop, mechanics←mdaProfile, progression, economy, balance, resources, logline |
+| Пустые данные | 1 | no data → no auto-filled sections |
+| Флаги и доп. данные | 4 | requires_review, diagram, tables, formulas |
+| Modular-секции | 3 | concept_overview, mda_analysis, balance_tables |
+
+**Полный пайплайн + Edge Cases — 22 теста**
+
+| Категория | Количество | Описание |
+|-----------|------------|----------|
+| Pipeline 1-3 | 4 | stages_completed, coverage, one_sheet pipeline, no-data pipeline |
+| Метрики | 2 | latency_ms, coverage_score |
+| Оценка страниц | 2 | full_gdd+detailed=75, mmorpg+exhaustive=125 |
+| Edge Cases | 14 | Composite sources, missing subpath, custom sections, export_formats, detail override, unknown genre fallback |
+
+#### 2.1.10 Pipeline Service (4.C.9) — 29 тестов
 
 **Подготовка входных данных для Блока 4 (_prepare_balance_input) — 4 теста**
 
@@ -238,7 +280,7 @@ mini-services/api-service/tests/
 |----|------|---------------|
 | PIPE-29 | `test_run_full_pipeline_endpoint_exists` | POST /run-full-pipeline/{project_id} доступен |
 
-#### 2.1.10 Integration Tests (4.C.10) — 22 теста
+#### 2.1.11 Integration Tests (4.C.10) — 22 теста
 
 **INT-01: Полный пайплайн «идея → экономика» с mock AI — 2 теста**
 
@@ -361,7 +403,7 @@ src/__tests__/
 | UI-01 | Логин | 1. Открыть /login 2. Ввести email/password 3. Нажать Login | Редирект на главную страницу |
 | UI-02 | Регистрация | 1. Открыть /register 2. Заполнить форму 3. Нажать Register | Успешная регистрация, редирект на логин |
 | UI-03 | Навигация по блокам | 1. Кликнуть на каждый блок 1–8 в sidebar | Открывается соответствующая страница |
-| UI-04 | Отображение версии | 1. Проверить sidebar | Отображается текущая версия (0.27.0) |
+| UI-04 | Отображение версии | 1. Проверить sidebar | Отображается текущая версия (0.31.0) |
 
 ### 4.2 Блок 1: Генератор концепции
 
@@ -434,7 +476,27 @@ src/__tests__/
 | UI-49 | Переключение прогрессия/экономика | 1. Переключаться между вкладками | Корректное отображение |
 | UI-50 | Пустое состояние | 1. Открыть /blocks/5 без запуска | Placeholder с иконками |
 
-### 4.7 Сквозной пайплайн (1→5)
+### 4.7 Блок 6: GDD Generator
+
+| ID | Сценарий | Шаги | Ожидаемый результат |
+|----|----------|------|---------------------|
+| UI-66 | Открытие страницы GDD | 1. Открыть /blocks/6 | Страница GDD Generator |
+| UI-67 | Выбор формата | 1. Выбрать формат из 8 карточек | Формат подсвечен, показаны секции |
+| UI-68 | One-Sheet формат | 1. Выбрать one_sheet | 6 секций, 1 страница |
+| UI-69 | Full GDD формат | 1. Выбрать full_gdd | 38 секций, оценка 50+ страниц |
+| UI-70 | Предпросмотр GDD | 1. Нажать «Сгенерировать GDD» | Markdown-renderer с оглавлением |
+| UI-71 | Индикаторы источников | 1. Проверить значки секций | auto/ai/manual значки |
+| UI-72 | Coverage score | 1. Проверить панель покрытия | Процент автозаполнения |
+| UI-73 | Секция Core Loop | 1. Проверить Core Loop в GDD | Диаграмма + таблица шагов |
+| UI-74 | Секция Баланс | 1. Проверить Баланс в GDD | Таблица + формулы |
+| UI-75 | Секция Прогрессия | 1. Проверить Прогрессию в GDD | Кривые + tiers |
+| UI-76 | Секция Экономика | 1. Проверить Экономику в GDD | Machinations-диаграмма + ресурсы |
+| UI-77 | Ручные секции | 1. Проверить секцию Лицензия | Скелет с подсказками |
+| UI-78 | Экспорт PDF | 1. Нажать «Экспорт PDF» | Загрузка PDF-файла (stub) |
+| UI-79 | Экспорт DOCX | 1. Нажать «Экспорт DOCX» | Загрузка DOCX-файла (stub) |
+| UI-80 | Пустое состояние | 1. Открыть GDD без данных проекта | Placeholder с подсказками |
+
+### 4.8 Сквозной пайплайн (1→5)
 
 | ID | Сценарий | Шаги | Ожидаемый результат |
 |----|----------|------|---------------------|
@@ -473,6 +535,8 @@ src/__tests__/
 | E2E-06 | Экономическое моделирование | Идентификация ресурсов → классификация → Machinations → диагностика → балансировка → симуляция |
 | E2E-07 | Сквозной пайплайн 1→5 | Ввод идеи → Концепция → Core Loop → MDA → Баланс → Прогрессия → Экономика за одну операцию (run-full-pipeline) |
 | E2E-08 | Интеграционный тест «Roguelike про алхимика» | Тест-кейс из 4.C.10: идея → все 5 блоков, проверка целостности данных, cascade stale |
+| E2E-09 | GDD Generator: One-Sheet | Ввод идеи → Заполнить Блоки 1-5 → Выбрать формат one_sheet → Сгенерировать GDD → Проверить 6 секций, 1 страницу |
+| E2E-10 | GDD Generator: Full GDD | Ввод идеи → Заполнить все блоки → Сгенерировать full_gdd → Проверить 38 секций, автозаполненные + AI + ручные |
 
 ---
 
@@ -482,9 +546,9 @@ src/__tests__/
 
 | Категория | Файлов | Тестов |
 |-----------|--------|--------|
-| Backend (pytest) | 10 | 231 |
+| Backend (pytest) | 12 | 303 |
 | Frontend (vitest) | 3 | 9 |
-| **Итого** | **13** | **240** |
+| **Итого** | **15** | **312** |
 
 ### 6.2 Плановые автоматизированные тесты
 
@@ -498,9 +562,9 @@ src/__tests__/
 
 | Категория | Кейс |
 |-----------|------|
-| UI-тесты | 65 |
-| E2E-сценарии | 7 |
-| **Итого** | **72** |
+| UI-тесты | 80 |
+| E2E-сценарии | 10 |
+| **Итого** | **90** |
 
 ### 6.4 Целевое покрытие (критерий C8 из ROADMAP)
 

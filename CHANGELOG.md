@@ -9,6 +9,73 @@
 
 ---
 
+## [0.35.0] - 2026-05-19
+
+### Added
+- **4.D.6**: Backend AI-ассистент — контекст, память, RAG, проактивные уведомления
+  - `AIAssistantService` — сервис с методами:
+    - `build_assistant_context()` — автоматическая сборка контекста из Project State (жанр, эстетика, механики, Core Loop, баланс, прогрессия, экономика, GDD)
+    - `manage_session()` — управление сессиями чата (in-memory, MAX_CONTEXT_MESSAGES=20)
+    - `add_message()` / `get_chat_history()` — история сообщений
+    - `search_knowledge()` — RAG-поиск по базе знаний геймдизайна
+    - `check_proactive_alerts()` — обнаружение проблем (runaway, deadlock, диссонанс, пробелы, дисбаланс)
+    - `generate_suggestions()` — контекстные подсказки для блоков 1-8
+    - `chat()` — полный чат-пайплайн (контекст + RAG + AI + история)
+    - `chat_stream()` — SSE streaming чат
+  - `AssistantContext` — структурированный контекст для AI (to_prompt_string)
+  - `ProactiveAlert` — проактивное уведомление (severity, block_id, suggestion)
+  - `ContextualSuggestion` — подсказка для блока (action, priority)
+  - `BLOCK_SUGGESTION_TEMPLATES` — шаблоны подсказок для 8 блоков
+- **4.D.7**: Backend AI-ассистент — SSE чат, контекстные подсказки, история
+  - Enhanced API routes (`/api/v1/assistant/`):
+    - POST `/chat` — чат с AI-ассистентом (через AIAssistantService)
+    - POST `/chat/stream` — SSE streaming чат
+    - GET `/suggestions?block_id=N` — контекстные подсказки для блока
+    - GET `/alerts?project_id=X` — проактивные уведомления
+    - GET `/history?project_id=X` — история чата
+    - POST `/history/clear` — очистить историю
+    - GET `/status` — статус AI-сервиса
+    - POST `/test` — тест AI-подключения
+- **4.D.8**: UI AI-ассистент — чат-панель, подсказки, уведомления
+  - Полнофункциональная страница `/blocks/7` с 3 вкладками:
+    - Чат — список сообщений, поле ввода, quick-вопросы, очистка истории
+    - Подсказки — блок-селектор (1-8), контекстные рекомендации с приоритетами
+    - Уведомления — проактивные алерты с severity badges и рекомендациями
+
+### Changed
+- Версия обновлена с 0.34.0 до 0.35.0
+- ROADMAP_PHASE4.md — задачи 4.D.2, 4.D.3, 4.D.6, 4.D.7, 4.D.8 отмечены ✅
+- `services/__init__.py` — добавлен экспорт AIAssistantService
+- `api/v1/ai_assistant.py` — полная переработка с 8 эндпоинтами (было 3)
+- `src/app/blocks/7/page.tsx` — заменена заглушка на полнофункциональный UI
+
+---
+
+## [0.34.0] - 2026-05-19
+
+### Added
+- **4.D.5**: UI Блока 6 — GDD Generator
+  - GDDGeneratorPage — страница `/blocks/6` с 6 вкладками (Формат, Предпросмотр, Редактор, Согласованность, Экспорт, Чек-листы)
+  - GDDFormatSelector — карточки 8 форматов GDD с описанием и рекомендациями
+  - GDDPreview — Markdown-рендерер с оглавлением, сворачиваемыми секциями, индикаторами источника (auto/AI/manual)
+  - GDDSectionEditor — inline-редактирование Markdown с подсказками из manual_skeletons
+  - ConsistencyPanel — список найденных несоответствий с severity badges и кнопками «Исправить»
+  - ExportPanel — кнопки PDF/DOCX/HTML/MD с прогресс-баром и скачиванием
+  - ChecklistPanel — 5 типов чек-листов с overall score, top-5 проблем, quick wins
+- **Types**: `src/types/gdd.ts` — 13 TypeScript-интерфейсов для GDD (GDDProfile, GDDFormatSpec, ConsistencyReport, ChecklistValidationProfile и др.)
+- **Constants**: `src/constants/gdd.ts` — 8 форматов GDD, 4 уровня детализации, 5 аудиторий, 5 стадий проекта
+- Pipeline integration: уведомление об обновлении Блока 6 через usePipeline
+
+### Resolved
+- TD-016: SECRETS.md в .gitignore, PAT workflow задокументирован в AI_RECOVERY_INSTRUCTIONS.md
+
+### Changed
+- Версия обновлена с 0.33.0 до 0.34.0
+- ROADMAP_PHASE4.md — задача 4.D.5 отмечена как завершённая (✅)
+- TECH_DEBT.md — TD-016 отмечен как Resolved
+
+---
+
 ## [0.33.0] - 2026-05-19
 
 ### Added

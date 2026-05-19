@@ -15,7 +15,14 @@ from app.services.progression_service import ProgressionService
 # Block 6: GDD Generator (4.D.1–4.D.3 — Этапы 1–8 алгоритма 3.7)
 from app.services.gdd_service import GDDService
 
+# Block 7: AI Assistant (4.D.6–4.D.7 — контекст, чат, подсказки, RAG)
+from app.services.ai_assistant_service import AIAssistantService
+
 # Block 8: GDCombine/GBE Integration (4.D.3 — mock API, Фаза 4.E — реальная интеграция)
 from app.services.gbe_bridge_service import GBEBridgeService
 
-__all__ = ["ConceptService", "CoreLoopService", "BalanceService", "ProgressionService", "GDDService", "GBEBridgeService"]
+__all__ = [
+    "ConceptService", "CoreLoopService", "BalanceService",
+    "ProgressionService", "GDDService", "AIAssistantService",
+    "GBEBridgeService",
+]

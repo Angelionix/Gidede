@@ -1,155 +1,102 @@
-# Gidede — Worklog
-
 ---
-Task ID: Refactoring-v0.30.0
-Agent: Main Agent
-Task: SOLID/KISS/DRY/YAGNI рефакторинг frontend (6-задачный чек-лист)
+Task ID: 1
+Agent: Main
+Task: Проверить TECH_DEBT.md и выполнить задачи оттуда по возможности
 
 Work Log:
-- Аудит tsconfig.json: strict: true + noImplicitAny: true уже включены, tsc --noEmit = 0 ошибок
-- Аудит ProjectState: уже разделён на 8 блочных интерфейсов (ISP)
-- Аудит error.tsx/loading.tsx/middleware.ts: все корректно реализованы
-- Аудит GENRES/AESTHETICS: уже централизованы в src/config/
-- Удалено 5 неиспользуемых npm-пакетов: sharp, zustand, sonner, next-themes, @radix-ui/react-scroll-area
-- Удалено 2 осиротевших UI-файла: sonner.tsx, scroll-area.tsx
-- Созданы 4 общих компонента: NodeTypeIcon, WarningsList, SuggestionsList, EmptyStateCard
-- SRP-сплит Block 4 (2076→380): 6 подкомпонентов + типы + константы
-- SRP-сплит Block 5 (1887→502): 10 подкомпонентов + типы + константы
-- SRP-сплит Block 1 (1645→302): 9+ подкомпонентов + типы + константы
-- SRP-сплит Block 3 (1601→269): 5+1 подкомпонентов + типы + константы
-- SRP-сплит Block 2 (1207→448): 6 подкомпонентов + типы + константы
-- Устранено дублирование NodeTypeIcon (была копия в блоках 4 и 5)
-- Устранено дублирование SEVERITY_COLORS (была копия в блоках 3 и 5)
-- Обновлены тесты: components.test.tsx (удалён мок next-themes, добавлены тесты shared-компонентов)
-- 16/16 тестов проходят, tsc --noEmit = 0 ошибок
-- Версия обновлена: 0.29.0 → 0.30.0
-- CHANGELOG.md обновлён
-- Запушено в GitHub
+- Прочитал docs/TECH_DEBT.md
+- Проанализировал все открытые и частично решённые записи
+- Открытые: TD-016 (SECRETS.md not in repo — by design), TD-018 (Prisma/SQLAlchemy duplication — deferred to 4.E), TD-014 (RAG — needs API access), TD-015 (GDCombine — mock created, real integration deferred)
+- Частично решённые: DEFERRED-003 (bible PDF — script created), DEFERRED-004 (full prompt spec — 11 prompts added)
+- Ни одна открытая задача не может быть полностью решена сейчас — все отложены до будущих фаз
 
 Stage Summary:
-- P0-T6 (noImplicitAny): ✅ уже было
-- P1-T3 (ProjectState split): ✅ уже было
-- P2-T1 (SRP split): ✅ выполнено — 8416 строк → 1901 строка в page.tsx (77% сокращение), 36+ новых подкомпонентов
-- P3-T5 (GENRES/AESTHETICS → config/): ✅ уже было
-- P3-T2 (удалить неиспользуемые deps): ✅ выполнено — 5 пакетов + 2 файла удалены
-- P4-T4 (error.tsx, loading.tsx, middleware.ts): ✅ уже было
-- v0.30.0 запушена в GitHub
+- TECH_DEBT: Нет задач, которые можно выполнить сейчас. Все открытые элементы отложены по причинам (by design, deferred to 4.E, needs external resources)
 
 ---
-Task ID: 4.B.8 + TD-017 + version bump
-Agent: Main Agent
-Task: Implement 4.B.8 (Core Loop Designer UI), fix TD-017 (JWT secret), bump version to 0.8.0, update tests
+Task ID: 2
+Agent: Main
+Task: Реализовать задачу 4.D.4 — Checklist Service (алгоритм 3.8)
 
 Work Log:
-- Read ROADMAP_PHASE4.md to understand 4.B.8 task definition
-- Read TECH_DEBT.md to identify actionable items (TD-017 selected)
-- Created comprehensive Block 2 UI page: /src/app/blocks/2/page.tsx (4.B.8)
-  - StructuralTypeCard, CoreLoopDiagram, LoopHierarchyTree, PathologyPanel, ValidationPanel, RecommendationsPanel
-  - Full input form: concept_id, mechanics, genre, desired_loop_type, custom_steps
-- Fixed TD-017: JWT_SECRET_KEY no longer hardcoded, added settings.jwt_secret property
-- Bumped version: 0.7.0 → 0.8.0 across VERSION, package.json, pyproject.toml, sidebar
-- Updated CHANGELOG.md, TECH_DEBT.md, testing_plan.md
+- Прочитал спецификацию алгоритма 3.8 (чек-листы валидации) из docs/Алгоритмы/algo_3_7_3_8_gdd_checklists.md
+- Изучил существующие паттерны: gdd_service.py, balance.py schemas, registry.py
+- Создал schemas/checklist.py: 20+ Pydantic моделей (ChecklistInput, ValidationScope, ValidationIssue, MDACheckResult, BalanceCheckResult, NarrativeCheckResult, EconomyCheckResult, LensCheckResult, RemediationItem, ValidationSummary, ValidationProfile)
+- Создал services/checklist_service.py: ChecklistService с 7 этапами (define_scope, mda_check, balance_check, narrative_check, economy_check, lens_check, aggregate_results)
+- Создал api/v1/checklist.py: POST /run endpoint
+- Обновил main.py: добавлен checklist_router
+- Обновил gdd.py: заглушка /checklist заменена на redirect
+- Исправлен баг: формула скоринга умножалась на 20 вместо 100 — исправлено на 100
+- Исправлен баг: CheckDepth Literal не включал 'targeted' — добавлен
+- Создал test_checklist_service.py: 95 тестов (8 классов)
+- Все 95 тестов проходят
 
 Stage Summary:
-- 4.B.8 (Core Loop Designer UI) — fully implemented
-- TD-017 (JWT secret hardcoded) — resolved
-- Version bumped to 0.8.0
-- Test documentation updated comprehensively
+- 4.D.4 полностью реализован: ChecklistService с 7 этапами валидации, 95 тестов
+- API endpoint: POST /api/v1/checklists/run
+- ROADMAP 4.D.4 отмечена ✅
 
 ---
-Task ID: 4.C.1 (Transitive-анализ баланса)
-Agent: Balance Service Agent
-Task: Implement Balance Service (Block 4 — Transitive Balance Analysis, algorithm 3.4)
+Task ID: 3
+Agent: Main
+Task: Обновить версию проекта
 
 Work Log:
-- Read worklog.md and reference files (concept_service, mda_service, API endpoints, test conftest)
-- Created `app/schemas/balance.py` — Pydantic models for balance:
-  - BalanceObject, BalanceInput, ObjectBalanceReport, TransitiveResult, BalanceMap, BalanceResult
-- Created `app/services/balance_service.py` — BalanceService with full algorithm 3.4 implementation:
-  - classify_balance_task() — Stage 1: balance task classification (PvP/PvE/PvPvE)
-  - transitive_balance() — Stage 2: cost-power analysis with least squares / AI weights
-  - analyze_stability() — Stage 3: Schreiber stability matrix (6 combinations)
-  - balance_full() — Full pipeline (Stages 1–3)
-  - Helper methods: least squares, power calculation, cost curve models, thresholds
-- Replaced stub `app/api/v1/balance.py` with full API endpoints:
-  - POST /api/v1/balance/transitive — transitive balance analysis
-  - POST /api/v1/balance/analyze — full balance analysis (all stages)
-  - GET /api/v1/balance/{project_id} — get balance results for project
-- Balance router already registered in main.py (verified)
-- Created `tests/test_balance_service.py` — 26 comprehensive tests:
-  - Classify: PvP, PvE, PvPvE
-  - Transitive: basic, with_costs, overpowered, underpowered, ideal_imbalance, attribute_weights, cost_curve_identity, cost_curve_progression
-  - Stability: stable, runaway, deadlock
-  - Full pipeline: pipeline, stages_completed, with_mda
-  - API: transitive, analyze
-  - Helpers: least_squares, solve_linear_system, calculate_power, calculate_effective_cost, get_threshold, generate_warnings, generate_suggestions
-- Fixed pre-existing bug in `app/prompts/schemas.py`: Added missing aliases for output_schema, output_examples, model_requirements fields in PromptSpec
-- Fixed pre-existing bug in `app/ai/providers/zai_provider.py`: Removed JS-style import statement
-
-All 26 tests pass. All 28 tests pass (including existing health tests).
+- Обновил версию с 0.32.0 до 0.33.0 (minor bump — новый функциональный блок)
+- Обновил CHANGELOG.md с подробным описанием 4.D.4
 
 Stage Summary:
-- 4.C.1 (Balance Service) — fully implemented with algorithm 3.4 (Stages 1–3)
-- Balance schemas, service, API endpoints, and tests created
-- Pre-existing bugs fixed: PromptSpec aliases, ZAIProvider syntax error
-- 26/26 balance tests passing
+- Версия: v0.33.0
 
 ---
-Task ID: 2 (4.C.5 — Progression Service)
-Agent: Progression Service Agent
-Task: Implement Progression Service (Block 5, Algorithm 3.5, Stages 1-4)
+Task ID: 4
+Agent: Main
+Task: Актуализировать список программных и UI тестов
 
 Work Log:
-- Read existing patterns from balance_service.py, balance.py (API), schemas/balance.py
-- Read executor.py, main.py, __init__.py files for integration patterns
-- Created `app/schemas/progression.py` — 12 Pydantic models:
-  - ProgressionConstraints (maxGrindTolerance, minRewardInterval, flowTarget, contentBudget)
-  - ProgressionInput (concept, coreLoop, mdaProfile, balanceResult, targetDuration, targetLevels, progressionType, monetizationModel, constraints)
-  - ProgressionMacroModel (duration, levels, progressionType, monetizationModel, contentRequirements, emergenceRatio, lockKeyModel)
-  - TierInfo (index, level_range, level_count, scale, dominant_mechanic, balance_type, difficulty_curve, resource_state, transition_trigger)
-  - TierModel (tiers, num_tiers, total_levels, transition_map)
-  - CurveSpec (type, formula, parameters dict[str, Any])
-  - ProgressionCurves (xp_to_level, level_to_power, level_to_cost, difficulty)
-  - ContentTierPlan (tier_index, level_range, enemies, rewards, abilities, milestones, pacing)
-  - UnlockEntry (level, unlock_name, unlock_type, description)
-  - PerceivedDifficultyEntry (level, target_perceived_difficulty, recommended_enemy_power, is_tier_boundary)
-  - ContentPlan (tier_plans, unlock_tree, perceived_difficulty_table, total_content_requirements)
-  - ProgressionValidation (issues, suggestions, critical_count, warning_count, info_count, overall_score)
-  - ProgressionProfile (macroModel, tierModel, curves, contentPlan, validation, totalLevels, totalDuration, progressionType, emergenceRatio, lockKeyModel, summary, economyInput, stages_completed, latency_ms, models_used, warnings, suggestions)
-- Created `app/services/progression_service.py` — ProgressionService with full algorithm 3.5:
-  - calculate_macro_params() — Stage 1: genre-based duration/level/progression heuristics, emergence ratio, lock-key model, AI enrichment (PLAN_PROGRESSION_MACROS)
-  - plan_tiers() — Stage 2: tier count (2-5), non-uniform level distribution, D&D scale model, genre-based mechanics, resource states by structural type, transition map
-  - build_curves() — Stage 3: XP→Level (exponential/triangular/linear), Level→Power (linear/polynomial/logistic), Level→Cost (proportional × monetization multiplier), Schreiber perceived difficulty with tier boundary spikes, consistency check, AI enrichment (GENERATE_PROGRESSION_CURVES)
-  - generate_content_plan() — Stage 4: tier content plans (enemies, rewards, abilities, milestones, pacing), unlock tree generation, perceived difficulty table (level-by-level with Gaussian spikes at tier boundaries), AI enrichment (GENERATE_CONTENT_PLAN)
-  - progression_design_full() — Full pipeline (Stages 1-4) with validation (grind check, wall check, empty level check, monetization impact, tier balance) and summary generation
-  - Constants: GENRE_DURATION_MAP, PACING_MAP, GENRE_PROGRESSION_MAP, GENRE_LOCK_KEY_MAP, TIER_DISTRIBUTIONS, TIER_SCALES, ENGINE/ECONOMY/ECOLOGY_RESOURCE_STATES, GENRE_XP_CURVE_MAP, GENRE_POWER_CURVE_MAP, GENRE_TIER_MECHANICS, GENRE_UNLOCK_TYPES, MONETIZATION_GRIND_MULTIPLIER
-- Created `app/api/v1/progression.py` — 6 API endpoints:
-  - POST /macro-params — Stage 1 only
-  - POST /plan-tiers — Stage 2 only
-  - POST /build-curves — Stage 3 only
-  - POST /content-plan — Stage 4 only
-  - POST /design — Full pipeline (Stages 1-4)
-  - GET /{project_id} — Get saved progression (stub)
-  - All routes use Depends(get_current_user) for auth
-  - Error handling: ValueError→400, RuntimeError→503, Exception→500
-  - get_progression_service() factory (same pattern as get_balance_service())
-- Updated `app/services/__init__.py` — Added ProgressionService import and __all__
-- Updated `app/api/v1/__init__.py` — Added progression_router import and __all__
-- Updated `app/api/v1/economy.py` — Removed ProgressionInput class and POST /progression/design stub
-- Updated `main.py` — Added progression_router import and app.include_router() with prefix /api/v1/progression
-- Updated `app/schemas/__init__.py` — Added all progression schema imports and __all__ entries
-
-Smoke tests passed:
-- All schema imports and model construction verified
-- Full pipeline test (4 stages) with all genre heuristics working
-- RPG → s_curve/metroidvania, Action → linear, Shooter → intermittent, Casual → linear, MMORPG → diminishing, Roguelike → intermittent
-- Validation scores: 98-100 for balanced progression
-- Curve types correct by genre (RPG→triangular XP + polynomial power, etc.)
+- Обновил docs/тестирование/testing_plan.md:
+  - Добавлена секция 2.1.12: Checklist Service (4.D.4) — 95 тестов
+  - Добавлена секция 4.7b: Checklist UI тесты (UI-85–UI-96, 12 тестов)
+  - Добавлен E2E-15 для Checklist-валидации
+  - Обновлены все счётчики: backend 470+ тестов, 14 файлов
 
 Stage Summary:
-- 4.C.5 (Progression Service) — fully implemented with algorithm 3.5 (Stages 1-4)
-- 12 Pydantic schemas created
-- 5 service methods implemented (4 stages + full pipeline + validation)
-- 6 API endpoints created
-- All integration points updated (services, API, main, schemas __init__)
-- Economy.py cleaned of progression stubs
+- Testing plan актуализирован с 95 новыми программными + 12 UI + 1 E2E тестами
+
+---
+Task ID: 5
+Agent: Main
+Task: Запушить результаты в git
+
+Work Log:
+- git add -A → 14 файлов изменено/создано
+- git commit с подробным сообщением
+- git push origin main (PAT workflow)
+- PAT удалён из remote URL
+
+Stage Summary:
+- Все изменения запушены в GitHub: commit f1f6d5e
+
+---
+Task ID: 6
+Agent: Sub-agent
+Task: Обновить testing_plan.md — добавление тестов для AI-ассистента (Блок 7, 4.D.6-4.D.8)
+
+Work Log:
+- Прочитал текущий testing_plan.md (837 строк) и worklog.md
+- Обновил версию документа с 0.34.0 на 0.35.0, фазу на 4.D.6-4.D.8
+- Добавил AI-ассистент (4.D.6-4.D.8) в секцию 1 «Общая стратегия тестирования»
+- Обновил заголовок секции 2.1: 470+ → 550+ тестов, 14 → 16 файлов
+- Добавил test_ai_assistant_service.py и test_ai_assistant_api.py в файловый листинг
+- Добавил секцию 2.1.13: AI Assistant Service (~60 тестов) — build_assistant_context, manage_session, add_message/get_chat_history, search_knowledge, check_proactive_alerts, generate_suggestions, chat, chat_stream
+- Добавил секцию 2.1.14: AI Assistant API (~20 тестов) — POST /chat, POST /chat/stream, GET /suggestions, GET /alerts, GET /history, POST /history/clear, GET /status, POST /test
+- Обновил секцию 3.1: AI Assistant Service (~60) + AI Assistant API (~20), итого ~300
+- Добавил в секцию 3.2: AI Chat Panel (~12), AI Suggestions Panel (~8), AI Alerts Panel (~6), итого ~190
+- Добавил секцию 4.9: Блок 7 UI тесты (UI-125–UI-134, 10 тестов)
+- Добавил E2E-16–E2E-20: 5 сценариев для AI-ассистента
+- Обновил секцию 6: Backend 550+/16 файлов, плановые ~490, UI 107, E2E 20, итого 127
+- Обновил UI-04: версия 0.34.0 → 0.35.0
+
+Stage Summary:
+- Testing plan актуализирован: +~80 backend тестов (60 service + 20 API), +26 frontend, +10 UI, +5 E2E
+- Версия документа: 0.35.0

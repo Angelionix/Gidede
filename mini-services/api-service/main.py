@@ -29,6 +29,7 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.projects import router as projects_router
 from app.api.v1.rag import router as rag_router
 from app.api.v1.pipeline import router as pipeline_router
+from app.api.v1.checklist import router as checklist_router
 
 # Настройка логирования
 setup_logging()
@@ -101,6 +102,7 @@ app.include_router(gdd_router, prefix="/api/v1/gdd", tags=["GDD Generator (Block
 app.include_router(ai_assistant_router, prefix="/api/v1/ai", tags=["AI Assistant (Block 7)"])
 app.include_router(rag_router, prefix="/api/v1/rag", tags=["RAG Knowledge Base (4.A.10)"])
 app.include_router(pipeline_router, prefix="/api/v1/pipeline", tags=["Pipeline (4.B.12)"])
+app.include_router(checklist_router, prefix="/api/v1/checklists", tags=["Checklists (Block 6, 4.D.4)"])
 
 
 if __name__ == "__main__":

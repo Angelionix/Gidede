@@ -9,6 +9,30 @@
 
 ---
 
+## [0.33.0] - 2026-05-19
+
+### Added
+- **4.D.4**: Чек-листы валидации геймдизайна (алгоритм 3.8, все 7 этапов)
+  - ChecklistService — сервис валидации с 7 этапами:
+  - Этап 1: Определение области валидации → ValidationScope (5 стадий проекта, жанр-специфичные проверки)
+  - Этап 2: MDA-чек (5 проверок: покрытие эстетик, покрытие динамики, полнота MDA, матрица Бонда)
+  - Этап 3: Баланс-чек (12 типов баланса, depth-фильтрация: surface→exhaustive)
+  - Этап 4: Нарратив-чек (лудонарративный диссонанс, агентивность, структура, разнообразие квестов)
+  - Этап 5: Экономика-чек (runaway, deadlock, Q-фактор, прибыльность циклов)
+  - Этап 6: Линзы Шелла (адаптивная выборка из 113, жанр- и проблемно-ориентированные линзы)
+  - Этап 7: Агрегация (дедупликация, приоритизация, ремедиация, overall score 0-100, readiness level)
+- **New API endpoint**:
+  - POST `/api/v1/checklists/run` — полный пайплайн валидации (алгоритм 3.8, все 7 этапов)
+- **New schemas** (schemas/checklist.py): ChecklistInput, ValidationScope, ValidationIssue, MDACheckResult, BalanceCheckResult, NarrativeCheckResult, EconomyCheckResult, LensCheckResult, RemediationItem, ValidationSummary, ValidationProfile
+- **95 тестов** для ChecklistService (8 классов: DefineScope, MDA, Balance, Narrative, Economy, Lens, Aggregation, Full Pipeline, Edge Cases)
+
+### Changed
+- Версия обновлена с 0.32.0 до 0.33.0
+- GDD `/checklist` endpoint обновлён с заглушки на redirect к `/api/v1/checklists/run`
+- main.py — добавлен checklist_router с префиксом `/api/v1/checklists`
+
+---
+
 ## [0.32.0] - 2026-05-19
 
 ### Added

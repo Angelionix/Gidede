@@ -391,8 +391,11 @@ async def run_checklist(
     - economy: Экономика-чек
     - schell: Линзы Шелла (113)
     """
-    # TODO: Реализация в Фазе 4.D.2
-    return {"status": "stub", "checklists": {}, "message": "Checklists will be implemented in Phase 4.D.2"}
+    # Полная реализация доступна через POST /api/v1/checklists/run (4.D.4)
+    return {
+        "status": "redirect",
+        "message": "Используйте POST /api/v1/checklists/run для полной валидации (алгоритм 3.8, 4.D.4)",
+    }
 
 
 @router.post("/export")

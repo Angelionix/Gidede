@@ -105,7 +105,7 @@
 | 2026-05-19 | DEFERRED-003 → Partially Resolved: scripts/compile_bible_pdf.py создан (Markdown → HTML → PDF) |
 | 2026-05-19 | TD-006 → Updated: коллекция расширена до 51 PDF (Dropbox: 40 GDD), выполнен структурный анализ → docs/gdd_examples/GDD_ANALYSIS.md (11 разделов, 26 секций, сравнение с Роджерсом, паттерны/анти-паттерны, рекомендации). INDEX.md обновлён |
 | 2026-05-19 | TD-003 → Resolved: скрипт извлечения текста из PDF полностью покрывает потребность; DEFERRED-004 → Partially Resolved: 11 GDD/валидационных промптов добавлено в 4.D.2 |
-| 2026-05-19 | TD-015 → Partially Resolved: API-mock для GDCombine/GBE создан (gbe_bridge_service.py, 4 метода). Реальная интеграция отложена до Фазы 4.E. |
+| 2026-05-19 | Версия обновлена до 0.33.0: реализован ChecklistService (алгоритм 3.8, 7 этапов, 95 тестов), ROADMAP 4.D.4 отмечена ✅ |
 
 ---
 

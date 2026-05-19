@@ -1,8 +1,8 @@
 # Gidede — Документ тестирования
 
-> **Фаза**: 4.C.10 (Интеграционные тесты пайплайна)
+> **Фаза**: 4.D.4 (Checklist-валидация GDD)
 > **Дата**: 2026-05-19
-> **Версия**: 0.32.0
+> **Версия**: 0.33.0
 > **Статус**: Активный
 > **Подход**: Локальное тестирование + CI/CD (GitHub Actions)
 
@@ -10,7 +10,7 @@
 
 ## 1. Общая стратегия тестирования
 
-Тестирование Gidede проводится локально на ПК разработчика и через CI/CD пайплайн (GitHub Actions: `.github/workflows/ci.yml`). Автоматизированные программные тесты запускаются через скрипты, отчёты предоставляются вручную. Ручное тестирование UI проводится через браузер. Полное покрытие включает все реализованные модули: инфраструктуру (4.A), концепцию (4.B.1–4.B.5), Core Loop Designer (4.B.6–4.B.8), MDA Lab (4.B.9–4.B.11), сквозной пайплайн (4.B.12), баланс и симуляцию (4.C.1–4.C.4), прогрессию (4.C.5), экономику (4.C.6–4.C.7), UI экономики и прогрессии (4.C.8), сквозной пайплайн Блоков 1–5 (4.C.9), интеграционные тесты полного пайплайна (4.C.10), а также GDD-генерацию: Этапы 1–5 (4.D.1–4.D.2), сшивка/валидация/форматирование/экспорт (4.D.3).
+Тестирование Gidede проводится локально на ПК разработчика и через CI/CD пайплайн (GitHub Actions: `.github/workflows/ci.yml`). Автоматизированные программные тесты запускаются через скрипты, отчёты предоставляются вручную. Ручное тестирование UI проводится через браузер. Полное покрытие включает все реализованные модули: инфраструктуру (4.A), концепцию (4.B.1–4.B.5), Core Loop Designer (4.B.6–4.B.8), MDA Lab (4.B.9–4.B.11), сквозной пайплайн (4.B.12), баланс и симуляцию (4.C.1–4.C.4), прогрессию (4.C.5), экономику (4.C.6–4.C.7), UI экономики и прогрессии (4.C.8), сквозной пайплайн Блоков 1–5 (4.C.9), интеграционные тесты полного пайплайна (4.C.10), а также GDD-генерацию: Этапы 1–5 (4.D.1–4.D.2), сшивка/валидация/форматирование/экспорт (4.D.3), Checklist-валидация GDD (4.D.4).
 
 ### 1.1 Уровни тестирования
 
@@ -60,7 +60,7 @@ npx eslint src/            # TypeScript
 
 ## 2. Реальные автоматизированные тесты (текущее состояние)
 
-### 2.1 Backend — pytest (375+ тестов в 13 файлах)
+### 2.1 Backend — pytest (470+ тестов в 14 файлах)
 
 ```
 mini-services/api-service/tests/
@@ -85,6 +85,10 @@ mini-services/api-service/tests/
 │                                   #   Stage 8=7, Pipeline 1-8=4) *(NEW in 4.D.3)*
 ├── test_pipeline_service.py       # Pipeline Service — сквозной пайплайн 1→5,
 │                                   #   зависимости блоков, stale-каскад (29 тестов)
+├── test_checklist_service.py      # Checklist Service (4.D.4) — define_scope,
+│                                   #   MDA/balance/narrative/economy/lens checks,
+│                                   #   aggregation, full pipeline, edge cases
+│                                   #   (95 тестов) *(NEW in 4.D.4)*
 └── integration/
     └── test_full_pipeline.py      # 4.C.10: Интеграционные тесты полного
                                      #   пайплайна Блоки 1–5 (22 теста)
@@ -404,6 +408,107 @@ mini-services/api-service/tests/
 | INT-26 | `test_economy_output_has_required_fields` | EconomyProfile: system_type, resource_model (core + subsidiary) |
 | INT-27 | `test_balance_elements_status_values` | Статусы элементов в допустимом наборе: balanced/overpowered/underpowered/ideal_imbalance |
 
+#### 2.1.12 Checklist Service (4.D.4) — 95 тестов *(NEW in 4.D.4)*
+
+**TestDefineScope — 11 тестов**
+
+| Категория | Количество | Описание |
+|-----------|------------|----------|
+| Выбор чеклиста по этапу | 3 | concept→concept_checklist, prototype→prototype_checklist, production→production_checklist |
+| Явные переопределения | 3 | explicit_checklist > stage, custom_checks добавляются, override заменяет дефолт |
+| Проверки по жанру | 3 | rpg→narrative_check, strategy→balance_check, puzzle→economy_skip |
+| Маппинг глубины | 1 | depth=quick → subset checks, depth=full → all checks |
+| Оценка estimated checks | 1 | Возвращает корректное количество проверок |
+
+**TestMDACheck — 12 тестов**
+
+| Категория | Количество | Описание |
+|-----------|------------|----------|
+| Skip при отсутствии данных | 2 | Нет MDA-профиля → skip, Нет aesthetic_profile → skip |
+| Aesthetic orphan | 2 | Эстетика без механики → warning, Несколько orphan → несколько warnings |
+| Dynamic orphan | 2 | Динамика без механики → warning, Связанная динамика → pass |
+| MDA-пробелы | 2 | aesthetics < 3 → gap warning, mechanics < 3 → gap warning |
+| Bond dissonance | 2 | Конфликт Bond-матрицы → error, Согласованная Bond → pass |
+| Полный профиль — скоринг | 2 | Full profile → score > 0.7, Empty profile → score 0.0 |
+
+**TestBalanceCheck — 12 тестов**
+
+| Категория | Количество | Описание |
+|-----------|------------|----------|
+| Skip при отсутствии данных | 2 | Нет balance_result → skip, Нет элементов → skip |
+| Overpowered/Underpowered | 2 | >20% overpowered → error, >20% underpowered → error |
+| Доминантная стратегия | 2 | dominant_strategy detected → critical, no dominant → pass |
+| Grind | 2 | grind_pattern detected → warning, no grind → pass |
+| Difficulty wall | 2 | difficulty_wall detected → error, smooth curve → pass |
+| Depth-фильтрация | 2 | depth=quick → только critical checks, depth=full → все проверки |
+
+**TestNarrativeCheck — 10 тестов**
+
+| Категория | Количество | Описание |
+|-----------|------------|----------|
+| Skip для не-нарративных | 2 | puzzle → skip narrative, rpg → run narrative |
+| Ludonarrative dissonance | 2 | narrative↔mechanics конфликт → error, согласие → pass |
+| Ludonarrative irony | 2 | intentional irony → info, unintentional irony → warning |
+| Ludonarrative harmony | 1 | harmony → pass с positive remark |
+| Agency gaps | 1 | agency_gap detected → warning |
+| Структура нарратива | 1 | Нет arc → warning, Есть arc → pass |
+| Quest variety | 1 | <3 quest types → warning, >=3 → pass |
+
+**TestEconomyCheck — 10 тестов**
+
+| Категория | Количество | Описание |
+|-----------|------------|----------|
+| Skip при отсутствии данных | 2 | Нет economy_profile → skip, Нет resource_model → skip |
+| Runaway | 2 | runaway detected → critical, stable → pass |
+| Deadlock | 2 | deadlock detected → error, fluid → pass |
+| Q-factor inflation/scarcity/balanced | 3 | inflation → warning, scarcity → warning, balanced → pass |
+| Profitability | 1 | negative_profit → error, positive → pass |
+
+**TestLensCheck — 8 тестов**
+
+| Категория | Количество | Описание |
+|-----------|------------|----------|
+| Base lenses | 2 | Минимум 4 линзы, каждая с вопросами и оценкой |
+| Genre-specific | 2 | rpg→narrative_lens, strategy→balance_lens |
+| Problem-driven | 1 | issues→подбор линз по проблемам |
+| Score severity | 1 | low score → high severity lens |
+| AI fallback | 1 | AI-ошибка → fallback на дефолтные линзы |
+| Max 20 lenses | 1 | >20 проблем → ограничение до 20 линз |
+
+**TestAggregation — 12 тестов**
+
+| Категория | Количество | Описание |
+|-----------|------------|----------|
+| Слияние issues | 2 | issues из всех checks объединяются, нет потерь |
+| Дедупликация | 2 | Одинаковые issues → одна запись, похожие → группировка |
+| Повышение severity | 2 | duplicate warning → error, triplicate → critical |
+| Приоритетная сортировка | 2 | critical первые, info последние |
+| Top-5 | 1 | Возвращает top-5 критических проблем |
+| Quick wins | 1 | Возвращает quick_wins с low effort |
+| Score 0-100 | 1 | 0 issues → 100, все critical → 0, промежуточный → 40-80 |
+| Readiness levels | 1 | score>=80 → ready, 50-79 → almost, <50 → not_ready |
+
+**TestFullPipeline — 6 тестов**
+
+| Категория | Количество | Описание |
+|-----------|------------|----------|
+| Все блоки | 1 | Полные данные → все checks запущены, все issues собраны |
+| Нет данных | 1 | Все checks → skip, score=100 (нет проблем) |
+| Concept-only | 1 | Только концепция → MDA/Balance/Economy skip, Narrative partial |
+| Конкретные типы | 1 | Указаны only_check_types → запускаются только они |
+| Отслеживание этапов | 1 | stages_completed содержит define_scope, checks, aggregation |
+| Latency | 1 | latency_ms заполнен, <5000ms для mock AI |
+
+**TestEdgeCases — 14 тестов**
+
+| Категория | Количество | Описание |
+|-----------|------------|----------|
+| max_issues | 2 | >100 issues → обрезка до 100, top-5 актуален |
+| Пустая концепция | 2 | empty concept → warning, None concept → error |
+| None values | 2 | mda_profile=None → skip, balance_result=None → skip |
+| Q-factor edge cases | 4 | Q=0.0, Q=1.0, Q<0, Q>1 → корректная обработка |
+| Remediation plan | 4 | critical issue → remediation suggestion, warning → suggestion, info → no remediation, empty issues → empty plan |
+
 ### 2.2 Frontend — vitest (9 тестов в 3 файлах)
 
 ```
@@ -564,6 +669,23 @@ src/__tests__/
 | UI-83 | Полный пайплайн 1→7 | 1. Нажать «Запустить полный пайплайн» | GDD с assembled + formatted документом |
 | UI-84 | Предпросмотр formatted GDD | 1. Переключиться на вкладку «Документ» | Markdown с оглавлением, нумерацией, стилями |
 
+### 4.7b Checklist-валидация (панель на странице GDD) *(NEW in 4.D.4)*
+
+| ID | Сценарий | Шаги | Ожидаемый результат |
+|----|----------|------|---------------------|
+| UI-85 | Открытие вкладки Checklist | 1. Открыть /blocks/6 2. Переключиться на вкладку «Checklist» | Отображается панель Checklist с кнопкой «Запустить валидацию» |
+| UI-86 | Запуск валидации | 1. Нажать «Запустить валидацию» | Прогресс-бар, затем результаты проверок |
+| UI-87 | Результаты MDA-проверки | 1. Проверить блок MDA в результатах | Список issues: orphan эстетики/динамики, Bond dissonance, скоринг |
+| UI-88 | Результаты проверки баланса | 1. Проверить блок Баланс в результатах | Overpowered/underpowered, доминантная стратегия, grind, difficulty wall |
+| UI-89 | Результаты проверки нарратива | 1. Проверить блок Нарратив в результатах | Ludonarrative dissonance/irony/harmony, agency gaps, quest variety |
+| UI-90 | Результаты проверки экономики | 1. Проверить блок Экономика в результатах | Runaway, deadlock, Q-factor, profitability |
+| UI-91 | Результаты линз | 1. Проверить блок Линзы | Список линз с вопросами и оценками, genre-specific линзы |
+| UI-92 | Общий score и readiness | 1. Проверить панель общего скоринга | Score 0-100, readiness level (ready/almost/not_ready), цветовая индикация |
+| UI-93 | Remediation plan | 1. Нажать «Показать рекомендации» | Список рекомендаций с приоритетами и estimated effort |
+| UI-94 | Quick wins | 1. Проверить блок Quick Wins | Список проблем с low effort, кнопки «Исправить» |
+| UI-95 | Фильтр по severity | 1. Выбрать фильтр «Только critical» | Отображаются только critical issues |
+| UI-96 | Пустое состояние | 1. Открыть Checklist без данных проекта | Placeholder с сообщением «Заполните блоки для валидации» |
+
 ### 4.8 Сквозной пайплайн (1→5)
 
 | ID | Сценарий | Шаги | Ожидаемый результат |
@@ -609,6 +731,7 @@ src/__tests__/
 | E2E-12 | GDD Export: DOCX | Заполнить все блоки → Сгенерировать GDD → Экспорт DOCX → Файл скачивается, открывается в Word |
 | E2E-13 | GDD Consistency Check | Заполнить блоки с противоречиями → Проверить согласованность → Error/warning/info проблемы отображаются |
 | E2E-14 | GDD Full Pipeline 1→7 | Ввод идеи → Полный пайплайн → Assembled + Formatted документ → Экспорт в 4 форматах |
+| E2E-15 | Checklist-валидация полного пайплайна | Ввод идеи → Заполнить все блоки → Запустить Checklist-валидацию → Проверить score, readiness level, top-5 issues, quick wins, remediation plan |
 
 ---
 
@@ -618,9 +741,9 @@ src/__tests__/
 
 | Категория | Файлов | Тестов |
 |-----------|--------|--------|
-| Backend (pytest) | 13 | 375+ |
+| Backend (pytest) | 14 | 470+ |
 | Frontend (vitest) | 3 | 9 |
-| **Итого** | **16** | **385+** |
+| **Итого** | **17** | **480+** |
 
 ### 6.2 Плановые автоматизированные тесты
 
@@ -634,9 +757,9 @@ src/__tests__/
 
 | Категория | Кейс |
 |-----------|------|
-| UI-тесты | 85 |
-| E2E-сценарии | 14 |
-| **Итого** | **99** |
+| UI-тесты | 97 |
+| E2E-сценарии | 15 |
+| **Итого** | **112** |
 
 ### 6.4 Целевое покрытие (критерий C8 из ROADMAP)
 

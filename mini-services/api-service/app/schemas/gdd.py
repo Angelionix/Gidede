@@ -1,6 +1,6 @@
 """
 Gidede — GDD Schemas (Pydantic Models)
-Фаза 4.D.1–4.D.2: Схемы для Блока 6 — GDD Generator (алгоритм 3.7, Этапы 1–5)
+Фаза 4.D.1–4.D.3: Схемы для Блока 6 — GDD Generator (алгоритм 3.7, Этапы 1–8)
 
 Модели синхронизированы со спецификацией алгоритма 3.7.
 
@@ -10,7 +10,9 @@ Gidede — GDD Schemas (Pydantic Models)
 - Этап 3: Автозаполнение секций → AutoFilledSections (3.7.5)
 - Этап 4: AI-генерация и обогащение → AIEnrichedSections (3.7.6)
 - Этап 5: Ручные секции и подсказки → ManualSectionsResult (3.7.7)
-(Этапы 6–8 будут реализованы в 4.D.3)
+- Этап 6: Сшивка и валидация → GDDAssembledDocument (3.7.8)
+- Этап 7: Форматирование → GDDFormattedDocument (3.7.9)
+- Этап 8: Экспорт → GDDExportResult
 """
 
 from pydantic import BaseModel, Field
@@ -396,9 +398,174 @@ class ManualSectionsResult(BaseModel):
 # ИТОГОВЫЙ ПРОФИЛЬ GDD
 # ============================================================
 
+# ============================================================
+# ЭТАП 6: СШИВКА И ВАЛИДАЦИЯ (алгоритм 3.7.8)
+# ============================================================
+
+ConsistencySeverity = Literal['error', 'warning', 'info']
+
+
+class ConsistencyIssue(BaseModel):
+    """Проблема согласованности между секциями GDD."""
+    severity: ConsistencySeverity = Field(
+        'warning',
+        description="Серьёзность: error (блокирует), warning (рекомендация), info (замечание)",
+    )
+    section_a: str = Field(
+        "",
+        description="Первая секция с проблемой",
+    )
+    section_b: str = Field(
+        "",
+        description="Вторая секция с проблемой (пара)",
+    )
+    issue_type: str = Field(
+        "",
+        description="Тип проблемы: coreloop_mechanics_mismatch, progression_balance_mismatch, "
+                    "economy_monetization_mismatch, narrative_mechanics_mismatch, "
+                    "ludonarrative_dissonance, data_gap",
+    )
+    description: str = Field(
+        "",
+        description="Описание проблемы",
+    )
+    suggestion: str = Field(
+        "",
+        description="Предложение по исправлению",
+    )
+
+
+class ConsistencyReport(BaseModel):
+    """Отчёт о согласованности GDD — часть результата Этапа 6 (алгоритм 3.7.8)."""
+    issues: list[ConsistencyIssue] = Field(
+        default_factory=list,
+        description="Список найденных проблем согласованности",
+    )
+    error_count: int = Field(0, description="Количество критических проблем")
+    warning_count: int = Field(0, description="Количество предупреждений")
+    info_count: int = Field(0, description="Количество информационных замечаний")
+    is_valid: bool = Field(
+        True,
+        description="True если нет критических проблем (error_count == 0)",
+    )
+    checked_pairs: list[str] = Field(
+        default_factory=list,
+        description="Проверенные пары секций",
+    )
+
+
+class GDDAssembledSection(BaseModel):
+    """Собранная секция GDD после сшивки (Этап 6)."""
+    section_name: str = Field(
+        "",
+        description="Название секции",
+    )
+    content: str = Field(
+        "",
+        description="Итоговое содержимое секции в Markdown",
+    )
+    source: str = Field(
+        "",
+        description="Источник данных: auto_fill/ai_generate/ai_enrich/manual/merged",
+    )
+    has_diagram: bool = Field(False, description="Содержит ли секция диаграмму")
+    has_tables: bool = Field(False, description="Содержит ли секция таблицы")
+    has_formulas: bool = Field(False, description="Содержит ли секция формулы")
+    requires_review: bool = Field(False, description="Требует ли ревью")
+
+
+class GDDAssembledDocument(BaseModel):
+    """Сшитый документ GDD — результат Этапа 6 (алгоритм 3.7.8)."""
+    sections: dict[str, GDDAssembledSection] = Field(
+        default_factory=dict,
+        description="Собранные секции: section_name → GDDAssembledSection",
+    )
+    section_order: list[str] = Field(
+        default_factory=list,
+        description="Порядок секций в документе",
+    )
+    consistency_report: ConsistencyReport = Field(
+        default_factory=ConsistencyReport,
+        description="Отчёт о согласованности",
+    )
+    total_sections: int = Field(0, description="Общее количество секций")
+    filled_sections: int = Field(0, description="Количество заполненных секций")
+    coverage_score: float = Field(0.0, description="Уровень покрытия")
+
+
+# ============================================================
+# ЭТАП 7: ФОРМАТИРОВАННЫЙ ДОКУМЕНТ (алгоритм 3.7.9)
+# ============================================================
+
+class GDDFormattedDocument(BaseModel):
+    """Отформатированный документ GDD — результат Этапа 7 (алгоритм 3.7.9)."""
+    markdown: str = Field(
+        "",
+        description="Полный Markdown-документ с оглавлением, нумерацией и стилями",
+    )
+    title: str = Field(
+        "",
+        description="Заголовок документа",
+    )
+    table_of_contents: str = Field(
+        "",
+        description="Оглавление в Markdown",
+    )
+    section_count: int = Field(0, description="Количество секций")
+    word_count: int = Field(0, description="Количество слов")
+    estimated_pages: int = Field(0, description="Оценка страниц")
+
+
+# ============================================================
+# ЭТАП 8: РЕЗУЛЬТАТ ЭКСПОРТА
+# ============================================================
+
+ExportFormat = Literal['pdf', 'docx', 'md', 'html']
+
+
+class GDDExportResult(BaseModel):
+    """Результат экспорта GDD — результат Этапа 8."""
+    format: ExportFormat = Field(
+        'pdf',
+        description="Формат экспорта: pdf/docx/md/html",
+    )
+    content: str = Field(
+        "",
+        description="Содержимое файла (для MD — markdown, для HTML — html)",
+    )
+    file_path: str = Field(
+        "",
+        description="Путь к сгенерированному файлу (для PDF/DOCX)",
+    )
+    file_name: str = Field(
+        "",
+        description="Имя файла для скачивания",
+    )
+    content_type: str = Field(
+        "application/octet-stream",
+        description="MIME-тип содержимого",
+    )
+    size_bytes: int = Field(
+        0,
+        description="Размер файла в байтах",
+    )
+    success: bool = Field(
+        True,
+        description="Успешен ли экспорт",
+    )
+    error_message: str = Field(
+        "",
+        description="Сообщение об ошибке (если не success)",
+    )
+
+
+# ============================================================
+# ИТОГОВЫЙ ПРОФИЛЬ GDD (обновлённый для этапов 1–8)
+# ============================================================
+
 class GDDProfile(BaseModel):
     """
-    Полный профиль GDD — результат алгоритма 3.7 (Этапы 1–5+).
+    Полный профиль GDD — результат алгоритма 3.7 (Этапы 1–8).
 
     Включает:
     - format_spec: Спецификация формата (Этап 1)
@@ -406,6 +573,8 @@ class GDDProfile(BaseModel):
     - auto_filled_sections: Автозаполненные секции (Этап 3)
     - ai_enriched_sections: AI-обогащённые секции (Этап 4)
     - manual_skeletons: Скелеты ручных секций (Этап 5)
+    - assembled_document: Сшитый документ (Этап 6)
+    - formatted_document: Отформатированный документ (Этап 7)
     - stages_completed: Завершённые этапы
     - coverage_score: Общий уровень покрытия
     - latency_ms: Время выполнения
@@ -429,6 +598,14 @@ class GDDProfile(BaseModel):
     manual_skeletons: Optional[ManualSectionsResult] = Field(
         None,
         description="Скелеты ручных секций с подсказками (Этап 5)",
+    )
+    assembled_document: Optional[GDDAssembledDocument] = Field(
+        None,
+        description="Сшитый документ с проверкой согласованности (Этап 6)",
+    )
+    formatted_document: Optional[GDDFormattedDocument] = Field(
+        None,
+        description="Отформатированный Markdown-документ (Этап 7)",
     )
     stages_completed: list[int] = Field(
         default_factory=list,

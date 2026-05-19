@@ -1,6 +1,6 @@
 """
 Gidede — GDD Service
-Фаза 4.D.1–4.D.2: Блок 6 — GDD Generator (алгоритм 3.7, Этапы 1–5)
+Фаза 4.D.1–4.D.3: Блок 6 — GDD Generator (алгоритм 3.7, Этапы 1–8)
 
 Реализация пайплайна генерации GDD из алгоритма 3.7:
 - Этап 1: Определение формата GDD → GDDFormatSpec (3.7.3)
@@ -8,13 +8,20 @@ Gidede — GDD Service
 - Этап 3: Автозаполнение секций → AutoFilledSections (3.7.5)
 - Этап 4: AI-генерация и обогащение → AIEnrichedSections (3.7.6)
 - Этап 5: Ручные секции и подсказки → ManualSectionsResult (3.7.7)
+- Этап 6: Сшивка и валидация → GDDAssembledDocument (3.7.8)
+- Этап 7: Форматирование → GDDFormattedDocument (3.7.9)
+- Этап 8: Экспорт → GDDExportResult
 
 Зависимости: 4.A.7 (PromptExecutor), 4.A.8 (Prompt Registry)
 """
 
+import os
+import re
 import time
 import logging
 import json
+import tempfile
+from datetime import datetime
 from typing import Any, Optional
 
 from app.ai.executor import PromptExecutor
@@ -35,6 +42,13 @@ from app.schemas.gdd import (
     GDDGenerationInput,
     GDDProfile,
     SectionPriority,
+    ConsistencyIssue,
+    ConsistencyReport,
+    GDDAssembledSection,
+    GDDAssembledDocument,
+    GDDFormattedDocument,
+    ExportFormat,
+    GDDExportResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -2694,6 +2708,1087 @@ class GDDService:
             f"AI-generated: {ai_enriched.generated_count}, "
             f"Manual: {manual_skeletons.total_manual_count}, "
             f"Coverage: {coverage_score:.2f}"
+        )
+
+        return profile
+
+    # ========================================================
+    # Этап 6: Сшивка и валидация GDD (3.7.8)
+    # ========================================================
+
+    async def assemble_gdd(self, profile: GDDProfile) -> GDDAssembledDocument:
+        """
+        Этап 6: Сшивка и валидация GDD (алгоритм 3.7.8).
+
+        Объединяет все секции из этапов 3-5 в единый документ,
+        проверяет согласованность между секциями, обнаруживает
+        лудонарративный диссонанс.
+        """
+        start = time.time()
+
+        assembled: dict[str, GDDAssembledSection] = {}
+        format_spec = profile.format_spec
+        all_sections = format_spec.sections
+
+        # Собираем контент из всех источников с приоритетом:
+        # ai_enriched > auto_filled > manual_skeletons
+        for section_name in all_sections:
+            content_text = ""
+            source = ""
+            has_diagram = False
+            has_tables = False
+            has_formulas = False
+            requires_review = False
+
+            # Приоритет 1: AI-обогащённые секции (enriched)
+            if profile.ai_enriched_sections:
+                enriched = profile.ai_enriched_sections.enriched_sections.get(section_name)
+                if enriched and enriched.content:
+                    content_text = enriched.content
+                    source = "ai_enrich"
+                    has_diagram = enriched.diagram is not None
+                    has_tables = enriched.tables is not None and len(enriched.tables) > 0
+                    has_formulas = enriched.formulas is not None and len(enriched.formulas) > 0
+                    requires_review = enriched.requires_review
+
+            # Приоритет 2: AI-сгенерированные секции
+            if not content_text and profile.ai_enriched_sections:
+                generated = profile.ai_enriched_sections.generated_sections.get(section_name)
+                if generated and generated.content:
+                    content_text = generated.content
+                    source = "ai_generate"
+                    has_diagram = generated.diagram is not None
+                    has_tables = generated.tables is not None and len(generated.tables) > 0
+                    has_formulas = generated.formulas is not None and len(generated.formulas) > 0
+                    requires_review = generated.requires_review
+
+            # Приоритет 3: Автозаполненные секции
+            if not content_text and profile.auto_filled_sections:
+                auto_section = profile.auto_filled_sections.sections.get(section_name)
+                if auto_section and auto_section.content:
+                    content_text = auto_section.content
+                    source = "auto_fill"
+                    has_diagram = auto_section.diagram is not None
+                    has_tables = auto_section.tables is not None and len(auto_section.tables) > 0
+                    has_formulas = auto_section.formulas is not None and len(auto_section.formulas) > 0
+                    requires_review = auto_section.requires_review
+
+            # Приоритет 4: Скелеты ручных секций (шаблонный контент)
+            if not content_text and profile.manual_skeletons:
+                skeleton = profile.manual_skeletons.skeletons.get(section_name)
+                if skeleton and skeleton.template:
+                    content_text = skeleton.template
+                    source = "manual"
+                    requires_review = True
+
+            assembled[section_name] = GDDAssembledSection(
+                section_name=section_name,
+                content=content_text,
+                source=source,
+                has_diagram=has_diagram,
+                has_tables=has_tables,
+                has_formulas=has_formulas,
+                requires_review=requires_review,
+            )
+
+        # Валидация согласованности
+        input_data = self._reconstruct_input_from_profile(profile)
+        consistency_report = self.validate_consistency(assembled, input_data)
+
+        # Порядок секций из format_spec
+        section_order = list(format_spec.sections)
+
+        # Считаем покрытие
+        total_sections = len(all_sections)
+        filled_sections = sum(
+            1 for s in assembled.values() if s.content and s.source not in ("", "manual")
+        )
+        coverage_score = round(filled_sections / total_sections, 3) if total_sections > 0 else 0.0
+
+        result = GDDAssembledDocument(
+            sections=assembled,
+            section_order=section_order,
+            consistency_report=consistency_report,
+            total_sections=total_sections,
+            filled_sections=filled_sections,
+            coverage_score=coverage_score,
+        )
+
+        logger.info(
+            f"[Stage 6] Assembled: {filled_sections}/{total_sections} sections filled, "
+            f"coverage={coverage_score:.2f}, "
+            f"consistency: {consistency_report.error_count} errors, "
+            f"{consistency_report.warning_count} warnings, "
+            f"{consistency_report.info_count} info "
+            f"({time.time() - start:.2f}s)"
+        )
+
+        return result
+
+    def validate_consistency(
+        self,
+        assembled: dict[str, GDDAssembledSection],
+        input_data: GDDGenerationInput,
+    ) -> ConsistencyReport:
+        """
+        Валидация согласованности между секциями GDD.
+
+        Проверяет пары секций на предмет:
+        - Core Loop ↔ Mechanics: шаги core loop ссылаются на механики
+        - Progression ↔ Balance: кривые прогрессии согласованы с балансом
+        - Economy ↔ Monetization: ресурсы экономики поддерживают монетизацию
+        - Narrative ↔ Mechanics: нарратив согласован с механиками
+        - Лудонарративный диссонанс: тон нарратива не противоречит геймплею
+
+        Детерминистическая проверка (без AI-вызовов).
+        """
+        issues: list[ConsistencyIssue] = []
+        checked_pairs: list[str] = []
+
+        def _has_content(name: str) -> bool:
+            sec = assembled.get(name)
+            return sec is not None and bool(sec.content) and sec.source != ""
+
+        def _get_content(name: str) -> str:
+            sec = assembled.get(name)
+            return sec.content if sec else ""
+
+        # ── Пара 1: Core Loop ↔ Mechanics ──
+        pair_key = "core_loop::mechanics"
+        checked_pairs.append(pair_key)
+
+        core_loop_present = _has_content("core_loop")
+        mechanics_present = _has_content("mechanics")
+
+        if core_loop_present and mechanics_present:
+            core_content = _get_content("core_loop").lower()
+            mech_content = _get_content("mechanics").lower()
+
+            # Проверяем: есть ли в core loop упоминания механик
+            mech_names = re.findall(r'\*\*([^*]+)\*\*', _get_content("mechanics"))
+            referenced_mechs = sum(
+                1 for name in mech_names
+                if name.lower() in core_content
+            )
+
+            if referenced_mechs == 0 and len(mech_names) > 0:
+                issues.append(ConsistencyIssue(
+                    severity="warning",
+                    section_a="core_loop",
+                    section_b="mechanics",
+                    issue_type="coreloop_mechanics_mismatch",
+                    description="Шаги Core Loop не ссылаются на описанные механики",
+                    suggestion="Добавьте в описание шагов Core Loop ссылки на соответствующие механики",
+                ))
+        elif core_loop_present and not mechanics_present:
+            issues.append(ConsistencyIssue(
+                severity="info",
+                section_a="core_loop",
+                section_b="mechanics",
+                issue_type="data_gap",
+                description="Core Loop заполнен, но секция Mechanics отсутствует",
+                suggestion="Заполните секцию Mechanics для согласованности с Core Loop",
+            ))
+        elif not core_loop_present and mechanics_present:
+            issues.append(ConsistencyIssue(
+                severity="error",
+                section_a="core_loop",
+                section_b="mechanics",
+                issue_type="coreloop_mechanics_mismatch",
+                description="Mechanics описаны, но Core Loop отсутствует — критическая секция",
+                suggestion="Заполните секцию Core Loop, она является основой геймплея",
+            ))
+
+        # ── Пара 2: Progression ↔ Balance ──
+        pair_key = "progression::balance"
+        checked_pairs.append(pair_key)
+
+        progression_present = _has_content("progression")
+        balance_present = _has_content("balance")
+
+        if progression_present and balance_present:
+            prog_content = _get_content("progression").lower()
+            bal_content = _get_content("balance").lower()
+
+            # Проверяем перекрёстные ссылки на ключевые термины
+            prog_has_levels = any(
+                kw in prog_content for kw in ["уровень", "level", "тир", "tier", "ранг", "rank"]
+            )
+            bal_has_cost_power = any(
+                kw in bal_content for kw in ["cost", "power", "стоимость", "мощность", "баланс", "balance"]
+            )
+
+            if not prog_has_levels:
+                issues.append(ConsistencyIssue(
+                    severity="warning",
+                    section_a="progression",
+                    section_b="balance",
+                    issue_type="progression_balance_mismatch",
+                    description="Прогрессия не описывает уровни/тиры, необходимые для балансировки",
+                    suggestion="Добавьте описание уровней и тиров в секцию Progression",
+                ))
+
+            if not bal_has_cost_power:
+                issues.append(ConsistencyIssue(
+                    severity="info",
+                    section_a="progression",
+                    section_b="balance",
+                    issue_type="progression_balance_mismatch",
+                    description="Балансировка не содержит метрик cost/power",
+                    suggestion="Добавьте таблицу cost-power в секцию Balance",
+                ))
+        elif progression_present and not balance_present:
+            issues.append(ConsistencyIssue(
+                severity="info",
+                section_a="progression",
+                section_b="balance",
+                issue_type="data_gap",
+                description="Прогрессия описана, но секция Balance отсутствует",
+                suggestion="Заполните секцию Balance для проверки согласованности",
+            ))
+        elif not progression_present and balance_present:
+            issues.append(ConsistencyIssue(
+                severity="warning",
+                section_a="progression",
+                section_b="balance",
+                issue_type="progression_balance_mismatch",
+                description="Балансировка описана, но Progression отсутствует",
+                suggestion="Заполните секцию Progression для согласования с балансом",
+            ))
+
+        # ── Пара 3: Economy ↔ Monetization ──
+        pair_key = "economy::monetization"
+        checked_pairs.append(pair_key)
+
+        economy_present = _has_content("economy")
+        monetization_present = _has_content("monetization")
+
+        if economy_present and monetization_present:
+            econ_content = _get_content("economy").lower()
+            mon_content = _get_content("monetization").lower()
+
+            # Проверяем: упоминаются ли ресурсы из экономики в монетизации
+            econ_has_resources = any(
+                kw in econ_content for kw in ["ресурс", "resource", "валют", "currency", "кристалл", "золото"]
+            )
+            mon_uses_resources = any(
+                kw in mon_content for kw in ["ресурс", "resource", "валют", "currency", "кристалл", "золото", "покуп", "purchase", "premium"]
+            )
+
+            if econ_has_resources and not mon_uses_resources:
+                issues.append(ConsistencyIssue(
+                    severity="warning",
+                    section_a="economy",
+                    section_b="monetization",
+                    issue_type="economy_monetization_mismatch",
+                    description="Экономика описывает ресурсы, но монетизация не связана с ними",
+                    suggestion="Укажите, какие ресурсы являются премиум-валютой в секции Monetization",
+                ))
+        elif economy_present and not monetization_present:
+            issues.append(ConsistencyIssue(
+                severity="info",
+                section_a="economy",
+                section_b="monetization",
+                issue_type="data_gap",
+                description="Экономика описана, но секция Monetization отсутствует",
+                suggestion="Заполните секцию Monetization для полного описания бизнес-модели",
+            ))
+        elif not economy_present and monetization_present:
+            issues.append(ConsistencyIssue(
+                severity="warning",
+                section_a="economy",
+                section_b="monetization",
+                issue_type="economy_monetization_mismatch",
+                description="Монетизация описана без экономической модели",
+                suggestion="Заполните секцию Economy для поддержки модели монетизации",
+            ))
+
+        # ── Пара 4: Narrative ↔ Mechanics ──
+        pair_key = "narrative::mechanics"
+        checked_pairs.append(pair_key)
+
+        story_present = _has_content("story") or _has_content("lore")
+        mechanics_present = _has_content("mechanics")
+
+        if story_present and mechanics_present:
+            story_content = (
+                _get_content("story") + " " + _get_content("lore")
+            ).lower()
+            mech_content = _get_content("mechanics").lower()
+
+            # Проверяем: противоречит ли тон истории механикам
+            violent_mechanics = any(
+                kw in mech_content for kw in ["бо", "combat", "атак", "attack", "урон", "damage", "стрельб", "shooting"]
+            )
+            peaceful_story = any(
+                kw in story_content for kw in ["мир", "peace", "гармон", "harmony", "дружб", "friendship", "спокойн", "calm"]
+            )
+
+            if violent_mechanics and peaceful_story:
+                issues.append(ConsistencyIssue(
+                    severity="warning",
+                    section_a="story",
+                    section_b="mechanics",
+                    issue_type="narrative_mechanics_mismatch",
+                    description="Нарратив описывает мирный мир, но механики ориентированы на бой",
+                    suggestion="Согласуйте тон истории с геймплейными механиками или добавьте мирные механики",
+                ))
+        elif story_present and not mechanics_present:
+            issues.append(ConsistencyIssue(
+                severity="info",
+                section_a="story",
+                section_b="mechanics",
+                issue_type="data_gap",
+                description="Нарратив описан, но механики отсутствуют",
+                suggestion="Заполните секцию Mechanics для согласования с историей",
+            ))
+
+        # ── Пара 5: Лудонарративный диссонанс ──
+        pair_key = "ludonarrative_dissonance"
+        checked_pairs.append(pair_key)
+
+        # Проверяем эстетику MDA и геймплей
+        story_content = (_get_content("story") + " " + _get_content("lore")).lower()
+        gameplay_content = (
+            _get_content("core_loop") + " " + _get_content("mechanics") + " " + _get_content("progression")
+        ).lower()
+
+        if story_content and gameplay_content:
+            # Определяем нарративный тон
+            narrative_dark = any(
+                kw in story_content for kw in ["мрачн", "dark", "ужас", "horror", "смерт", "death", "трагед", "tragedy", "отчаян", "despair"]
+            )
+            narrative_hopeful = any(
+                kw in story_content for kw in ["надежд", "hope", "спасени", "salvation", "геро", "hero", "побед", "victory"]
+            )
+            gameplay_grindy = any(
+                kw in gameplay_content for kw in ["повтор", "grind", "фарм", "farm", "монотон", "repetit"]
+            )
+            gameplay_casual = any(
+                kw in gameplay_content for kw in ["казуал", "casual", "расслабл", "relax", "прост", "simple", "лёгк"]
+            )
+
+            if narrative_dark and gameplay_casual:
+                issues.append(ConsistencyIssue(
+                    severity="warning",
+                    section_a="story",
+                    section_b="core_loop",
+                    issue_type="ludonarrative_dissonance",
+                    description="Лудонарративный диссонанс: мрачный нарратив контрастирует с казуальным геймплеем",
+                    suggestion="Измените тон нарратива или усложните механики для соответствия",
+                ))
+            elif narrative_hopeful and gameplay_grindy:
+                issues.append(ConsistencyIssue(
+                    severity="info",
+                    section_a="story",
+                    section_b="core_loop",
+                    issue_type="ludonarrative_dissonance",
+                    description="Потенциальный лудонарративный диссонанс: оптимистичный нарратив при гриндовом геймплеe",
+                    suggestion="Убедитесь, что гринд обоснован историей (напр. тренировка героя)",
+                ))
+
+        # Подсчёт
+        error_count = sum(1 for i in issues if i.severity == "error")
+        warning_count = sum(1 for i in issues if i.severity == "warning")
+        info_count = sum(1 for i in issues if i.severity == "info")
+
+        return ConsistencyReport(
+            issues=issues,
+            error_count=error_count,
+            warning_count=warning_count,
+            info_count=info_count,
+            is_valid=error_count == 0,
+            checked_pairs=checked_pairs,
+        )
+
+    def _reconstruct_input_from_profile(self, profile: GDDProfile) -> GDDGenerationInput:
+        """Восстановление GDDGenerationInput из GDDProfile для валидации."""
+        return GDDGenerationInput(
+            concept=None,
+            core_loop=None,
+            mda_profile=None,
+            balance_result=None,
+            progression_profile=None,
+            economy_profile=None,
+            target_format=profile.format_spec.format,
+            target_audience_doc=profile.format_spec.audience,
+            detail_level=profile.format_spec.detail_level,
+        )
+
+    # ========================================================
+    # Этап 7: Форматирование документа (3.7.9)
+    # ========================================================
+
+    def format_document(
+        self,
+        assembled: GDDAssembledDocument,
+        format_spec: GDDFormatSpec,
+        input_data: GDDGenerationInput,
+    ) -> GDDFormattedDocument:
+        """
+        Этап 7: Форматирование собранного GDD в Markdown.
+
+        Алгоритм 3.7.9:
+        1. Заголовок документа
+        2. Подзаголовок с мета-информацией
+        3. Оглавление
+        4. Секции с нумерацией
+        5. Подсчёт слов и страниц
+        """
+        start = time.time()
+
+        # Заголовок
+        title = "Game Design Document"
+        if input_data.concept:
+            title = input_data.concept.get("title", title) or title
+
+        # Дата
+        date_str = datetime.now().strftime("%Y-%m-%d")
+
+        # Жанр
+        genre = ""
+        if input_data.concept:
+            genre = input_data.concept.get("genre", "")
+
+        # Формат документа
+        format_name = format_spec.format.replace("_", " ").title()
+
+        # ── Строим Markdown ──
+        md_lines: list[str] = []
+
+        # Заголовок
+        md_lines.append(f"# {title}")
+        md_lines.append("")
+
+        # Подзаголовок
+        subtitle_parts = [format_name]
+        if genre:
+            subtitle_parts.append(genre)
+        subtitle_parts.append(date_str)
+        md_lines.append(f"*{' | '.join(subtitle_parts)}*")
+        md_lines.append("")
+        md_lines.append("---")
+        md_lines.append("")
+
+        # Оглавление
+        toc_lines: list[str] = ["## Оглавление", ""]
+        section_counter = 0
+
+        for section_name in assembled.section_order:
+            section = assembled.sections.get(section_name)
+            if not section:
+                continue
+
+            section_counter += 1
+            display_name = self._section_display_name(section_name)
+            anchor = section_name.replace("_", "-").lower()
+            toc_lines.append(f"{section_counter}. [{display_name}](#{anchor})")
+
+        toc_lines.append("")
+
+        md_lines.extend(toc_lines)
+        md_lines.append("---")
+        md_lines.append("")
+
+        # Секции
+        section_num = 0
+        for section_name in assembled.section_order:
+            section = assembled.sections.get(section_name)
+            if not section:
+                continue
+
+            section_num += 1
+            display_name = self._section_display_name(section_name)
+
+            md_lines.append(f"## {section_num}. {display_name}")
+            md_lines.append("")
+
+            if section.content:
+                md_lines.append(section.content)
+            else:
+                md_lines.append("*Раздел не заполнен*")
+
+            md_lines.append("")
+
+            # Добавляем диаграмму если есть
+            # (диаграмма уже встроена в content через SectionContent.diagram)
+
+            # Отметка источника
+            if section.source and section.source != "auto_fill":
+                source_labels = {
+                    "ai_enrich": "🤖 AI-обогащено",
+                    "ai_generate": "🤖 AI-сгенерировано",
+                    "manual": "✏️ Ручное заполнение",
+                }
+                label = source_labels.get(section.source, "")
+                if label:
+                    md_lines.append(f"*{label}*")
+                    md_lines.append("")
+
+        # Подвал
+        md_lines.append("---")
+        md_lines.append(f"*Документ сгенерирован: {date_str} | Формат: {format_name}*")
+
+        markdown = "\n".join(md_lines)
+
+        # Подсчёт слов и страниц
+        word_count = len(markdown.split())
+        estimated_pages = max(1, word_count // 250)
+
+        # Оглавление как строка
+        table_of_contents = "\n".join(toc_lines)
+
+        result = GDDFormattedDocument(
+            markdown=markdown,
+            title=title,
+            table_of_contents=table_of_contents,
+            section_count=section_num,
+            word_count=word_count,
+            estimated_pages=estimated_pages,
+        )
+
+        logger.info(
+            f"[Stage 7] Formatted: {section_num} sections, "
+            f"{word_count} words, ~{estimated_pages} pages "
+            f"({time.time() - start:.2f}s)"
+        )
+
+        return result
+
+    def _section_display_name(self, section_name: str) -> str:
+        """Получить человекочитаемое название секции."""
+        name_map = {
+            "title": "Название",
+            "logline": "Логлайн",
+            "overview": "Обзор",
+            "genre_platform": "Жанр и платформы",
+            "target_audience": "Целевая аудитория",
+            "uniqueness": "Уникальность",
+            "license": "Лицензия",
+            "core_loop": "Core Loop",
+            "controls": "Управление",
+            "mechanics": "Механики",
+            "camera_perspective": "Камера",
+            "progression": "Прогрессия",
+            "balance": "Балансировка",
+            "difficulty": "Сложность",
+            "game_modes": "Игровые режимы",
+            "characters": "Персонажи",
+            "story": "Сюжет",
+            "dialogues": "Диалоги",
+            "quests": "Квесты",
+            "lore": "Лор",
+            "world_structure": "Структура мира",
+            "level_design": "Дизайн уровней",
+            "navigation": "Навигация",
+            "combat_spaces": "Боевые пространства",
+            "resources": "Ресурсы",
+            "economy": "Экономика",
+            "tech_tree": "Дерево технологий",
+            "difficulty_curve": "Кривая сложности",
+            "hud_ui": "HUD и UI",
+            "menus": "Меню",
+            "visual_style": "Визуальный стиль",
+            "sound_music": "Звук и музыка",
+            "multiplayer_modes": "Мультиплеер",
+            "social_features": "Социальные функции",
+            "meta_game": "Мета-игра",
+            "tech_requirements": "Технические требования",
+            "platform_ports": "Платформы",
+            "monetization": "Монетизация",
+            "milestones_budget": "Майлстоуны и бюджет",
+            "title_logline": "Название и логлайн",
+            "game_type": "Тип игры",
+            "originality": "Оригинальность",
+            "feasibility": "Осуществимость",
+            "visual_hook": "Визуальный крючок",
+            "content_overview": "Обзор контента",
+            "player_experience_goal": "Целевой опыт игрока",
+            "system_map": "Карта систем",
+            "feedback_patterns": "Паттерны обратной связи",
+            "success_metrics": "Метрики успеха",
+            "storyline_map": "Карта сюжета",
+            "cutscene_scripts": "Сценарии кат-сцен",
+            "quest_matrix": "Матрица квестов",
+            "lore_db": "База лора",
+            "dissension_validator": "Валидация диссонанса",
+            "pitch_deck": "Pitch Deck",
+            "risks": "Риски",
+            "team": "Команда",
+            "concept_overview": "Обзор концепции",
+            "mda_analysis": "MDA-анализ",
+            "balance_tables": "Таблицы баланса",
+            "progression_curves": "Кривые прогрессии",
+            "economy_model": "Модель экономики",
+            "character_profiles": "Профили персонажей",
+            "narrative_arc": "Нарративная арка",
+            "ui_wireframes": "Вайрфреймы UI",
+            "technical_specs": "Технические спецификации",
+            "checklist_results": "Результаты чек-листов",
+        }
+        return name_map.get(section_name, section_name.replace("_", " ").title())
+
+    # ========================================================
+    # Этап 8: Экспорт GDD
+    # ========================================================
+
+    async def export_gdd(
+        self,
+        formatted: GDDFormattedDocument,
+        export_format: ExportFormat,
+        project_title: str = "GDD",
+    ) -> GDDExportResult:
+        """
+        Этап 8: Экспорт GDD в выбранный формат.
+
+        Поддерживаемые форматы:
+        - md: Markdown (контент напрямую)
+        - html: HTML с CSS-стилями
+        - pdf: PDF через WeasyPrint (fallback → HTML)
+        - docx: DOCX через python-docx
+        """
+        start = time.time()
+
+        # Безопасное имя файла
+        safe_title = re.sub(r'[^\w\s-]', '', project_title).strip().replace(' ', '_')[:50]
+
+        try:
+            if export_format == "md":
+                result = self._export_markdown(formatted, safe_title)
+
+            elif export_format == "html":
+                result = self._export_html(formatted, safe_title)
+
+            elif export_format == "pdf":
+                result = self._export_pdf(formatted, safe_title)
+
+            elif export_format == "docx":
+                result = self._export_docx(formatted, safe_title)
+
+            else:
+                result = GDDExportResult(
+                    format=export_format,
+                    success=False,
+                    error_message=f"Неподдерживаемый формат экспорта: {export_format}",
+                )
+
+        except Exception as e:
+            logger.error(f"[Stage 8] Export failed for {export_format}: {e}", exc_info=True)
+            result = GDDExportResult(
+                format=export_format,
+                success=False,
+                error_message=f"Ошибка экспорта: {str(e)}",
+            )
+
+        latency = time.time() - start
+        logger.info(
+            f"[Stage 8] Export to {export_format}: "
+            f"success={result.success}, "
+            f"size={result.size_bytes} bytes "
+            f"({latency:.2f}s)"
+        )
+
+        return result
+
+    def _export_markdown(
+        self, formatted: GDDFormattedDocument, safe_title: str
+    ) -> GDDExportResult:
+        """Экспорт в Markdown."""
+        content = formatted.markdown
+        return GDDExportResult(
+            format="md",
+            content=content,
+            file_name=f"{safe_title}.md",
+            content_type="text/markdown",
+            size_bytes=len(content.encode("utf-8")),
+            success=True,
+        )
+
+    def _export_html(
+        self, formatted: GDDFormattedDocument, safe_title: str
+    ) -> GDDExportResult:
+        """Экспорт в HTML с профессиональным CSS-оформлением."""
+        html_content = self._markdown_to_html(formatted.markdown, formatted.title)
+        return GDDExportResult(
+            format="html",
+            content=html_content,
+            file_name=f"{safe_title}.html",
+            content_type="text/html",
+            size_bytes=len(html_content.encode("utf-8")),
+            success=True,
+        )
+
+    def _export_pdf(
+        self, formatted: GDDFormattedDocument, safe_title: str
+    ) -> GDDExportResult:
+        """Экспорт в PDF через WeasyPrint (fallback → HTML)."""
+        html_content = self._markdown_to_html(formatted.markdown, formatted.title)
+
+        try:
+            from weasyprint import HTML as WeasyHTML  # type: ignore
+
+            tmp_dir = tempfile.mkdtemp(prefix="gdd_export_")
+            file_path = os.path.join(tmp_dir, f"{safe_title}.pdf")
+
+            WeasyHTML(string=html_content).write_pdf(file_path)
+
+            size_bytes = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+
+            return GDDExportResult(
+                format="pdf",
+                content="",
+                file_path=file_path,
+                file_name=f"{safe_title}.pdf",
+                content_type="application/pdf",
+                size_bytes=size_bytes,
+                success=True,
+            )
+
+        except ImportError:
+            logger.warning("[Stage 8] WeasyPrint not installed, falling back to HTML export")
+            return GDDExportResult(
+                format="pdf",
+                content=html_content,
+                file_name=f"{safe_title}.html",
+                content_type="text/html",
+                size_bytes=len(html_content.encode("utf-8")),
+                success=True,
+                error_message="WeasyPrint не установлен. Экспортировано как HTML.",
+            )
+
+    def _export_docx(
+        self, formatted: GDDFormattedDocument, safe_title: str
+    ) -> GDDExportResult:
+        """Экспорт в DOCX через python-docx."""
+        try:
+            from docx import Document  # type: ignore
+            from docx.shared import Pt, Inches  # type: ignore
+
+            doc = Document()
+
+            # Заголовок
+            doc.add_heading(formatted.title, level=0)
+
+            # Секции
+            lines = formatted.markdown.split("\n")
+            current_section = ""
+
+            for line in lines:
+                stripped = line.strip()
+
+                if not stripped:
+                    continue
+
+                # Заголовки
+                if stripped.startswith("## "):
+                    heading_text = stripped[3:].strip()
+                    # Убираем якорные ссылки
+                    heading_text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', heading_text)
+                    doc.add_heading(heading_text, level=2)
+                    current_section = heading_text
+
+                elif stripped.startswith("# "):
+                    # Основной заголовок — пропускаем, уже добавлен
+                    pass
+
+                elif stripped.startswith("---"):
+                    doc.add_paragraph("")  # Разделитель
+
+                elif stripped.startswith("- ") or stripped.startswith("* "):
+                    # Список
+                    item_text = stripped[2:].strip()
+                    item_text = re.sub(r'\*\*([^*]+)\*\*', r'\1', item_text)
+                    doc.add_paragraph(item_text, style="List Bullet")
+
+                elif re.match(r'^\d+\.\s', stripped):
+                    # Нумерованный список
+                    item_text = re.sub(r'^\d+\.\s', '', stripped)
+                    item_text = re.sub(r'\*\*([^*]+)\*\*', r'\1', item_text)
+                    doc.add_paragraph(item_text, style="List Number")
+
+                elif stripped.startswith("```"):
+                    # Блок кода — пропускаем для DOCX
+                    pass
+
+                elif stripped.startswith("*") and stripped.endswith("*") and len(stripped) > 2:
+                    # Курсивный текст
+                    text = stripped.strip("*")
+                    p = doc.add_paragraph()
+                    run = p.add_run(text)
+                    run.italic = True
+
+                else:
+                    # Обычный текст
+                    text = re.sub(r'\*\*([^*]+)\*\*', r'\1', stripped)
+                    text = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', text)
+                    if text and text != "---":
+                        doc.add_paragraph(text)
+
+            # Сохраняем
+            tmp_dir = tempfile.mkdtemp(prefix="gdd_export_")
+            file_path = os.path.join(tmp_dir, f"{safe_title}.docx")
+            doc.save(file_path)
+
+            size_bytes = os.path.getsize(file_path) if os.path.exists(file_path) else 0
+
+            return GDDExportResult(
+                format="docx",
+                content="",
+                file_path=file_path,
+                file_name=f"{safe_title}.docx",
+                content_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                size_bytes=size_bytes,
+                success=True,
+            )
+
+        except ImportError:
+            logger.warning("[Stage 8] python-docx not installed, returning error")
+            return GDDExportResult(
+                format="docx",
+                success=False,
+                error_message="python-docx не установлен. Установите: pip install python-docx",
+            )
+
+    def _markdown_to_html(self, markdown: str, title: str) -> str:
+        """Простая конвертация Markdown → HTML с профессиональным CSS."""
+        html = markdown
+
+        # Блоки кода (mermaid и обычные)
+        html = re.sub(
+            r'```(\w*)\n(.*?)```',
+            r'<pre><code class="\1">\2</code></pre>',
+            html,
+            flags=re.DOTALL,
+        )
+
+        # Заголовки
+        html = re.sub(r'^### (.+)$', r'<h3>\1</h3>', html, flags=re.MULTILINE)
+        html = re.sub(r'^## (.+)$', r'<h2>\1</h2>', html, flags=re.MULTILINE)
+        html = re.sub(r'^# (.+)$', r'<h1>\1</h1>', html, flags=re.MULTILINE)
+
+        # Жирный и курсив
+        html = re.sub(r'\*\*([^*]+)\*\*', r'<strong>\1</strong>', html)
+        html = re.sub(r'\*([^*]+)\*', r'<em>\1</em>', html)
+
+        # Ссылки
+        html = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', html)
+
+        # Нумерованные списки
+        html = re.sub(
+            r'^(\d+)\.\s+(.+)$',
+            r'<li>\2</li>',
+            html,
+            flags=re.MULTILINE,
+        )
+
+        # Маркированные списки
+        html = re.sub(r'^- (.+)$', r'<li>\1</li>', html, flags=re.MULTILINE)
+
+        # Оборачиваем li в ul/ol (упрощённо)
+        html = re.sub(
+            r'(<li>.*?</li>(\n<li>.*?</li>)*)',
+            r'<ul>\1</ul>',
+            html,
+            flags=re.DOTALL,
+        )
+
+        # Горизонтальные линии
+        html = re.sub(r'^---+$', r'<hr>', html, flags=re.MULTILINE)
+
+        # Параграфы (двойной перенос строки)
+        html = re.sub(r'\n\n+', r'\n</p>\n<p>\n', html)
+
+        # Таблицы (упрощённая конвертация)
+        html = self._convert_markdown_tables_to_html(html)
+
+        css = """
+        <style>
+            body {
+                font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                max-width: 900px;
+                margin: 0 auto;
+                padding: 40px 60px;
+                color: #1a1a1a;
+                line-height: 1.7;
+                background: #ffffff;
+            }
+            h1 {
+                font-size: 28pt;
+                color: #1a3a5c;
+                border-bottom: 3px solid #1a3a5c;
+                padding-bottom: 12px;
+                margin-top: 0;
+            }
+            h2 {
+                font-size: 18pt;
+                color: #2c5f8a;
+                border-bottom: 1px solid #e0e0e0;
+                padding-bottom: 6px;
+                margin-top: 36px;
+            }
+            h3 {
+                font-size: 14pt;
+                color: #3a7cb8;
+                margin-top: 24px;
+            }
+            p {
+                margin: 8px 0;
+                text-align: justify;
+            }
+            strong { color: #1a3a5c; }
+            em { color: #555; }
+            ul, ol { margin: 8px 0; padding-left: 24px; }
+            li { margin: 4px 0; }
+            table {
+                border-collapse: collapse;
+                width: 100%;
+                margin: 16px 0;
+                font-size: 10pt;
+            }
+            th, td {
+                border: 1px solid #ccc;
+                padding: 8px 12px;
+                text-align: left;
+            }
+            th {
+                background: #2c5f8a;
+                color: white;
+                font-weight: 600;
+            }
+            tr:nth-child(even) { background: #f5f8fc; }
+            pre {
+                background: #f4f4f4;
+                padding: 16px;
+                border-radius: 4px;
+                overflow-x: auto;
+                font-size: 9pt;
+            }
+            code { font-family: 'Consolas', 'Monaco', monospace; }
+            hr {
+                border: none;
+                border-top: 1px solid #e0e0e0;
+                margin: 24px 0;
+            }
+            a { color: #2c5f8a; text-decoration: none; }
+            @media print {
+                body { max-width: none; padding: 20px; }
+                h2 { page-break-before: auto; }
+            }
+        </style>
+        """
+
+        return f"""<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{title}</title>
+    {css}
+</head>
+<body>
+<p>
+{html}
+</p>
+</body>
+</html>"""
+
+    def _convert_markdown_tables_to_html(self, html: str) -> str:
+        """Конвертация Markdown-таблиц в HTML."""
+        # Ищем блоки таблиц (строки с |)
+        table_pattern = re.compile(
+            r'((?:^\|.*\|$)\n?)+',
+            re.MULTILINE,
+        )
+
+        def _table_replacer(match: re.Match) -> str:
+            table_text = match.group(0)
+            rows = [
+                line.strip()
+                for line in table_text.strip().split("\n")
+                if line.strip() and line.strip().startswith("|")
+            ]
+
+            if len(rows) < 2:
+                return table_text
+
+            html_rows: list[str] = []
+
+            for i, row in enumerate(rows):
+                cells = [c.strip() for c in row.split("|")[1:-1]]
+
+                # Пропускаем разделитель (|---|---|)
+                if all(re.match(r'^[-:]+$', c) for c in cells):
+                    continue
+
+                tag = "th" if i == 0 else "td"
+                cell_html = "".join(
+                    f"<{tag}>{c}</{tag}>" for c in cells
+                )
+                html_rows.append(f"<tr>{cell_html}</tr>")
+
+            if not html_rows:
+                return table_text
+
+            return (
+                "<table>\n<thead>\n"
+                + html_rows[0]
+                + "\n</thead>\n<tbody>\n"
+                + "\n".join(html_rows[1:])
+                + "\n</tbody>\n</table>"
+            )
+
+        return table_pattern.sub(_table_replacer, html)
+
+    # ========================================================
+    # Полный пайплайн: Этапы 1–8
+    # ========================================================
+
+    async def generate_stages_1_8(
+        self,
+        input_data: GDDGenerationInput,
+    ) -> GDDProfile:
+        """
+        Полный пайплайн генерации GDD — Этапы 1–7 алгоритма 3.7.
+
+        Выполняет:
+        1–5: Стандартный пайплайн (format → map → auto_fill → ai → manual)
+        6: Сшивка и валидация документа
+        7: Форматирование в Markdown
+
+        Этап 8 (экспорт) вызывается отдельно через export_gdd().
+
+        Returns:
+            GDDProfile с результатами всех семи этапов
+        """
+        pipeline_start = time.time()
+
+        # === Этапы 1–5 ===
+        profile = await self.generate_stages_1_5(input_data)
+
+        # === Этап 6: Сшивка и валидация ===
+        assembled = await self.assemble_gdd(profile)
+        profile.assembled_document = assembled
+
+        # === Этап 7: Форматирование ===
+        formatted = self.format_document(assembled, profile.format_spec, input_data)
+        profile.formatted_document = formatted
+
+        # Обновляем метаданные профиля
+        profile.stages_completed = [1, 2, 3, 4, 5, 6, 7]
+        profile.coverage_score = assembled.coverage_score
+
+        latency_ms = int((time.time() - pipeline_start) * 1000)
+        profile.latency_ms = latency_ms
+
+        logger.info(
+            f"[Pipeline 1-8] Completed in {latency_ms}ms. "
+            f"Format: {profile.format_spec.format}, "
+            f"Sections: {assembled.total_sections}, "
+            f"Filled: {assembled.filled_sections}, "
+            f"Coverage: {assembled.coverage_score:.2f}, "
+            f"Consistency: {assembled.consistency_report.error_count} errors, "
+            f"Words: {formatted.word_count}, "
+            f"Pages: ~{formatted.estimated_pages}"
         )
 
         return profile

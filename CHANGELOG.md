@@ -9,6 +9,31 @@
 
 ---
 
+## [0.32.0] - 2026-05-19
+
+### Added
+- **4.D.3**: GDD Stages 6-8 (assemble, validate, format, export)
+  - Этап 6: Сшивка и валидация → ConsistencyReport, GDDAssembledDocument
+  - Этап 7: Форматирование → GDDFormattedDocument
+  - Этап 8: Экспорт → GDDExportResult
+- **New API endpoints**:
+  - POST `/api/v1/gdd/generate-full` — полный пайплайн Этапов 1–8
+  - POST `/api/v1/gdd/export` — обновлённый экспорт (Этап 8)
+- **TD-015**: GDCombine API mock created (`gbe_bridge_service.py`)
+  - `import_gdd()` — импорт GDD в GDCombine
+  - `export_to_gbe()` — экспорт в формат GBE
+  - `get_project_status()` — получение статуса проекта
+  - `sync_changes()` — синхронизация изменений
+- **New schemas**: ConsistencyReport, GDDAssembledDocument, GDDFormattedDocument, GDDExportResult
+
+### Resolved
+- TD-015: API-mock для GDCombine/GBE создан (partially resolved, реальная интеграция отложена до Фазы 4.E)
+
+### Changed
+- Версия обновлена с 0.31.1 до 0.32.0
+
+---
+
 ## [0.31.1] - 2026-05-19
 
 ### Added

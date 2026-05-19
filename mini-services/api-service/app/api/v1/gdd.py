@@ -1,19 +1,21 @@
 """
 Блок 6: GDD Generator — API endpoints.
-Фаза 4.D.1: Полная реализация алгоритма 3.7 (Этапы 1–3).
+Фаза 4.D.1–4.D.3: Полная реализация алгоритма 3.7 (Этапы 1–8).
 
 Endpoints:
 - POST /format — Этап 1: Определение формата GDD (алгоритм 3.7.3)
 - POST /map — Этап 2: Маппинг Project State → секции GDD (алгоритм 3.7.4)
 - POST /auto-fill — Этап 3: Автозаполнение секций (алгоритм 3.7.5)
-- POST /generate — Полный пайплайн Этапов 1–3
+- POST /generate — Полный пайплайн Этапов 1–5
+- POST /generate-full — Полный пайплайн Этапов 1–7
+- POST /export — Этап 8: Экспорт GDD в PDF/DOCX/MD/HTML
 - POST /checklist — Заглушка: Запуск чек-листов валидации (алгоритм 3.8)
-- POST /export — Заглушка: Экспорт GDD в PDF/DOCX
 """
 
 import logging
 import uuid
 from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from typing import Any, Optional
 
@@ -26,6 +28,10 @@ from app.schemas.gdd import (
     GDDDataMapping,
     AutoFilledSections,
     GDDProfile,
+    GDDAssembledDocument,
+    GDDFormattedDocument,
+    ExportFormat,
+    GDDExportResult,
 )
 
 logger = logging.getLogger(__name__)
@@ -95,7 +101,7 @@ class GDDAutoFillRequest(GDDFormatRequest):
 
 
 class GDDGenerateRequest(GDDFormatRequest):
-    """Входные данные для полного пайплайна генерации GDD (Этапы 1–3)."""
+    """Входные данные для полного пайплайна генерации GDD (Этапы 1–5)."""
     # Наследует все поля от GDDFormatRequest
     pass
 
@@ -302,22 +308,24 @@ async def generate_gdd(
     current_user: User = Depends(get_current_user),
 ):
     """
-    Полный пайплайн генерации GDD — Этапы 1–3 (алгоритм 3.7).
+    Полный пайплайн генерации GDD — Этапы 1–5 (алгоритм 3.7).
 
     Выполняет:
     1. Определение формата GDD → GDDFormatSpec
     2. Маппинг Project State → секции GDD → GDDDataMapping
     3. Автозаполнение секций → AutoFilledSections
+    4. AI-генерация и обогащение → AIEnrichedSections
+    5. Ручные секции с подсказками → ManualSectionsResult
 
-    Возвращает GDDProfile с результатами всех трёх этапов.
+    Возвращает GDDProfile с результатами всех пяти этапов.
     """
-    logger.info(f"GDD generation (stages 1-3) for user {current_user.id}")
+    logger.info(f"GDD generation (stages 1-5) for user {current_user.id}")
 
     try:
         service = await get_gdd_service()
         gdd_input = _request_to_input(input_data)
 
-        result = await service.generate_stages_1_3(gdd_input)
+        result = await service.generate_stages_1_5(gdd_input)
         return result.model_dump()
 
     except ValueError as e:
@@ -328,6 +336,43 @@ async def generate_gdd(
         raise HTTPException(status_code=503, detail="AI-сервис временно недоступен. Попробуйте позже.")
     except Exception as e:
         logger.error(f"Unexpected error in GDD generation: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
+
+
+@router.post("/generate-full")
+async def generate_full_gdd(
+    input_data: GDDGenerateRequest,
+    current_user: User = Depends(get_current_user),
+):
+    """
+    Полный пайплайн генерации GDD — Этапы 1–7 (алгоритм 3.7).
+
+    Выполняет:
+    1–5: Стандартный пайплайн (format → map → auto_fill → ai → manual)
+    6: Сшивка и валидация документа
+    7: Форматирование в Markdown
+
+    Для экспорта (Этап 8) используйте /export.
+
+    Возвращает GDDProfile с результатами всех семи этапов.
+    """
+    logger.info(f"GDD full generation (stages 1-7) for user {current_user.id}")
+
+    try:
+        service = await get_gdd_service()
+        gdd_input = _request_to_input(input_data)
+
+        result = await service.generate_stages_1_8(gdd_input)
+        return result.model_dump()
+
+    except ValueError as e:
+        logger.error(f"Validation error in GDD full generation: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except RuntimeError as e:
+        logger.error(f"Runtime error in GDD full generation: {e}")
+        raise HTTPException(status_code=503, detail="AI-сервис временно недоступен. Попробуйте позже.")
+    except Exception as e:
+        logger.error(f"Unexpected error in GDD full generation: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")
 
 
@@ -355,6 +400,100 @@ async def export_gdd(
     input_data: GDDExportInput,
     current_user: User = Depends(get_current_user),
 ):
-    """Экспорт GDD в PDF/DOCX/MD/HTML."""
-    # TODO: Реализация в Фазе 4.D.3
-    return {"status": "stub", "export_url": "", "message": "Export will be implemented in Phase 4.D.3"}
+    """
+    Этап 8: Экспорт GDD в PDF/DOCX/MD/HTML.
+
+    Принимает GDDProfile (прямой или из запроса), собирает и форматирует
+    документ при необходимости, затем экспортирует в выбранный формат.
+
+    Для PDF/DOCX возвращает FileResponse.
+    Для MD/HTML возвращает содержимое напрямую.
+    """
+    logger.info(f"GDD export (format={input_data.format}) for user {current_user.id}")
+
+    try:
+        service = await get_gdd_service()
+
+        # Восстанавливаем GDDProfile из dict
+        profile = None
+        if input_data.gdd_profile:
+            try:
+                profile = GDDProfile(**input_data.gdd_profile)
+            except Exception as e:
+                logger.warning(f"Failed to parse gdd_profile: {e}")
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Некорректный GDDProfile: {str(e)}",
+                )
+
+        # Если профиль не предоставлен — нужна генерация
+        if not profile:
+            raise HTTPException(
+                status_code=400,
+                detail="Необходимо предоставить gdd_profile. Используйте /generate-full для генерации.",
+            )
+
+        # Если профиль не содержит formatted_document — запускаем assemble + format
+        if not profile.formatted_document:
+            if not profile.assembled_document:
+                assembled = await service.assemble_gdd(profile)
+                profile.assembled_document = assembled
+
+            # Восстанавливаем input_data для форматирования
+            gdd_input = GDDGenerationInput(
+                concept=None,
+                target_format=profile.format_spec.format,
+                target_audience_doc=profile.format_spec.audience,
+                detail_level=profile.format_spec.detail_level,
+            )
+
+            formatted = service.format_document(
+                profile.assembled_document,
+                profile.format_spec,
+                gdd_input,
+            )
+            profile.formatted_document = formatted
+
+        # Определяем название проекта
+        project_title = "GDD"
+        if profile.formatted_document and profile.formatted_document.title:
+            project_title = profile.formatted_document.title
+
+        # Экспортируем
+        export_format: ExportFormat = input_data.format  # type: ignore
+        result = await service.export_gdd(
+            profile.formatted_document,
+            export_format,
+            project_title=project_title,
+        )
+
+        if not result.success:
+            raise HTTPException(status_code=500, detail=result.error_message)
+
+        # Для PDF/DOCX — отдаём файл
+        if result.file_path and export_format in ("pdf", "docx"):
+            return FileResponse(
+                path=result.file_path,
+                filename=result.file_name,
+                media_type=result.content_type,
+            )
+
+        # Для MD/HTML — отдаём контент напрямую
+        return {
+            "format": result.format,
+            "content": result.content,
+            "file_name": result.file_name,
+            "content_type": result.content_type,
+            "size_bytes": result.size_bytes,
+            "success": result.success,
+            "error_message": result.error_message,
+        }
+
+    except HTTPException:
+        raise
+    except ValueError as e:
+        logger.error(f"Validation error in GDD export: {e}")
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Unexpected error in GDD export: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Внутренняя ошибка сервера")

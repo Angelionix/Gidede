@@ -93,3 +93,5 @@ prompt/
 
 # Skills
 /skills/
+# Large GDD files (>100MB, not supported by GitHub without LFS)
+docs/gdd_examples/dropbox/dirty_bomb-game_design_document.pdf

@@ -113,6 +113,7 @@
 | 2026-05-19 | DEFERRED-003 → Resolved: weasyprint установлен, Библия геймдизайна скомпилирована в PDF (0.6 МБ). scripts/compile_bible_pdf.py полностью работает |
 | 2026-05-19 | Pipeline Service: добавлены backward-compatible exports (BLOCK_DEPENDENCIES, BLOCK_EVENTS, STALE_DOWNSTREAM, BLOCK_NAMES) из BLOCK_REGISTRY |
 | 2026-05-19 | 4.D.9: 60 интеграционных тестов для пайплайна Блоков 6-7 (test_pipeline_4d9_integration.py) |
+| 2026-05-19 | Версия обновлена до 0.39.0: 4.D.10 завершена — 42 интеграционных теста Блоков 6-7, ROADMAP 4.D.10 отмечена ✅ |
 | 2026-05-19 | Версия обновлена до 0.38.0: TECH_DEBT актуализирован, тестовая документация полностью переписана (761 тест-кейс), Bible PDF скомпилирован |
 
 ---

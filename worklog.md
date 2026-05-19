@@ -100,3 +100,24 @@ Work Log:
 Stage Summary:
 - Testing plan актуализирован: +~80 backend тестов (60 service + 20 API), +26 frontend, +10 UI, +5 E2E
 - Версия документа: 0.35.0
+
+---
+Task ID: 7
+Agent: Main
+Task: Выполнить 5 задач: TECH_DEBT, 4.D.9, версия, тесты, git push
+
+Work Log:
+- Прочитал TECH_DEBT.md: DEFERRED-003 (Bible PDF) → Resolved (weasyprint установлен, PDF скомпилирован)
+- Прочитал ROADMAP_PHASE4.md: задача 4.D.9 уже реализована, требовались тесты
+- Исправил ImportError в test_pipeline_service.py: добавлены backward-compatible exports (BLOCK_DEPENDENCIES, BLOCK_EVENTS, STALE_DOWNSTREAM, BLOCK_NAMES) из BLOCK_REGISTRY
+- Создал test_pipeline_4d9_integration.py: 60 тестов для пайплайна Блоков 6-7
+- Полностью переписан testing_plan.md: 761 тест-кейс (572 backend + 14 frontend + 165 UI + 10 E2E)
+- Обновил VERSION: 0.37.0 → 0.38.0
+- Обновил CHANGELOG.md: секция [0.38.0]
+- Обновил TECH_DEBT.md: DEFERRED-003 → Resolved, добавлены записи в лог
+- Сгенерирован Bible PDF: docs/bible/Gidede_Game_Design_Bible.pdf (0.6 МБ)
+- git push: commit 45139d2 → origin/main
+
+Stage Summary:
+- v0.38.0: 632 backend тестов (572 ранее + 60 новых), Bible PDF, полный тест-план
+- Все 5 задач выполнены, изменения запушены в GitHub

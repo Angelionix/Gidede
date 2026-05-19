@@ -1,8 +1,8 @@
 # Gidede — Комплексный план тестирования
 
-> **Фаза**: 4.E (Интеграция и полировка — Блок 8)
-> **Дата**: 2026-03-05
-> **Версия**: 0.36.1
+> **Фаза**: 4.D (Вывод и AI — Блоки 6-7)
+> **Дата**: 2026-05-19
+> **Версия**: 0.39.0
 > **Статус**: Активный
 > **Подход**: Локальное тестирование + CI/CD (GitHub Actions)
 
@@ -62,7 +62,7 @@ npx eslint src/            # TypeScript
 
 ### 2.0 Сводная таблица
 
-**Итого: 572 теста в 18 файлах**
+**Итого: 614 тестов в 20 файлах**
 
 ```
 mini-services/api-service/tests/
@@ -81,6 +81,8 @@ mini-services/api-service/tests/
 ├── test_checklist_service.py      # Checklist Service (95 тестов)
 ├── test_ai_assistant_service.py   # AI Assistant Service (60 тестов)
 ├── test_ai_assistant_api.py       # AI Assistant API (20 тестов)
+├── test_pipeline_4d9_integration.py  # Pipeline Integration Blocks 6-7 (60 тестов)
+├── test_blocks_6_7_integration.py # Blocks 6-7 Testing & Debugging (42 теста)
 └── integration/
     └── test_full_pipeline.py      # Интеграционные тесты (28 тестов)
 ```
@@ -732,6 +734,77 @@ mini-services/api-service/tests/
 | INT-26 | `test_economy_output_has_required_fields` | EconomyProfile |
 | INT-27 | `test_alchemy_roguelike_concept_is_rpg_roguelike` | Жанр RPG/Roguelike |
 | INT-28 | `test_balance_elements_status_values` | Статусы: balanced/overpowered/underpowered/ideal_imbalance |
+
+---
+
+### 2.15 Blocks 6-7 Testing & Debugging (4.D.10) — 42 теста
+
+**TestGDDGenerationFormats — 10 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B6T-01 | `test_one_sheet_format_produces_minimal_sections` | one_sheet → минимальные секции |
+| B6T-02 | `test_full_gdd_format_produces_all_38_sections` | full_gdd → все 38 секций |
+| B6T-03 | `test_treatment_format_produces_investor_sections` | treatment → investor-секции |
+| B6T-04 | `test_sketch_design_format_produces_design_sections` | sketch_design → design-секции |
+| B6T-05 | `test_modular_format_produces_modular_sections` | modular → модульные секции |
+| B6T-06 | `test_detail_level_overview_produces_fewer_pages` | overview → меньше страниц |
+| B6T-07 | `test_detail_level_exhaustive_produces_more_pages` | exhaustive → больше страниц |
+| B6T-08 | `test_format_auto_detection_from_audience` | audience → формат автоматически |
+| B6T-09 | `test_format_auto_detection_from_project_stage` | project_stage → формат автоматически |
+| B6T-10 | `test_detail_level_auto_detection_from_genre` | genre → detail level автоматически |
+
+**TestGDDChecklistIntegration — 8 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B6T-11 | `test_checklist_on_full_gdd_profile` | Checklist на полном GDD |
+| B6T-12 | `test_checklist_on_partial_gdd_missing_blocks` | Checklist на частичном GDD |
+| B6T-13 | `test_mda_check_results_feed_into_gdd_consistency` | MDA-чек → GDD consistency |
+| B6T-14 | `test_balance_issues_correlate_with_gdd_balance_section` | Баланс-проблемы → GDD |
+| B6T-15 | `test_economy_issues_flagged_in_gdd_economy_section` | Экономика-проблемы → GDD |
+| B6T-16 | `test_lens_check_produces_remediation_items` | Линзы → remediation items |
+| B6T-17 | `test_full_validation_pipeline_produces_readiness_level` | Pipeline → readiness level |
+| B6T-18 | `test_checklist_score_improvement_after_fixing_issues` | Score улучшается после исправлений |
+
+**TestAIAssistantGDDContext — 8 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B6T-19 | `test_ai_assistant_receives_gdd_profile_as_context` | AI получает GDD-контекст |
+| B6T-20 | `test_ai_suggestions_relevant_to_gdd_format` | Подсказки по формату GDD |
+| B6T-21 | `test_ai_proactive_alerts_when_gdd_consistency_issues` | Алерты при проблемах GDD |
+| B6T-22 | `test_ai_suggests_section_enrichment_based_on_coverage_gaps` | Enrichment по coverage gaps |
+| B6T-23 | `test_ai_chat_includes_gdd_structure_in_system_context` | GDD структура в system context |
+| B6T-24 | `test_ai_streaming_chat_works_with_gdd_context` | Streaming с GDD контекстом |
+| B6T-25 | `test_ai_assistant_history_includes_gdd_messages` | История включает GDD сообщения |
+| B6T-26 | `test_ai_block_flags_report_gdd_and_checklist_status` | block_flags корректны для GDD |
+
+**TestFullPipelineIntegration — 10 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B6T-27 | `test_full_pipeline_concept_to_gdd` | Полный pipeline idea→GDD |
+| B6T-28 | `test_pipeline_with_partial_data_still_produces_gdd` | Graceful degradation |
+| B6T-29 | `test_gdd_export_to_markdown_format` | Экспорт MD |
+| B6T-30 | `test_gdd_export_to_html_format` | Экспорт HTML |
+| B6T-31 | `test_gdd_export_to_pdf_format` | Экспорт PDF (WeasyPrint) |
+| B6T-32 | `test_gdd_export_to_docx_format` | Экспорт DOCX (python-docx) |
+| B6T-33 | `test_gdd_consistency_report_detects_cross_block_issues` | Cross-block consistency |
+| B6T-34 | `test_pipeline_stale_cascade_block5_affects_block6` | Stale: Block5→Block6 |
+| B6T-35 | `test_pipeline_stale_cascade_block1_affects_block6` | Stale: Block1→Block6 |
+| B6T-36 | `test_gdd_generation_latency_with_mock_ai` | Latency с mock AI |
+
+**TestGDDAPIEndpointsIntegration — 6 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| B6T-37 | `test_post_generate_full_with_full_project_data` | POST generate-full |
+| B6T-38 | `test_post_export_with_format_specification` | POST export |
+| B6T-39 | `test_post_checklists_run_with_gdd_data` | POST checklists/run |
+| B6T-40 | `test_get_project_state_includes_gdd_and_checklist_blocks` | Project State + GDD |
+| B6T-41 | `test_error_handling_missing_project_for_gdd_generation` | Error: missing project |
+| B6T-42 | `test_error_handling_export_with_invalid_format` | Error: invalid format |
 
 ---
 

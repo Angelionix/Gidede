@@ -9,6 +9,25 @@
 
 ---
 
+## [0.39.0] - 2026-05-19
+
+### Added
+- **4.D.10**: Тесты Блоков 6–7 (тестирование и отладка)
+  - `test_blocks_6_7_integration.py` — 42 теста (5 классов):
+    - TestGDDGenerationFormats (10): GDD генерация в форматах one_sheet, full_gdd, treatment, sketch_design, modular; detail levels (overview, exhaustive); автоопределение формата из audience, project_stage, genre
+    - TestGDDChecklistIntegration (8): Checklist на full/partial GDD; MDA→GDD consistency; Balance→GDD; Economy→GDD; Lens remediation; readiness level; score improvement
+    - TestAIAssistantGDDContext (8): AI-ассистент получает GDD-контекст; format-aware suggestions; proactive alerts на consistency issues; coverage gap enrichment; chat/streaming с GDD; block_flags GDD/checklist
+    - TestFullPipelineIntegration (10): Полный pipeline idea→GDD; graceful degradation; экспорт MD/HTML/PDF/DOCX; consistency cross-block; stale cascade (Block5→6, Block1→6); latency
+    - TestGDDAPIEndpointsIntegration (6): POST generate-full, export, checklists/run; project state с GDD/checklist; error handling
+
+### Changed
+- Версия обновлена с 0.38.0 до 0.39.0
+- ROADMAP_PHASE4.md — задача 4.D.10 отмечена как завершённая (✅)
+- TECH_DEBT.md — добавлена запись о v0.39.0
+- `docs/тестирование/testing_plan.md` — актуализирован (614 backend тестов, +42)
+
+---
+
 ## [0.38.0] - 2026-05-19
 
 ### Added

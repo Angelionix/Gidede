@@ -9,6 +9,66 @@
 
 ---
 
+## [0.30.0] — 2026-05-19
+
+### Рефакторинг — SOLID/KISS/DRY/YAGNI
+
+Кодовой аудит и рефакторинг frontend по результатам анализа техдолга. Все 6 задач из чек-листа выполнены или подтверждены как уже выполненные.
+
+#### P0 — T6: noImplicitAny: true ✅ (уже было)
+- `tsconfig.json` уже содержал `strict: true` и `noImplicitAny: true`
+- `tsc --noEmit` проходит с нулём ошибок
+- В кодовой базе нет `any`, `@ts-ignore`, `@ts-nocheck`
+
+#### P1 — T3: ProjectState ISP-сплит ✅ (уже было)
+- `shared/types/typescript/interfaces.ts` уже содержит 8 блочных интерфейсов (ConceptBlock, CoreLoopBlock, MDAProfileBlock, BalanceBlock, ProgressionBlock, EconomyBlock, GDDBlock, ValidationBlock), композитно объединённых в ProjectState
+
+#### P2 — T1: SRP-сплит мега-компонентов ✅ (выполнено)
+Разделение 5 блоков-страниц (8416 строк → 1901 строка в page.tsx):
+
+| Блок | Было | Стало | Подкомпонентов |
+|------|------|-------|----------------|
+| Block 4 (Баланс) | 2076 | 380 | 6 (ObjectForm, TransitiveAnalysisTab, PayoffMatrixTab, SimulationChartsTab, MachinationsVisualizationTab, CorrectionsPanelTab) |
+| Block 5 (Прогрессия/Экономика) | 1887 | 502 | 10 (5 progression + 5 economy tabs) |
+| Block 1 (Концепция) | 1645 | 302 | 9 (OnePagerCard, AestheticBadge, AestheticProfileView, MechanicSetView, CoreLoopCandidates, USPCandidates, ValidationReportView, ConceptForm, DynamicsProfileCard, SelectionSummary) |
+| Block 3 (MDA) | 1601 | 269 | 5 (AestheticIcon, ReverseMDAPanel, ClassicMDAPanel, LensAuditPanel, BondMatrixPanel) + MDAInputForm |
+| Block 2 (Core Loop) | 1207 | 448 | 6 (StructuralTypeCard, CoreLoopDiagram, LoopHierarchyTree, PathologyPanel, ValidationPanel, RecommendationsPanel) |
+
+Создана структура директорий:
+- `src/components/gidede/shared/` — 4 переиспользуемых компонента (NodeTypeIcon, WarningsList, SuggestionsList, EmptyStateCard)
+- `src/components/gidede/balance/` — 6 подкомпонентов + barrel
+- `src/components/gidede/progression/` — 5 подкомпонентов + barrel
+- `src/components/gidede/economy/` — 5 подкомпонентов + barrel
+- `src/components/gidede/concept/` — 9 подкомпонентов + barrel
+- `src/components/gidede/mda/` — 5 подкомпонентов + barrel
+- `src/components/gidede/coreloop/` — 6 подкомпонентов + barrel
+- `src/types/` — 6 файлов типов (balance, concept, coreloop, economy, mda, progression)
+- `src/constants/` — 6 файлов констант (balance, concept, coreloop, economy, mda, progression)
+
+#### P3 — T5: GENRES/AESTHETICS → config/ ✅ (уже было)
+- `src/config/genres.ts` и `src/config/aesthetics.ts` уже централизованы
+
+#### P3 — T2: Удаление неиспользуемых зависимостей ✅ (выполнено)
+Удалено 5 npm-пакетов: `sharp`, `zustand`, `sonner`, `next-themes`, `@radix-ui/react-scroll-area`
+Удалено 2 осиротевших UI-файла: `sonner.tsx`, `scroll-area.tsx`
+
+#### P4 — T4: error.tsx, loading.tsx, middleware.ts ✅ (уже было)
+- Все три файла уже реализованы корректно
+
+### Устранено дублирование
+- `NodeTypeIcon` — была копия в блоках 4 и 5, теперь общий компонент
+- `SEVERITY_COLORS` — была копия в блоках 3 и 5, теперь общий `src/constants/economy.ts`
+- Повторяющиеся паттерны WarningsList/SuggestionsList/EmptyStateCard заменены общими компонентами
+
+### Тесты
+- Обновлён `components.test.tsx`: удалён мок `next-themes` (удалён), добавлены тесты для 4 shared-компонентов
+- 16/16 тестов проходят
+
+### Изменено
+- Версия обновлена с 0.29.0 до 0.30.0
+
+---
+
 ## [0.27.0] — 2026-05-19
 
 ### Добавлено

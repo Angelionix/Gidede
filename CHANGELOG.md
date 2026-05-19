@@ -9,6 +9,22 @@
 
 ---
 
+## [0.31.1] - 2026-05-19
+
+### Added
+- **4.D.2**: GDD Service Этапы 4-5 (алгоритм 3.7)
+  - `generate_ai_sections()` — AI-обогащение автозаполненных секций (ENRICH_SECTION) и генерация с нуля (GENERATE_CHARACTERS_SECTION, GENERATE_VISUAL_STYLE, GENERATE_STORY_SECTION, GENERATE_CONTROLS_SECTION, GENERATE_WORLD_STRUCTURE)
+  - `generate_manual_skeletons()` — генерация скелетов ручных секций с AI-подсказками (AI_GENERATE_SECTION_HINTS), приоритизация critical/important/optional
+  - `generate_stages_1_5()` — полный пайплайн Этапов 1-5
+  - 7 GDD-промптов и 4 валидационных промпта добавлены в PROMPT_REGISTRY
+  - 35 новых тестов для Этапов 4-5 (итого 107 тестов для GDD Service)
+
+### Resolved
+- TD-003: Скрипт извлечения текста из PDF полностью покрывает потребность (PyMuPDF + чанкование)
+- DEFERRED-004: 11 GDD/валидационных промптов добавлено в registry (partially resolved)
+
+---
+
 ## [0.31.0] — 2026-05-19
 
 ### Добавлено

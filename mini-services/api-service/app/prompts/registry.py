@@ -16,15 +16,16 @@ Gidede — Prompt Registry (PROMPT_REGISTRY)
 - estimated — оценка стоимости и латентности
 
 Статистика:
-- Всего промптов: 35
-- Креативные (Sonnet/GPT-4): 18 (58%)
-- Рутинные (Haiku/GPT-3.5): 13 (42%)
+- Всего промптов: 39
+- Креативные (Sonnet/GPT-4): 22 (56%)
+- Рутинные (Haiku/GPT-3.5): 13 (33%)
 - Блок 1 (Концепция): 7
 - Блок 2 (Core Loop): 4
 - Блок 3 (MDA): 5
 - Блок 4 (Баланс): 6
 - Блок 5 (Экономика/Прогрессия): 6
-- Блок 6 (GDD/Валидация): 7
+- Блок 6 (GDD): 7
+- Блок 6 (Валидация): 4
 """
 
 from app.prompts.schemas import (
@@ -1742,6 +1743,320 @@ GENERATE_VISUAL_STYLE = PromptSpec(
 
 
 # ============================================================
+# БЛОК 6: GDD — ДОПОЛНИТЕЛЬНЫЕ ПРОМПТЫ (алгоритм 3.7, Этапы 4-5) — 4 промпта
+# Фаза 4.D.2: AI-генерация и ручные секции GDD
+# ============================================================
+
+GENERATE_STORY_SECTION = PromptSpec(
+    id="GENERATE_STORY_SECTION",
+    module=ModuleType.GDD,
+    algorithm="3.7",
+    version="1.0.0",
+    taskType=PromptTaskType.GENERATION,
+    inputs=[
+        PromptInput(name="genre", type="string", required=True,
+                    description="Жанр игры"),
+        PromptInput(name="setting", type="string", required=True,
+                    description="Сеттинг/мир игры"),
+        PromptInput(name="characters", type="array", required=False,
+                    description="Персонажи игры", default=[]),
+        PromptInput(name="core_loop", type="object", required=False,
+                    description="Core Loop игры", default={}),
+        PromptInput(name="aesthetics", type="array", required=False,
+                    description="Целевые эстетики", default=[]),
+    ],
+    outputFormat=OutputFormat.JSON,
+    outputSchema={
+        "type": "object",
+        "properties": {
+            "premise": {"type": "string"},
+            "three_act_structure": {"type": "object"},
+            "key_conflicts": {"type": "array"},
+            "themes": {"type": "array"},
+        },
+        "required": ["premise", "three_act_structure", "key_conflicts", "themes"],
+    },
+    system_prompt="""Ты — эксперт по нарративному дизайну игр. На основе жанра, сеттинга и Core Loop создай структуру сюжета для GDD.
+
+Создай:
+1. premise — завязка сюжета (2-3 предложения)
+2. three_act_structure — трёхактная структура:
+   - act1_setup: описание первого акта (завязка, знакомство с миром)
+   - act2_confrontation: описание второго акта (конфликт, эскалация)
+   - act3_resolution: описание третьего акта (кульминация, развязка)
+3. key_conflicts — 3-5 ключевых конфликтов (внутренний, межличностный, с миром, с антагонистом)
+4. themes — 2-3 темы (например: "сила дружбы", "цена прогресса")
+
+Сюжет должен:
+- Вписываться в Core Loop (сюжет мотивирует игровой цикл)
+- Поддерживать целевые эстетики
+- Быть достаточно гибким для нелинейности
+
+Формат: строго JSON.""",
+    user_prompt_template="Жанр: {genre}\nСеттинг: {setting}\nПерсонажи: {characters}\nCore Loop: {core_loop}\nЭстетики: {aesthetics}",
+    modelRequirements=ModelRequirements(
+        primary=_POWERFUL_MODEL,
+        fallback=_POWERFUL_FALLBACK,
+        min_context_window=8192,
+        temperature=0.7,
+        max_tokens=2048,
+        response_format=OutputFormat.JSON,
+    ),
+    guarantees=PromptGuarantees(
+        deterministic=False, json_output=True, max_retries=2,
+        fallback_on_failure=True, cacheable=False, cache_ttl=None,
+    ),
+    estimated=EstimatedMetrics(input_tokens=700, output_tokens=1500, cost_min=0.01, cost_max=0.07, latency_min_ms=3000, latency_max_ms=12000),
+)
+
+GENERATE_WORLD_SECTION = PromptSpec(
+    id="GENERATE_WORLD_SECTION",
+    module=ModuleType.GDD,
+    algorithm="3.7",
+    version="1.0.0",
+    taskType=PromptTaskType.GENERATION,
+    inputs=[
+        PromptInput(name="genre", type="string", required=True,
+                    description="Жанр игры"),
+        PromptInput(name="setting", type="string", required=True,
+                    description="Сеттинг/мир игры"),
+        PromptInput(name="progression", type="object", required=False,
+                    description="Профиль прогрессии", default={}),
+        PromptInput(name="mechanics", type="array", required=False,
+                    description="Ключевые механики", default=[]),
+    ],
+    outputFormat=OutputFormat.JSON,
+    outputSchema={
+        "type": "object",
+        "properties": {
+            "overview": {"type": "string"},
+            "locations": {"type": "array"},
+            "navigation_pattern": {"type": "string"},
+            "environmental_storytelling": {"type": "array"},
+        },
+        "required": ["overview", "locations", "navigation_pattern", "environmental_storytelling"],
+    },
+    system_prompt="""Ты — эксперт по левел-дизайну и мировому строительству. На основе жанра, сеттинга и механик создай структуру мира для GDD.
+
+Создай:
+1. overview — описание мира (3-5 предложений)
+2. locations — 3-5 ключевых локаций:
+   - name: название
+   - purpose: игровая цель локации
+   - mood: настроение
+   - key_features: 2-3 уникальных особенности
+3. navigation_pattern — паттерн навигации (linear/hub/metroidvania/open_world)
+4. environmental_storytelling — 3-5 примеров нарратива через окружение
+
+Мир должен:
+- Поддерживать механики (локации дают возможность использовать механики)
+- Соответствовать кривой прогрессии (от простого к сложному)
+- Быть визуально разнообразным
+
+Формат: строго JSON.""",
+    user_prompt_template="Жанр: {genre}\nСеттинг: {setting}\nПрогрессия: {progression}\nМеханики: {mechanics}",
+    modelRequirements=ModelRequirements(
+        primary=_POWERFUL_MODEL,
+        fallback=_POWERFUL_FALLBACK,
+        min_context_window=8192,
+        temperature=0.7,
+        max_tokens=2048,
+        response_format=OutputFormat.JSON,
+    ),
+    guarantees=PromptGuarantees(
+        deterministic=False, json_output=True, max_retries=2,
+        fallback_on_failure=True, cacheable=False, cache_ttl=None,
+    ),
+    estimated=EstimatedMetrics(input_tokens=700, output_tokens=1500, cost_min=0.01, cost_max=0.07, latency_min_ms=3000, latency_max_ms=12000),
+)
+
+GENERATE_CONTROLS_SECTION = PromptSpec(
+    id="GENERATE_CONTROLS_SECTION",
+    module=ModuleType.GDD,
+    algorithm="3.7",
+    version="1.0.0",
+    taskType=PromptTaskType.GENERATION,
+    inputs=[
+        PromptInput(name="genre", type="string", required=True,
+                    description="Жанр игры"),
+        PromptInput(name="platforms", type="array", required=True,
+                    description="Целевые платформы"),
+        PromptInput(name="core_loop", type="object", required=False,
+                    description="Core Loop игры", default={}),
+        PromptInput(name="mechanics", type="array", required=False,
+                    description="Ключевые механики", default=[]),
+        PromptInput(name="camera_perspective", type="string", required=False,
+                    description="Камерная перспектива", default=""),
+    ],
+    outputFormat=OutputFormat.JSON,
+    outputSchema={
+        "type": "object",
+        "properties": {
+            "primary_scheme": {"type": "string"},
+            "platform_bindings": {"type": "object"},
+            "key_actions": {"type": "array"},
+            "accessibility": {"type": "array"},
+            "references": {"type": "array"},
+        },
+        "required": ["primary_scheme", "platform_bindings", "key_actions"],
+    },
+    system_prompt="""Ты — эксперт по управлению в играх (UX/UI controls). На основе жанра, платформ и механик спроектируй схему управления для GDD.
+
+Создай:
+1. primary_scheme — основная схема управления (описание)
+2. platform_bindings — маппинг клавиш/кнопок для каждой платформы (keyboard+mouse, gamepad, touch)
+3. key_actions — 5-10 ключевых действий игрока с маппингом
+4. accessibility — рекомендации по доступности (опционально)
+5. references — 3-5 референсов из существующих игр жанра
+
+Правила:
+- Учитывай жанровые конвенции управления
+- Обеспечь consistency: одинаковое действие → одинаковая кнопка
+- Учитывай камерную перспективу при выборе схемы
+- Предложи альтернативные схемы если платформы разные
+- Группируй действия: движение, бой, взаимодействие, UI
+
+Формат: строго JSON.""",
+    user_prompt_template="Жанр: {genre}\nПлатформы: {platforms}\nCore Loop: {core_loop}\nМеханики: {mechanics}\nКамера: {camera_perspective}",
+    modelRequirements=ModelRequirements(
+        primary=_POWERFUL_MODEL,
+        fallback=_POWERFUL_FALLBACK,
+        min_context_window=4096,
+        temperature=0.7,
+        max_tokens=1500,
+        response_format=OutputFormat.JSON,
+    ),
+    guarantees=PromptGuarantees(
+        deterministic=False, json_output=True, max_retries=2,
+        fallback_on_failure=True, cacheable=False, cache_ttl=None,
+    ),
+    estimated=EstimatedMetrics(input_tokens=600, output_tokens=1000, cost_min=0.008, cost_max=0.05, latency_min_ms=2000, latency_max_ms=10000),
+)
+
+GENERATE_AUDIO_SECTION = PromptSpec(
+    id="GENERATE_AUDIO_SECTION",
+    module=ModuleType.GDD,
+    algorithm="3.7",
+    version="1.0.0",
+    taskType=PromptTaskType.GENERATION,
+    inputs=[
+        PromptInput(name="genre", type="string", required=True,
+                    description="Жанр игры"),
+        PromptInput(name="mood", type="string", required=True,
+                    description="Настроение игры"),
+        PromptInput(name="visual_style", type="string", required=False,
+                    description="Визуальный стиль", default=""),
+        PromptInput(name="aesthetics", type="array", required=False,
+                    description="Целевые эстетики", default=[]),
+    ],
+    outputFormat=OutputFormat.JSON,
+    outputSchema={
+        "type": "object",
+        "properties": {
+            "music_style": {"type": "string"},
+            "sfx_priorities": {"type": "array"},
+            "ambient_design": {"type": "string"},
+            "references": {"type": "array"},
+        },
+        "required": ["music_style", "sfx_priorities", "ambient_design", "references"],
+    },
+    system_prompt="""Ты — эксперт по аудио-дизайну игр. На основе жанра, настроения и визуального стиля создай концепцию звука для GDD.
+
+Создай:
+1. music_style — стиль музыки (жанры, инструменты, темп, динамика)
+2. sfx_priorities — 5-8 приоритетных категорий звуковых эффектов (например: шаги, бой, UI, окружение)
+3. ambient_design — подход к амбиентному звуку (как создаётся атмосфера)
+4. references — 3-5 референсов (существующие игры с похожим аудио)
+
+Эстетика → аудио:
+- Чувственное → объёмный звук, детальные текстуры
+- Фантазия → уникальные инструменты, магические эффекты
+- Нарратив → лейтмотивы, тематическая музыка
+- Вызов → ритмичная музыка, чёткие SFX
+- Открытие → загадочные звуки, эмбиент
+- Товарищество → музыка для совместного игры
+- Выражение → настраиваемые звуки
+- Подчинение → ненавязчивый, уютный саундтрек
+
+Формат: строго JSON.""",
+    user_prompt_template="Жанр: {genre}\nНастроение: {mood}\nВизуальный стиль: {visual_style}\nЭстетики: {aesthetics}",
+    modelRequirements=ModelRequirements(
+        primary=_POWERFUL_MODEL,
+        fallback=_POWERFUL_FALLBACK,
+        min_context_window=4096,
+        temperature=0.7,
+        max_tokens=1500,
+        response_format=OutputFormat.JSON,
+    ),
+    guarantees=PromptGuarantees(
+        deterministic=False, json_output=True, max_retries=2,
+        fallback_on_failure=True, cacheable=False, cache_ttl=None,
+    ),
+    estimated=EstimatedMetrics(input_tokens=500, output_tokens=1000, cost_min=0.008, cost_max=0.05, latency_min_ms=2000, latency_max_ms=10000),
+)
+
+AI_GENERATE_SECTION_HINTS = PromptSpec(
+    id="AI_GENERATE_SECTION_HINTS",
+    module=ModuleType.GDD,
+    algorithm="3.7",
+    version="1.0.0",
+    taskType=PromptTaskType.RECOMMENDATION,
+    inputs=[
+        PromptInput(name="section", type="string", required=True,
+                    description="Название секции GDD"),
+        PromptInput(name="context", type="object", required=True,
+                    description="Контекст проекта (Project State)"),
+        PromptInput(name="priority", type="string", required=True,
+                    description="Приоритет секции: critical/important/optional"),
+    ],
+    outputFormat=OutputFormat.JSON,
+    outputSchema={
+        "type": "object",
+        "properties": {
+            "section": {"type": "string"},
+            "priority": {"type": "string"},
+            "hints": {"type": "array"},
+            "template": {"type": "string"},
+            "estimated_effort": {"type": "string"},
+        },
+        "required": ["section", "priority", "hints", "template", "estimated_effort"],
+    },
+    system_prompt="""Ты — эксперт по написанию Game Design Documents. Сгенерируй подсказки для заполнения секции GDD, которую нужно заполнить вручную.
+
+Для каждой секции:
+1. section — название секции
+2. priority — приоритет (critical/important/optional)
+3. hints — 3-5 конкретных подсказок, что именно написать:
+   - Какие данные включить
+   - Какие решения нужно принять
+   - На что обратить внимание
+4. template — шаблон-скелет секции в Markdown с плейсхолдерами [ЗАПОЛНИ]
+5. estimated_effort — оценка трудоёмкости (low/medium/high)
+
+Приоритизация:
+- critical: секции без которых GDD не имеет смысла (core_loop, mechanics, progression)
+- important: важные секции (characters, visual_style, economy)
+- optional: желательные секции (multiplayer, social, sound_music)
+
+Формат: строго JSON.""",
+    user_prompt_template="Секция: {section}\nКонтекст: {context}\nПриоритет: {priority}",
+    modelRequirements=ModelRequirements(
+        primary=_FAST_MODEL,
+        fallback=_FAST_FALLBACK,
+        min_context_window=4096,
+        temperature=0.5,
+        max_tokens=1000,
+        response_format=OutputFormat.JSON,
+    ),
+    guarantees=PromptGuarantees(
+        deterministic=False, json_output=True, max_retries=2,
+        fallback_on_failure=True, cacheable=True, cache_ttl=1800,
+    ),
+    estimated=EstimatedMetrics(input_tokens=500, output_tokens=700, cost_min=0.003, cost_max=0.015, latency_min_ms=800, latency_max_ms=5000),
+)
+
+
+# ============================================================
 # БЛОК 6: ВАЛИДАЦИЯ (алгоритм 3.8) — 4 промпта
 # ============================================================
 
@@ -2002,10 +2317,15 @@ PROMPT_REGISTRY: dict[str, PromptSpec] = {
     "SUGGEST_LATE_GAME_SINKS": SUGGEST_LATE_GAME_SINKS,
     "GENERATE_ECONOMY_DESCRIPTION": GENERATE_ECONOMY_DESCRIPTION,
 
-    # Блок 6: GDD (3)
+    # Блок 6: GDD (8)
     "ENRICH_SECTION": ENRICH_SECTION,
     "GENERATE_CHARACTERS_SECTION": GENERATE_CHARACTERS_SECTION,
     "GENERATE_VISUAL_STYLE": GENERATE_VISUAL_STYLE,
+    "GENERATE_STORY_SECTION": GENERATE_STORY_SECTION,
+    "GENERATE_CONTROLS_SECTION": GENERATE_CONTROLS_SECTION,
+    "GENERATE_WORLD_SECTION": GENERATE_WORLD_SECTION,
+    "GENERATE_AUDIO_SECTION": GENERATE_AUDIO_SECTION,
+    "AI_GENERATE_SECTION_HINTS": AI_GENERATE_SECTION_HINTS,
 
     # Блок 6: Валидация (4)
     "CHECK_LUDONARRATIVE_VAL": CHECK_LUDONARRATIVE_VAL,

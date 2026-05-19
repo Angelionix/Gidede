@@ -2,7 +2,7 @@
 
 > **Фаза**: 4.C.10 (Интеграционные тесты пайплайна)
 > **Дата**: 2026-05-19
-> **Версия**: 0.27.0
+> **Версия**: 0.31.1
 > **Статус**: Активный
 > **Подход**: Локальное тестирование + CI/CD (GitHub Actions)
 
@@ -60,7 +60,7 @@ npx eslint src/            # TypeScript
 
 ## 2. Реальные автоматизированные тесты (текущее состояние)
 
-### 2.1 Backend — pytest (303 теста в 12 файлах)
+### 2.1 Backend — pytest (340+ тестов в 12 файлах)
 
 ```
 mini-services/api-service/tests/
@@ -76,9 +76,10 @@ mini-services/api-service/tests/
 │                                   #   Machinations (77 тестов)
 ├── test_economy_service.py        # Economy Service — все 8 этапов
 │                                   #   алгоритма 3.6 (83 теста)
-├── test_gdd_service.py            # GDD Service — Этапы 1-3 алгоритма 3.7
-│                                   #   (72 теста: Stage 1=22, Stage 2=12,
-│                                   #   Stage 3=16, Pipeline=8, Edge=14)
+├── test_gdd_service.py            # GDD Service — Этапы 1-5 алгоритма 3.7
+│                                   #   (107 тестов: Stage 1=22, Stage 2=12,
+│                                   #   Stage 3=16, Stage 4=18, Stage 5=12,
+│                                   #   Pipeline=27, Edge Cases included)
 ├── test_pipeline_service.py       # Pipeline Service — сквозной пайплайн 1→5,
 │                                   #   зависимости блоков, stale-каскад (29 тестов)
 └── integration/
@@ -170,7 +171,7 @@ mini-services/api-service/tests/
 
 **Stage 2–7 и Full Pipeline — 68 тестов** (ECO-16 — ECO-83, см. предыдущую версию)
 
-#### 2.1.9 GDD Service (4.D.1) — 72 теста
+#### 2.1.9 GDD Service (4.D.1–4.D.2) — 107 тестов
 
 **Stage 1: Определение формата GDD (3.7.3) — 22 теста**
 
@@ -200,14 +201,32 @@ mini-services/api-service/tests/
 | Флаги и доп. данные | 4 | requires_review, diagram, tables, formulas |
 | Modular-секции | 3 | concept_overview, mda_analysis, balance_tables |
 
-**Полный пайплайн + Edge Cases — 22 теста**
+**Stage 4: AI-генерация и обогащение (3.7.6) — 18 тестов** *(NEW in 4.D.2)*
+
+| Категория | Количество | Описание |
+|-----------|------------|----------|
+| AI-enrichment | 6 | ENRICH_SECTION для автозаполненных секций, проверка enriched_sections, обработка ошибок, coverage |
+| AI-генерация с нуля | 6 | GENERATE_CHARACTERS_SECTION, GENERATE_VISUAL_STYLE, GENERATE_STORY_SECTION, GENERATE_CONTROLS_SECTION, GENERATE_WORLD_STRUCTURE, source marking |
+| Обработка ошибок | 4 | Частичные и полные ошибки AI, failed_sections, graceful degradation |
+| Edge cases | 2 | Нет автозаполненных секций, комбинированный enrich+generate |
+
+**Stage 5: Ручные секции с подсказками (3.7.7) — 12 тестов** *(NEW in 4.D.2)*
+
+| Категория | Количество | Описание |
+|-----------|------------|----------|
+| Скелеты секций | 5 | Генерация шаблонов, приоритизация critical/important/optional |
+| AI-подсказки | 4 | AI_GENERATE_SECTION_HINTS, fallback при ошибке, estimated_effort, классификация |
+| Edge cases | 3 | Нет ручных секций, только critical, все optional |
+
+**Полный пайплайн 1-5 + Edge Cases — 27 тестов**
 
 | Категория | Количество | Описание |
 |-----------|------------|----------|
 | Pipeline 1-3 | 4 | stages_completed, coverage, one_sheet pipeline, no-data pipeline |
+| Pipeline 1-5 | 6 | Все 5 этапов, GDDProfile, full data, coverage increase, latency, graceful no-data |
 | Метрики | 2 | latency_ms, coverage_score |
 | Оценка страниц | 2 | full_gdd+detailed=75, mmorpg+exhaustive=125 |
-| Edge Cases | 14 | Composite sources, missing subpath, custom sections, export_formats, detail override, unknown genre fallback |
+| Edge Cases | 13 | Composite sources, missing subpath, custom sections, export_formats, detail override, unknown genre fallback |
 
 #### 2.1.10 Pipeline Service (4.C.9) — 29 тестов
 
@@ -372,11 +391,8 @@ src/__tests__/
 | Concept Service (1–7) | test_concept_service.py | 4.B.2–4.B.4 | ~60 |
 | Core Loop Service (1–5) | test_coreloop_service.py | 4.B.6–4.B.7 | ~70 |
 | MDA Service (1–6) | test_mda_service.py | 4.B.9–4.B.11 | ~90 |
-| Pipeline Service | test_pipeline_service.py | 4.B.12 | ~20 |
-| Progression Service (1–4) | test_progression_service.py | 4.C.5 | ~50 |
-| GDD Generator | test_gdd_service.py | 4.D | ~30 |
 | AI Assistant | test_ai_assistant_service.py | 4.D | ~20 |
-| Итого | | | ~340 |
+| Итого | | | ~240 |
 
 ### 3.2 Frontend — запланированные тесты
 
@@ -403,7 +419,7 @@ src/__tests__/
 | UI-01 | Логин | 1. Открыть /login 2. Ввести email/password 3. Нажать Login | Редирект на главную страницу |
 | UI-02 | Регистрация | 1. Открыть /register 2. Заполнить форму 3. Нажать Register | Успешная регистрация, редирект на логин |
 | UI-03 | Навигация по блокам | 1. Кликнуть на каждый блок 1–8 в sidebar | Открывается соответствующая страница |
-| UI-04 | Отображение версии | 1. Проверить sidebar | Отображается текущая версия (0.31.0) |
+| UI-04 | Отображение версии | 1. Проверить sidebar | Отображается текущая версия (0.31.1) |
 
 ### 4.2 Блок 1: Генератор концепции
 
@@ -546,17 +562,17 @@ src/__tests__/
 
 | Категория | Файлов | Тестов |
 |-----------|--------|--------|
-| Backend (pytest) | 12 | 303 |
+| Backend (pytest) | 12 | 340+ |
 | Frontend (vitest) | 3 | 9 |
-| **Итого** | **15** | **312** |
+| **Итого** | **15** | **350+** |
 
 ### 6.2 Плановые автоматизированные тесты
 
 | Категория | Тестов |
 |-----------|--------|
-| Backend (новые модули) | ~320 |
+| Backend (новые модули) | ~240 |
 | Frontend (новые компоненты) | ~112 |
-| **Итого плановых** | **~432** |
+| **Итого плановых** | **~352** |
 
 ### 6.3 Ручные UI/E2E тесты
 

@@ -1,6 +1,6 @@
 """
 Gidede — GDD Schemas (Pydantic Models)
-Фаза 4.D.1: Схемы для Блока 6 — GDD Generator (алгоритм 3.7, Этапы 1–3)
+Фаза 4.D.1–4.D.2: Схемы для Блока 6 — GDD Generator (алгоритм 3.7, Этапы 1–5)
 
 Модели синхронизированы со спецификацией алгоритма 3.7.
 
@@ -8,7 +8,9 @@ Gidede — GDD Schemas (Pydantic Models)
 - Этап 1: Определение формата GDD → GDDFormatSpec (3.7.3)
 - Этап 2: Маппинг Project State → секции GDD → GDDDataMapping (3.7.4)
 - Этап 3: Автозаполнение секций → AutoFilledSections (3.7.5)
-(Этапы 4–8 будут реализованы в 4.D.2–4.D.3)
+- Этап 4: AI-генерация и обогащение → AIEnrichedSections (3.7.6)
+- Этап 5: Ручные секции и подсказки → ManualSectionsResult (3.7.7)
+(Этапы 6–8 будут реализованы в 4.D.3)
 """
 
 from pydantic import BaseModel, Field
@@ -300,17 +302,110 @@ class GDDConstraints(BaseModel):
 
 
 # ============================================================
+# ЭТАП 4: AI-ОБОГАЩЁННЫЕ СЕКЦИИ (алгоритм 3.7.6)
+# ============================================================
+
+class AIEnrichedSections(BaseModel):
+    """AI-обогащённые секции GDD — результат Этапа 4 (алгоритм 3.7.6)."""
+    enriched_sections: dict[str, SectionContent] = Field(
+        default_factory=dict,
+        description="Обогащённые секции (enrich): section_name → SectionContent",
+    )
+    generated_sections: dict[str, SectionContent] = Field(
+        default_factory=dict,
+        description="Сгенерированные с нуля секции: section_name → SectionContent",
+    )
+    enriched_count: int = Field(
+        0,
+        description="Количество обогащённых секций",
+    )
+    generated_count: int = Field(
+        0,
+        description="Количество сгенерированных секций",
+    )
+    failed_sections: list[str] = Field(
+        default_factory=list,
+        description="Секции, для которых AI-генерация не удалась",
+    )
+    total_coverage: float = Field(
+        0.0,
+        description="Общий уровень покрытия после AI-генерации",
+    )
+
+
+# ============================================================
+# ЭТАП 5: РУЧНЫЕ СЕКЦИИ С ПОДСКАЗКАМИ (алгоритм 3.7.7)
+# ============================================================
+
+SectionPriority = Literal['critical', 'important', 'optional']
+
+
+class ManualSectionSkeleton(BaseModel):
+    """Скелет ручной секции с AI-подсказками."""
+    section_name: str = Field(
+        "",
+        description="Название секции GDD",
+    )
+    priority: SectionPriority = Field(
+        'important',
+        description="Приоритет секции: critical/important/optional",
+    )
+    template: str = Field(
+        "",
+        description="Шаблон-скелет секции в Markdown с плейсхолдерами",
+    )
+    hints: list[str] = Field(
+        default_factory=list,
+        description="AI-подсказки для заполнения секции",
+    )
+    estimated_effort: str = Field(
+        "medium",
+        description="Оценка трудоёмкости: low/medium/high",
+    )
+
+
+class ManualSectionsResult(BaseModel):
+    """Ручные секции с подсказками — результат Этапа 5 (алгоритм 3.7.7)."""
+    skeletons: dict[str, ManualSectionSkeleton] = Field(
+        default_factory=dict,
+        description="Скелеты секций: section_name → ManualSectionSkeleton",
+    )
+    critical_sections: list[str] = Field(
+        default_factory=list,
+        description="Секции с приоритетом critical",
+    )
+    important_sections: list[str] = Field(
+        default_factory=list,
+        description="Секции с приоритетом important",
+    )
+    optional_sections: list[str] = Field(
+        default_factory=list,
+        description="Секции с приоритетом optional",
+    )
+    total_manual_count: int = Field(
+        0,
+        description="Общее количество ручных секций",
+    )
+    failed_sections: list[str] = Field(
+        default_factory=list,
+        description="Секции, для которых генерация подсказок не удалась",
+    )
+
+
+# ============================================================
 # ИТОГОВЫЙ ПРОФИЛЬ GDD
 # ============================================================
 
 class GDDProfile(BaseModel):
     """
-    Полный профиль GDD — результат алгоритма 3.7 (Этапы 1–3+).
+    Полный профиль GDD — результат алгоритма 3.7 (Этапы 1–5+).
 
     Включает:
     - format_spec: Спецификация формата (Этап 1)
     - data_mapping: Маппинг Project State → секции (Этап 2)
     - auto_filled_sections: Автозаполненные секции (Этап 3)
+    - ai_enriched_sections: AI-обогащённые секции (Этап 4)
+    - manual_skeletons: Скелеты ручных секций (Этап 5)
     - stages_completed: Завершённые этапы
     - coverage_score: Общий уровень покрытия
     - latency_ms: Время выполнения
@@ -326,6 +421,14 @@ class GDDProfile(BaseModel):
     auto_filled_sections: Optional[AutoFilledSections] = Field(
         None,
         description="Автозаполненные секции (Этап 3)",
+    )
+    ai_enriched_sections: Optional[AIEnrichedSections] = Field(
+        None,
+        description="AI-обогащённые секции (Этап 4)",
+    )
+    manual_skeletons: Optional[ManualSectionsResult] = Field(
+        None,
+        description="Скелеты ручных секций с подсказками (Этап 5)",
     )
     stages_completed: list[int] = Field(
         default_factory=list,

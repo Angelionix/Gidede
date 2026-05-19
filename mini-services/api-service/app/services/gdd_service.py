@@ -1,34 +1,20 @@
 """
 Gidede — GDD Service
-Фаза 4.D.1: Блок 6 — GDD Generator (алгоритм 3.7, Этапы 1–3)
+Фаза 4.D.1–4.D.2: Блок 6 — GDD Generator (алгоритм 3.7, Этапы 1–5)
 
 Реализация пайплайна генерации GDD из алгоритма 3.7:
 - Этап 1: Определение формата GDD → GDDFormatSpec (3.7.3)
-  • Если targetFormat задан — используем его
-  • Иначе — эвристика по audience и project stage
-  • Маппинг audience → format (investor→treatment, team_sync→sketch_design, production→full_gdd, personal→modular, educational→ten_pager)
-  • Маппинг project stage → format (concept→one_sheet, prototype→ten_pager, preproduction→sketch_design, production→full_gdd, live_ops→modular)
-  • Определение detail_level по жанру
-  • Шаблоны секций для 8 форматов
-  • Оценка количества страниц
-
 - Этап 2: Маппинг Project State → секции GDD → GDDDataMapping (3.7.4)
-  • 38 секций в 8 блоках, маппинг на данные Project State
-  • Фильтрация маппингов по активным секциям формата
-  • Проверка готовности каждой секции
-  • Расчёт coverage_score
-
 - Этап 3: Автозаполнение секций → AutoFilledSections (3.7.5)
-  • Детерминированное извлечение данных из Project State
-  • Форматирование контента в Markdown
-  • Диаграммы, таблицы, формулы
+- Этап 4: AI-генерация и обогащение → AIEnrichedSections (3.7.6)
+- Этап 5: Ручные секции и подсказки → ManualSectionsResult (3.7.7)
 
 Зависимости: 4.A.7 (PromptExecutor), 4.A.8 (Prompt Registry)
-Примечание: Этапы 1–3 не используют AI-вызовы (детерминированные)
 """
 
 import time
 import logging
+import json
 from typing import Any, Optional
 
 from app.ai.executor import PromptExecutor
@@ -43,8 +29,12 @@ from app.schemas.gdd import (
     GDDDataMapping,
     SectionContent,
     AutoFilledSections,
+    AIEnrichedSections,
+    ManualSectionSkeleton,
+    ManualSectionsResult,
     GDDGenerationInput,
     GDDProfile,
+    SectionPriority,
 )
 
 logger = logging.getLogger(__name__)
@@ -540,13 +530,16 @@ SECTION_DATA_MAP: dict[str, SectionMapping] = {
 class GDDService:
     """
     Блок 6: Генератор GDD.
-    Реализует алгоритм 3.7 — Этапы 1–3.
+    Реализует алгоритм 3.7 — Этапы 1–5.
 
     Методы:
     - determine_gdd_format() — Этап 1: определение формата GDD
     - map_project_to_sections() — Этап 2: маппинг Project State → секции
     - generate_auto_sections() — Этап 3: автозаполнение секций
-    - generate_stages_1_3() — полный пайплайн Этапов 1–3
+    - generate_ai_sections() — Этап 4: AI-генерация и обогащение секций
+    - generate_manual_skeletons() — Этап 5: ручные секции с подсказками
+    - generate_stages_1_3() — пайплайн Этапов 1–3
+    - generate_stages_1_5() — полный пайплайн Этапов 1–5
     """
 
     def __init__(self, executor: PromptExecutor):
@@ -1826,6 +1819,880 @@ class GDDService:
             f"Format: {format_spec.format}, "
             f"Sections: {len(format_spec.sections)}, "
             f"Auto-filled: {auto_filled.count}, "
+            f"Coverage: {coverage_score:.2f}"
+        )
+
+        return profile
+
+    # ========================================================
+    # Этап 4: AI-генерация и обогащение секций (3.7.6)
+    # ========================================================
+
+    # Маппинг секций → AI-промпт для генерации
+    SECTION_PROMPT_MAP: dict[str, str] = {
+        "characters": "GENERATE_CHARACTERS_SECTION",
+        "character_profiles": "GENERATE_CHARACTERS_SECTION",
+        "story": "GENERATE_STORY_SECTION",
+        "dialogues": "GENERATE_STORY_SECTION",
+        "quests": "GENERATE_STORY_SECTION",
+        "quest_matrix": "GENERATE_STORY_SECTION",
+        "lore": "GENERATE_STORY_SECTION",
+        "lore_db": "GENERATE_STORY_SECTION",
+        "storyline_map": "GENERATE_STORY_SECTION",
+        "cutscene_scripts": "GENERATE_STORY_SECTION",
+        "narrative_arc": "GENERATE_STORY_SECTION",
+        "visual_style": "GENERATE_VISUAL_STYLE",
+        "visual_hook": "GENERATE_VISUAL_STYLE",
+        "controls": "GENERATE_CONTROLS_SECTION",
+        "camera_perspective": "GENERATE_CONTROLS_SECTION",
+        "world_structure": "GENERATE_WORLD_SECTION",
+        "level_design": "GENERATE_WORLD_SECTION",
+        "navigation": "GENERATE_WORLD_SECTION",
+        "combat_spaces": "GENERATE_WORLD_SECTION",
+        "sound_music": "GENERATE_AUDIO_SECTION",
+    }
+
+    async def generate_ai_sections(
+        self,
+        data_mapping: GDDDataMapping,
+        auto_filled: AutoFilledSections,
+        input_data: GDDGenerationInput,
+    ) -> AIEnrichedSections:
+        """
+        Этап 4: AI-генерация и обогащение секций GDD.
+
+        Алгоритм 3.7.6:
+        1. Для секций с ai_enrich=True, которые были автозаполнены:
+           - Вызвать ENRICH_SECTION для обогащения контекста
+        2. Для секций с ai_generate=True:
+           - Вызвать специализированный промпт генерации
+        3. Обработать ошибки gracefully (добавить в failed_sections)
+        4. Рассчитать total_coverage после AI-обогащения
+
+        Returns:
+            AIEnrichedSections с обогащёнными и сгенерированными секциями
+        """
+        start = time.time()
+
+        enriched_sections: dict[str, SectionContent] = {}
+        generated_sections: dict[str, SectionContent] = {}
+        failed_sections: list[str] = []
+
+        # === Шаг 4.1: Обогащение автозаполненных секций ===
+        for section_name, section_content in auto_filled.sections.items():
+            mapping = data_mapping.active_mappings.get(section_name)
+            if not mapping or not mapping.ai_enrich:
+                continue
+
+            try:
+                enriched_content = await self._enrich_section(
+                    section_name, section_content, input_data
+                )
+                if enriched_content:
+                    enriched_sections[section_name] = enriched_content
+                    logger.debug(f"[Stage 4.1] Enriched: {section_name}")
+                else:
+                    # Обогащение не удалось, оставляем оригинал
+                    enriched_sections[section_name] = section_content
+            except Exception as e:
+                logger.warning(
+                    f"[Stage 4.1] Failed to enrich '{section_name}': {e}"
+                )
+                failed_sections.append(section_name)
+                # Оставляем оригинальный контент
+                enriched_sections[section_name] = section_content
+
+        # === Шаг 4.2: Генерация секций с нуля ===
+        ai_generatable = data_mapping.ai_generatable_sections
+        for section_name in ai_generatable:
+            mapping = data_mapping.active_mappings.get(section_name)
+            if not mapping or not mapping.ai_generate:
+                continue
+
+            # Пропускаем секции, которые уже были автозаполнены и обогащены
+            if section_name in auto_filled.sections:
+                continue
+
+            try:
+                generated_content = await self._generate_section(
+                    section_name, mapping, data_mapping, input_data
+                )
+                if generated_content:
+                    generated_sections[section_name] = generated_content
+                    logger.debug(f"[Stage 4.2] Generated: {section_name}")
+                else:
+                    failed_sections.append(section_name)
+            except Exception as e:
+                logger.warning(
+                    f"[Stage 4.2] Failed to generate '{section_name}': {e}"
+                )
+                failed_sections.append(section_name)
+
+        # === Шаг 4.3: Рассчитываем total_coverage ===
+        total_sections = len(data_mapping.format_spec.sections)
+        filled_count = len(auto_filled.sections) + len(generated_sections)
+        total_coverage = round(filled_count / total_sections, 3) if total_sections > 0 else 0.0
+
+        result = AIEnrichedSections(
+            enriched_sections=enriched_sections,
+            generated_sections=generated_sections,
+            enriched_count=len(enriched_sections),
+            generated_count=len(generated_sections),
+            failed_sections=failed_sections,
+            total_coverage=total_coverage,
+        )
+
+        logger.info(
+            f"[Stage 4] AI processing: enriched={len(enriched_sections)}, "
+            f"generated={len(generated_sections)}, "
+            f"failed={len(failed_sections)}, "
+            f"total_coverage={total_coverage:.2f} "
+            f"({time.time() - start:.2f}s)"
+        )
+
+        return result
+
+    async def _enrich_section(
+        self,
+        section_name: str,
+        section_content: SectionContent,
+        input_data: GDDGenerationInput,
+    ) -> Optional[SectionContent]:
+        """
+        Обогащение автозаполненной секции через ENRICH_SECTION промпт.
+        """
+        genre = input_data.concept.get("genre", "") if input_data.concept else ""
+        aesthetics = (
+            input_data.mda_profile.get("aesthetics", {})
+            if input_data.mda_profile else {}
+        )
+
+        prompt_inputs = {
+            "section_name": section_name,
+            "current_content": section_content.content[:2000],
+            "genre": genre,
+            "aesthetics": json.dumps(aesthetics, ensure_ascii=False) if aesthetics else "",
+        }
+
+        result = await self.executor.execute(
+            prompt_id="ENRICH_SECTION",
+            inputs=prompt_inputs,
+        )
+
+        enriched_text = self._extract_text_from_result(result.data)
+
+        if not enriched_text:
+            return None
+
+        return SectionContent(
+            content=enriched_text,
+            source="ai_enrich",
+            auto_filled=True,
+            diagram=section_content.diagram,
+            tables=section_content.tables,
+            formulas=section_content.formulas,
+            requires_review=True,
+        )
+
+    async def _generate_section(
+        self,
+        section_name: str,
+        mapping: SectionMapping,
+        data_mapping: GDDDataMapping,
+        input_data: GDDGenerationInput,
+    ) -> Optional[SectionContent]:
+        """
+        Генерация секции с нуля через специализированный AI-промпт.
+        """
+        # Определяем промпт по секции
+        prompt_id = self.SECTION_PROMPT_MAP.get(section_name, "ENRICH_SECTION")
+
+        # Собираем входные данные для промпта
+        prompt_inputs = self._build_generation_inputs(
+            section_name, prompt_id, input_data
+        )
+
+        result = await self.executor.execute(
+            prompt_id=prompt_id,
+            inputs=prompt_inputs,
+        )
+
+        generated_text = self._extract_text_from_result(result.data)
+
+        if not generated_text:
+            return None
+
+        # Определяем дополнительные элементы по маппингу
+        diagram = None
+        tables = None
+        formulas = None
+
+        if mapping.diagram:
+            diagram = "```mermaid\ngraph TD\n    Generated[AI Generated Section]\n```"
+
+        if mapping.tables:
+            # Пробуем извлечь таблицы из результата
+            tables = self._try_extract_tables(result.data)
+
+        return SectionContent(
+            content=generated_text,
+            source="ai_generate",
+            auto_filled=False,
+            diagram=diagram,
+            tables=tables,
+            formulas=formulas,
+            requires_review=True,
+        )
+
+    def _build_generation_inputs(
+        self,
+        section_name: str,
+        prompt_id: str,
+        input_data: GDDGenerationInput,
+    ) -> dict[str, Any]:
+        """Сборка входных данных для промпта генерации секции."""
+        genre = input_data.concept.get("genre", "") if input_data.concept else ""
+        platforms = (
+            input_data.concept.get("platforms", [])
+            if input_data.concept else []
+        )
+        core_loop = input_data.core_loop or {}
+        mechanics = (
+            input_data.mda_profile.get("mechanicSet", {}).get("mechanics", [])
+            if input_data.mda_profile else []
+        )
+        aesthetics = (
+            input_data.mda_profile.get("aesthetics", {})
+            if input_data.mda_profile else {}
+        )
+
+        # Базовые входы для большинства промптов
+        base_inputs: dict[str, Any] = {
+            "genre": genre,
+            "platforms": platforms if isinstance(platforms, list) else [platforms],
+            "core_loop": core_loop,
+            "mechanics": mechanics,
+            "aesthetics": aesthetics,
+            "section_name": section_name,
+        }
+
+        # Специфичные входы для конкретных промптов
+        if prompt_id == "GENERATE_CHARACTERS_SECTION":
+            base_inputs["setting"] = (
+                input_data.concept.get("description", "")
+                if input_data.concept else ""
+            )
+            base_inputs["mood"] = (
+                input_data.mda_profile.get("aesthetics", {}).get("primary", "")
+                if input_data.mda_profile else ""
+            )
+
+        elif prompt_id == "GENERATE_VISUAL_STYLE":
+            base_inputs["mood"] = (
+                input_data.mda_profile.get("aesthetics", {}).get("primary", "")
+                if input_data.mda_profile else ""
+            )
+            base_inputs["setting"] = (
+                input_data.concept.get("description", "")
+                if input_data.concept else ""
+            )
+
+        elif prompt_id == "GENERATE_STORY_SECTION":
+            base_inputs["setting"] = (
+                input_data.concept.get("description", "")
+                if input_data.concept else ""
+            )
+            base_inputs["usp"] = (
+                input_data.concept.get("usp", "")
+                if input_data.concept else ""
+            )
+
+        elif prompt_id == "GENERATE_CONTROLS_SECTION":
+            base_inputs["camera_perspective"] = ""  # Нет данных по умолчанию
+
+        elif prompt_id == "GENERATE_WORLD_SECTION":
+            base_inputs["setting"] = (
+                input_data.concept.get("description", "")
+                if input_data.concept else ""
+            )
+            base_inputs["progression"] = input_data.progression_profile or {}
+
+        elif prompt_id == "GENERATE_AUDIO_SECTION":
+            base_inputs["mood"] = (
+                input_data.mda_profile.get("aesthetics", {}).get("primary", "")
+                if input_data.mda_profile else ""
+            )
+            base_inputs["visual_style"] = ""
+
+        return base_inputs
+
+    def _extract_text_from_result(self, data: Any) -> str:
+        """Извлечение текста из результата AI-вызова."""
+        if isinstance(data, str):
+            return data
+        elif isinstance(data, dict):
+            # Пробуем типичные ключи с текстом
+            text_keys = [
+                "content", "text", "description", "markdown", "section_content",
+                "enriched_content", "generated_content",
+            ]
+            for key in text_keys:
+                if key in data and isinstance(data[key], str):
+                    return data[key]
+
+            # Если есть вложенные объекты — форматируем как Markdown
+            lines = []
+            for k, v in data.items():
+                if isinstance(v, str):
+                    if len(v) > 50:
+                        lines.append(f"## {k}\n{v}")
+                    else:
+                        lines.append(f"**{k}**: {v}")
+                elif isinstance(v, list):
+                    lines.append(f"## {k}")
+                    for item in v[:15]:
+                        if isinstance(item, str):
+                            lines.append(f"- {item}")
+                        elif isinstance(item, dict):
+                            name = item.get("name", item.get("title", ""))
+                            if name:
+                                lines.append(f"- **{name}**")
+                            else:
+                                lines.append(f"- {json.dumps(item, ensure_ascii=False)[:100]}")
+                elif isinstance(v, dict):
+                    lines.append(f"## {k}")
+                    for dk, dv in v.items():
+                        if isinstance(dv, (str, int, float)):
+                            lines.append(f"- **{dk}**: {dv}")
+
+            return "\n\n".join(lines) if lines else json.dumps(data, ensure_ascii=False, indent=2)
+        elif isinstance(data, list):
+            lines = []
+            for item in data[:20]:
+                if isinstance(item, str):
+                    lines.append(f"- {item}")
+                elif isinstance(item, dict):
+                    name = item.get("name", item.get("title", ""))
+                    desc = item.get("description", "")
+                    if name:
+                        line = f"- **{name}**"
+                        if desc:
+                            line += f": {desc[:100]}"
+                        lines.append(line)
+            return "\n".join(lines) if lines else json.dumps(data, ensure_ascii=False, indent=2)
+
+        return str(data) if data is not None else ""
+
+    def _try_extract_tables(self, data: Any) -> Optional[list[dict]]:
+        """Попытка извлечь табличные данные из AI-результата."""
+        if isinstance(data, dict):
+            table_keys = ["tables", "data", "items", "entries", "list"]
+            for key in table_keys:
+                val = data.get(key)
+                if isinstance(val, list) and val:
+                    rows = []
+                    for item in val[:15]:
+                        if isinstance(item, dict):
+                            rows.append(item)
+                    if rows:
+                        headers = list(rows[0].keys())[:5]
+                        return [{
+                            "title": key.capitalize(),
+                            "headers": headers,
+                            "rows": rows,
+                        }]
+        return None
+
+    # ========================================================
+    # Этап 5: Ручные секции с подсказками (3.7.7)
+    # ========================================================
+
+    # Классификация секций по приоритету
+    CRITICAL_SECTIONS: set[str] = {
+        "core_loop", "mechanics", "progression", "balance",
+        "resources", "economy",
+    }
+
+    IMPORTANT_SECTIONS: set[str] = {
+        "characters", "story", "world_structure", "level_design",
+        "hud_ui", "visual_style",
+    }
+
+    OPTIONAL_SECTIONS: set[str] = {
+        "controls", "dialogues", "quests", "lore", "sound_music",
+        "multiplayer_modes", "social_features", "meta_game",
+        "tech_requirements", "milestones_budget", "menus",
+        "camera_perspective", "navigation", "combat_spaces",
+        "game_modes", "platform_ports", "monetization",
+    }
+
+    # Шаблоны-скелеты для ручных секций
+    SECTION_TEMPLATES: dict[str, str] = {
+        "controls": (
+            "## Управление\n\n"
+            "### Основная схема\n"
+            "[Опишите основную схему управления]\n\n"
+            "### Платформо-зависимые маппинги\n"
+            "- **PC (Keyboard+Mouse)**: [маппинг]\n"
+            "- **Gamepad**: [маппинг]\n"
+            "- **Touch**: [маппинг]\n\n"
+            "### Ключевые действия\n"
+            "| Действие | PC | Gamepad |\n|---|---|---|\n"
+            "| [действие] | [клавиша] | [кнопка] |"
+        ),
+        "characters": (
+            "## Персонажи\n\n"
+            "### Главный герой\n"
+            "- **Имя**: [имя]\n"
+            "- **Роль**: [роль в истории]\n"
+            "- **Мотивация**: [почему действует]\n\n"
+            "### Ключевые NPC\n"
+            "| Имя | Роль | Отношение к герою |\n|---|---|---|\n"
+            "| [имя] | [роль] | [отношение] |"
+        ),
+        "story": (
+            "## Сюжет\n\n"
+            "### Логлайн\n"
+            "[1-2 предложения сути истории]\n\n"
+            "### Акт 1 — Завязка\n"
+            "[Начальная ситуация, зов к приключению]\n\n"
+            "### Акт 2 — Конфликт\n"
+            "[Развитие конфликта, препятствия]\n\n"
+            "### Акт 3 — Разрешение\n"
+            "[Кульминация и развязка]"
+        ),
+        "dialogues": (
+            "## Диалоги\n\n"
+            "### Принципы\n"
+            "- [Принцип 1: например, диалог раскрывает характер]\n"
+            "- [Принцип 2: диалог двигает сюжет]\n\n"
+            "### Пример диалога\n"
+            "```\n[Персонаж А]: [реплика]\n[Персонаж Б]: [реплика]\n```"
+        ),
+        "quests": (
+            "## Квесты\n\n"
+            "### Основной квест\n"
+            "| ID | Название | Описание | Награда |\n|---|---|---|---|\n"
+            "| MQ01 | [название] | [описание] | [награда] |\n\n"
+            "### Побочные квесты\n"
+            "| ID | Название | Связь с NPC | Награда |\n|---|---|---|---|\n"
+            "| SQ01 | [название] | [NPC] | [награда] |"
+        ),
+        "lore": (
+            "## Лор\n\n"
+            "### Мир\n"
+            "[Описание мира и его правил]\n\n"
+            "### История\n"
+            "[Ключевые события прошлого]\n\n"
+            "### Фракции\n"
+            "| Название | Идеология | Отношение к герою |\n|---|---|---|\n"
+            "| [название] | [идеология] | [отношение] |"
+        ),
+        "world_structure": (
+            "## Структура мира\n\n"
+            "### Общая карта\n"
+            "[Описание общей структуры мира]\n\n"
+            "### Локации\n"
+            "| Локация | Размер | Ключевые объекты | Уровень опасности |\n|---|---|---|---|\n"
+            "| [название] | [размер] | [объекты] | [уровень] |"
+        ),
+        "level_design": (
+            "## Дизайн уровней\n\n"
+            "### Принципы\n"
+            "- [Принцип 1]\n"
+            "- [Принцип 2]\n\n"
+            "### Шаблон уровня\n"
+            "[Описание типичной структуры уровня]"
+        ),
+        "navigation": (
+            "## Навигация\n\n"
+            "### Способы перемещения\n"
+            "- [Способ 1]\n"
+            "- [Способ 2]\n\n"
+            "### Карта мира\n"
+            "[Описание навигации по карте]"
+        ),
+        "combat_spaces": (
+            "## Боевые пространства\n\n"
+            "### Принципы дизайна\n"
+            "- [Принцип 1]\n"
+            "- [Принцип 2]\n\n"
+            "### Типы арен\n"
+            "| Тип | Размер | Особенности |\n|---|---|---|\n"
+            "| [тип] | [размер] | [особенности] |"
+        ),
+        "visual_style": (
+            "## Визуальный стиль\n\n"
+            "### Арт-направление\n"
+            "[Описание визуального стиля]\n\n"
+            "### Цветовая палитра\n"
+            "[Основные цвета и их назначение]\n\n"
+            "### Референсы\n"
+            "- [Референс 1]\n"
+            "- [Референс 2]"
+        ),
+        "sound_music": (
+            "## Звук и музыка\n\n"
+            "### Музыкальный стиль\n"
+            "[Описание]\n\n"
+            "### Приоритетные SFX\n"
+            "| Категория | Приоритет | Описание |\n|---|---|---|\n"
+            "| [категория] | [приоритет] | [описание] |"
+        ),
+        "multiplayer_modes": (
+            "## Мультиплеер\n\n"
+            "### Режимы\n"
+            "| Режим | Игроков | Описание |\n|---|---|---|\n"
+            "| [режим] | [число] | [описание] |"
+        ),
+        "social_features": (
+            "## Социальные функции\n\n"
+            "### Список функций\n"
+            "- [Функция 1]\n"
+            "- [Функция 2]"
+        ),
+        "meta_game": (
+            "## Мета-игра\n\n"
+            "### Сезонный контент\n"
+            "[Описание подхода к сезонам]\n\n"
+            "### Эндгейм\n"
+            "[Описание эндгейм-контента]"
+        ),
+        "tech_requirements": (
+            "## Технические требования\n\n"
+            "### Минимальные\n"
+            "- **CPU**: [требование]\n"
+            "- **GPU**: [требование]\n"
+            "- **RAM**: [требование]\n\n"
+            "### Рекомендуемые\n"
+            "- **CPU**: [требование]\n"
+            "- **GPU**: [требование]\n"
+            "- **RAM**: [требование]"
+        ),
+        "milestones_budget": (
+            "## Майлстоуны и бюджет\n\n"
+            "| Майлстоун | Срок | Бюджет | Результат |\n|---|---|---|---|\n"
+            "| [M1] | [срок] | [бюджет] | [результат] |"
+        ),
+        "monetization": (
+            "## Монетизация\n\n"
+            "### Модель\n"
+            "[Описание модели монетизации]\n\n"
+            "### Ценовые точки\n"
+            "| Товар | Цена | Ценность для игрока |\n|---|---|---|\n"
+            "| [товар] | [цена] | [ценность] |"
+        ),
+        "menus": (
+            "## Меню и UI\n\n"
+            "### Главное меню\n"
+            "[Описание структуры главного меню]\n\n"
+            "### In-game HUD\n"
+            "[Описание HUD]"
+        ),
+        "hud_ui": (
+            "## HUD и UI\n\n"
+            "### Элементы HUD\n"
+            "| Элемент | Позиция | Когда виден |\n|---|---|---|\n"
+            "| [элемент] | [позиция] | [условие] |"
+        ),
+        "camera_perspective": (
+            "## Камера\n\n"
+            "### Перспектива\n"
+            "[Описание типа камеры]\n\n"
+            "### Поведение\n"
+            "[Как камера реагирует на действия игрока]"
+        ),
+        "game_modes": (
+            "## Игровые режимы\n\n"
+            "| Режим | Описание | Длительность сессии |\n|---|---|---|\n"
+            "| [режим] | [описание] | [длительность] |"
+        ),
+    }
+
+    async def generate_manual_skeletons(
+        self,
+        data_mapping: GDDDataMapping,
+        input_data: GDDGenerationInput,
+    ) -> ManualSectionsResult:
+        """
+        Этап 5: Генерация скелетов ручных секций с AI-подсказками.
+
+        Алгоритм 3.7.7:
+        1. Для каждой секции из manual_sections:
+           - Генерировать шаблон-скелет с плейсхолдерами
+           - Вызвать AI_GENERATE_SECTION_HINTS для подсказок
+           - Классифицировать по приоритету: critical/important/optional
+        2. Обработать ошибки gracefully
+
+        Returns:
+            ManualSectionsResult со скелетами секций
+        """
+        start = time.time()
+
+        skeletons: dict[str, ManualSectionSkeleton] = {}
+        critical_sections: list[str] = []
+        important_sections: list[str] = []
+        optional_sections: list[str] = []
+        failed_sections: list[str] = []
+
+        manual_sections = data_mapping.manual_sections
+
+        for section_name in manual_sections:
+            mapping = data_mapping.active_mappings.get(section_name)
+
+            # Определяем приоритет
+            priority = self._classify_section_priority(section_name)
+
+            if priority == "critical":
+                critical_sections.append(section_name)
+            elif priority == "important":
+                important_sections.append(section_name)
+            else:
+                optional_sections.append(section_name)
+
+            # Генерируем шаблон-скелет
+            template = self._generate_section_template(section_name)
+
+            # Оцениваем трудоёмкость
+            estimated_effort = self._estimate_effort(section_name, mapping)
+
+            # Получаем AI-подсказки
+            hints: list[str] = []
+            try:
+                hints = await self._generate_section_hints(
+                    section_name, input_data
+                )
+            except Exception as e:
+                logger.warning(
+                    f"[Stage 5] Failed to get hints for '{section_name}': {e}"
+                )
+                failed_sections.append(section_name)
+
+            skeleton = ManualSectionSkeleton(
+                section_name=section_name,
+                priority=priority,
+                template=template,
+                hints=hints,
+                estimated_effort=estimated_effort,
+            )
+            skeletons[section_name] = skeleton
+
+        total_manual_count = len(skeletons)
+
+        result = ManualSectionsResult(
+            skeletons=skeletons,
+            critical_sections=critical_sections,
+            important_sections=important_sections,
+            optional_sections=optional_sections,
+            total_manual_count=total_manual_count,
+            failed_sections=failed_sections,
+        )
+
+        logger.info(
+            f"[Stage 5] Manual skeletons: {total_manual_count} sections, "
+            f"critical={len(critical_sections)}, "
+            f"important={len(important_sections)}, "
+            f"optional={len(optional_sections)}, "
+            f"failed={len(failed_sections)} "
+            f"({time.time() - start:.2f}s)"
+        )
+
+        return result
+
+    def _classify_section_priority(self, section_name: str) -> SectionPriority:
+        """Классификация секции по приоритету."""
+        if section_name in self.CRITICAL_SECTIONS:
+            return "critical"
+        elif section_name in self.IMPORTANT_SECTIONS:
+            return "important"
+        else:
+            return "optional"
+
+    def _generate_section_template(self, section_name: str) -> str:
+        """Генерация шаблона-скелета для ручной секции."""
+        if section_name in self.SECTION_TEMPLATES:
+            return self.SECTION_TEMPLATES[section_name]
+
+        # Универсальный шаблон для неизвестных секций
+        return (
+            f"## {section_name.replace('_', ' ').title()}\n\n"
+            "### Описание\n"
+            "[Опишите раздел]\n\n"
+            "### Ключевые элементы\n"
+            "- [Элемент 1]\n"
+            "- [Элемент 2]\n"
+            "- [Элемент 3]\n\n"
+            "### Примечания\n"
+            "[Дополнительные заметки]"
+        )
+
+    def _estimate_effort(
+        self, section_name: str, mapping: Optional[SectionMapping]
+    ) -> str:
+        """Оценка трудоёмкости заполнения секции."""
+        if section_name in self.CRITICAL_SECTIONS:
+            return "high"
+        elif section_name in self.IMPORTANT_SECTIONS:
+            return "medium"
+        elif mapping and (mapping.diagram or mapping.formulas):
+            return "high"
+        elif mapping and mapping.tables:
+            return "medium"
+        else:
+            return "low"
+
+    async def _generate_section_hints(
+        self,
+        section_name: str,
+        input_data: GDDGenerationInput,
+    ) -> list[str]:
+        """Получение AI-подсказок для заполнения ручной секции."""
+        genre = input_data.concept.get("genre", "") if input_data.concept else ""
+        description = (
+            input_data.concept.get("description", "")
+            if input_data.concept else ""
+        )
+
+        prompt_inputs = {
+            "section": section_name,
+            "genre": genre,
+            "project_summary": description[:500] if description else "",
+        }
+
+        result = await self.executor.execute(
+            prompt_id="AI_GENERATE_SECTION_HINTS",
+            inputs=prompt_inputs,
+        )
+
+        # Извлекаем подсказки из результата
+        hints = self._extract_hints_from_result(result.data)
+        return hints
+
+    def _extract_hints_from_result(self, data: Any) -> list[str]:
+        """Извлечение подсказок из результата AI."""
+        hints: list[str] = []
+
+        if isinstance(data, dict):
+            # Ищем список подсказок
+            hint_keys = ["hints", "suggestions", "tips", "recommendations", "items"]
+            for key in hint_keys:
+                val = data.get(key)
+                if isinstance(val, list):
+                    for item in val[:10]:
+                        if isinstance(item, str):
+                            hints.append(item)
+                        elif isinstance(item, dict):
+                            text = item.get("hint", item.get("text", item.get("suggestion", "")))
+                            if text:
+                                hints.append(str(text))
+                    break
+
+            if not hints:
+                # Пробуем создать подсказки из полей
+                for k, v in data.items():
+                    if isinstance(v, str) and len(v) > 20:
+                        hints.append(f"**{k}**: {v[:200]}")
+                    elif isinstance(v, list) and len(v) > 0:
+                        first = v[0]
+                        if isinstance(first, str):
+                            hints.append(f"Рассмотрите: {', '.join(str(i) for i in v[:5])}")
+                        break
+
+        elif isinstance(data, list):
+            for item in data[:10]:
+                if isinstance(item, str):
+                    hints.append(item)
+                elif isinstance(item, dict):
+                    text = item.get("hint", item.get("text", item.get("suggestion", "")))
+                    if text:
+                        hints.append(str(text))
+
+        elif isinstance(data, str):
+            # Разбиваем строку на подсказки
+            lines = [line.strip() for line in data.split("\n") if line.strip()]
+            hints = lines[:10]
+
+        return hints[:10] if hints else [
+            "Опишите ключевые элементы раздела",
+            "Укажите связи с другими секциями GDD",
+            "Добавьте примеры и конкретные значения",
+        ]
+
+    # ========================================================
+    # Полный пайплайн: Этапы 1–5
+    # ========================================================
+
+    async def generate_stages_1_5(
+        self,
+        input_data: GDDGenerationInput,
+    ) -> GDDProfile:
+        """
+        Полный пайплайн генерации GDD — Этапы 1–5 алгоритма 3.7.
+
+        Выполняет последовательно:
+        1. Определение формата GDD
+        2. Маппинг Project State → секции
+        3. Автозаполнение секций
+        4. AI-генерация и обогащение секций
+        5. Генерация скелетов ручных секций с подсказками
+
+        Returns:
+            GDDProfile с результатами всех пяти этапов
+        """
+        pipeline_start = time.time()
+
+        # === Этап 1: Формат ===
+        format_spec = await self.determine_gdd_format(input_data)
+
+        # === Этап 2: Маппинг ===
+        data_mapping = await self.map_project_to_sections(
+            format_spec, input_data
+        )
+
+        # === Этап 3: Автозаполнение ===
+        auto_filled = await self.generate_auto_sections(
+            data_mapping, input_data
+        )
+
+        # === Этап 4: AI-генерация и обогащение ===
+        ai_enriched = await self.generate_ai_sections(
+            data_mapping, auto_filled, input_data
+        )
+
+        # === Этап 5: Ручные секции ===
+        manual_skeletons = await self.generate_manual_skeletons(
+            data_mapping, input_data
+        )
+
+        latency_ms = int((time.time() - pipeline_start) * 1000)
+
+        # Общий coverage_score: учитываем все заполненные секции
+        total_sections = len(format_spec.sections)
+        all_filled = (
+            len(auto_filled.sections)
+            + ai_enriched.generated_count
+        )
+        coverage_score = round(all_filled / total_sections, 3) if total_sections > 0 else 0.0
+
+        profile = GDDProfile(
+            format_spec=format_spec,
+            data_mapping=data_mapping,
+            auto_filled_sections=auto_filled,
+            ai_enriched_sections=ai_enriched,
+            manual_skeletons=manual_skeletons,
+            stages_completed=[1, 2, 3, 4, 5],
+            coverage_score=coverage_score,
+            latency_ms=latency_ms,
+        )
+
+        logger.info(
+            f"[Pipeline 1-5] Completed in {latency_ms}ms. "
+            f"Format: {format_spec.format}, "
+            f"Sections: {len(format_spec.sections)}, "
+            f"Auto-filled: {auto_filled.count}, "
+            f"AI-enriched: {ai_enriched.enriched_count}, "
+            f"AI-generated: {ai_enriched.generated_count}, "
+            f"Manual: {manual_skeletons.total_manual_count}, "
             f"Coverage: {coverage_score:.2f}"
         )
 

@@ -9,6 +9,37 @@
 
 ---
 
+## [0.36.0] - 2026-05-19
+
+### Added
+- **4.D.7**: Тесты AI-ассистента — полный набор unit и API тестов
+  - `test_ai_assistant_service.py` — 60 unit-тестов для AIAssistantService:
+    - TestBuildAssistantContext (8): контекст из Project State, пустой/частичный/полный проект, RAG
+    - TestManageSession (6): создание, get_or_create, очистка, TTL, дублирование
+    - TestAddMessageAndGetHistory (6): добавление сообщений, хронология, лимит, обрезка
+    - TestSearchKnowledge (6): RAG-поиск, пустой результат, graceful degradation, import error
+    - TestCheckProactiveAlerts (12): runaway, deadlock, дисбаланс, диссонанс, пробелы, сортировка по severity
+    - TestGenerateSuggestions (8): подсказки для блоков 1-8, контекстные, доминантная стратегия
+    - TestChat (8): успешный чат, сохранение истории, fallback при ошибке AI, RAG-контекст
+    - TestChatStream (6): SSE streaming, done-маркер, формат событий, latency
+  - `test_ai_assistant_api.py` — 20 API-тестов для эндпоинтов AI-ассистента:
+    - TestChatEndpoint (3): success, unauthorized, empty message
+    - TestChatStreamEndpoint (3): success, unauthorized, content-type
+    - TestSuggestionsEndpoint (3): success, unauthorized, invalid block_id
+    - TestAlertsEndpoint (2): success, unauthorized
+    - TestHistoryEndpoint (3): success, empty, unauthorized
+    - TestHistoryClearEndpoint (2): success, unauthorized
+    - TestStatusEndpoint (2): public status, providers dict
+    - TestTestEndpoint (2): endpoint exists, unauthorized
+- **conftest.py**: исправлено `get_password_hash` → `hash_password` (соответствие security.py)
+
+### Changed
+- Версия обновлена с 0.35.0 до 0.36.0
+- Тестовая документация актуализирована: 630+ backend тестов (было 550+)
+- TECH_DEBT.md — добавлена запись о v0.36.0
+
+---
+
 ## [0.35.0] - 2026-05-19
 
 ### Added

@@ -2,7 +2,7 @@
 
 > **Фаза**: 4.D.6-4.D.8 (AI-ассистент — Блок 7)
 > **Дата**: 2026-05-19
-> **Версия**: 0.35.0
+> **Версия**: 0.36.0
 > **Статус**: Активный
 > **Подход**: Локальное тестирование + CI/CD (GitHub Actions)
 
@@ -60,7 +60,7 @@ npx eslint src/            # TypeScript
 
 ## 2. Реальные автоматизированные тесты (текущее состояние)
 
-### 2.1 Backend — pytest (550+ тестов в 16 файлах)
+### 2.1 Backend — pytest (630+ тестов в 18 файлах)
 
 ```
 mini-services/api-service/tests/
@@ -89,18 +89,18 @@ mini-services/api-service/tests/
 │                                   #   MDA/balance/narrative/economy/lens checks,
 │                                   #   aggregation, full pipeline, edge cases
 │                                   #   (95 тестов) *(NEW in 4.D.4)*
-├── test_ai_assistant_service.py   # AI Assistant Service (4.D.6-4.D.7) —
-│                                   #   context building, session management,
-│                                   #   message history, RAG search,
-│                                   #   proactive alerts, suggestions,
-│                                   #   chat pipeline, SSE streaming
-│                                   #   (~60 тестов) *(NEW in 4.D.6-4.D.7)*
+├── test_ai_assistant_service.py   # AI Assistant Service (4.D.7) —
+│                                   #   context building (8), session management (6),
+│                                   #   message history (6), RAG search (6),
+│                                   #   proactive alerts (12), suggestions (8),
+│                                   #   chat pipeline (8), SSE streaming (6)
+│                                   #   (60 тестов) *(NEW in 4.D.7)*
 ├── test_ai_assistant_api.py       # AI Assistant API (4.D.7) —
-│                                   #   POST /chat, POST /chat/stream,
-│                                   #   GET /suggestions, GET /alerts,
-│                                   #   GET /history, POST /history/clear,
-│                                   #   GET /status, POST /test
-│                                   #   (~20 тестов) *(NEW in 4.D.7)*
+│                                   #   POST /chat (3), POST /chat/stream (3),
+│                                   #   GET /suggestions (3), GET /alerts (2),
+│                                   #   GET /history (3), POST /history/clear (2),
+│                                   #   GET /status (2), POST /test (2)
+│                                   #   (20 тестов) *(NEW in 4.D.7)*
 └── integration/
     └── test_full_pipeline.py      # 4.C.10: Интеграционные тесты полного
                                      #   пайплайна Блоки 1–5 (22 теста)

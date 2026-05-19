@@ -137,7 +137,7 @@ def auth_headers():
 async def authenticated_client(test_client, db_session):
     """HTTP-клиент с авторизованным пользователем."""
     from app.models.db import User
-    from app.core.security import get_password_hash
+    from app.core.security import hash_password
     from app.core.security import create_access_token
 
     # Создать тестового пользователя
@@ -145,7 +145,7 @@ async def authenticated_client(test_client, db_session):
         id="test_user_id",
         email="test@gidede.com",
         name="Test User",
-        hashed_password=get_password_hash("TestPassword123!"),
+        hashed_password=hash_password("TestPassword123!"),
         plan="free",
     )
     db_session.add(user)

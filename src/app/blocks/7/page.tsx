@@ -22,6 +22,7 @@ import {
   CheckCircle2,
   Info,
   Sparkles,
+  Clock,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
@@ -37,6 +38,7 @@ interface ChatMsg {
   content: string;
   timestamp: number;
   metadata?: Record<string, unknown>;
+  isStreaming?: boolean;
 }
 
 interface Suggestion {
@@ -56,6 +58,15 @@ interface Alert {
   description: string;
   suggestion: string;
   timestamp: number;
+}
+
+// ============================================================
+// API base URL helper
+// ============================================================
+
+function getApiBaseUrl(): string {
+  if (typeof window === "undefined") return "";
+  return process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000/api/v1";
 }
 
 // ============================================================
@@ -88,8 +99,13 @@ function ChatMessage({ msg }: { msg: ChatMsg }) {
             : "bg-muted"
         }`}
       >
-        <div className="whitespace-pre-wrap break-words">{msg.content}</div>
-        {msg.metadata?.model_used && !isUser && (
+        <div className="whitespace-pre-wrap break-words">
+          {msg.content}
+          {msg.isStreaming && (
+            <span className="inline-block w-1.5 h-4 bg-primary/60 animate-pulse ml-0.5 align-text-bottom" />
+          )}
+        </div>
+        {msg.metadata?.model_used && !isUser && !msg.isStreaming && (
           <div className="mt-1 text-[10px] opacity-60">
             {(msg.metadata.model_used as string) || ""} • {(msg.metadata.provider as string) || ""} • {((msg.metadata.latency_ms as number) || 0)}ms
           </div>
@@ -272,7 +288,7 @@ function AlertsPanel({
                   {alert.description}
                 </p>
                 <p className="text-[11px] mt-1 font-medium">
-                  💡 {alert.suggestion}
+                  {alert.suggestion}
                 </p>
               </div>
             </div>
@@ -284,11 +300,78 @@ function AlertsPanel({
 }
 
 // ============================================================
-// Main Block 7 Page
+// Chat History Component
+// ============================================================
+
+function ChatHistoryList({
+  messages,
+  onLoadMore,
+  hasMore,
+}: {
+  messages: ChatMsg[];
+  onLoadMore: () => void;
+  hasMore: boolean;
+}) {
+  // Group messages by date
+  const grouped = messages.reduce<Record<string, ChatMsg[]>>((acc, msg) => {
+    const date = new Date(msg.timestamp).toLocaleDateString("ru-RU", {
+      day: "numeric",
+      month: "long",
+    });
+    if (!acc[date]) acc[date] = [];
+    acc[date].push(msg);
+    return acc;
+  }, {});
+
+  return (
+    <div className="space-y-4">
+      {Object.entries(grouped).map(([date, msgs]) => (
+        <div key={date}>
+          <div className="text-[10px] text-muted-foreground uppercase tracking-wider mb-2">
+            {date}
+          </div>
+          <div className="space-y-2">
+            {msgs.map((msg) => (
+              <div
+                key={msg.id}
+                className="flex items-start gap-2 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
+              >
+                <div className="shrink-0 mt-0.5">
+                  {msg.role === "user" ? (
+                    <MessageSquare className="h-3 w-3 text-muted-foreground" />
+                  ) : (
+                    <Bot className="h-3 w-3 text-primary" />
+                  )}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs line-clamp-2">{msg.content}</p>
+                  <span className="text-[10px] text-muted-foreground">
+                    {new Date(msg.timestamp).toLocaleTimeString("ru-RU", {
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+      {hasMore && (
+        <Button variant="ghost" size="sm" onClick={onLoadMore} className="w-full text-xs">
+          Загрузить ещё
+        </Button>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// Main Block 7 Page — AI Assistant with SSE Streaming
 // ============================================================
 
 export default function Block7Page() {
-  const { apiFetch } = useAuth();
+  const { apiFetch, token } = useAuth();
   const { toast } = useToast();
 
   // --- Pipeline ---
@@ -302,7 +385,9 @@ export default function Block7Page() {
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isStreaming, setIsStreaming] = useState(false);
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   // --- Suggestions state ---
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
@@ -313,6 +398,11 @@ export default function Block7Page() {
   const [alerts, setAlerts] = useState<Alert[]>([]);
   const [isAlertsLoading, setIsAlertsLoading] = useState(false);
 
+  // --- Chat history state ---
+  const [chatHistory, setChatHistory] = useState<ChatMsg[]>([]);
+  const [hasMoreHistory, setHasMoreHistory] = useState(false);
+  const [historyLimit, setHistoryLimit] = useState(50);
+
   // --- Tab state ---
   const [mainTab, setMainTab] = useState("chat");
 
@@ -321,12 +411,48 @@ export default function Block7Page() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  // --- Send message ---
-  const handleSend = useCallback(async () => {
+  // --- Load chat history on mount ---
+  useEffect(() => {
+    if (projectId && mainTab === "chat") {
+      loadChatHistory();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projectId, mainTab]);
+
+  // --- Load chat history from server ---
+  const loadChatHistory = useCallback(async () => {
+    try {
+      const data = await apiFetch<{
+        messages: { id: string; role: string; content: string; timestamp: number; metadata?: Record<string, unknown> }[];
+        total: number;
+      }>(
+        `/assistant/history${projectId ? `?project_id=${projectId}` : ""}&limit=${historyLimit}`
+      );
+      const historyMsgs: ChatMsg[] = (data.messages || []).map((m) => ({
+        id: m.id,
+        role: m.role as "user" | "assistant" | "system",
+        content: m.content,
+        timestamp: m.timestamp,
+        metadata: m.metadata,
+      }));
+      setChatHistory(historyMsgs);
+      setHasMoreHistory(data.total > historyLimit);
+      // If local messages empty, populate from history
+      if (messages.length === 0 && historyMsgs.length > 0) {
+        setMessages(historyMsgs);
+      }
+    } catch {
+      // Silently ignore — history is optional
+    }
+  }, [projectId, historyLimit, apiFetch, messages.length]);
+
+  // --- SSE Streaming send ---
+  const handleSendStream = useCallback(async () => {
     const msg = inputValue.trim();
     if (!msg || isSending) return;
 
     setIsSending(true);
+    setIsStreaming(true);
     setInputValue("");
 
     // Add user message
@@ -338,49 +464,182 @@ export default function Block7Page() {
     };
     setMessages((prev) => [...prev, userMsg]);
 
+    // Create streaming assistant message
+    const streamMsgId = (Date.now() + 1).toString();
+    const streamMsg: ChatMsg = {
+      id: streamMsgId,
+      role: "assistant",
+      content: "",
+      timestamp: Date.now(),
+      isStreaming: true,
+    };
+    setMessages((prev) => [...prev, streamMsg]);
+
     try {
-      const data = await apiFetch<{
-        reply: string;
-        model_used: string;
-        provider: string;
-        sources: { title: string; content: string }[];
-        suggestions: string[];
-        latency_ms: number;
-        from_cache: boolean;
-      }>("/assistant/chat", {
+      const baseUrl = getApiBaseUrl();
+      const abortController = new AbortController();
+      abortControllerRef.current = abortController;
+
+      const response = await fetch(`${baseUrl}/assistant/chat/stream`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
         body: JSON.stringify({
           message: msg,
           project_id: projectId || undefined,
-          context: undefined, // Could pass project state here
+          context: undefined,
         }),
+        signal: abortController.signal,
       });
 
-      const assistantMsg: ChatMsg = {
-        id: (Date.now() + 1).toString(),
-        role: "assistant",
-        content: data.reply,
-        timestamp: Date.now(),
-        metadata: {
-          model_used: data.model_used,
-          provider: data.provider,
-          latency_ms: data.latency_ms,
-        },
-      };
-      setMessages((prev) => [...prev, assistantMsg]);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
+
+      const reader = response.body?.getReader();
+      if (!reader) {
+        throw new Error("No response body for streaming");
+      }
+
+      const decoder = new TextDecoder();
+      let accumulatedContent = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value, { stream: true });
+        // Parse SSE events
+        const lines = chunk.split("\n");
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const jsonStr = line.slice(6).trim();
+            if (!jsonStr || jsonStr === "[DONE]") continue;
+
+            try {
+              const event = JSON.parse(jsonStr);
+
+              if (event.type === "message") {
+                accumulatedContent = event.content || accumulatedContent;
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === streamMsgId
+                      ? { ...m, content: accumulatedContent, isStreaming: true }
+                      : m
+                  )
+                );
+              } else if (event.type === "done") {
+                // Finalize the message with metadata
+                setMessages((prev) =>
+                  prev.map((m) =>
+                    m.id === streamMsgId
+                      ? {
+                          ...m,
+                          content: accumulatedContent,
+                          isStreaming: false,
+                          metadata: {
+                            model_used: event.model_used || "",
+                            provider: event.provider || "",
+                            latency_ms: event.latency_ms || 0,
+                          },
+                        }
+                      : m
+                  )
+                );
+              }
+            } catch {
+              // Not JSON, accumulate as raw text
+              accumulatedContent += jsonStr;
+              setMessages((prev) =>
+                prev.map((m) =>
+                  m.id === streamMsgId
+                    ? { ...m, content: accumulatedContent, isStreaming: true }
+                    : m
+                )
+              );
+            }
+          }
+        }
+      }
+
+      // Ensure message is finalized
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === streamMsgId ? { ...m, isStreaming: false } : m
+        )
+      );
     } catch (err) {
-      const errorMsg: ChatMsg = {
-        id: (Date.now() + 1).toString(),
-        role: "system",
-        content: `Ошибка: ${err instanceof Error ? err.message : "Не удалось отправить сообщение"}`,
-        timestamp: Date.now(),
-      };
-      setMessages((prev) => [...prev, errorMsg]);
+      // If abort, just mark as stopped
+      if (err instanceof DOMException && err.name === "AbortError") {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === streamMsgId ? { ...m, isStreaming: false } : m
+          )
+        );
+      } else {
+        // Fallback: try non-streaming endpoint
+        try {
+          const data = await apiFetch<{
+            reply: string;
+            model_used: string;
+            provider: string;
+            latency_ms: number;
+          }>("/assistant/chat", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              message: msg,
+              project_id: projectId || undefined,
+              context: undefined,
+            }),
+          });
+
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === streamMsgId
+                ? {
+                    ...m,
+                    content: data.reply,
+                    isStreaming: false,
+                    metadata: {
+                      model_used: data.model_used,
+                      provider: data.provider,
+                      latency_ms: data.latency_ms,
+                    },
+                  }
+                : m
+            )
+          );
+        } catch (fallbackErr) {
+          setMessages((prev) =>
+            prev.map((m) =>
+              m.id === streamMsgId
+                ? {
+                    ...m,
+                    content: `Ошибка: ${fallbackErr instanceof Error ? fallbackErr.message : "Не удалось отправить сообщение"}`,
+                    isStreaming: false,
+                    role: "system",
+                  }
+                : m
+            )
+          );
+        }
+      }
     } finally {
       setIsSending(false);
+      setIsStreaming(false);
+      abortControllerRef.current = null;
     }
-  }, [inputValue, isSending, projectId, apiFetch]);
+  }, [inputValue, isSending, projectId, apiFetch, token]);
+
+  // --- Stop streaming ---
+  const handleStopStream = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+  }, []);
 
   // --- Load suggestions ---
   const handleLoadSuggestions = useCallback(async () => {
@@ -434,10 +693,12 @@ export default function Block7Page() {
         }),
       });
       setMessages([]);
+      setChatHistory([]);
       toast({ title: "История очищена" });
     } catch {
       // Silently clear local state
       setMessages([]);
+      setChatHistory([]);
     }
   }, [projectId, apiFetch, toast]);
 
@@ -446,11 +707,16 @@ export default function Block7Page() {
     (e: React.KeyboardEvent) => {
       if (e.key === "Enter" && !e.shiftKey) {
         e.preventDefault();
-        handleSend();
+        handleSendStream();
       }
     },
-    [handleSend]
+    [handleSendStream]
   );
+
+  // --- Load more history ---
+  const handleLoadMoreHistory = useCallback(() => {
+    setHistoryLimit((prev) => prev + 50);
+  }, []);
 
   return (
     <div className="p-4 md:p-6 max-w-6xl mx-auto space-y-4">
@@ -460,14 +726,22 @@ export default function Block7Page() {
         <div>
           <h1 className="text-2xl font-bold">AI-ассистент</h1>
           <p className="text-sm text-muted-foreground">
-            Блок 7 • Спецификация 3.9
+            Блок 7 • Спецификация 3.9 • SSE Streaming
           </p>
         </div>
+        {pipeline.pipelineState && (
+          <Badge variant="outline" className="ml-auto text-xs">
+            <Clock className="h-3 w-3 mr-1" />
+            {pipeline.pipelineState.current_block
+              ? `Блок ${pipeline.pipelineState.current_block}`
+              : "Пайплайн готов"}
+          </Badge>
+        )}
       </div>
 
       {/* Main Tabs */}
       <Tabs value={mainTab} onValueChange={setMainTab}>
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="chat" className="flex items-center gap-1.5">
             <MessageSquare className="h-4 w-4" />
             <span className="hidden sm:inline">Чат</span>
@@ -479,6 +753,10 @@ export default function Block7Page() {
           <TabsTrigger value="alerts" className="flex items-center gap-1.5">
             <AlertTriangle className="h-4 w-4" />
             <span className="hidden sm:inline">Уведомления</span>
+          </TabsTrigger>
+          <TabsTrigger value="history" className="flex items-center gap-1.5">
+            <Clock className="h-4 w-4" />
+            <span className="hidden sm:inline">История</span>
           </TabsTrigger>
         </TabsList>
 
@@ -522,7 +800,7 @@ export default function Block7Page() {
                 <ChatMessage key={msg.id} msg={msg} />
               ))}
 
-              {isSending && (
+              {isSending && !isStreaming && (
                 <div className="flex gap-2 items-center text-sm text-muted-foreground">
                   <Bot className="h-5 w-5 text-primary animate-pulse" />
                   <span>AI-ассистент думает...</span>
@@ -542,17 +820,28 @@ export default function Block7Page() {
                 disabled={isSending}
                 className="flex-1"
               />
-              <Button
-                onClick={handleSend}
-                disabled={isSending || !inputValue.trim()}
-                size="icon"
-              >
-                {isSending ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <Send className="h-4 w-4" />
-                )}
-              </Button>
+              {isStreaming ? (
+                <Button
+                  onClick={handleStopStream}
+                  variant="destructive"
+                  size="icon"
+                  title="Остановить генерацию"
+                >
+                  <span className="text-xs font-bold">&#9632;</span>
+                </Button>
+              ) : (
+                <Button
+                  onClick={handleSendStream}
+                  disabled={isSending || !inputValue.trim()}
+                  size="icon"
+                >
+                  {isSending ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"
@@ -630,6 +919,42 @@ export default function Block7Page() {
                 isLoading={isAlertsLoading}
                 onRefresh={handleLoadAlerts}
               />
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* ====================== HISTORY TAB ====================== */}
+        <TabsContent value="history" className="mt-4">
+          <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Clock className="h-5 w-5 text-primary" />
+                  История чата
+                </CardTitle>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={handleClearHistory}
+                  className="h-7 text-xs text-destructive"
+                >
+                  <Trash2 className="h-3 w-3 mr-1" />
+                  Очистить
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {chatHistory.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-8">
+                  Нет сохранённых сообщений
+                </p>
+              ) : (
+                <ChatHistoryList
+                  messages={chatHistory}
+                  onLoadMore={handleLoadMoreHistory}
+                  hasMore={hasMoreHistory}
+                />
+              )}
             </CardContent>
           </Card>
         </TabsContent>

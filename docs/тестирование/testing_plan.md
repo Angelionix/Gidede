@@ -1,8 +1,8 @@
 # Gidede — Документ тестирования
 
-> **Фаза**: 4.D.6-4.D.8 (AI-ассистент — Блок 7)
-> **Дата**: 2026-05-19
-> **Версия**: 0.36.0
+> **Фаза**: 4.D.8 (UI AI-ассистент — Блок 7)
+> **Дата**: 2026-03-05
+> **Версия**: 0.36.1
 > **Статус**: Активный
 > **Подход**: Локальное тестирование + CI/CD (GitHub Actions)
 
@@ -10,7 +10,7 @@
 
 ## 1. Общая стратегия тестирования
 
-Тестирование Gidede проводится локально на ПК разработчика и через CI/CD пайплайн (GitHub Actions: `.github/workflows/ci.yml`). Автоматизированные программные тесты запускаются через скрипты, отчёты предоставляются вручную. Ручное тестирование UI проводится через браузер. Полное покрытие включает все реализованные модули: инфраструктуру (4.A), концепцию (4.B.1–4.B.5), Core Loop Designer (4.B.6–4.B.8), MDA Lab (4.B.9–4.B.11), сквозной пайплайн (4.B.12), баланс и симуляцию (4.C.1–4.C.4), прогрессию (4.C.5), экономику (4.C.6–4.C.7), UI экономики и прогрессии (4.C.8), сквозной пайплайн Блоков 1–5 (4.C.9), интеграционные тесты полного пайплайна (4.C.10), GDD-генерацию (4.D.1–4.D.3), Checklist-валидацию GDD (4.D.4), UI GDD Generator (4.D.5), AI-ассистент (4.D.6–4.D.8).
+Тестирование Gidede проводится локально на ПК разработчика и через CI/CD пайплайн (GitHub Actions: `.github/workflows/ci.yml`). Автоматизированные программные тесты запускаются через скрипты, отчёты предоставляются вручную. Ручное тестирование UI проводится через браузер. Полное покрытие включает все реализованные модули: инфраструктуру (4.A), концепцию (4.B.1–4.B.5), Core Loop Designer (4.B.6–4.B.8), MDA Lab (4.B.9–4.B.11), сквозной пайплайн (4.B.12), баланс и симуляцию (4.C.1–4.C.4), прогрессию (4.C.5), экономику (4.C.6–4.C.7), UI экономики и прогрессии (4.C.8), сквозной пайплайн Блоков 1–5 (4.C.9), интеграционные тесты полного пайплайна (4.C.10), GDD-генерацию (4.D.1–4.D.3), Checklist-валидацию GDD (4.D.4), UI GDD Generator (4.D.5), AI-ассистент backend (4.D.6–4.D.7), UI AI-ассистент (4.D.8), интеграцию GBCombine — Блок 8.
 
 ### 1.1 Уровни тестирования
 
@@ -60,7 +60,7 @@ npx eslint src/            # TypeScript
 
 ## 2. Реальные автоматизированные тесты (текущее состояние)
 
-### 2.1 Backend — pytest (630+ тестов в 18 файлах)
+### 2.1 Backend — pytest (650+ тестов в 18 файлах)
 
 ```
 mini-services/api-service/tests/
@@ -82,25 +82,25 @@ mini-services/api-service/tests/
 │                                   #   Pipeline=27, Edge Cases included)
 ├── test_gdd_stages_6_8.py         # GDD Service — Этапы 6-8 алгоритма 3.7
 │                                   #   (32 теста: Stage 6=14, Stage 7=7,
-│                                   #   Stage 8=7, Pipeline 1-8=4) *(NEW in 4.D.3)*
+│                                   #   Stage 8=7, Pipeline 1-8=4)
 ├── test_pipeline_service.py       # Pipeline Service — сквозной пайплайн 1→5,
 │                                   #   зависимости блоков, stale-каскад (29 тестов)
 ├── test_checklist_service.py      # Checklist Service (4.D.4) — define_scope,
 │                                   #   MDA/balance/narrative/economy/lens checks,
 │                                   #   aggregation, full pipeline, edge cases
-│                                   #   (95 тестов) *(NEW in 4.D.4)*
+│                                   #   (95 тестов)
 ├── test_ai_assistant_service.py   # AI Assistant Service (4.D.7) —
 │                                   #   context building (8), session management (6),
 │                                   #   message history (6), RAG search (6),
 │                                   #   proactive alerts (12), suggestions (8),
 │                                   #   chat pipeline (8), SSE streaming (6)
-│                                   #   (60 тестов) *(NEW in 4.D.7)*
+│                                   #   (60 тестов)
 ├── test_ai_assistant_api.py       # AI Assistant API (4.D.7) —
 │                                   #   POST /chat (3), POST /chat/stream (3),
 │                                   #   GET /suggestions (3), GET /alerts (2),
 │                                   #   GET /history (3), POST /history/clear (2),
 │                                   #   GET /status (2), POST /test (2)
-│                                   #   (20 тестов) *(NEW in 4.D.7)*
+│                                   #   (20 тестов)
 └── integration/
     └── test_full_pipeline.py      # 4.C.10: Интеграционные тесты полного
                                      #   пайплайна Блоки 1–5 (22 теста)
@@ -188,7 +188,108 @@ mini-services/api-service/tests/
 | ECO-14 | `test_identify_resources_max_resources` | Ограничение количества ресурсов |
 | ECO-15 | `test_identify_resources_initial_values` | Начальные значения по классу |
 
-**Stage 2–7 и Full Pipeline — 68 тестов** (ECO-16 — ECO-83, см. предыдущую версию)
+**Stage 2: Классификация ресурсов (3.6.4) — 10 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| ECO-16 | `test_classify_resources_by_type` | Классификация ресурсов по типу (tangible/abstract) |
+| ECO-17 | `test_classify_resources_by_economy_role` | Роль в экономике (primary/secondary/tertiary) |
+| ECO-18 | `test_classify_resources_by_scarcity` | Уровень дефицитности (abundant/limited/rare) |
+| ECO-19 | `test_classify_rpg_economy_type` | RPG → командная экономика |
+| ECO-20 | `test_classify_strategy_economy_type` | Strategy → рыночная экономика |
+| ECO-21 | `test_classify_survival_economy_type` | Survival → смешанная экономика |
+| ECO-22 | `test_sub_type_by_genre` | Sub-type определяется по жанру |
+| ECO-23 | `test_openness_by_monetization` | openness_level зависит от модели монетизации |
+| ECO-24 | `test_risk_level_computation` | risk_level вычисляется на основе volatility |
+| ECO-25 | `test_classify_empty_resources` | Пустой список ресурсов → graceful degradation |
+
+**Stage 3: Проектирование ресурсных потоков (3.6.5) — 10 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| ECO-26 | `test_design_resource_flows` | Создание faucet→pool→drain потоков |
+| ECO-27 | `test_flow_directions` | Направления: positive (faucet), negative (drain), bidirectional |
+| ECO-28 | `test_feedback_loops` | Обнаружение положительных и отрицательных feedback loops |
+| ECO-29 | `test_exchange_rates` | Курс обмена между ресурсами |
+| ECO-30 | `test_flow_balancing` | Балансировка faucet/drain по жанру |
+| ECO-31 | `test_circular_dependencies` | Обнаружение циклических зависимостей |
+| ECO-32 | `test_resource_converters` | Конвертеры ресурсов (рецепты, крафт) |
+| ECO-33 | `test_flow_from_core_loop` | Потоки извлекаются из шагов CoreLoop |
+| ECO-34 | `test_dynamic_flows` | Условные потоки (ситуационные) |
+| ECO-35 | `test_empty_flows_fallback` | Нет данных → минимальные дефолтные потоки |
+
+**Stage 4: Machinations-моделирование (3.6.6) — 12 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| ECO-36 | `test_machinations_node_types` | 8 типов узлов Machinations |
+| ECO-37 | `test_pool_node` | Pool-узел: накопление ресурса |
+| ECO-38 | `test_source_node` | Source-узел: генерация ресурса |
+| ECO-39 | `test_drain_node` | Drain-узел: расход ресурса |
+| ECO-40 | `test_converter_node` | Converter-узел: трансформация ресурса |
+| ECO-41 | `test_trader_node` | Trader-узел: обмен ресурсами |
+| ECO-42 | `test_gate_node` | Gate-узел: условный проход |
+| ECO-43 | `test_delay_node` | Delay-узел: задержка ресурса |
+| ECO-44 | `test_resource_connections` | Связи между узлами с весами |
+| ECO-45 | `test_adams_dormans_patterns` | Паттерны Adams/Dormans (4 паттерна) |
+| ECO-46 | `test_machinations_graph` | Полный граф Machinations |
+| ECO-47 | `test_machinations_simulation` | Симуляция 10 тиков графа Machinations |
+
+**Stage 5: Диагностика патологий (3.6.7) — 12 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| ECO-48 | `test_detect_runaway` | Обнаружение runaway-инфляции |
+| ECO-49 | `test_detect_deadlock` | Обнаружение ресурсного deadlock |
+| ECO-50 | `test_detect_starvation` | Обнаружение starvation-дефицита |
+| ECO-51 | `test_detect_trivial_decisions` | Обнаружение тривиальных решений |
+| ECO-52 | `test_detect_grind` | Обнаружение grind-паттерна |
+| ECO-53 | `test_detect_snowball` | Обнаружение snowball-эффекта |
+| ECO-54 | `test_severity_levels` | Уровни severity: low/medium/high/critical |
+| ECO-55 | `test_pathology_remediation` | Рекомендации по исправлению для каждой патологии |
+| ECO-56 | `test_faucet_drain_ratio` | Вычисление faucet/drain ratio |
+| ECO-57 | `test_combined_pathologies` | Несколько патологий одновременно |
+| ECO-58 | `test_no_pathologies` | Здоровая экономика → пустой список |
+| ECO-59 | `test_pathology_edge_cases` | Граничные случаи (0 ресурсов, 1 ресурс) |
+
+**Stage 6: Балансировка экономики (3.6.8) — 12 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| ECO-60 | `test_balance_resources_by_genre` | Балансировка ресурсов с учётом жанра |
+| ECO-61 | `test_adjust_exchange_rates` | Корректировка курсов обмена |
+| ECO-62 | `test_balance_faucet_drain` | Балансировка faucet/drain |
+| ECO-63 | `test_elimininate_deadlock` | Устранение deadlock через корректировки |
+| ECO-64 | `test_eliminate_runaway` | Устранение runaway через ограничения |
+| ECO-65 | `test_balance_feedback_loops` | Балансировка feedback loops |
+| ECO-66 | `test_q_factor_computation` | Вычисление Q-фактора для экономики |
+| ECO-67 | `test_balance_iterations` | Итеративная балансировка (до 5 итераций) |
+| ECO-68 | `test_balance_convergence` | Сходимость балансировки |
+| ECO-69 | `test_balance_with_ai_suggestions` | AI-рекомендации по балансировке |
+| ECO-70 | `test_balance_no_issues` | Нет проблем → экономика без изменений |
+| ECO-71 | `test_balance_preserves_core_mechanics` | Балансировка не ломает core-механики |
+
+**Stage 7: Симуляция экономики (3.6.9) — 8 тестов**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| ECO-72 | `test_simulate_economy_n_ticks` | Симуляция N тиков экономики |
+| ECO-73 | `test_resource_curves` | Кривые ресурсов во времени |
+| ECO-74 | `test_quality_assessment` | Оценка качества экономики (score 0-100) |
+| ECO-75 | `test_simulate_with_random_events` | Симуляция со случайными событиями |
+| ECO-76 | `test_discrepancy_computation` | Вычисление расхождения между ожиданием и результатом |
+| ECO-77 | `test_simulate_empty_economy` | Пустая экономика → graceful degradation |
+| ECO-78 | `test_simulation_latency` | Latency < 3000ms для mock AI |
+| ECO-79 | `test_simulation_deterministic` | Одинаковые входные данные → одинаковый результат |
+
+**Full Economy Pipeline — 4 теста**
+
+| ID | Тест | Что проверяет |
+|----|------|---------------|
+| ECO-80 | `test_full_economy_pipeline` | Все 7 этапов последовательно, EconomyProfile заполнен |
+| ECO-81 | `test_economy_pipeline_with_balance_issues` | Pipeline с обнаружением и исправлением патологий |
+| ECO-82 | `test_economy_pipeline_partial_data` | Pipeline с частичными данными, warnings |
+| ECO-83 | `test_economy_pipeline_latency` | Полный pipeline < 10000ms для mock AI |
 
 #### 2.1.9 GDD Service (4.D.1–4.D.3) — 139 тестов
 
@@ -220,7 +321,7 @@ mini-services/api-service/tests/
 | Флаги и доп. данные | 4 | requires_review, diagram, tables, formulas |
 | Modular-секции | 3 | concept_overview, mda_analysis, balance_tables |
 
-**Stage 4: AI-генерация и обогащение (3.7.6) — 18 тестов** *(NEW in 4.D.2)*
+**Stage 4: AI-генерация и обогащение (3.7.6) — 18 тестов**
 
 | Категория | Количество | Описание |
 |-----------|------------|----------|
@@ -229,7 +330,7 @@ mini-services/api-service/tests/
 | Обработка ошибок | 4 | Частичные и полные ошибки AI, failed_sections, graceful degradation |
 | Edge cases | 2 | Нет автозаполненных секций, комбинированный enrich+generate |
 
-**Stage 5: Ручные секции с подсказками (3.7.7) — 12 тестов** *(NEW in 4.D.2)*
+**Stage 5: Ручные секции с подсказками (3.7.7) — 12 тестов**
 
 | Категория | Количество | Описание |
 |-----------|------------|----------|
@@ -239,7 +340,15 @@ mini-services/api-service/tests/
 
 **Полный пайплайн 1-5 + Edge Cases — 27 тестов**
 
-#### 2.1.10 GDD Service Stages 6-8 (4.D.3) — 32 теста *(NEW in 4.D.3)*
+| Категория | Количество | Описание |
+|-----------|------------|----------|
+| Pipeline 1-3 | 4 | stages_completed, coverage, one_sheet pipeline, no-data pipeline |
+| Pipeline 1-5 | 6 | Все 5 этапов, GDDProfile, full data, coverage increase, latency, graceful no-data |
+| Метрики | 2 | latency_ms, coverage_score |
+| Оценка страниц | 2 | full_gdd+detailed=75, mmorpg+exhaustive=125 |
+| Edge Cases | 13 | Composite sources, missing subpath, custom sections, export_formats, detail override, unknown genre fallback |
+
+#### 2.1.10 GDD Service Stages 6-8 (4.D.3) — 32 теста
 
 **Stage 6: Сшивка и валидация (3.7.8) — 14 тестов**
 
@@ -282,15 +391,7 @@ mini-services/api-service/tests/
 | assembled_document | 1 | Популирован с ConsistencyReport |
 | formatted_document | 1 | Markdown + word_count заполнены |
 
-| Категория | Количество | Описание |
-|-----------|------------|----------|
-| Pipeline 1-3 | 4 | stages_completed, coverage, one_sheet pipeline, no-data pipeline |
-| Pipeline 1-5 | 6 | Все 5 этапов, GDDProfile, full data, coverage increase, latency, graceful no-data |
-| Метрики | 2 | latency_ms, coverage_score |
-| Оценка страниц | 2 | full_gdd+detailed=75, mmorpg+exhaustive=125 |
-| Edge Cases | 13 | Composite sources, missing subpath, custom sections, export_formats, detail override, unknown genre fallback |
-
-#### 2.1.10 Pipeline Service (4.C.9) — 29 тестов
+#### 2.1.11 Pipeline Service (4.C.9) — 29 тестов
 
 **Подготовка входных данных для Блока 4 (_prepare_balance_input) — 4 теста**
 
@@ -361,7 +462,7 @@ mini-services/api-service/tests/
 |----|------|---------------|
 | PIPE-29 | `test_run_full_pipeline_endpoint_exists` | POST /run-full-pipeline/{project_id} доступен |
 
-#### 2.1.11 Integration Tests (4.C.10) — 22 теста
+#### 2.1.12 Integration Tests (4.C.10) — 22 теста
 
 **INT-01: Полный пайплайн «идея → экономика» с mock AI — 2 теста**
 
@@ -420,7 +521,7 @@ mini-services/api-service/tests/
 | INT-26 | `test_economy_output_has_required_fields` | EconomyProfile: system_type, resource_model (core + subsidiary) |
 | INT-27 | `test_balance_elements_status_values` | Статусы элементов в допустимом наборе: balanced/overpowered/underpowered/ideal_imbalance |
 
-#### 2.1.12 Checklist Service (4.D.4) — 95 тестов *(NEW in 4.D.4)*
+#### 2.1.13 Checklist Service (4.D.4) — 95 тестов
 
 **TestDefineScope — 11 тестов**
 
@@ -521,7 +622,7 @@ mini-services/api-service/tests/
 | Q-factor edge cases | 4 | Q=0.0, Q=1.0, Q<0, Q>1 → корректная обработка |
 | Remediation plan | 4 | critical issue → remediation suggestion, warning → suggestion, info → no remediation, empty issues → empty plan |
 
-#### 2.1.13 AI Assistant Service (4.D.6-4.D.7) — ~60 тестов *(NEW in 4.D.6-4.D.7)*
+#### 2.1.14 AI Assistant Service (4.D.6-4.D.7) — 60 тестов
 
 **build_assistant_context() — 8 тестов**
 
@@ -598,13 +699,13 @@ mini-services/api-service/tests/
 
 | Категория | Количество | Описание |
 |-----------|------------|----------|
-| SSE streaming | 2 | Генератор возвращает chunk-и, корректный SSE-формат (data: ...\\n\\n) |
+| SSE streaming | 2 | Генератор возвращает chunk-и, корректный SSE-формат (data: ...\n\n) |
 | Завершение стрима | 1 | Последний chunk содержит [DONE] маркер |
 | Ошибка при стриминге | 1 | AI-ошибка → error event в стриме |
 | Отмена стрима | 1 | Client disconnect → корректная остановка генерации |
 | Контекст в стриме | 1 | Контекст проекта обогащает стрим |
 
-#### 2.1.14 AI Assistant API (4.D.7) — ~20 тестов *(NEW in 4.D.7)*
+#### 2.1.15 AI Assistant API (4.D.7) — 20 тестов
 
 **POST /chat — 3 теста**
 
@@ -671,22 +772,38 @@ mini-services/api-service/tests/
 ```
 src/__tests__/
 ├── setup.ts                    # Глобальные моки
-├── components.test.tsx         # Базовый рендеринг UI-компонентов (3 теста)
+├── components.test.tsx         # Shared-компоненты + базовый рендеринг (7 тестов)
 ├── auth.test.tsx               # Формы логина/регистрации (2 теста)
 └── api-client.test.ts          # HTTP-запросы, обработка ошибок (4 теста)
 ```
 
+**components.test.tsx — 7 тестов**
+
 | ID | Тест | Что проверяет | Файл |
 |----|------|---------------|------|
-| F-01 | Рендеринг Sidebar | Sidebar отображает навигацию | components.test.tsx |
-| F-02 | Рендеринг страницы логина | Форма логина рендерится | components.test.tsx |
-| F-03 | Рендеринг ConceptForm | Форма ввода Блока 1 | components.test.tsx |
-| F-04 | Успешный логин | Отправка формы логина | auth.test.tsx |
-| F-05 | Успешная регистрация | Отправка формы регистрации | auth.test.tsx |
-| F-06 | GET-запрос | Корректный GET через api-client | api-client.test.ts |
-| F-07 | POST-запрос | Корректный POST через api-client | api-client.test.ts |
-| F-08 | Обработка 401 | Редирект на логин при 401 | api-client.test.ts |
-| F-09 | Обработка network error | Обработка сетевых ошибок | api-client.test.ts |
+| F-01 | Рендеринг базовых элементов | div, button, input рендерятся корректно | components.test.tsx |
+| F-02 | WarningsList — пустой | Пустой warnings → пустой вывод | components.test.tsx |
+| F-03 | WarningsList — с данными | warnings=["Test warning"] → отображается | components.test.tsx |
+| F-04 | SuggestionsList — пустой | Пустой suggestions → пустой вывод | components.test.tsx |
+| F-05 | SuggestionsList — с данными | suggestions=["Test suggestion"] → отображается | components.test.tsx |
+| F-06 | EmptyStateCard | Иконка, заголовок, описание рендерятся | components.test.tsx |
+| F-07 | NodeTypeIcon | Pool и unknown типы рендерят SVG | components.test.tsx |
+
+**auth.test.tsx — 2 теста**
+
+| ID | Тест | Что проверяет | Файл |
+|----|------|---------------|------|
+| F-08 | Форма логина | Email, Password, кнопка «Войти» рендерятся | auth.test.tsx |
+| F-09 | Форма регистрации | Имя, Email, Password, кнопка «Зарегистрироваться» рендерятся | auth.test.tsx |
+
+**api-client.test.ts — 4 теста**
+
+| ID | Тест | Что проверяет | Файл |
+|----|------|---------------|------|
+| F-10 | Базовый URL API | NEXT_PUBLIC_API_URL содержит /api/v1 | api-client.test.ts |
+| F-11 | Заголовки авторизации | Authorization: Bearer token формируется корректно | api-client.test.ts |
+| F-12 | Обработка 401 ошибки | 401 ответ → response.status === 401 | api-client.test.ts |
+| F-13 | Обработка 500 ошибки | 500 ответ → response.status === 500 | api-client.test.ts |
 
 ---
 
@@ -696,36 +813,57 @@ src/__tests__/
 
 | Модуль | Файл | Этап | Ожидаемое кол-во тестов |
 |--------|------|------|------------------------|
-| Concept Service (1–7) | test_concept_service.py | 4.B.2–4.B.4 | ~60 |
-| Core Loop Service (1–5) | test_coreloop_service.py | 4.B.6–4.B.7 | ~70 |
-| MDA Service (1–6) | test_mda_service.py | 4.B.9–4.B.11 | ~90 |
-| AI Assistant Service | test_ai_assistant_service.py | 4.D.6–4.D.7 | ~60 |
-| AI Assistant API | test_ai_assistant_api.py | 4.D.7 | ~20 |
-| Итого | | | ~300 |
+| Concept Service | test_concept_service.py | 4.B.2–4.B.4 | ~60 |
+| Core Loop Service | test_coreloop_service.py | 4.B.6–4.B.7 | ~70 |
+| MDA Service | test_mda_service.py | 4.B.9–4.B.11 | ~90 |
+| Progression Service | test_progression_service.py | 4.C.5 | ~50 |
+| GBE Bridge Service (mock) | test_gbe_bridge_service.py | 4.D.3 / Блок 8 | ~25 |
+| Concept API endpoints | test_concept_api.py | 4.B | ~10 |
+| Core Loop API endpoints | test_coreloop_api.py | 4.B | ~10 |
+| MDA API endpoints | test_mda_api.py | 4.B | ~10 |
+| Balance API endpoints | test_balance_api.py | 4.C | ~12 |
+| Progression API endpoints | test_progression_api.py | 4.C | ~10 |
+| Economy API endpoints | test_economy_api.py | 4.C | ~10 |
+| GDD API endpoints | test_gdd_api.py | 4.D | ~15 |
+| Checklist API endpoints | test_checklist_api.py | 4.D | ~10 |
+| Pipeline API endpoints | test_pipeline_api.py | 4.C | ~8 |
+| **Итого** | | | **~390** |
 
 ### 3.2 Frontend — запланированные тесты
 
 | Модуль | Файл | Этап | Ожидаемое кол-во тестов |
 |--------|------|------|------------------------|
-| Concept Form/Result | concept-form.test.tsx | 4.B.1 | ~8 |
+| Concept Form | concept-form.test.tsx | 4.B.1 | ~8 |
+| Concept OnePager / AestheticProfile | concept-result.test.tsx | 4.B.3 | ~10 |
+| Concept ValidationReport | concept-validation.test.tsx | 4.B.4 | ~6 |
 | Core Loop Designer | coreloop-designer.test.tsx | 4.B.8 | ~15 |
+| Core Loop Diagram | coreloop-diagram.test.tsx | 4.B.8 | ~8 |
 | MDA Lab UI | mda-lab.test.tsx | 4.B.11 | ~20 |
+| MDA Input Form | mda-input-form.test.tsx | 4.B.9 | ~8 |
 | Pipeline Components | pipeline.test.tsx | 4.B.12 | ~10 |
-| Balance Page | balance-page.test.tsx | 4.C.4 | ~24 |
-| Progression Page | progression-page.test.tsx | 4.C.5 | ~15 |
-| Economy Page | economy-page.test.tsx | 4.C.6 | ~15 |
+| Balance Page (5 вкладок) | balance-page.test.tsx | 4.C.4 | ~24 |
+| Progression Page (5 вкладок) | progression-page.test.tsx | 4.C.5 | ~20 |
+| Economy Page (5 вкладок) | economy-page.test.tsx | 4.C.6 | ~20 |
 | Settings Page | settings.test.tsx | 4.A.5 | ~5 |
 | GDD Format Selector | gdd-format-selector.test.tsx | 4.D.5 | ~6 |
 | GDD Preview | gdd-preview.test.tsx | 4.D.5 | ~8 |
 | GDD Section Editor | gdd-section-editor.test.tsx | 4.D.5 | ~6 |
 | Consistency Panel | consistency-panel.test.tsx | 4.D.5 | ~5 |
 | Export Panel | export-panel.test.tsx | 4.D.5 | ~6 |
-| Checklist Panel | checklist-panel.test.tsx | 4.D.5 | ~6 |
+| Checklist Panel | checklist-panel.test.tsx | 4.D.4 | ~6 |
 | GDD Generator Page | gdd-generator-page.test.tsx | 4.D.5 | ~10 |
-| AI Assistant Chat Panel | ai-chat-panel.test.tsx | 4.D.8 | ~12 |
-| AI Suggestions Panel | ai-suggestions-panel.test.tsx | 4.D.8 | ~8 |
-| AI Alerts Panel | ai-alerts-panel.test.tsx | 4.D.8 | ~6 |
-| Итого | | | ~190 |
+| AI Assistant Chat (Block 7 Page) | ai-chat-page.test.tsx | 4.D.8 | ~15 |
+| AI ChatMessage Component | ai-chat-message.test.tsx | 4.D.8 | ~6 |
+| AI SuggestionsPanel | ai-suggestions-panel.test.tsx | 4.D.8 | ~8 |
+| AI AlertsPanel | ai-alerts-panel.test.tsx | 4.D.8 | ~6 |
+| AI ChatHistoryList | ai-chat-history.test.tsx | 4.D.8 | ~6 |
+| AIHintButton | ai-hint-button.test.tsx | 4.D.8 | ~8 |
+| ContextualSuggestionCard | contextual-suggestion-card.test.tsx | 4.D.8 | ~6 |
+| Progress Sidebar | progress-sidebar.test.tsx | 4.C.8 | ~6 |
+| Pipeline Notifications | pipeline-notifications.test.tsx | 4.C.9 | ~5 |
+| Layout Shell | layout-shell.test.tsx | 4.A | ~4 |
+| Sidebar Navigation | sidebar.test.tsx | 4.A | ~6 |
+| **Итого** | | | **~261** |
 
 ---
 
@@ -738,194 +876,300 @@ src/__tests__/
 | UI-01 | Логин | 1. Открыть /login 2. Ввести email/password 3. Нажать Login | Редирект на главную страницу |
 | UI-02 | Регистрация | 1. Открыть /register 2. Заполнить форму 3. Нажать Register | Успешная регистрация, редирект на логин |
 | UI-03 | Навигация по блокам | 1. Кликнуть на каждый блок 1–8 в sidebar | Открывается соответствующая страница |
-| UI-04 | Отображение версии | 1. Проверить sidebar | Отображается текущая версия (0.35.0) |
+| UI-04 | Отображение версии | 1. Проверить sidebar | Отображается текущая версия (0.36.1) |
+| UI-05 | Защищённые маршруты | 1. Открыть /blocks/1 без авторизации | Редирект на /login |
+| UI-06 | Logout | 1. Нажать Logout в sidebar | Редирект на /login, токен удалён |
+| UI-07 | Страница проектов | 1. Открыть /projects | Список проектов пользователя |
+| UI-08 | Создание проекта | 1. Нажать «Новый проект» | Модальное окно, проект создаётся |
+| UI-09 | Переключение проекта | 1. Выбрать другой проект из списка | Данные обновляются, блоки перезагружаются |
+| UI-10 | Страница настроек | 1. Открыть /settings | Страница настроек профиля |
 
-### 4.2 Блок 1: Генератор концепции
-
-| ID | Сценарий | Шаги | Ожидаемый результат |
-|----|----------|------|---------------------|
-| UI-05 | Ввод идеи | 1. Ввести текст идеи 2. Выбрать жанр | Форма валидна |
-| UI-06 | Автоопределение жанра | 1. Выбрать «Определить автоматически» | Жанр определяется AI |
-| UI-07 | Выбор целевой аудитории | 1. Выбрать до 3 мотиваций | Чекбоксы работают |
-| UI-08 | Генерация концепции | 1. Нажать «Сгенерировать» | Отображается One-Pager |
-| UI-09 | Просмотр эстетик | 1. Проверить AestheticProfileView | 3 эстетики с иконками |
-| UI-10 | Выбор Core Loop | 1. Выбрать один из 3 вариантов | Выбор сохраняется |
-| UI-11 | Валидация | 1. Нажать «Сгенерировать» без заполнения | Ошибка валидации |
-| UI-12 | Отчёт валидации | 1. Проверить ValidationReport | Цветовая индикация |
-
-### 4.3 Блок 2: Core Loop Designer
+### 4.2 Блок 1: Генератор концепции (ConceptGeneratorPage + 9 subcomponents)
 
 | ID | Сценарий | Шаги | Ожидаемый результат |
 |----|----------|------|---------------------|
-| UI-13 | Проектирование | 1. Нажать «Проектировать Core Loop» | Отображается CoreLoopProfile |
-| UI-14 | Визуализация петли | 1. Проверить CoreLoopDiagram | Круговая диаграмма с шагами |
-| UI-15 | Выбор типа | 1. Выбрать Engine/Economy/Ecology | Тип обновляется |
-| UI-16 | Иерархия петель | 1. Проверить LoopHierarchy | Сворачиваемое дерево |
-| UI-17 | Панель диагностики | 1. Проверить PathologyPanel | Список патологий |
-| UI-18 | Рекомендации | 1. Проверить рекомендации | AI-рекомендации с приоритетами |
-| UI-19 | Drag-and-drop | 1. Перетащить шаг в петле | Порядок шагов меняется |
-| UI-20 | Автозаполнение из Блока 1 | 1. Перейти из Блока 1 | Данные предзаполнены |
+| UI-11 | Ввод идеи | 1. Ввести текст идеи 2. Выбрать жанр | Форма валидна |
+| UI-12 | Автоопределение жанра | 1. Выбрать «Определить автоматически» | Жанр определяется AI |
+| UI-13 | Выбор целевой аудитории | 1. Выбрать до 3 мотиваций | Чекбоксы работают |
+| UI-14 | Генерация концепции | 1. Нажать «Сгенерировать» | Отображается OnePagerCard |
+| UI-15 | Просмотр OnePagerCard | 1. Проверить OnePager | Жанр, эстетики, механики, USP |
+| UI-16 | Просмотр AestheticProfileView | 1. Проверить эстетики | 3 эстетики с AestheticBadge и иконками |
+| UI-17 | Выбор Core Loop | 1. Проверить CoreLoopCandidates | 3 варианта, выбор сохраняется |
+| UI-18 | MechanicSetView | 1. Проверить набор механик | Таблица механик с ролями |
+| UI-19 | USPCandidates | 1. Проверить USP | Уникальные торговые предложения |
+| UI-20 | DynamicsProfileCard | 1. Проверить динамику | Список динамики с типами |
+| UI-21 | SelectionSummary | 1. Проверить итоговый выбор | Сводка выбранных элементов |
+| UI-22 | Валидация пустого ввода | 1. Нажать «Сгенерировать» без заполнения | Ошибка валидации |
+| UI-23 | ValidationReportView | 1. Проверить отчёт валидации | Цветовая индикация pass/fail/warning |
 
-### 4.4 Блок 3: MDA Lab
-
-| ID | Сценарий | Шаги | Ожидаемый результат |
-|----|----------|------|---------------------|
-| UI-21 | Reverse MDA | 1. Выбрать эстетику 2. Запустить | Рекомендованные механики |
-| UI-22 | Classic MDA | 1. Ввести механики 2. Запустить | Карта эстетических ценностей |
-| UI-23 | Линзы Шелла | 1. Переключиться на вкладку линз | 9 линз с вопросами |
-| UI-24 | Матрица Бонда | 1. Переключиться на вкладку матрицы | Таблица 4x3 |
-| UI-25 | Переключение режимов | 1. Переключаться между Tabs | Корректное отображение |
-| UI-26 | Обнаружение диссонанса | 1. Запустить анализ с конфликтами | Предупреждение о диссонансе |
-| UI-27 | Лудонарративный анализ | 1. Проверить результат анализа | Гармония/Ирония/Диссонанс |
-
-### 4.5 Блок 4: Баланс и симуляция
+### 4.3 Блок 2: Core Loop Designer (6 subcomponents)
 
 | ID | Сценарий | Шаги | Ожидаемый результат |
 |----|----------|------|---------------------|
-| UI-28 | Transitive-таблица | 1. Открыть /blocks/4 | Таблица с цветовой индикацией |
-| UI-29 | Payoff-матрица | 1. Переключиться на вкладку | Тепловая карта NxN |
-| UI-30 | Графики Monte Carlo | 1. Запустить симуляцию | Графики win rate |
-| UI-31 | Machinations-визуализация | 1. Переключиться на вкладку | Граф ресурсов |
-| UI-32 | AI-коррекции | 1. Проверить панель коррекций | Рекомендации с кнопками |
-| UI-33 | Запуск симуляции | 1. Нажать «Запустить симуляцию» | Прогресс-бар, затем результаты |
+| UI-24 | Проектирование | 1. Нажать «Проектировать Core Loop» | Отображается CoreLoopProfile |
+| UI-25 | Визуализация петли | 1. Проверить CoreLoopDiagram | Круговая диаграмма с шагами |
+| UI-26 | Выбор типа | 1. Выбрать Engine/Economy/Ecology в StructuralTypeCard | Тип обновляется |
+| UI-27 | Иерархия петель | 1. Проверить LoopHierarchyTree | Сворачиваемое дерево петель |
+| UI-28 | Панель диагностики | 1. Проверить PathologyPanel | Список патологий с severity |
+| UI-29 | Рекомендации | 1. Проверить RecommendationsPanel | AI-рекомендации с приоритетами |
+| UI-30 | Валидация Core Loop | 1. Проверить ValidationPanel | Pass/fail проверки |
+| UI-31 | Автозаполнение из Блока 1 | 1. Перейти из Блока 1 | Данные предзаполнены |
 
-### 4.6 Блок 5: Прогрессия и экономика
-
-| ID | Сценарий | Шаги | Ожидаемый результат |
-|----|----------|------|---------------------|
-| UI-34 | Открытие страницы | 1. Открыть /blocks/5 | Страница с двумя вкладками «Прогрессия» и «Экономика» |
-| UI-35 | Форма прогрессии | 1. Выбрать жанр 2. Ввести длительность 3. Выбрать тип | Форма валидна |
-| UI-36 | Запуск проектирования | 1. Нажать «Спроектировать прогрессию» | Загрузка, затем результаты |
-| UI-37 | Макро-параметры | 1. Переключиться на вкладку | totalLevels, progressionType, emergenceRatio |
-| UI-38 | Таблица tiers | 1. Переключиться на вкладку «Этапы» | Таблица с 8 колонками |
-| UI-39 | Кривые прогрессии | 1. Переключиться на вкладку «Кривые» | 4 графика Recharts |
-| UI-40 | Контент-план | 1. Переключиться на вкладку | Таблица unlock_tree + график сложности |
-| UI-41 | Валидация прогрессии | 1. Переключиться на вкладку «Валидация» | Pass/fail проверки + overall score |
-| UI-42 | Форма экономики | 1. Переключиться на вкладку «Экономика» | Форма с жанром, монетизацией, openness |
-| UI-43 | Запуск экономики | 1. Нажать «Спроектировать экономику» | Загрузка, затем результаты |
-| UI-44 | Таблица ресурсов | 1. Переключиться на вкладку «Ресурсы» | Таблицы core/subsidiary ресурсов |
-| UI-45 | Классификация | 1. Переключиться на вкладку | Economic type, sub_type, risk_level badges |
-| UI-46 | Machinations | 1. Переключиться на вкладку | Узлы, flows, feedback loops, patterns |
-| UI-47 | Диагностика патологий | 1. Переключиться на вкладку «Диагностика» | Pathologies с severity + faucet/drain ratios |
-| UI-48 | Симуляция экономики | 1. Переключиться на вкладку «Симуляция» | Resource curves chart + quality assessment |
-| UI-49 | Переключение прогрессия/экономика | 1. Переключаться между вкладками | Корректное отображение |
-| UI-50 | Пустое состояние | 1. Открыть /blocks/5 без запуска | Placeholder с иконками |
-
-### 4.7 Блок 6: GDD Generator
+### 4.4 Блок 3: MDA Lab (5 subcomponents + MDAInputForm)
 
 | ID | Сценарий | Шаги | Ожидаемый результат |
 |----|----------|------|---------------------|
-| UI-66 | Открытие страницы GDD | 1. Открыть /blocks/6 | Страница GDD Generator |
-| UI-67 | Выбор формата | 1. Выбрать формат из 8 карточек | Формат подсвечен, показаны секции |
-| UI-68 | One-Sheet формат | 1. Выбрать one_sheet | 6 секций, 1 страница |
-| UI-69 | Full GDD формат | 1. Выбрать full_gdd | 38 секций, оценка 50+ страниц |
-| UI-70 | Предпросмотр GDD | 1. Нажать «Сгенерировать GDD» | Markdown-renderer с оглавлением |
-| UI-71 | Индикаторы источников | 1. Проверить значки секций | auto/ai/manual значки |
-| UI-72 | Coverage score | 1. Проверить панель покрытия | Процент автозаполнения |
-| UI-73 | Секция Core Loop | 1. Проверить Core Loop в GDD | Диаграмма + таблица шагов |
-| UI-74 | Секция Баланс | 1. Проверить Баланс в GDD | Таблица + формулы |
-| UI-75 | Секция Прогрессия | 1. Проверить Прогрессию в GDD | Кривые + tiers |
-| UI-76 | Секция Экономика | 1. Проверить Экономику в GDD | Machinations-диаграмма + ресурсы |
-| UI-77 | Ручные секции | 1. Проверить секцию Лицензия | Скелет с подсказками |
-| UI-78 | Экспорт PDF | 1. Нажать «Экспорт PDF» | Загрузка PDF-файла (WeasyPrint) |
-| UI-79 | Экспорт DOCX | 1. Нажать «Экспорт DOCX» | Загрузка DOCX-файла (python-docx) |
-| UI-78a | Экспорт MD | 1. Нажать «Экспорт MD» | Markdown-файл скачивается |
-| UI-78b | Экспорт HTML | 1. Нажать «Экспорт HTML» | HTML-файл с CSS скачивается |
-| UI-80 | Пустое состояние | 1. Открыть GDD без данных проекта | Placeholder с подсказками |
-| UI-81 | Согласованность GDD | 1. Нажать «Проверить согласованность» | ConsistencyPanel с error/warning/info |
-| UI-82 | Панель несоответствий | 1. Проверить ConsistencyPanel | Список проблем с кнопками «Исправить» |
-| UI-83 | Полный пайплайн 1→7 | 1. Нажать «Запустить полный пайплайн» | GDD с assembled + formatted документом |
-| UI-84 | Предпросмотр formatted GDD | 1. Переключиться на вкладку «Документ» | Markdown с оглавлением, нумерацией, стилями |
+| UI-32 | Форма ввода MDA | 1. Заполнить MDAInputForm | Выбор эстетики, механик, динамики |
+| UI-33 | Reverse MDA | 1. Выбрать эстетику 2. Запустить ReverseMDAPanel | Рекомендованные механики |
+| UI-34 | Classic MDA | 1. Ввести механики 2. Запустить ClassicMDAPanel | Карта эстетических ценностей |
+| UI-35 | Матрица Бонда | 1. Переключиться на BondMatrixPanel | Таблица 4x3 |
+| UI-36 | Линзы Шелла | 1. Переключиться на LensAuditPanel | Линзы с вопросами и оценками |
+| UI-37 | Иконка эстетики | 1. Проверить AestheticIcon | Иконка соответствует эстетике |
+| UI-38 | Переключение режимов | 1. Переключаться между Tabs | Корректное отображение |
+| UI-39 | Обнаружение диссонанса | 1. Запустить анализ с конфликтами | Предупреждение о диссонансе |
+| UI-40 | Лудонарративный анализ | 1. Проверить результат анализа | Гармония/Ирония/Диссонанс |
 
-### 4.7b Checklist-валидация (панель на странице GDD) *(NEW in 4.D.4)*
+### 4.5 Блок 4: Баланс и симуляция (6 subcomponents)
 
 | ID | Сценарий | Шаги | Ожидаемый результат |
 |----|----------|------|---------------------|
-| UI-85 | Открытие вкладки Checklist | 1. Открыть /blocks/6 2. Переключиться на вкладку «Checklist» | Отображается панель Checklist с кнопкой «Запустить валидацию» |
-| UI-86 | Запуск валидации | 1. Нажать «Запустить валидацию» | Прогресс-бар, затем результаты проверок |
-| UI-87 | Результаты MDA-проверки | 1. Проверить блок MDA в результатах | Список issues: orphan эстетики/динамики, Bond dissonance, скоринг |
-| UI-88 | Результаты проверки баланса | 1. Проверить блок Баланс в результатах | Overpowered/underpowered, доминантная стратегия, grind, difficulty wall |
-| UI-89 | Результаты проверки нарратива | 1. Проверить блок Нарратив в результатах | Ludonarrative dissonance/irony/harmony, agency gaps, quest variety |
-| UI-90 | Результаты проверки экономики | 1. Проверить блок Экономика в результатах | Runaway, deadlock, Q-factor, profitability |
-| UI-91 | Результаты линз | 1. Проверить блок Линзы | Список линз с вопросами и оценками, genre-specific линзы |
-| UI-92 | Общий score и readiness | 1. Проверить панель общего скоринга | Score 0-100, readiness level (ready/almost/not_ready), цветовая индикация |
-| UI-93 | Remediation plan | 1. Нажать «Показать рекомендации» | Список рекомендаций с приоритетами и estimated effort |
-| UI-94 | Quick wins | 1. Проверить блок Quick Wins | Список проблем с low effort, кнопки «Исправить» |
-| UI-95 | Фильтр по severity | 1. Выбрать фильтр «Только critical» | Отображаются только critical issues |
-| UI-96 | Пустое состояние | 1. Открыть Checklist без данных проекта | Placeholder с сообщением «Заполните блоки для валидации» |
+| UI-41 | Transitive-таблица | 1. Открыть TransitiveAnalysisTab | Таблица с цветовой индикацией статусов |
+| UI-42 | Payoff-матрица | 1. Переключиться на PayoffMatrixTab | Тепловая карта NxN |
+| UI-43 | Графики Monte Carlo | 1. Переключиться на SimulationChartsTab | Графики win rate по итерациям |
+| UI-44 | Machinations-визуализация | 1. Переключиться на MachinationsVisualizationTab | Граф ресурсов с узлами и связями |
+| UI-45 | AI-коррекции | 1. Переключиться на CorrectionsPanelTab | Рекомендации с кнопками «Применить» |
+| UI-46 | Форма объекта | 1. Открыть ObjectForm | Ввод данных для балансируемого объекта |
+| UI-47 | Запуск балансировки | 1. Нажать «Запустить балансировку» | Прогресс-бар, затем результаты во всех вкладках |
+| UI-48 | Цветовая индикация статусов | 1. Проверить статусы элементов | balanced (зелёный), overpowered (красный), underpowered (синий), ideal_imbalance (жёлтый) |
 
-### 4.7 Блок 6: GDD Generator *(NEW in 4.D.5)*
+### 4.6 Блок 5: Прогрессия и экономика (10 subcomponents)
+
+**Вкладка «Прогрессия»**
 
 | ID | Сценарий | Шаги | Ожидаемый результат |
 |----|----------|------|---------------------|
-| UI-97 | Открытие страницы | 1. Открыть /blocks/6 | Страница «GDD Generator» с 6 вкладками |
-| UI-98 | Выбор формата | 1. Переключиться на вкладку «Формат» 2. Кликнуть карточку формата | Карточка выделяется, формат выбирается |
-| UI-99 | 8 форматов | 1. Поочерёдно выбрать каждый из 8 форматов | Каждый формат корректно отображается с описанием и рекомендацией |
-| UI-100 | Выбор детализации | 1. Выбрать detail level из выпадающего списка | overview/standard/detailed/exhaustive корректно переключаются |
-| UI-101 | Выбор аудитории | 1. Выбрать target audience из выпадающего списка | investor/team_sync/production/personal/educational |
-| UI-102 | Выбор стадии проекта | 1. Выбрать project stage из выпадающего списка | concept/prototype/preproduction/production/live_ops |
-| UI-103 | Генерация GDD | 1. Нажать «Сгенерировать GDD» | Загрузка, затем переход на вкладку «Предпросмотр» |
-| UI-104 | Предпросмотр Markdown | 1. Переключиться на вкладку «Предпросмотр» | Рендеринг Markdown с оглавлением и сворачиваемыми секциями |
-| UI-105 | Индикаторы источника | 1. Проверить бейджи источников в предпросмотре | auto (зелёный), AI (синий), manual (жёлтый) бейджи |
-| UI-106 | Статистика документа | 1. Проверить блок статистики в предпросмотре | section_count, word_count, estimated_pages, coverage_score |
-| UI-107 | Редактор секций | 1. Переключиться на вкладку «Редактор» | Список секций с textarea для редактирования |
-| UI-108 | Подсказки для ручных секций | 1. Открыть пустую секцию в редакторе | Отображаются AI-подсказки и шаблон-скелет |
-| UI-109 | Приоритеты секций | 1. Проверить бейджи приоритетов | critical (красный), important (жёлтый), optional (серый) |
-| UI-110 | Панель согласованности | 1. Переключиться на вкладку «Согласованность» | Список проблем с severity badges |
-| UI-111 | Severity badges | 1. Проверить цветовую индикацию проблем | error (красный), warning (жёлтый), info (синий) |
-| UI-112 | Кнопка «Исправить» | 1. Нажать «Исправить» у проблемы | Визуальная обратная связь, проблема помечается |
-| UI-113 | Экспорт PDF | 1. Переключиться на вкладку «Экспорт» 2. Нажать «PDF» | Прогресс-бар, затем скачивание файла |
-| UI-114 | Экспорт DOCX | 1. Нажать «DOCX» | Прогресс-бар, затем скачивание файла |
-| UI-115 | Экспорт HTML | 1. Нажать «HTML» | Скачивание HTML-файла |
-| UI-116 | Экспорт MD | 1. Нажать «MD» | Скачивание Markdown-файла |
-| UI-117 | Ошибка экспорта | 1. Попробовать экспорт без генерации GDD | Сообщение об ошибке |
-| UI-118 | Чек-листы — запуск | 1. Переключиться на вкладку «Чек-листы» 2. Нажать «Запустить валидацию» | Загрузка, затем результаты |
-| UI-119 | 5 типов чек-листов | 1. Проверить блоки чек-листов | MDA, Баланс, Нарратив, Экономика, Линзы — каждый с score/skip |
-| UI-120 | Top-5 проблем | 1. Проверить секцию top-5 | 5 самых критических проблем с severity |
-| UI-121 | Quick wins | 1. Проверить секцию quick wins | Проблемы с low effort и рекомендациями |
-| UI-122 | Readiness level | 1. Проверить overall readiness badge | ready (зелёный) / almost (жёлтый) / not_ready (красный) |
-| UI-123 | Пустое состояние | 1. Открыть GDD Generator без данных проекта | Placeholder с сообщением о необходимости заполнить блоки |
-| UI-124 | Pipeline уведомление | 1. Сгенерировать GDD 2. Проверить Progress Sidebar | Блок 6 отмечен как заполненный |
+| UI-49 | Открытие страницы | 1. Открыть /blocks/5 | Страница с двумя основными вкладками «Прогрессия» и «Экономика» |
+| UI-50 | Макро-параметры | 1. Переключиться на MacroParamsTab | totalLevels, progressionType, emergenceRatio |
+| UI-51 | Таблица tiers | 1. Переключиться на TiersTab | Таблица с 8 колонками |
+| UI-52 | Кривые прогрессии | 1. Переключиться на CurvesTab | 4 графика Recharts |
+| UI-53 | Контент-план | 1. Переключиться на ContentPlanTab | Таблица unlock_tree + график сложности |
+| UI-54 | Валидация прогрессии | 1. Переключиться на ValidationTab | Pass/fail проверки + overall score |
+| UI-55 | Запуск проектирования | 1. Нажать «Спроектировать прогрессию» | Загрузка, затем результаты |
 
-### 4.8 Сквозной пайплайн (1→5)
+**Вкладка «Экономика»**
 
 | ID | Сценарий | Шаги | Ожидаемый результат |
 |----|----------|------|---------------------|
-| UI-51 | Progress Sidebar | 1. Проверить индикатор прогресса | Статус по 8 блокам, цветовая индикация |
-| UI-52 | Автозаполнение Блок 2 из Блока 1 | 1. Заполнить Блок 1 → перейти в Блок 2 | Данные предзаполнены из OnePager |
-| UI-53 | Автозаполнение Блок 3 из 1+2 | 1. Заполнить Блок 2 → перейти в Блок 3 | mechanics + core_loop_data заполнены |
-| UI-54 | Автозаполнение Блок 4 из 1+2+3 | 1. Заполнить Блок 3 → перейти в Блок 4 | concept_data, core_loop_data, mda_data |
-| UI-55 | Автозаполнение Блок 5 из 1+2+3+4 | 1. Заполнить Блок 4 → перейти в Блок 5 | progression_input + economy_input |
-| UI-56 | Уведомления stale | 1. Обновить данные в Блоке 1 | Уведомление о пересчёте Блоков 2-8 |
-| UI-57 | Pipeline Flow Indicator 1→5 | 1. Проверить индикатор потока | Визуализация потока 1→2→3→4→5 |
-| UI-58 | Кнопка «Пересчитать всё» | 1. Нажать «Запустить пайплайн 1→5» | Последовательный запуск всех 5 блоков |
-| UI-59 | Cascade-обновление | 1. Изменить жанр в Блоке 1 | Блоки 2-5 помечены stale (жёлтый/оранжевый) |
-| UI-60 | Stale-уведомления для Блока 5 | 1. Обновить Блок 4 | Уведомление «Рекомендуется пересчитать прогрессию и экономику» |
+| UI-56 | Форма экономики | 1. Переключиться на вкладку «Экономика» | Форма с жанром, монетизацией, openness |
+| UI-57 | Таблица ресурсов | 1. Переключиться на ResourcesTab | Таблицы core/subsidiary ресурсов |
+| UI-58 | Классификация | 1. Переключиться на ClassificationTab | Economic type, sub_type, risk_level badges |
+| UI-59 | Machinations | 1. Переключиться на MachinationsEconomyTab | Узлы, flows, feedback loops, patterns |
+| UI-60 | Диагностика патологий | 1. Переключиться на DiagnosticsTab | Pathologies с severity + faucet/drain ratios |
+| UI-61 | Симуляция экономики | 1. Переключиться на SimulationEconomyTab | Resource curves chart + quality assessment |
+| UI-62 | Запуск экономики | 1. Нажать «Спроектировать экономику» | Загрузка, затем результаты |
+| UI-63 | Переключение прогрессия/экономика | 1. Переключаться между вкладками | Корректное отображение |
+| UI-64 | Пустое состояние | 1. Открыть /blocks/5 без запуска | EmptyStateCard с иконками |
 
-### 4.8 Общие UI-тесты
+### 4.7 Блок 6: GDD Generator (6 subcomponents + types/constants)
 
-| ID | Сценарий | Шаги | Ожидаемый результат |
-|----|----------|------|---------------------|
-| UI-61 | Responsive дизайн | 1. Изменить размер окна | Адаптивная верстка |
-| UI-62 | Тёмная/светлая тема | 1. Переключить тему | Корректная смена стилей |
-| UI-63 | Страница проектов | 1. Открыть /projects | Список проектов |
-| UI-64 | Создание проекта | 1. Нажать «Новый проект» | Модальное окно |
-| UI-65 | Настройки | 1. Открыть /settings | Страница настроек |
-
-### 4.9 Блок 7: AI-ассистент *(NEW in 4.D.6-4.D.8)*
+**Вкладка «Формат»**
 
 | ID | Сценарий | Шаги | Ожидаемый результат |
 |----|----------|------|---------------------|
-| UI-125 | Открытие AI-ассистента | 1. Открыть /blocks/7 или нажать иконку чата | Панель AI-ассистента с полем ввода и историей |
-| UI-126 | Отправка сообщения | 1. Ввести вопрос 2. Нажать Enter/Отправить | Ответ AI отображается в чате |
-| UI-127 | Стриминг ответа | 1. Отправить сообщение | Ответ появляется по частям (SSE streaming) с индикатором набора |
-| UI-128 | Предложения AI | 1. Открыть вкладку «Предложения» | Блок-специфичные suggestions с иконками |
-| UI-129 | Применение suggestion | 1. Нажать на suggestion | Переход к соответствующему блоку или автозаполнение |
-| UI-130 | Проактивные alerts | 1. Открыть вкладку «Оповещения» | Список alerts с severity badges (critical/error/warning/info) |
-| UI-131 | Переход по alert | 1. Нажать на alert | Переход к проблемному блоку |
-| UI-132 | История чата | 1. Проверить историю сообщений | Все предыдущие сообщения в хронологическом порядке |
-| UI-133 | Очистка истории | 1. Нажать «Очистить историю» | История обнуляется, подтверждение |
-| UI-134 | Статус AI | 1. Проверить индикатор статуса | Зелёный (available) / красный (unavailable) индикатор |
+| UI-65 | Открытие страницы | 1. Открыть /blocks/6 | Страница «GDD Generator» с 6 вкладками |
+| UI-66 | Выбор формата | 1. Кликнуть карточку формата в GDDFormatSelector | Карточка выделяется, формат выбирается |
+| UI-67 | 8 форматов | 1. Поочерёдно выбрать каждый из 8 форматов | Каждый формат корректно отображается с описанием |
+| UI-68 | Выбор детализации | 1. Выбрать detail level | overview/standard/detailed/exhaustive |
+| UI-69 | Выбор аудитории | 1. Выбрать target audience | investor/team_sync/production/personal/educational |
+| UI-70 | Выбор стадии | 1. Выбрать project stage | concept/prototype/preproduction/production/live_ops |
+| UI-71 | Генерация GDD | 1. Нажать «Сгенерировать GDD» | Загрузка, переход на вкладку «Предпросмотр» |
+
+**Вкладка «Предпросмотр»**
+
+| ID | Сценарий | Шаги | Ожидаемый результат |
+|----|----------|------|---------------------|
+| UI-72 | Предпросмотр Markdown | 1. Переключиться на GDDPreview | Рендеринг Markdown с оглавлением и сворачиваемыми секциями |
+| UI-73 | Индикаторы источника | 1. Проверить бейджи источников | auto (зелёный), AI (синий), manual (жёлтый) |
+| UI-74 | Статистика документа | 1. Проверить блок статистики | section_count, word_count, estimated_pages, coverage_score |
+| UI-75 | Секция Core Loop | 1. Проверить Core Loop в GDD | Диаграмма + таблица шагов |
+| UI-76 | Секция Баланс | 1. Проверить Баланс | Таблица + формулы |
+| UI-77 | Секция Прогрессия | 1. Проверить Прогрессию | Кривые + tiers |
+| UI-78 | Секция Экономика | 1. Проверить Экономику | Machinations + ресурсы |
+
+**Вкладка «Редактор»**
+
+| ID | Сценарий | Шаги | Ожидаемый результат |
+|----|----------|------|---------------------|
+| UI-79 | Редактор секций | 1. Переключиться на GDDSectionEditor | Список секций с textarea для редактирования |
+| UI-80 | Подсказки для ручных секций | 1. Открыть пустую секцию в редакторе | AI-подсказки и шаблон-скелет |
+| UI-81 | Приоритеты секций | 1. Проверить бейджи приоритетов | critical (красный), important (жёлтый), optional (серый) |
+
+**Вкладка «Согласованность»**
+
+| ID | Сценарий | Шаги | Ожидаемый результат |
+|----|----------|------|---------------------|
+| UI-82 | Панель согласованности | 1. Переключиться на ConsistencyPanel | Список проблем с severity badges |
+| UI-83 | Severity badges | 1. Проверить цветовую индикацию | error (красный), warning (жёлтый), info (синий) |
+| UI-84 | Кнопка «Исправить» | 1. Нажать «Исправить» у проблемы | Визуальная обратная связь |
+
+**Вкладка «Экспорт»**
+
+| ID | Сценарий | Шаги | Ожидаемый результат |
+|----|----------|------|---------------------|
+| UI-85 | Экспорт PDF | 1. Нажать «PDF» в ExportPanel | Прогресс-бар, затем скачивание файла |
+| UI-86 | Экспорт DOCX | 1. Нажать «DOCX» | Скачивание DOCX-файла |
+| UI-87 | Экспорт HTML | 1. Нажать «HTML» | Скачивание HTML-файла с CSS |
+| UI-88 | Экспорт MD | 1. Нажать «MD» | Скачивание Markdown-файла |
+| UI-89 | Ошибка экспорта | 1. Попробовать экспорт без генерации GDD | Сообщение об ошибке |
+
+**Вкладка «Чек-листы»**
+
+| ID | Сценарий | Шаги | Ожидаемый результат |
+|----|----------|------|---------------------|
+| UI-90 | Запуск валидации | 1. Нажать «Запустить валидацию» в ChecklistPanel | Загрузка, затем результаты |
+| UI-91 | Результаты MDA-проверки | 1. Проверить блок MDA | orphan эстетики/динамики, Bond dissonance, скоринг |
+| UI-92 | Результаты проверки баланса | 1. Проверить блок Баланс | Overpowered/underpowered, доминантная стратегия, grind, difficulty wall |
+| UI-93 | Результаты проверки нарратива | 1. Проверить блок Нарратив | Ludonarrative dissonance/irony/harmony, agency gaps, quest variety |
+| UI-94 | Результаты проверки экономики | 1. Проверить блок Экономика | Runaway, deadlock, Q-factor, profitability |
+| UI-95 | Результаты линз | 1. Проверить блок Линзы | Список линз с вопросами и оценками |
+| UI-96 | Общий score и readiness | 1. Проверить панель скоринга | Score 0-100, readiness level (ready/almost/not_ready) |
+| UI-97 | Remediation plan | 1. Нажать «Показать рекомендации» | Список рекомендаций с приоритетами |
+| UI-98 | Quick wins | 1. Проверить блок Quick Wins | Проблемы с low effort |
+| UI-99 | Фильтр по severity | 1. Выбрать фильтр «Только critical» | Отображаются только critical issues |
+| UI-100 | Пустое состояние | 1. Открыть Checklist без данных | Placeholder «Заполните блоки для валидации» |
+| UI-101 | Pipeline уведомление | 1. Сгенерировать GDD | Блок 6 отмечен как заполненный в Progress Sidebar |
+
+### 4.8 Блок 7: AI-ассистент (SSE streaming, AIHintButton, ContextualSuggestionCard, ChatHistoryList) *(NEW in v0.36.1)*
+
+**Главная страница /blocks/7 — 4 вкладки**
+
+| ID | Сценарий | Шаги | Ожидаемый результат |
+|----|----------|------|---------------------|
+| UI-102 | Открытие AI-ассистента | 1. Открыть /blocks/7 | Страница с 4 вкладками: Чат, Подсказки, Уведомления, История |
+| UI-103 | Заголовок страницы | 1. Проверить заголовок | «AI-ассистент», подзаголовок «Блок 7 • Спецификация 3.9 • SSE Streaming» |
+| UI-104 | Индикатор пайплайна | 1. Проверить Badge в заголовке | Текущий блок или «Пайплайн готов» |
+
+**Вкладка «Чат»**
+
+| ID | Сценарий | Шаги | Ожидаемый результат |
+|----|----------|------|---------------------|
+| UI-105 | Пустой чат | 1. Открыть вкладку «Чат» | Иконка Bot, приветственное сообщение, 4 кнопки-подсказки |
+| UI-106 | Кнопки-подсказки | 1. Нажать «Какие механики подходят для RPG?» | Текст подставляется в поле ввода |
+| UI-107 | Отправка сообщения | 1. Ввести вопрос 2. Нажать Enter или кнопку Send | Сообщение user отображается, затем ответ assistant |
+| UI-108 | SSE-стриминг ответа | 1. Отправить сообщение | Ответ появляется по частям с пульсирующим курсором |
+| UI-109 | Метаданные ответа | 1. Дождаться полного ответа | model_used, provider, latency_ms отображаются мелким шрифтом |
+| UI-110 | Fallback при ошибке стриминга | 1. Отправить при недоступности SSE | Fallback на POST /chat (не-стриминг) |
+| UI-111 | Кнопка остановки стрима | 1. Нажать красную кнопку ■ во время стриминга | Стрим останавливается, частичный ответ сохраняется |
+| UI-112 | Кнопка очистки истории | 1. Нажать иконку корзины | История чата очищается локально и на сервере |
+| UI-113 | Авто-скролл | 1. Отправить несколько сообщений | Чат автоматически прокручивается вниз |
+| UI-114 | Пустое сообщение | 1. Нажать Send без ввода текста | Кнопка Send отключена, сообщение не отправляется |
+| UI-115 | Отправка по Enter | 1. Нажать Enter в поле ввода | Сообщение отправляется |
+| UI-116 | Shift+Enter — новая строка | 1. Нажать Shift+Enter | Переход на новую строку в поле ввода |
+| UI-117 | Системное сообщение об ошибке | 1. Отправить при ошибке сервера | Сообщение с role=system, серый фон, italic |
+| UI-118 | Иконки ролей | 1. Проверить сообщения | User: MessageSquare, Assistant: Bot, System: Info |
+
+**Вкладка «Подсказки»**
+
+| ID | Сценарий | Шаги | Ожидаемый результат |
+|----|----------|------|---------------------|
+| UI-119 | Открытие вкладки | 1. Переключиться на вкладку «Подсказки» | SuggestionsPanel, селектор блока 1-8 |
+| UI-120 | Селектор блока | 1. Нажать кнопку «3» | suggestionsBlock = 3, подсветка кнопки |
+| UI-121 | Загрузка подсказок | 1. Нажать «Загрузить» | Loading spinner, затем список подсказок |
+| UI-122 | Карточки подсказок | 1. Проверить структуру карточки | Иконка действия, заголовок, priority Badge, описание |
+| UI-123 | Иконки действий | 1. Проверить иконки | generate=Sparkles, validate=CheckCircle2, fix=AlertTriangle, review=Lightbulb |
+| UI-124 | Цвета приоритетов | 1. Проверить цвета | high=red, medium=yellow, low=blue |
+| UI-125 | Кнопка «Обновить» | 1. Нажать «Обновить» | Повторный запрос к API |
+| UI-126 | Пустое состояние | 1. Открыть вкладку без выбора блока | «Выберите блок для получения подсказок» |
+
+**Вкладка «Уведомления»**
+
+| ID | Сценарий | Шаги | Ожидаемый результат |
+|----|----------|------|---------------------|
+| UI-127 | Открытие вкладки | 1. Переключиться на вкладку «Уведомления» | AlertsPanel, кнопка «Проверить» |
+| UI-128 | Счётчик уведомлений | 1. Загрузить alerts с проблемами | Badge с количеством alerts рядом с заголовком |
+| UI-129 | Карточки уведомлений | 1. Проверить структуру alert | Иконка severity, заголовок, Badge блока, описание, suggestion |
+| UI-130 | Цвета severity | 1. Проверить стили | critical=red, warning=yellow, info=blue |
+| UI-131 | Пустое состояние | 1. Загрузить alerts без проблем | CheckCircle2 иконка, «Проблем не обнаружено» |
+| UI-132 | Кнопка «Проверить» | 1. Нажать «Проверить» | Повторный запрос к API |
+
+**Вкладка «История»**
+
+| ID | Сценарий | Шаги | Ожидаемый результат |
+|----|----------|------|---------------------|
+| UI-133 | Открытие вкладки | 1. Переключиться на вкладку «История» | ChatHistoryList с группировкой по датам |
+| UI-134 | Группировка по дате | 1. Проверить историю с несколькими датами | Заголовки дат на русском (5 марта, 6 марта) |
+| UI-135 | Иконки ролей в истории | 1. Проверить сообщения | User: MessageSquare, Assistant: Bot |
+| UI-136 | Время сообщений | 1. Проверить timestamp | Время в формате HH:MM (русская локаль) |
+| UI-137 | Содержимое сообщения | 1. Проверить текст | line-clamp-2 (обрезка длинных сообщений) |
+| UI-138 | Hover-эффект | 1. Навести курсор на сообщение | Подсветка фона (hover:bg-muted/50) |
+| UI-139 | Кнопка «Загрузить ещё» | 1. Прокрутить историю до конца | Кнопка «Загрузить ещё» при hasMore=true |
+| UI-140 | Очистка истории | 1. Нажать «Очистить» | История обнуляется |
+| UI-141 | Пустое состояние | 1. Открыть историю без сообщений | «Нет сохранённых сообщений» |
+
+**AIHintButton (компонент для вставки на страницы Блоков 1-8)**
+
+| ID | Сценарий | Шаги | Ожидаемый результат |
+|----|----------|------|---------------------|
+| UI-142 | Рендеринг кнопки | 1. Найти AIHintButton на странице блока | Кнопка «AI-подсказка» с иконкой Sparkles |
+| UI-143 | Открытие Popover | 1. Нажать AIHintButton | Popover открывается с заголовком «Подсказки для Блока N» |
+| UI-144 | Загрузка подсказок | 1. Открыть Popover впервые | Loading spinner, затем список подсказок |
+| UI-145 | Карточки подсказок | 1. Проверить структуру | Иконка действия, заголовок, priority Badge, описание (line-clamp-2) |
+| UI-146 | Кнопка «Обновить» | 1. Нажать «Обновить» в Popover | Повторный запрос, загрузка новых подсказок |
+| UI-147 | Закрытие Popover | 1. Нажать вне Popover | Popover закрывается |
+| UI-148 | Повторное открытие | 1. Открыть Popover повторно | Подсказки загружены из кэша (без повторного API-запроса) |
+| UI-149 | Пустое состояние | 1. Открыть Popover для блока без данных | «Нет подсказок для этого блока» |
+| UI-150 | Ошибка загрузки | 1. Открыть при недоступности API | Toast с ошибкой, пустой список |
+| UI-151 | Размер и вариант | 1. Проверить настраиваемые props | size (default/sm/lg/icon), variant (default/outline/ghost/secondary) |
+| UI-152 | Встраивание в разные блоки | 1. Проверить AIHintButton на Блоках 1-8 | Каждый блок корректно передаёт blockId |
+
+**ContextualSuggestionCard (плавающая карточка с AI-подсказками)**
+
+| ID | Сценарий | Шаги | Ожидаемый результат |
+|----|----------|------|---------------------|
+| UI-153 | Рендеринг карточки | 1. Активировать ContextualSuggestionCard | Карточка w-64 с тенью и border-primary/20 |
+| UI-154 | Заголовок | 1. Проверить заголовок | «AI-подсказки» с иконкой Sparkles |
+| UI-155 | Кнопка закрытия | 1. Нажать X | Карточка скрывается, isDismissed=true |
+| UI-156 | Загрузка | 1. Проверить начальное состояние | Loader2 spinner |
+| UI-157 | Список подсказок | 1. Дождаться загрузки | До maxSuggestions (по умолчанию 3) подсказок |
+| UI-158 | Приоритет Badge | 1. Проверить бейджи | high=destructive, medium=outline, low=secondary |
+| UI-159 | Callback onClose | 1. Закрыть карточку | Вызывается onClose callback |
+| UI-160 | Проп visible=false | 1. Установить visible=false | Карточка не рендерится |
+| UI-161 | Проп maxSuggestions | 1. Установить maxSuggestions=2 | Отображаются только 2 подсказки |
+| UI-162 | Нет подсказок | 1. Активировать для блока без данных | Карточка скрывается (suggestions.length === 0) |
+
+### 4.9 Блок 8: Интеграция GBCombine (mock API bridge)
+
+| ID | Сценарий | Шаги | Ожидаемый результат |
+|----|----------|------|---------------------|
+| UI-163 | Открытие страницы | 1. Открыть /blocks/8 | Страница «Интеграция GBE» с Badge «Запланирован» |
+| UI-164 | Placeholder | 1. Проверить содержимое | «Интеграция с GDCombine будет реализована в Фазе 4.E» |
+| UI-165 | Навигация | 1. Кликнуть Блок 8 в sidebar | Открывается страница Блока 8 |
+
+### 4.10 Сквозной пайплайн (1→8)
+
+| ID | Сценарий | Шаги | Ожидаемый результат |
+|----|----------|------|---------------------|
+| UI-166 | Progress Sidebar | 1. Проверить индикатор прогресса | Статус по 8 блокам, цветовая индикация |
+| UI-167 | Автозаполнение Блок 2 из Блока 1 | 1. Заполнить Блок 1 → перейти в Блок 2 | Данные предзаполнены из OnePager |
+| UI-168 | Автозаполнение Блок 3 из 1+2 | 1. Заполнить Блок 2 → перейти в Блок 3 | mechanics + core_loop_data заполнены |
+| UI-169 | Автозаполнение Блок 4 из 1+2+3 | 1. Заполнить Блок 3 → перейти в Блок 4 | concept_data, core_loop_data, mda_data |
+| UI-170 | Автозаполнение Блок 5 из 1+2+3+4 | 1. Заполнить Блок 4 → перейти в Блок 5 | progression_input + economy_input |
+| UI-171 | Уведомления stale | 1. Обновить данные в Блоке 1 | Уведомление о пересчёте Блоков 2-8 |
+| UI-172 | Pipeline Flow Indicator 1→8 | 1. Проверить индикатор потока | Визуализация потока 1→2→3→4→5→6→7→8 |
+| UI-173 | Кнопка «Пересчитать всё» | 1. Нажать «Запустить пайплайн 1→5» | Последовательный запуск всех 5 блоков |
+| UI-174 | Cascade-обновление | 1. Изменить жанр в Блоке 1 | Блоки 2-8 помечены stale |
+| UI-175 | Stale-уведомления для Блока 5 | 1. Обновить Блок 4 | Уведомление «Рекомендуется пересчитать прогрессию и экономику» |
+| UI-176 | AIHintButton на каждом блоке | 1. Проверить наличие AIHintButton на Блоках 1-8 | Кнопка «AI-подсказка» присутствует и работает |
+
+### 4.11 Общие UI-тесты
+
+| ID | Сценарий | Шаги | Ожидаемый результат |
+|----|----------|------|---------------------|
+| UI-177 | Responsive дизайн | 1. Изменить размер окна | Адаптивная верстка (mobile/tablet/desktop) |
+| UI-178 | Тёмная/светлая тема | 1. Переключить тему | Корректная смена стилей |
+| UI-179 | Страница ошибки | 1. Открыть несуществующий URL | Страница error.tsx |
+| UI-180 | Loading страница | 1. Перейти на страницу при загрузке | Skeleton/loading.tsx |
+| UI-181 | Middleware защита | 1. Открыть /blocks/* без авторизации | Редирект на /login |
 
 ---
 
@@ -933,11 +1177,11 @@ src/__tests__/
 
 | ID | Сценарий | Описание |
 |----|----------|----------|
-| E2E-01 | Полный пайплайн «идея → GDD» | Пользователь проходит все блоки последовательно |
-| E2E-02 | Редактирование концепции | Изменение данных в Блоке 1 → каскадное обновление |
-| E2E-03 | Балансировка экономики | Запуск диагностики → применение коррекций → пересчёт |
-| E2E-04 | Monte Carlo + Machinations | Запуск обеих симуляций, анализ расхождения |
-| E2E-05 | Проектирование прогрессии | Настройка кривых, проверка валидации, просмотр контент-плана |
+| E2E-01 | Полный пайплайн «идея → GDD» | Пользователь проходит все блоки последовательно: ввод идеи → Концепция → Core Loop → MDA → Баланс → Прогрессия → Экономика → GDD |
+| E2E-02 | Редактирование концепции | Изменение данных в Блоке 1 → каскадное обновление Блоков 2-8, stale-уведомления |
+| E2E-03 | Балансировка экономики | Запуск диагностики → применение коррекций → пересчёт → проверка улучшения |
+| E2E-04 | Monte Carlo + Machinations | Запуск обеих симуляций в Блоке 4, анализ расхождения, проверка quality assessment |
+| E2E-05 | Проектирование прогрессии | Настройка макро-параметров → кривые → tiers → контент-план → валидация |
 | E2E-06 | Экономическое моделирование | Идентификация ресурсов → классификация → Machinations → диагностика → балансировка → симуляция |
 | E2E-07 | Сквозной пайплайн 1→5 | Ввод идеи → Концепция → Core Loop → MDA → Баланс → Прогрессия → Экономика за одну операцию (run-full-pipeline) |
 | E2E-08 | Интеграционный тест «Roguelike про алхимика» | Тест-кейс из 4.C.10: идея → все 5 блоков, проверка целостности данных, cascade stale |
@@ -946,13 +1190,18 @@ src/__tests__/
 | E2E-11 | GDD Export: PDF | Заполнить все блоки → Сгенерировать GDD → Экспорт PDF → Файл скачивается, корректный формат |
 | E2E-12 | GDD Export: DOCX | Заполнить все блоки → Сгенерировать GDD → Экспорт DOCX → Файл скачивается, открывается в Word |
 | E2E-13 | GDD Consistency Check | Заполнить блоки с противоречиями → Проверить согласованность → Error/warning/info проблемы отображаются |
-| E2E-14 | GDD Full Pipeline 1→7 | Ввод идеи → Полный пайплайн → Assembled + Formatted документ → Экспорт в 4 форматах |
+| E2E-14 | GDD Full Pipeline 1→8 | Ввод идеи → Полный пайплайн → Assembled + Formatted документ → Экспорт в 4 форматах → Проверить Block 8 placeholder |
 | E2E-15 | Checklist-валидация полного пайплайна | Ввод идеи → Заполнить все блоки → Запустить Checklist-валидацию → Проверить score, readiness level, top-5 issues, quick wins, remediation plan |
 | E2E-16 | AI-ассистент: чат с контекстом | Ввод идеи → Заполнить Блоки 1-3 → Открыть AI-ассистент → Задать вопрос о механиках → Ответ AI учитывает данные проекта |
 | E2E-17 | AI-ассистент: проактивные alerts | Заполнить все блоки с дисбалансом → Открыть AI-ассистент → Проверить alerts (runaway, deadlock, dissonance) → Нажать alert → Переход к проблемному блоку |
 | E2E-18 | AI-ассистент: suggestions и применение | Заполнить Блок 1 → Открыть suggestions → Выбрать suggestion → Данные предзаполняются в целевом блоке |
-| E2E-19 | AI-ассистент: стриминг чата | Открыть AI-ассистент → Отправить длинный вопрос → Проверить SSE-стриминг → Ответ появляется по частям, кнопка остановки |
+| E2E-19 | AI-ассистент: SSE-стриминг чата | Открыть AI-ассистент → Отправить длинный вопрос → Проверить SSE-стриминг → Ответ появляется по частям, кнопка остановки работает |
 | E2E-20 | AI-ассистент: полный цикл | Ввод идеи → Заполнить все блоки с проблемами → AI-ассистент обнаруживает alerts → Предлагает suggestions → Пользователь применяет suggestions → Перепроверка через чат → Проблемы устранены |
+| E2E-21 | AIHintButton на каждом блоке | Перейти на Блок 1 → Нажать AIHintButton → Получить подсказки → Повторить для Блоков 2-8 → Подсказки контекстно зависят от данных блока |
+| E2E-22 | ContextualSuggestionCard: контекстные подсказки | Заполнить Блок 4 с дисбалансом → ContextualSuggestionCard появляется → Проверить подсказки → Закрыть карточку → Открыть снова |
+| E2E-23 | ChatHistoryList: история чата | Провести 3 диалога с AI → Переключиться на вкладку «История» → Проверить группировку по датам → Нажать «Загрузить ещё» → Очистить историю |
+| E2E-24 | Регистрация → Первый проект → AI-ассистент | Зарегистрироваться → Создать первый проект → Открыть AI-ассистент → Onboarding suggestions → Задать вопрос |
+| E2E-25 | Stale-cascade + AI-ассистент | Заполнить все блоки → Изменить жанр в Блоке 1 → AI-ассистент показывает alerts о stale-блоках → Пересчитать → Alerts очищаются |
 
 ---
 
@@ -962,25 +1211,35 @@ src/__tests__/
 
 | Категория | Файлов | Тестов |
 |-----------|--------|--------|
-| Backend (pytest) | 16 | 550+ |
+| Backend (pytest) | 16+1 integration | 650+ |
 | Frontend (vitest) | 3 | 9 |
-| **Итого** | **19** | **560+** |
+| **Итого** | **20** | **659+** |
 
 ### 6.2 Плановые автоматизированные тесты
 
 | Категория | Тестов |
 |-----------|--------|
-| Backend (новые модули) | ~300 |
-| Frontend (новые компоненты) | ~190 |
-| **Итого плановых** | **~490** |
+| Backend (новые модули + API endpoints) | ~390 |
+| Frontend (новые компоненты + страницы) | ~261 |
+| **Итого плановых** | **~651** |
 
 ### 6.3 Ручные UI/E2E тесты
 
-| Категория | Кейс |
-|-----------|------|
-| UI-тесты | 107 |
-| E2E-сценарии | 20 |
-| **Итого** | **127** |
+| Категория | Кейсов |
+|-----------|--------|
+| UI-тесты (авторизация и навигация) | 10 |
+| UI-тесты (Блок 1) | 13 |
+| UI-тесты (Блок 2) | 8 |
+| UI-тесты (Блок 3) | 9 |
+| UI-тесты (Блок 4) | 8 |
+| UI-тесты (Блок 5) | 16 |
+| UI-тесты (Блок 6) | 37 |
+| UI-тесты (Блок 7 AI-ассистент) | 61 |
+| UI-тесты (Блок 8) | 3 |
+| UI-тесты (сквозной пайплайн) | 11 |
+| UI-тесты (общие) | 5 |
+| E2E-сценарии | 25 |
+| **Итого** | **206** |
 
 ### 6.4 Целевое покрытие (критерий C8 из ROADMAP)
 
@@ -1008,6 +1267,11 @@ src/__tests__/
 | ID | Результат | Комментарий |
 |----|-----------|-------------|
 | UI-01 | PASS/FAIL | |
+
+## E2E-сценарии (ручные)
+| ID | Результат | Комментарий |
+|----|-----------|-------------|
+| E2E-01 | PASS/FAIL | |
 
 ## Найденные баги
 1. [Критичность] Описание

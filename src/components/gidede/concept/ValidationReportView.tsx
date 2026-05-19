@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import {
   Card,
   CardContent,
@@ -21,7 +22,7 @@ import type { ValidationReport } from "../../../../shared/types/typescript/inter
 // ScoreIndicator — цветной индикатор процента
 // ============================================================
 
-export function ScoreIndicator({ score }: { score: number }) {
+export const ScoreIndicator = React.memo(function ScoreIndicator({ score }: { score: number }) {
   const pct = Math.round(score * 100);
   let colorClass = "text-red-600 dark:text-red-400";
   let bgClass = "bg-red-100 dark:bg-red-950/40";
@@ -39,7 +40,7 @@ export function ScoreIndicator({ score }: { score: number }) {
       {pct}%
     </span>
   );
-}
+});
 
 // ============================================================
 // ValidatorSection — один валидатор (score/passed или dict)
@@ -151,7 +152,7 @@ function ValidatorSection({ title, description, data }: { title: string; descrip
 // ValidationReportView — основной компонент отчёта валидации
 // ============================================================
 
-export function ValidationReportView({ report }: { report: ValidationReport }) {
+export const ValidationReportView = React.memo(function ValidationReportView({ report }: { report: ValidationReport }) {
   // Handle both shared/types structure and Python API structure
   const overallScore = report.overall_score ?? 0;
   const overallPassed = overallScore >= 0.6;
@@ -248,4 +249,4 @@ export function ValidationReportView({ report }: { report: ValidationReport }) {
       </CardContent>
     </Card>
   );
-}
+});

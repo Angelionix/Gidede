@@ -23,7 +23,7 @@ import { EmptyStateCard } from "@/components/gidede/shared";
 /**
  * Bond Matrix: Этап 6 (Матрица 4x3 + лудонарративный анализ).
  */
-export function BondMatrixPanel({
+export const BondMatrixPanel = React.memo(function BondMatrixPanel({
   result,
 }: {
   result: MDAAnalysisResult | null;
@@ -231,4 +231,4 @@ export function BondMatrixPanel({
       </Card>
     </div>
   );
-}
+});

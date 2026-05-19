@@ -31,7 +31,7 @@ interface CorrectionsPanelTabProps {
   result: FullBalanceResponse | null;
 }
 
-export function CorrectionsPanelTab({ result }: CorrectionsPanelTabProps) {
+export const CorrectionsPanelTab = React.memo(function CorrectionsPanelTab({ result }: CorrectionsPanelTabProps) {
   if (!result) {
     return (
       <EmptyStateCard
@@ -309,4 +309,4 @@ export function CorrectionsPanelTab({ result }: CorrectionsPanelTabProps) {
       )}
     </div>
   );
-}
+});

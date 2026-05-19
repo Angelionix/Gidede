@@ -27,7 +27,7 @@ interface ValidationTabProps {
   result: ProgressionDesignResponse | null;
 }
 
-export function ValidationTab({ result }: ValidationTabProps) {
+export const ValidationTab = React.memo(function ValidationTab({ result }: ValidationTabProps) {
   if (!result?.validation) {
     return (
       <EmptyStateCard
@@ -142,4 +142,4 @@ export function ValidationTab({ result }: ValidationTabProps) {
       )}
     </div>
   );
-}
+});

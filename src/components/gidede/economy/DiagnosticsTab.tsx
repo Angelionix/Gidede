@@ -24,7 +24,7 @@ interface DiagnosticsTabProps {
   result: EconomyDesignResponse | null;
 }
 
-export function DiagnosticsTab({ result }: DiagnosticsTabProps) {
+export const DiagnosticsTab = React.memo(function DiagnosticsTab({ result }: DiagnosticsTabProps) {
   if (!result?.diagnostics) {
     return (
       <EmptyStateCard
@@ -148,4 +148,4 @@ export function DiagnosticsTab({ result }: DiagnosticsTabProps) {
       </Card>
     </div>
   );
-}
+});

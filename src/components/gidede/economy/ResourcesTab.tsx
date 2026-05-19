@@ -24,7 +24,7 @@ interface ResourcesTabProps {
   result: EconomyDesignResponse | null;
 }
 
-export function ResourcesTab({ result }: ResourcesTabProps) {
+export const ResourcesTab = React.memo(function ResourcesTab({ result }: ResourcesTabProps) {
   if (!result?.inventory) {
     return (
       <EmptyStateCard
@@ -121,4 +121,4 @@ export function ResourcesTab({ result }: ResourcesTabProps) {
       {subsidiaryResources.length > 0 && renderResourceTable(subsidiaryResources, "Дополнительные")}
     </div>
   );
-}
+});

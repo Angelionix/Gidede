@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { ChevronDown, ChevronUp, Layers } from "lucide-react";
 import { HIERARCHY_LEVELS } from "@/constants/coreloop";
 
-export function LoopHierarchyTree({ hierarchy }: { hierarchy: Record<string, unknown> }) {
+export const LoopHierarchyTree = React.memo(function LoopHierarchyTree({ hierarchy }: { hierarchy: Record<string, unknown> }) {
   const [expandedLevels, setExpandedLevels] = useState<Set<string>>(new Set(["small"]));
 
   const toggleLevel = (level: string) => {
@@ -98,4 +98,4 @@ export function LoopHierarchyTree({ hierarchy }: { hierarchy: Record<string, unk
       </CardContent>
     </Card>
   );
-}
+});

@@ -105,7 +105,7 @@ function readinessBadge(readiness: string) {
   );
 }
 
-export function ChecklistPanel({
+export const ChecklistPanel = React.memo(function ChecklistPanel({
   validation,
   onRunValidation,
   isLoading,
@@ -262,4 +262,4 @@ export function ChecklistPanel({
       )}
     </div>
   );
-}
+});

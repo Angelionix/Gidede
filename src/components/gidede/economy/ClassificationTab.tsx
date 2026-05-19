@@ -18,7 +18,7 @@ interface ClassificationTabProps {
   result: EconomyDesignResponse | null;
 }
 
-export function ClassificationTab({ result }: ClassificationTabProps) {
+export const ClassificationTab = React.memo(function ClassificationTab({ result }: ClassificationTabProps) {
   if (!result?.classification) {
     return (
       <EmptyStateCard
@@ -74,4 +74,4 @@ export function ClassificationTab({ result }: ClassificationTabProps) {
       </Card>
     </div>
   );
-}
+});

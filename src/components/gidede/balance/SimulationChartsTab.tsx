@@ -50,7 +50,7 @@ interface SimulationChartsTabProps {
   result: FullBalanceResponse | null;
 }
 
-export function SimulationChartsTab({ result }: SimulationChartsTabProps) {
+export const SimulationChartsTab = React.memo(function SimulationChartsTab({ result }: SimulationChartsTabProps) {
   const [showMatchup, setShowMatchup] = useState(false);
 
   if (!result?.monte_carlo_result) {
@@ -230,4 +230,4 @@ export function SimulationChartsTab({ result }: SimulationChartsTabProps) {
       <SuggestionsList suggestions={suggestions} variant="inline" />
     </div>
   );
-}
+});

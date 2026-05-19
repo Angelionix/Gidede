@@ -34,7 +34,7 @@ interface ContentPlanTabProps {
   result: ProgressionDesignResponse | null;
 }
 
-export function ContentPlanTab({ result }: ContentPlanTabProps) {
+export const ContentPlanTab = React.memo(function ContentPlanTab({ result }: ContentPlanTabProps) {
   if (!result?.content_plan) {
     return (
       <EmptyStateCard
@@ -162,4 +162,4 @@ export function ContentPlanTab({ result }: ContentPlanTabProps) {
       )}
     </div>
   );
-}
+});

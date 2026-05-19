@@ -14,7 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { Shield, CheckCircle2, XCircle, AlertTriangle } from "lucide-react";
 import { WarningsList } from "@/components/gidede/shared";
 
-export function ValidationPanel({ validation }: { validation: Record<string, unknown> }) {
+export const ValidationPanel = React.memo(function ValidationPanel({ validation }: { validation: Record<string, unknown> }) {
   const funCheck = validation.fun_check as Record<string, unknown> | undefined;
   const loopClosedness = validation.loop_closedness as Record<string, unknown> | undefined;
   const resourceSufficiency = validation.resource_sufficiency as Record<string, unknown> | undefined;
@@ -122,4 +122,4 @@ export function ValidationPanel({ validation }: { validation: Record<string, unk
       </CardContent>
     </Card>
   );
-}
+});

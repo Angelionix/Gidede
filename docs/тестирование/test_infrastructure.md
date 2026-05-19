@@ -1,8 +1,8 @@
 # Gidede — Подготовка тестовой инфраструктуры
 
-> **Фаза**: 4.E.1 (Блок 8 — GBE Bridge)
+> **Фаза**: 4.E.3 (Оптимизация производительности)
 > **Дата**: 2026-05-20
-> **Версия**: 0.41.0
+> **Версия**: 0.44.0
 > **Статус**: Активный
 
 ---
@@ -53,7 +53,7 @@
 
 ## 2. Компоненты тестовой инфраструктуры
 
-### 2.1 Backend: pytest (20 файлов, 614 тестов)
+### 2.1 Backend: pytest (18 файлов, 743 теста)
 
 | Компонент | Файл | Назначение | Тестов |
 |-----------|------|-----------|--------|
@@ -66,7 +66,7 @@
 | TextChunker | `tests/test_text_chunker.py` | Разбиение текста | 1* |
 | Balance Service | `tests/test_balance_service.py` | Транзитивный, интранзитивный, ситуационный, Q-фактор, Monte Carlo, Machinations | 77 |
 | Economy Service | `tests/test_economy_service.py` | Все 8 этапов алгоритма 3.6 | 83 |
-| Pipeline Service | `tests/test_pipeline_service.py` | Сквозной пайплайн 1→5, зависимости блоков, stale-каскад, подготовка входных данных | 29 |
+| Pipeline Service | `tests/test_pipeline_service.py` | Сквозной пайплайн 1→5, зависимости блоков, stale-каскад, подготовка входных данных | 31 |
 
 *\* RAG и TextChunker имеют ошибки импорта, требуют исправления зависимостей*
 
@@ -88,12 +88,12 @@
 | `rpg_classification` | Классификация для RPG |
 | `economy_service` | EconomyService с мокнутым PromptExecutor |
 
-### 2.2 Frontend: vitest (3 файла, 9 тестов)
+### 2.2 Frontend: vitest (3 файла, 16 тестов)
 
 | Компонент | Файл | Назначение | Тестов |
 |-----------|------|-----------|--------|
 | Setup | `src/__tests__/setup.ts` | Глобальные моки | — |
-| UI-компоненты | `src/__tests__/components.test.tsx` | Базовый рендеринг | 3 |
+| UI-компоненты | `src/__tests__/components.test.tsx` | Базовый рендеринг + shared-компоненты | 10 |
 | Авторизация | `src/__tests__/auth.test.tsx` | Формы логина/регистрации | 2 |
 | API-клиент | `src/__tests__/api-client.test.ts` | HTTP-запросы, обработка ошибок | 4 |
 

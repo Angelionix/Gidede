@@ -29,7 +29,7 @@ import { EmptyStateCard } from "@/components/gidede/shared";
 /**
  * Classic MDA: Этап 4 (Механики → Геймплей → Опыт).
  */
-export function ClassicMDAPanel({
+export const ClassicMDAPanel = React.memo(function ClassicMDAPanel({
   result,
 }: {
   result: MDAAnalysisResult | null;
@@ -277,4 +277,4 @@ export function ClassicMDAPanel({
       </Card>
     </div>
   );
-}
+});

@@ -17,7 +17,7 @@ interface MacroParamsTabProps {
   result: ProgressionDesignResponse | null;
 }
 
-export function MacroParamsTab({ result }: MacroParamsTabProps) {
+export const MacroParamsTab = React.memo(function MacroParamsTab({ result }: MacroParamsTabProps) {
   if (!result?.macro_model) {
     return (
       <EmptyStateCard
@@ -64,4 +64,4 @@ export function MacroParamsTab({ result }: MacroParamsTabProps) {
       </Card>
     </div>
   );
-}
+});

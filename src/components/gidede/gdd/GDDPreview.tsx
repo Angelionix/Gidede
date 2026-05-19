@@ -56,7 +56,7 @@ function sourceBadge(source: string) {
   );
 }
 
-export function GDDPreview({ profile }: GDDPreviewProps) {
+export const GDDPreview = React.memo(function GDDPreview({ profile }: GDDPreviewProps) {
   const { assembled_document, formatted_document } = profile;
 
   const sections = useMemo(() => {
@@ -176,4 +176,4 @@ export function GDDPreview({ profile }: GDDPreviewProps) {
       )}
     </div>
   );
-}
+});

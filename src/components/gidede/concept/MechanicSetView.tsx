@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import {
   Card,
   CardContent,
@@ -18,7 +19,7 @@ import {
 import { AlertTriangle, Zap } from "lucide-react";
 import { MECHANIC_GROUPS } from "@/constants/concept";
 
-export function MechanicSetView({ mechanicSet }: { mechanicSet: Record<string, unknown> }) {
+export const MechanicSetView = React.memo(function MechanicSetView({ mechanicSet }: { mechanicSet: Record<string, unknown> }) {
   const compatibilityScore = typeof mechanicSet.compatibility_score === "number" ? mechanicSet.compatibility_score : 0;
   const conflictsResolved = Array.isArray(mechanicSet.conflicts_resolved) ? mechanicSet.conflicts_resolved as string[] : [];
   const synergiesDetected = Array.isArray(mechanicSet.synergies_detected) ? mechanicSet.synergies_detected as Record<string, unknown>[] : [];
@@ -114,4 +115,4 @@ export function MechanicSetView({ mechanicSet }: { mechanicSet: Record<string, u
       </CardContent>
     </Card>
   );
-}
+});

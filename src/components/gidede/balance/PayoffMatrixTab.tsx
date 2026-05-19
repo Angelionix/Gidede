@@ -34,7 +34,7 @@ interface PayoffMatrixTabProps {
   result: FullBalanceResponse | null;
 }
 
-export function PayoffMatrixTab({ result }: PayoffMatrixTabProps) {
+export const PayoffMatrixTab = React.memo(function PayoffMatrixTab({ result }: PayoffMatrixTabProps) {
   if (!result?.intransitive_result) {
     return (
       <EmptyStateCard
@@ -222,4 +222,4 @@ export function PayoffMatrixTab({ result }: PayoffMatrixTabProps) {
       <SuggestionsList suggestions={suggestions} variant="inline" />
     </div>
   );
-}
+});

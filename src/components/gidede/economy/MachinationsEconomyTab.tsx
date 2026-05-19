@@ -17,7 +17,7 @@ interface MachinationsEconomyTabProps {
   result: EconomyDesignResponse | null;
 }
 
-export function MachinationsEconomyTab({ result }: MachinationsEconomyTabProps) {
+export const MachinationsEconomyTab = React.memo(function MachinationsEconomyTab({ result }: MachinationsEconomyTabProps) {
   if (!result?.machinations_model) {
     return (
       <EmptyStateCard
@@ -184,4 +184,4 @@ export function MachinationsEconomyTab({ result }: MachinationsEconomyTabProps) 
       )}
     </div>
   );
-}
+});

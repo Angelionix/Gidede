@@ -25,7 +25,7 @@ import { EmptyStateCard } from "@/components/gidede/shared";
 /**
  * Shell's Lenses: Этап 5 (9 приоритетных линз валидации).
  */
-export function LensAuditPanel({
+export const LensAuditPanel = React.memo(function LensAuditPanel({
   result,
 }: {
   result: MDAAnalysisResult | null;
@@ -172,4 +172,4 @@ export function LensAuditPanel({
       </div>
     </div>
   );
-}
+});

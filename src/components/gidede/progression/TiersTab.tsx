@@ -25,7 +25,7 @@ interface TiersTabProps {
   result: ProgressionDesignResponse | null;
 }
 
-export function TiersTab({ result }: TiersTabProps) {
+export const TiersTab = React.memo(function TiersTab({ result }: TiersTabProps) {
   if (!result?.tier_model) {
     return (
       <EmptyStateCard
@@ -111,4 +111,4 @@ export function TiersTab({ result }: TiersTabProps) {
       )}
     </div>
   );
-}
+});

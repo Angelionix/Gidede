@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { AlertTriangle, CheckCircle2, Wrench } from "lucide-react";
 import { SEVERITY_STYLES } from "@/constants/coreloop";
 
-export function PathologyPanel({ pathologies }: { pathologies: Record<string, unknown> }) {
+export const PathologyPanel = React.memo(function PathologyPanel({ pathologies }: { pathologies: Record<string, unknown> }) {
   const pathologyList = (pathologies.pathologies as Record<string, unknown>[]) || [];
   const totalCount = (pathologies.total_count as number) || pathologyList.length;
   const criticalCount = (pathologies.critical_count as number) || pathologyList.filter(p => p.severity === "critical").length;
@@ -101,4 +101,4 @@ export function PathologyPanel({ pathologies }: { pathologies: Record<string, un
       </CardContent>
     </Card>
   );
-}
+});

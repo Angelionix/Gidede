@@ -41,7 +41,7 @@ interface MachinationsVisualizationTabProps {
   result: FullBalanceResponse | null;
 }
 
-export function MachinationsVisualizationTab({ result }: MachinationsVisualizationTabProps) {
+export const MachinationsVisualizationTab = React.memo(function MachinationsVisualizationTab({ result }: MachinationsVisualizationTabProps) {
   if (!result?.machinations_result) {
     return (
       <EmptyStateCard
@@ -378,4 +378,4 @@ export function MachinationsVisualizationTab({ result }: MachinationsVisualizati
       <SuggestionsList suggestions={recommendations} />
     </div>
   );
-}
+});

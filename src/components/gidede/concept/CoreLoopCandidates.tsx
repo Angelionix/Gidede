@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import {
   Card,
   CardContent,
@@ -11,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { Check, Eye, Zap } from "lucide-react";
 import { LOOP_TYPE_LABELS } from "@/constants/concept";
 
-export function CoreLoopCandidates({
+export const CoreLoopCandidates = React.memo(function CoreLoopCandidates({
   candidates,
   selectedIndex,
   onSelect,
@@ -99,4 +100,4 @@ export function CoreLoopCandidates({
       </CardContent>
     </Card>
   );
-}
+});

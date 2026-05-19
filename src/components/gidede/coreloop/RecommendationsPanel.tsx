@@ -13,7 +13,7 @@ import { Wrench } from "lucide-react";
 import { PRIORITY_STYLES } from "@/constants/coreloop";
 import { EmptyStateCard } from "@/components/gidede/shared";
 
-export function RecommendationsPanel({ recommendations }: { recommendations: Record<string, unknown>[] }) {
+export const RecommendationsPanel = React.memo(function RecommendationsPanel({ recommendations }: { recommendations: Record<string, unknown>[] }) {
   if (!recommendations || recommendations.length === 0) {
     return (
       <EmptyStateCard
@@ -69,4 +69,4 @@ export function RecommendationsPanel({ recommendations }: { recommendations: Rec
       </CardContent>
     </Card>
   );
-}
+});

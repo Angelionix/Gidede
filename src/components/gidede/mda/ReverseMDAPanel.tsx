@@ -27,7 +27,7 @@ import { EmptyStateCard } from "@/components/gidede/shared";
 /**
  * Reverse MDA: Этапы 1–3 (Эстетика → Динамики → Механики).
  */
-export function ReverseMDAPanel({
+export const ReverseMDAPanel = React.memo(function ReverseMDAPanel({
   result,
 }: {
   result: MDAAnalysisResult | null;
@@ -344,4 +344,4 @@ export function ReverseMDAPanel({
       </Card>
     </div>
   );
-}
+});

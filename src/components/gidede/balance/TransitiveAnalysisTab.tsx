@@ -27,7 +27,7 @@ interface TransitiveAnalysisTabProps {
   result: FullBalanceResponse | null;
 }
 
-export function TransitiveAnalysisTab({ result }: TransitiveAnalysisTabProps) {
+export const TransitiveAnalysisTab = React.memo(function TransitiveAnalysisTab({ result }: TransitiveAnalysisTabProps) {
   if (!result?.transitive_result) {
     return (
       <EmptyStateCard
@@ -176,4 +176,4 @@ export function TransitiveAnalysisTab({ result }: TransitiveAnalysisTabProps) {
       <SuggestionsList suggestions={suggestions} />
     </div>
   );
-}
+});

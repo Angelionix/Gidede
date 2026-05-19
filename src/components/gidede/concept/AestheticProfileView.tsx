@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import {
   Card,
   CardContent,
@@ -11,7 +12,7 @@ import { ArrowRight } from "lucide-react";
 import type { AestheticProfile } from "../../../../shared/types/typescript/interfaces";
 import { AestheticBadge } from "./AestheticBadge";
 
-export function AestheticProfileView({ profile }: { profile: AestheticProfile }) {
+export const AestheticProfileView = React.memo(function AestheticProfileView({ profile }: { profile: AestheticProfile }) {
   return (
     <Card>
       <CardHeader>
@@ -45,4 +46,4 @@ export function AestheticProfileView({ profile }: { profile: AestheticProfile })
       </CardContent>
     </Card>
   );
-}
+});

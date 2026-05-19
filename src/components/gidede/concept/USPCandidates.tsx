@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import {
   Card,
   CardContent,
@@ -10,7 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Check, CheckCircle2, XCircle, Info } from "lucide-react";
 
-export function USPCandidates({
+export const USPCandidates = React.memo(function USPCandidates({
   candidates,
   selectedIndex,
   onSelect,
@@ -119,4 +120,4 @@ export function USPCandidates({
       </CardContent>
     </Card>
   );
-}
+});

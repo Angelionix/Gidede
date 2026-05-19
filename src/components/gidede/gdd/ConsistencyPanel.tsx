@@ -36,7 +36,7 @@ function severityBadge(severity: ConsistencyIssue["severity"]) {
   );
 }
 
-export function ConsistencyPanel({ report }: ConsistencyPanelProps) {
+export const ConsistencyPanel = React.memo(function ConsistencyPanel({ report }: ConsistencyPanelProps) {
   if (!report) {
     return (
       <Card>
@@ -141,4 +141,4 @@ export function ConsistencyPanel({ report }: ConsistencyPanelProps) {
       )}
     </div>
   );
-}
+});

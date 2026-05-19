@@ -1,5 +1,6 @@
 "use client";
 
+import React from "react";
 import {
   Card,
   CardContent,
@@ -12,7 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { Sparkles, Star } from "lucide-react";
 import type { ConceptGenerationResult } from "@/types/concept";
 
-export function OnePagerCard({ result }: { result: ConceptGenerationResult }) {
+export const OnePagerCard = React.memo(function OnePagerCard({ result }: { result: ConceptGenerationResult }) {
   return (
     <Card>
       <CardHeader>
@@ -99,4 +100,4 @@ export function OnePagerCard({ result }: { result: ConceptGenerationResult }) {
       </CardContent>
     </Card>
   );
-}
+});

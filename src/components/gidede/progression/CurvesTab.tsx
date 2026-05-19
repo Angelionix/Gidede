@@ -25,7 +25,7 @@ interface CurvesTabProps {
   result: ProgressionDesignResponse | null;
 }
 
-export function CurvesTab({ result }: CurvesTabProps) {
+export const CurvesTab = React.memo(function CurvesTab({ result }: CurvesTabProps) {
   if (!result?.curves) {
     return (
       <EmptyStateCard
@@ -94,4 +94,4 @@ export function CurvesTab({ result }: CurvesTabProps) {
       </div>
     </div>
   );
-}
+});

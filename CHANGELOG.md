@@ -9,6 +9,30 @@
 
 ---
 
+## [0.44.0] - 2026-05-20
+
+### Added
+- **4.E.3**: Дополнительная оптимизация производительности — React.memo
+  - `React.memo` обёртки добавлены к **34 подкомпонентам** всех 8 блоков:
+    - concept (6): OnePagerCard, AestheticProfileView, MechanicSetView, ValidationReportView, CoreLoopCandidates, USPCandidates
+    - balance (5): TransitiveAnalysisTab, PayoffMatrixTab, SimulationChartsTab, MachinationsVisualizationTab, CorrectionsPanelTab
+    - progression (5): CurvesTab, TiersTab, ContentPlanTab, ValidationTab, MacroParamsTab
+    - economy (5): ResourcesTab, ClassificationTab, MachinationsEconomyTab, SimulationEconomyTab, DiagnosticsTab
+    - mda (4): ClassicMDAPanel, ReverseMDAPanel, LensAuditPanel, BondMatrixPanel
+    - coreloop (5): CoreLoopDiagram, LoopHierarchyTree, PathologyPanel, ValidationPanel, RecommendationsPanel
+    - gdd (4): GDDPreview, ConsistencyPanel, ChecklistPanel, ExportPanel
+  - Предотвращает ненужный ререндеринг при обновлении родительских компонентов
+  - Наиболее эффективно для таб-компонентов с тяжёлыми таблицами и графиками (Recharts)
+
+### Changed
+- Версия обновлена с 0.43.0 до 0.44.0
+- **Тестовая документация**: актуализация `docs/тестирование/testing_plan.md` и `docs/тестирование/test_infrastructure.md`
+  - Реальный подсчёт: **743 backend** + **16 frontend** = **759 тестов** всего
+  - Frontend: components.test.tsx обновлён до 10 тестов (6 shared-компонентов)
+- **TECH_DEBT.md**: добавлена запись о v0.44.0
+
+---
+
 ## [0.43.0] - 2026-05-20
 
 ### Changed

@@ -12,7 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { RefreshCw } from "lucide-react";
 import { EmptyStateCard } from "@/components/gidede/shared";
 
-export function CoreLoopDiagram({ steps }: { steps: Record<string, unknown>[] }) {
+export const CoreLoopDiagram = React.memo(function CoreLoopDiagram({ steps }: { steps: Record<string, unknown>[] }) {
   if (!steps || steps.length === 0) {
     return (
       <EmptyStateCard
@@ -161,4 +161,4 @@ export function CoreLoopDiagram({ steps }: { steps: Record<string, unknown>[] })
       </CardContent>
     </Card>
   );
-}
+});

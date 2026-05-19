@@ -57,7 +57,7 @@ const EXPORT_OPTIONS: {
   },
 ];
 
-export function ExportPanel({ profile, projectId }: ExportPanelProps) {
+export const ExportPanel = React.memo(function ExportPanel({ profile, projectId }: ExportPanelProps) {
   const { apiFetch } = useAuth();
   const { toast } = useToast();
   const [exporting, setExporting] = useState<ExportFormat | null>(null);
@@ -217,4 +217,4 @@ export function ExportPanel({ profile, projectId }: ExportPanelProps) {
       </Card>
     </div>
   );
-}
+});

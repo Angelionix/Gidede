@@ -29,7 +29,7 @@ interface SimulationEconomyTabProps {
   result: EconomyDesignResponse | null;
 }
 
-export function SimulationEconomyTab({ result }: SimulationEconomyTabProps) {
+export const SimulationEconomyTab = React.memo(function SimulationEconomyTab({ result }: SimulationEconomyTabProps) {
   if (!result?.sim_result) {
     return (
       <EmptyStateCard
@@ -201,4 +201,4 @@ export function SimulationEconomyTab({ result }: SimulationEconomyTabProps) {
       </div>
     </div>
   );
-}
+});

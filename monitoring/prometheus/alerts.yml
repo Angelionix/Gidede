@@ -1,0 +1,105 @@
+# Gidede API — Prometheus Alert Rules
+# Фаза 4.E.7: Нагрузочное тестирование и мониторинг
+
+groups:
+  - name: gidede_api_alerts
+    rules:
+      - alert: HighAPILatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 2
+        for: 2m
+        labels:
+          severity: warning
+          team: gidede
+        annotations:
+          summary: "High API Latency (p95 > 2s)"
+          description: "API p95 latency is {{ $value }}s, exceeding 2s threshold"
+
+      - alert: CriticalAPILatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket[5m])) > 5
+        for: 1m
+        labels:
+          severity: critical
+          team: gidede
+        annotations:
+          summary: "Critical API Latency (p95 > 5s)"
+          description: "API p95 latency is {{ $value }}s, exceeding 5s critical threshold"
+
+      - alert: HighErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status_code=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total[5m]))
+          ) > 0.05
+        for: 3m
+        labels:
+          severity: warning
+          team: gidede
+        annotations:
+          summary: "High Error Rate (5xx > 5%)"
+          description: "5xx error rate is {{ $value | humanizePercentage }}, exceeding 5% threshold"
+
+      - alert: CriticalErrorRate
+        expr: |
+          (
+            sum(rate(http_requests_total{status_code=~"5.."}[5m]))
+            /
+            sum(rate(http_requests_total[5m]))
+          ) > 0.10
+        for: 1m
+        labels:
+          severity: critical
+          team: gidede
+        annotations:
+          summary: "Critical Error Rate (5xx > 10%)"
+          description: "5xx error rate is {{ $value | humanizePercentage }}, exceeding 10% critical threshold"
+
+      - alert: HighAILatency
+        expr: histogram_quantile(0.95, rate(ai_call_duration_seconds_bucket[5m])) > 30
+        for: 3m
+        labels:
+          severity: warning
+          team: gidede
+        annotations:
+          summary: "High AI Latency (p95 > 30s)"
+          description: "AI call p95 latency is {{ $value }}s, exceeding 30s threshold"
+
+      - alert: HighAIFailureRate
+        expr: |
+          (
+            sum(rate(ai_calls_total{status="error"}[10m]))
+            /
+            sum(rate(ai_calls_total[10m]))
+          ) > 0.10
+        for: 5m
+        labels:
+          severity: warning
+          team: gidede
+        annotations:
+          summary: "High AI Failure Rate (errors > 10%)"
+          description: "AI failure rate is {{ $value | humanizePercentage }}, exceeding 10% threshold"
+
+      - alert: HighRateLimitHits
+        expr: sum(rate(rate_limit_hits_total[10m])) > 10
+        for: 5m
+        labels:
+          severity: warning
+          team: gidede
+        annotations:
+          summary: "High Rate Limit Hits (> 10/10m)"
+          description: "Rate limit hit rate is {{ $value }} per second, exceeding threshold"
+
+      - alert: LowCacheHitRate
+        expr: |
+          (
+            sum(rate(cache_operations_total{result="hit"}[10m]))
+            /
+            sum(rate(cache_operations_total{operation="get"}[10m]))
+          ) < 0.30
+        for: 5m
+        labels:
+          severity: warning
+          team: gidede
+        annotations:
+          summary: "Low Cache Hit Rate (< 30%)"
+          description: "Cache hit rate is {{ $value | humanizePercentage }}, below 30% threshold"

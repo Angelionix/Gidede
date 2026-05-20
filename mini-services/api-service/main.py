@@ -5,17 +5,20 @@ Gidede API Service — FastAPI Backend
 Фаза 4.A.8: Полный реестр промптов (31 PromptSpec)
 Фаза 4.A.9: Redis: кэш, сессии, Pub/Sub
 Фаза 4.A.10: pgvector + RAG-сервис
+Фаза 4.E.7: Prometheus metrics & мониторинг
 """
 
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import Response
 import uvicorn
 
 from app.core.config import settings
 from app.core.logging_config import setup_logging
 from app.core.database import init_db, close_db
 from app.core.redis_client import get_redis_client, close_redis_client
+from app.core.metrics import PrometheusMiddleware, metrics_endpoint
 from app.api.v1.health import router as health_router
 from app.api.v1.concept import router as concept_router
 from app.api.v1.coreloop import router as coreloop_router
@@ -80,6 +83,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+# Prometheus middleware (4.E.7)
+app.add_middleware(PrometheusMiddleware)
+
 # CORS
 app.add_middleware(
     CORSMiddleware,
@@ -88,6 +94,13 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# === Metrics endpoint (4.E.7) ===
+@app.get("/api/v1/metrics", include_in_schema=False)
+async def get_metrics():
+    """Prometheus metrics endpoint."""
+    return await metrics_endpoint()
+
 
 # === Роутеры ===
 app.include_router(health_router, prefix="/api/v1", tags=["Health"])

@@ -1,0 +1,61 @@
+# Gidede Monitoring Stack — Docker Compose
+# Фаза 4.E.7: Нагрузочное тестирование и мониторинг
+#
+# Запуск:
+#   docker compose -f docker-compose.monitoring.yml up -d
+#
+# Доступ:
+#   Prometheus:  http://localhost:9090
+#   Grafana:     http://localhost:3001  (admin / admin)
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: gidede-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alerts.yml:/etc/prometheus/alerts.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.path=/prometheus"
+      - "--storage.tsdb.retention.time=30d"
+      - "--web.enable-lifecycle"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+    networks:
+      - gidede-monitoring
+
+  grafana:
+    image: grafana/grafana:11.0.0
+    container_name: gidede-grafana
+    ports:
+      - "3001:3000"
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH: /var/lib/grafana/dashboards/gidede-performance.json
+    volumes:
+      - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
+      - grafana_data:/var/lib/grafana
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - gidede-monitoring
+
+volumes:
+  prometheus_data:
+    driver: local
+  grafana_data:
+    driver: local
+
+networks:
+  gidede-monitoring:
+    driver: bridge

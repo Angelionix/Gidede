@@ -9,6 +9,40 @@
 
 ---
 
+## [0.47.0] - 2026-05-20
+
+### Added
+- **4.E.7**: Нагрузочное тестирование и мониторинг
+  - **Locust load tests** — 3 сценария в `load_tests/locustfile_api.py`:
+    - `GidedeAPIUser` — 100 одновременных пользователей: health, projects CRUD, blocks 1-4, pipeline, GBE Bridge
+    - `GidedeAIStressUser` — 10 одновременных AI-вызовов: concept, MDA, assistant chat, suggestions
+    - `GidedeDBStressUser` — массовое создание проектов (1000+), проверка pagination
+  - **Prometheus metrics middleware** — `app/core/metrics.py`:
+    - 11 метрик: HTTP requests/latency, AI calls/latency, DB queries, cache hit/miss, rate limits, errors, active users, projects
+    - `PrometheusMiddleware` — автоматический сбор HTTP-метрик (path normalization)
+    - Helper-функции: record_ai_call, record_db_query, record_cache_operation, etc.
+    - Graceful degradation при отсутствии prometheus_client
+    - `/api/v1/metrics` endpoint для Prometheus
+  - **Grafana dashboard** — 10 панелей (Request Rate, Latency p50/p95/p99, AI metrics, Cache, Errors)
+  - **Prometheus config** + 8 alert rules (HighAPILatency, CriticalErrorRate, etc.)
+  - **Структурированные логи** — text/json формат, RequestIdFilter, helper-функции
+  - **Enhanced health endpoint** — /health/metrics (CPU, memory, uptime, projects)
+  - **Docker Compose monitoring** (Prometheus + Grafana)
+  - **50 тестов** для metrics и logging в `tests/test_metrics.py`
+
+### Resolved
+- TD-023: Нагрузочное тестирование и мониторинг — ✅ Resolved (4.E.7)
+
+### Changed
+- Версия обновлена с 0.46.0 до 0.47.0
+- pyproject.toml: добавлены prometheus-client и psutil
+- main.py: PrometheusMiddleware + /api/v1/metrics
+- ROADMAP_PHASE4.md — 4.E.7 ✅
+- TECH_DEBT.md — TD-022 (Frontend tests), TD-023 (Load testing → Resolved)
+- 1025 тестов всего (978 backend + 30 frontend + 17 E2E)
+
+---
+
 ## [0.46.0] - 2026-05-20
 
 ### Added

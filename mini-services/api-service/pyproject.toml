@@ -1,10 +1,12 @@
 [project]
 name = "gidede-api-service"
-version = "0.46.0"
+version = "0.47.0"
 description = "Gidede — AI-powered Game Design Assistant (Backend API)"
 requires-python = ">=3.12"
 dependencies = [
     "pydantic-settings>=2.0.0",
+    "prometheus-client>=0.20.0",
+    "psutil>=5.9.0",
 ]
 
 [tool.ruff]

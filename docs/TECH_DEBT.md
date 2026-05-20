@@ -47,7 +47,7 @@
 | TD-015 | Интеграция с GDCombine не имеет работающего API | GDCombine — сторонний проект, API может измениться | Блок 8 может потребовать полной переработки при изменении API GBE | Начать с API-mock на Фазе 4.E, реальная интеграция после стабилизации API GBE | ✅ Resolved — API-mock полностью реализован в 4.E.1: GBEBridgeService (sync_to_gbe, sync_from_gbe, handle_webhook, get_project_status, test_connection), API endpoints (6), 70 тестов, UI Блока 8. Mock-режим — целевой статус, пока приложение в разработке. Реальная интеграция после стабилизации API GBE. |
 | TD-020 | Нет глобального error boundary на frontend — необработанные ошибки крашат страницу | Не реализовано при первоначальной разработке UI | Пользователь видит белый экран вместо сообщения об ошибке | Добавить error boundary с возможностью повтора | ✅ Resolved — Error boundary с retry реализован в 4.E.4 |
 | TD-021 | Страницы блоков загружаются eagerly — все 8 страниц блоков загружаются при первом визите | next/dynamic не настроен | Медленная начальная загрузка, ненужная передача данных | Добавить lazy loading с next/dynamic | ✅ Resolved — Lazy loading с next/dynamic реализован в 4.E.3 |
-| TD-022 | Frontend-тесты покрывают минимальную часть функционала (30 тестов на 60+ компонентов) | Фокус был на backend-тестировании | Риск регрессии в UI | Расширить покрытие frontend-тестами: целевой показатель ≥ 50% | 🔧 Partially Resolved — 30 frontend тестов (v0.46.0) |
+| TD-022 | Frontend-тесты покрывают минимальную часть функционала (30 тестов на 60+ компонентов) | Фокус был на backend-тестировании | Риск регрессии в UI | Расширить покрытие frontend-тестами: целевой показатель ≥ 50% | ✅ Resolved — 283 frontend теста в 8 файлах (v0.48.0): config (63), constants (71), types (44), pipeline (29), shared-components (46), components (24), api-client (4), auth (2) |
 | TD-023 | Нет нагрузочного тестирования и мониторинга | Проект в фазе активной разработки | Невозможно оценить деградацию при росте нагрузки | Locust + Prometheus + Grafana в 4.E.7 | ✅ Resolved — Реализовано в v0.47.0: Locust (3 сценария), Prometheus (11 метрик), Grafana (10 панелей), структурированные логи |
 
 ---
@@ -130,7 +130,7 @@
 | 2026-05-20 | Версия обновлена до 0.45.0: 4.E.5 UI-полировка (анимации, responsive, accessibility, empty states), 185 новых тестов для 5 сервисов (Concept, CoreLoop, MDA, Progression, Project), исправлены баги в concept_service.py и mda_service.py, 944 тестов всего |
 | 2026-05-20 | Версия обновлена до 0.46.0: 4.E.6 E2E-тестирование (Playwright, 17 тестов в 5 сценариях), исправлены падающие frontend-тесты (30 всего), vitest config исправлен для совместимости с Playwright, 975 тестов всего (928 backend + 30 frontend + 17 E2E) |
 | 2026-05-20 | Добавлены TD-022 (Frontend-тесты — Partially Resolved), TD-023 (Нагрузочное тестирование — Resolved в 4.E.7) |
-| 2026-05-20 | Версия обновлена до 0.47.0: 4.E.7 Нагрузочное тестирование и мониторинг — Locust, Prometheus, Grafana, структурированные логи, CI/CD |
+| 2026-05-20 | Версия обновлена до 0.48.0: 4.E.8 Документация и релиз (README, CONTRIBUTING, docker-compose.prod.yml, USER_GUIDE, Dockerfiles, nginx), frontend-тесты расширены до 283, TD-022 → Resolved |
 
 ---
 

@@ -1,6 +1,6 @@
 [project]
 name = "gidede-api-service"
-version = "0.47.0"
+version = "0.48.0"
 description = "Gidede — AI-powered Game Design Assistant (Backend API)"
 requires-python = ">=3.12"
 dependencies = [

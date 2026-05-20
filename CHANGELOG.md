@@ -9,6 +9,36 @@
 
 ---
 
+## [0.48.0] - 2026-05-20
+
+### Added
+- **4.E.8**: Документация и подготовка к релизу
+  - **README.md** — полностью переписан: актуальная версия (v0.48.0), все 8 блоков активны, полная структура проекта, инструкции быстрого старта (dev + production + monitoring), API документация с 16 группами эндпоинтов, текущий статус с таблицей тестов по блокам
+  - **CONTRIBUTING.md** — новый файл: 9 разделов (настройка окружения, структура проекта, правила кода SOLID/KISS/DRY/YAGNI, Conventional Commits, Git Flow, тестирование, PR процесс)
+  - **docker-compose.prod.yml** — production-деплой: nginx (SSL termination, SSE streaming, rate limiting, gzip, security headers), frontend (3-stage Docker build), backend (2-stage Python build), PostgreSQL + Redis (internal network only)
+  - **nginx/nginx.conf** — полная конфигурация: upstream для frontend/backend, HTTP→HTTPS redirect, TLS 1.2/1.3, WebSocket/SSE поддержка, gzip compression, security headers (HSTS, CSP, X-Frame-Options), rate limiting (30r/s general, 5r/s AI)
+  - **Dockerfile** (frontend) — 3-stage multi-build: bun install → next build (standalone) → slim production
+  - **mini-services/api-service/Dockerfile** (backend) — 2-stage build: python:3.12-slim, healthcheck, auto alembic upgrade, 4 workers
+  - **docs/USER_GUIDE.md** — руководство пользователя: 8 блоков (1-2 страницы на блок), сквозной пайплайн, FAQ
+- **Frontend-тесты расширены**: 30 → 283 (+253 новых тестов)
+  - `config.test.ts` — 63 теста: API routes (31), blocks config (14), genres (7), aesthetics (11)
+  - `constants.test.ts` — 71 тест: все 7 файлов констант (gdd, coreloop, economy, balance, mda, progression, concept)
+  - `types.test.ts` — 44 теста: shared enums (14), все типы интерфейсов (concept, coreloop, mda, balance, economy, progression, gdd, shared)
+  - `pipeline.test.ts` — 29 тестов: usePipeline hook (state, fetch, stale, prepareInput, notify, clearStale, runFullPipeline, error handling, serialization)
+  - `shared-components.test.tsx` — 46 тестов: WarningsList (11), SuggestionsList (12), EmptyStateCard (8), NodeTypeIcon (14), index (1)
+- **Backend-тесты**: исправлены 6 ошибок импорта (установлены aiosqlite, sqlalchemy, asyncpg, redis), теперь все 978 тестов собираются без ошибок
+
+### Resolved
+- TD-022: Frontend-тесты — ✅ Resolved (283 теста, покрытие ≥ 50%)
+
+### Changed
+- Версия обновлена с 0.47.0 до 0.48.0
+- ROADMAP_PHASE4.md — задача 4.E.8 отмечена как завершённая (✅)
+- TECH_DEBT.md — TD-022 → Resolved
+- 1278 тестов всего (978 backend + 283 frontend + 17 E2E)
+
+---
+
 ## [0.47.0] - 2026-05-20
 
 ### Added

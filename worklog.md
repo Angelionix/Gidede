@@ -142,3 +142,81 @@ Work Log:
 Stage Summary:
 - 4.E.7 полностью реализована
 - Версия v0.47.0, 1025 тестов
+
+---
+Task ID: 2-b
+Agent: general-purpose
+Task: Create CONTRIBUTING.md
+
+Work Log:
+- Created CONTRIBUTING.md with 9 sections in Russian
+
+Stage Summary:
+- CONTRIBUTING.md created at /home/z/my-project/Gidede/CONTRIBUTING.md
+- All 9 required sections included: Как внести вклад, Настройка окружения, Структура проекта, Правила кода, Коммиты, Ветвление, Тестирование, Pull Request процесс, Контакты
+- Content tailored to actual project structure (verified docker-compose.yml, package.json, pyproject.toml, .env.example, README.md)
+
+---
+Task ID: 2-a
+Agent: full-stack-developer
+Task: Create docker-compose.prod.yml with nginx, SSL, production config
+
+Work Log:
+- Read existing docker-compose.yml (dev), DEPLOYMENT.md, config.py, database.py, main.py, package.json, pyproject.toml to understand project structure
+- Created docker-compose.prod.yml with 5 services: nginx (nginx:alpine, SSL termination, ports 80/443), frontend (Next.js build from Dockerfile, depends on backend), backend (FastAPI build from mini-services/api-service/Dockerfile, depends on postgres+redis), postgres (pgvector/pgvector:pg16, production credentials via env vars, no external port), redis (redis:7-alpine with requirepass, no external port)
+- Created nginx/nginx.conf with: upstream definitions, HTTP→HTTPS redirect server block, full HTTPS server block with SSL/TLS config, security headers (HSTS, X-Frame-Options, CSP, etc.), gzip compression, rate limiting zones, /api/* → backend:3030 proxy, / → frontend:3000 proxy, SSE streaming support for /api/v1/ai/chat/stream (buffering off, WebSocket upgrade), Next.js static asset caching (365d), API docs proxy, metrics endpoint
+- Created Dockerfile (frontend) with 3 stages: deps (oven/bun:1, install deps), builder (bun build with Prisma generate + next build), runner (oven/bun:1-slim, standalone output, non-root user, healthcheck)
+- Created mini-services/api-service/Dockerfile (backend) with 2 stages: deps (python:3.12-slim, install all runtime Python packages + system deps), runner (python:3.12-slim, non-root user, healthcheck via /api/v1/health, auto-run alembic migrations on startup)
+
+Stage Summary:
+- Production Docker Compose with nginx SSL termination, reverse proxy, and full stack deployment
+- nginx.conf is production-ready with security headers, gzip, rate limiting, SSE streaming support
+- Both Dockerfiles use multi-stage builds for minimal image sizes
+- Postgres and Redis ports not exposed externally in production (accessed via internal Docker network)
+- Backend auto-runs Alembic migrations before starting uvicorn with 4 workers
+- All sensitive credentials use env vars with required-validation (DB_PASSWORD, JWT_SECRET_KEY)
+
+---
+Task ID: 2-c
+Agent: general-purpose
+Task: Create USER_GUIDE.md
+
+Work Log:
+- Read worklog.md for prior work context
+- Read all 5 algorithm specification files (algo_3_1_3_2, algo_3_3_3_4, algo_3_5_3_6, algo_3_7_3_8, algo_3_9_3_10) for detailed block descriptions
+- Read src/config/blocks.ts for block configuration
+- Read block page implementations: blocks/1/page.tsx, blocks/7/page.tsx, blocks/8/page.tsx for UI details
+- Created docs/USER_GUIDE.md with comprehensive Russian-language documentation
+
+Stage Summary:
+- Created docs/USER_GUIDE.md (~4500 words, all in Russian)
+- Document covers: Введение, Начало работы, and all 8 blocks with substantial content (200+ words each)
+- Each block section includes: purpose, how to use, what you get, algorithm reference, and tips/details
+- Additional sections: Сквозной пайплайн (pipeline flow + stale cascade), Часто задаваемые вопросы (6 Q&A)
+- Content grounded in actual algorithm specs (3.1–3.9) and verified against real UI implementations
+
+---
+Task ID: 4-a
+Agent: full-stack-developer
+Task: Expand frontend test coverage
+
+Work Log:
+- Read existing test files (components.test.tsx, auth.test.tsx, api-client.test.ts, setup.ts)
+- Read all source files to understand testable code: api-client.ts, auth.tsx, utils.ts, use-pipeline.ts, useActiveProject.ts, use-toast.ts, api.ts, blocks.ts, genres.ts, aesthetics.ts, all 7 constants files, all 7 types files, 4 shared components
+- Created config.test.ts with 63 tests covering api.ts (31 tests), blocks.ts (14 tests), genres.ts (7 tests), aesthetics.ts (11 tests)
+- Created constants.test.ts with 71 tests covering gdd.ts (13 tests), coreloop.ts (11 tests), economy.ts (7 tests), balance.ts (10 tests), mda.ts (10 tests), progression.ts (7 tests), concept.ts (8 tests)
+- Created types.test.ts with 44 tests covering shared enums (14 tests), concept types (4 tests), coreloop types (2 tests), mda types (2 tests), balance types (5 tests), economy types (1 test), progression types (1 test), gdd types (6 tests), shared interfaces (9 tests)
+- Created pipeline.test.ts with 29 tests covering usePipeline hook: initial state, fetch state, stale detection, completed blocks, notifications, error handling, prepareInput, notifyUpdated, clearStale, runFullPipeline, state serialization
+- Created shared-components.test.tsx with 46 tests covering WarningsList (11 tests), SuggestionsList (12 tests), EmptyStateCard (8 tests), NodeTypeIcon (14 tests), index re-exports (1 test)
+- Fixed 2 test failures: AlertTriangle duplicate testid (use getAllByTestId), ProjectState key count (15→16)
+- All 283 tests pass (was 30)
+
+Stage Summary:
+- Total frontend tests: 283 (was 30, +253 new tests)
+- New files created: 5 (config.test.ts, constants.test.ts, types.test.ts, pipeline.test.ts, shared-components.test.tsx)
+- Key results:
+  - config.test.ts: 63 tests — All API routes, 8 block configs, 29 genres, 8 aesthetics, YEE motivations
+  - constants.test.ts: 71 tests — All 7 constant files (gdd, coreloop, economy, balance, mda, progression, concept)
+  - types.test.ts: 44 tests — All 7 type files + shared interfaces + enums validated
+  - pipeline.test.ts: 29 tests — usePipeline hook with mocked auth and API calls
+  - shared-components.test.tsx: 46 tests — All 4 shared components thoroughly tested

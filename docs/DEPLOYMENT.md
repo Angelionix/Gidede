@@ -9,6 +9,7 @@
 
 ## Содержание
 
+0. [One-Click Quick Deploy (Быстрый старт)](#0-one-click-quick-deploy-быстрый-старт)
 1. [Обзор деплоя](#1-обзор-деплоя)
 2. [Системные требования](#2-системные-требования)
 3. [Переменные окружения](#3-переменные-окружения)
@@ -19,6 +20,94 @@
 8. [Масштабирование](#8-масштабирование)
 9. [Резервное копирование](#9-резервное-копирование)
 10. [Устранение неполадок](#10-устранение-неполадок)
+
+---
+
+## 0. One-Click Quick Deploy (Быстрый старт)
+
+> **Новая функция (v0.49.0)**: Разворачивание Gidede в один клик через Docker Compose.
+> Больше не нужно вручную настраивать PostgreSQL, Redis, переменные окружения и миграции.
+
+### Вариант A: Multi-Container (рекомендуется)
+
+Четыре контейнера (PostgreSQL + Redis + Backend + Frontend), один клик:
+
+```bash
+# Клонируем
+git clone https://github.com/Angelionix/Gidede.git
+cd Gidede
+
+# Один клик — всё поднимается с дефолтными значениями
+docker compose -f docker-compose.quick.yml up
+
+# С AI-ключами (опционально — UI работает и без них)
+OPENAI_API_KEY=sk-... ANTHROPIC_API_KEY=sk-ant-... \
+  docker compose -f docker-compose.quick.yml up
+```
+
+**Что доступно после запуска:**
+- Frontend: http://localhost:3000
+- Backend API: http://localhost:3030
+- API Docs (Swagger): http://localhost:3030/docs
+- PostgreSQL: localhost:5432 (user: gidede, pass: gidede_quick)
+- Redis: localhost:6379
+
+**Особенности:**
+- Не нужен даже `.env` файл — все переменные имеют дефолтные значения
+- Backend автоматически запускает Alembic-миграции при старте
+- PostgreSQL с расширением pgvector для RAG
+- AI-функции работают при наличии хотя бы одного API-ключа
+- Без API-ключей UI полностью функционален, AI-генерация недоступна
+
+**Остановка:**
+```bash
+docker compose -f docker-compose.quick.yml down
+# С удалением данных:
+docker compose -f docker-compose.quick.yml down -v
+```
+
+### Вариант B: Single Container (всё в одном)
+
+Один контейнер с PostgreSQL + Redis + Backend + Frontend (через supervisord):
+
+```bash
+# Сборка
+docker compose -f docker-compose.single.yml build
+
+# Запуск
+docker compose -f docker-compose.single.yml up
+
+# С AI-ключами
+OPENAI_API_KEY=sk-... docker compose -f docker-compose.single.yml up
+```
+
+**Особенности:**
+- Один контейнер `gidede-all-in-one`
+- Процессами управляет supervisord
+- Внутренние PostgreSQL и Redis настраиваются автоматически
+- Порты: 3000 (Frontend) + 3030 (Backend)
+- Образ heavier (~1.5 ГБ), но проще для демо и тестирования
+- Не подходит для production (нет изоляции, сложнее масштабировать)
+
+**Когда использовать Single Container:**
+- Быстрое демо на ноутбуке
+- CI/CD тестирование
+- Оценка продукта без сложной настройки
+- Когда нужен только один порт или нет Docker Compose
+
+### Сравнение вариантов деплоя
+
+| Параметр | Quick (Multi) | Single (All-in-One) | Production |
+|----------|--------------|---------------------|------------|
+| Команда | `docker compose -f docker-compose.quick.yml up` | `docker compose -f docker-compose.single.yml up` | `docker compose -f docker-compose.prod.yml up` |
+| Контейнеров | 4 | 1 | 5 |
+| Nginx | Нет | Нет | Да (SSL) |
+| .env файл | Не нужен | Не нужен | Обязателен |
+| Изоляция | Каждый сервис отдельно | Всё в одном | Каждый сервис отдельно |
+| Масштабирование | Да | Нет | Да |
+| Production-ready | Нет (dev-секреты) | Нет (dev-секреты) | Да |
+| Размер образов | ~800 МБ | ~1.5 ГБ | ~800 МБ |
+| Время сборки | ~3 мин | ~5 мин | ~3 мин |
 
 ---
 

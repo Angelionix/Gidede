@@ -1,0 +1,49 @@
+# =============================================================================
+# Gidede — Single-Container Docker Compose
+# =============================================================================
+# Вариант: всё в одном контейнере (PostgreSQL + Redis + Backend + Frontend)
+#
+# Запуск:
+#   docker compose -f docker-compose.single.yml up
+#
+# С AI-ключами:
+#   OPENAI_API_KEY=sk-... docker compose -f docker-compose.single.yml up
+#
+# Остановка:
+#   docker compose -f docker-compose.single.yml down
+# =============================================================================
+
+services:
+  gidede:
+    build:
+      context: .
+      dockerfile: Dockerfile.all-in-one
+    container_name: gidede-all-in-one
+    restart: unless-stopped
+    environment:
+      # AI Keys (передаются из хост-окружения)
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ZAI_API_KEY: ${ZAI_API_KEY:-}
+      ZAI_BASE_URL: ${ZAI_BASE_URL:-https://api.z.ai/v1}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-}
+      AI_DEFAULT_PROVIDER: ${AI_DEFAULT_PROVIDER:-auto}
+      AI_CACHE_ENABLED: "true"
+    ports:
+      - "3000:3000"   # Frontend (Next.js)
+      - "3030:3030"   # Backend (FastAPI)
+    volumes:
+      - gidede_pgdata:/var/lib/postgresql/16/main
+      - gidede_redisdata:/var/lib/redis
+    healthcheck:
+      test: ["CMD", "bash", "-c", "wget --no-verbose --tries=1 --spider http://localhost:3000/ && python -c \"import urllib.request; urllib.request.urlopen('http://localhost:3030/api/v1/health')\""]
+      interval: 30s
+      timeout: 15s
+      retries: 5
+      start_period: 60s
+
+volumes:
+  gidede_pgdata:
+    driver: local
+  gidede_redisdata:
+    driver: local

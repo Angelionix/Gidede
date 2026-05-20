@@ -9,6 +9,24 @@
 
 ---
 
+## [0.49.0] - 2026-05-20
+
+### Added
+- **One-Click Docker Deploy** — разворачивание приложения в один клик:
+  - **`docker-compose.quick.yml`** — 4 контейнера (PostgreSQL + pgvector, Redis, Backend, Frontend) одной командой `docker compose -f docker-compose.quick.yml up`. Не нужен даже `.env` файл — все переменные имеют дефолтные значения. AI-ключи передаются через env: `OPENAI_API_KEY=sk-... docker compose -f docker-compose.quick.yml up`
+  - **`docker-compose.single.yml`** + **`Dockerfile.all-in-one`** — всё в одном контейнере (PostgreSQL + Redis + Backend + Frontend через supervisord). Идеально для демо и CI/CD тестирования. Один клик: `docker compose -f docker-compose.single.yml up`
+  - **`scripts/docker-entrypoint-all-in-one.sh`** — авто-инициализация PostgreSQL (создание пользователя, базы, pgvector extension), Redis, запуск Alembic миграций, затем supervisord
+  - **`scripts/supervisord.conf`** — конфигурация supervisord для управления 4 процессами (postgresql, redis, backend, frontend) внутри одного контейнера
+  - **`.env.docker`** — Docker-специфичные переменные окружения с дефолтами для quick-start
+- **DEPLOYMENT.md** — добавлена секция "0. One-Click Quick Deploy" с тремя вариантами (Quick Multi, Single Container, Production), сравнительная таблица
+- **README.md** — обновлён "Быстрый старт" с тремя вариантами: One-Click, Single Container, локальная разработка
+
+### Changed
+- Версия обновлена с 0.48.0 до 0.49.0
+- Структура проекта в README обновлена (добавлены docker-compose.quick.yml, docker-compose.single.yml)
+
+---
+
 ## [0.48.0] - 2026-05-20
 
 ### Added

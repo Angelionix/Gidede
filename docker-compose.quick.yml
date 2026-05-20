@@ -1,0 +1,137 @@
+# =============================================================================
+# Gidede — One-Click Quick Start
+# =============================================================================
+# Запуск:  docker compose -f docker-compose.quick.yml up
+# Остановка: docker compose -f docker-compose.quick.yml down
+# С очисткой: docker compose -f docker-compose.quick.yml down -v
+#
+# Что поднимается:
+#   - PostgreSQL 16 + pgvector  (порт 5432)
+#   - Redis 7                    (порт 6379)
+#   - Backend FastAPI            (порт 3030)
+#   - Frontend Next.js           (порт 3000)
+#
+# Всё с дефолтными значениями — не нужен даже .env файл!
+# Для AI-функций задайте OPENAI_API_KEY / ANTHROPIC_API_KEY / ZAI_API_KEY
+# =============================================================================
+
+services:
+  # ===== PostgreSQL + pgvector =====
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: gidede-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: gidede
+      POSTGRES_PASSWORD: gidede_quick
+      POSTGRES_DB: gidede
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U gidede"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    networks:
+      - gidede-net
+
+  # ===== Redis =====
+  redis:
+    image: redis:7-alpine
+    container_name: gidede-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - gidede-net
+
+  # ===== Backend (FastAPI + Uvicorn) =====
+  backend:
+    build:
+      context: ./mini-services/api-service
+      dockerfile: Dockerfile
+    container_name: gidede-backend
+    restart: unless-stopped
+    environment:
+      # --- БД (внутренний Docker URL) ---
+      DATABASE_URL: postgresql+asyncpg://gidede:gidede_quick@postgres:5432/gidede
+      # --- Redis ---
+      REDIS_URL: redis://redis:6379/0
+      # --- JWT (auto-generated dev secret) ---
+      JWT_SECRET_KEY: gidede_quick_dev_secret_change_in_production_2026
+      # --- AI Keys (пустые = AI недоступен, но UI работает) ---
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ZAI_API_KEY: ${ZAI_API_KEY:-}
+      ZAI_BASE_URL: ${ZAI_BASE_URL:-https://api.z.ai/v1}
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      # --- AI Config ---
+      AI_DEFAULT_PROVIDER: ${AI_DEFAULT_PROVIDER:-auto}
+      AI_CACHE_ENABLED: "true"
+      # --- CORS ---
+      CORS_ORIGINS: '["http://localhost:3000","http://127.0.0.1:3000"]'
+      # --- Режим ---
+      DEBUG: "true"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "3030:3030"
+    networks:
+      - gidede-net
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:3030/api/v1/health')"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+  # ===== Frontend (Next.js 16) =====
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: gidede-frontend
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      NEXT_TELEMETRY_DISABLED: "1"
+      NEXT_PUBLIC_API_URL: http://localhost:3030
+      NEXTAUTH_SECRET: gidede_quick_nextauth_secret_change_in_prod
+      NEXTAUTH_URL: http://localhost:3000
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "3000:3000"
+    networks:
+      - gidede-net
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/"]
+      interval: 15s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+
+networks:
+  gidede-net:
+    driver: bridge

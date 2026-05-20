@@ -1,6 +1,6 @@
 # Gidede — Game Design AI System
 
-**Версия**: v0.48.0
+**Версия**: v0.49.0
 
 AI-powered система для проектирования игр. Помогает геймдизайнерам пройти путь от идеи до полноценного GDD (Game Design Document) с использованием искусственного интеллекта и формализованных алгоритмов, основанных на 17 книгах по геймдизайну.
 
@@ -97,6 +97,8 @@ Gidede/
 ├── prisma/                 # Prisma schema (генерация типов для Next.js)
 ├── .github/workflows/      # CI/CD (GitHub Actions)
 ├── docker-compose.yml      # Dev-окружение (PostgreSQL + Redis)
+├── docker-compose.quick.yml # One-Click Quick Start (4 контейнера)
+├── docker-compose.single.yml # Single Container (всё в одном)
 ├── docker-compose.prod.yml # Production (nginx + frontend + backend + DB)
 ├── docker-compose.monitoring.yml # Prometheus + Grafana
 ├── VERSION                 # Единый источник версии
@@ -105,13 +107,34 @@ Gidede/
 
 ## Быстрый старт
 
-### Через Docker Compose (рекомендуется)
+### Вариант 1: One-Click (рекомендуется для демо/оценки)
 
 ```bash
-# Клонирование
 git clone https://github.com/Angelionix/Gidede.git
 cd Gidede
 
+# Один клик — всё поднимается автоматически (4 контейнера)
+docker compose -f docker-compose.quick.yml up
+
+# С AI-ключами (опционально — UI работает и без них)
+OPENAI_API_KEY=sk-... docker compose -f docker-compose.quick.yml up
+```
+
+Доступно сразу: http://localhost:3000 (Frontend) | http://localhost:3030/docs (API Docs)
+
+### Вариант 2: Single Container (всё в одном контейнере)
+
+```bash
+git clone https://github.com/Angelionix/Gidede.git
+cd Gidede
+
+# Сборка и запуск (1 контейнер — PostgreSQL + Redis + Backend + Frontend)
+docker compose -f docker-compose.single.yml up
+```
+
+### Вариант 3: Локальная разработка (ручная настройка)
+
+```bash
 # Настройка окружения
 cp .env.example .env
 # Отредактируйте .env: укажите API-ключи для AI-провайдеров

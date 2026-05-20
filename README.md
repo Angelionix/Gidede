@@ -1,6 +1,6 @@
 # Gidede — Game Design AI System
 
-**Версия**: v0.49.0
+**Версия**: v0.51.0
 
 AI-powered система для проектирования игр. Помогает геймдизайнерам пройти путь от идеи до полноценного GDD (Game Design Document) с использованием искусственного интеллекта и формализованных алгоритмов, основанных на 17 книгах по геймдизайну.
 
@@ -184,7 +184,7 @@ docker compose -f docker-compose.monitoring.yml up -d
 # Все тесты
 ./scripts/run_tests.sh
 
-# Backend (pytest, 975+ тестов)
+# Backend (pytest, 946+ тестов)
 cd mini-services/api-service
 python -m pytest tests/ -v
 python -m pytest tests/ -v --cov=app --cov-report=term-missing
@@ -266,4 +266,4 @@ npx eslint src/            # TypeScript
 
 **Мониторинг**: ✅ Prometheus (11 метрик), Grafana (10 панелей), Locust (3 сценария), структурированные логи
 
-**Тесты**: 975+ (928 backend + 30 frontend + 17 E2E)
+**Тесты**: 1437 (946 backend + 283 frontend + 17 E2E + 64 API endpoint + 83 инфраструктурные + 12 load)

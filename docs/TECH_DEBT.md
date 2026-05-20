@@ -131,6 +131,7 @@
 | 2026-05-20 | Версия обновлена до 0.46.0: 4.E.6 E2E-тестирование (Playwright, 17 тестов в 5 сценариях), исправлены падающие frontend-тесты (30 всего), vitest config исправлен для совместимости с Playwright, 975 тестов всего (928 backend + 30 frontend + 17 E2E) |
 | 2026-05-20 | Добавлены TD-022 (Frontend-тесты — Partially Resolved), TD-023 (Нагрузочное тестирование — Resolved в 4.E.7) |
 | 2026-05-20 | Версия обновлена до 0.48.0: 4.E.8 Документация и релиз (README, CONTRIBUTING, docker-compose.prod.yml, USER_GUIDE, Dockerfiles, nginx), frontend-тесты расширены до 283, TD-022 → Resolved |
+| 2026-05-20 | Версия обновлена до 0.51.0: критические тесты безопасности (security.py — 51, auth_middleware.py — 15, user_service.py — 17) + API endpoint тесты (concept — 18, pipeline — 24, gdd — 22). 147 новых тестов, 1437 всего |
 
 ---
 

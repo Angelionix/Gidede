@@ -3,10 +3,19 @@
 # Gidede — Docker Entrypoint (All-in-One Container)
 # =============================================================================
 # Инициализирует PostgreSQL, Redis, запускает миграции Alembic,
-# затем передаёт управление supervisord
+# затем передаёт управление supervisord.
+#
+# Поддержка команды "test":
+#   docker compose -f docker-compose.single.yml run --rm gidede test [backend|frontend|lint|coverage]
 # =============================================================================
 
 set -e
+
+# Проверяем, запущен ли режим тестирования
+if [ "${1}" = "test" ]; then
+    shift  # убираем "test" из аргументов
+    exec /app/docker-run-tests.sh "$@"
+fi
 
 echo "============================================"
 echo "  Gidede All-in-One — Starting Up"

@@ -2,9 +2,9 @@
 
 > **Фаза**: 4.E (Интеграция и полировка — Блок 8)
 > **Дата**: 2026-05-20
-> **Версия**: 0.46.0
+> **Версия**: 0.50.0
 > **Статус**: Активный
-> **Подход**: Локальное тестирование + CI/CD (GitHub Actions)
+> **Подход**: Локальное тестирование + CI/CD (GitHub Actions) + Docker-тестирование
 
 ---
 
@@ -64,13 +64,36 @@ ruff check app/ tests/     # Python
 npx eslint src/            # TypeScript
 ```
 
+### 1.3 Docker-тестирование (One-Click)
+
+Все тесты можно запустить внутри Docker-контейнера одной командой. Контейнер автоматически поднимает PostgreSQL, Redis, запускает Alembic миграции и прогоняет тесты.
+
+```bash
+# Все тесты (backend + frontend + lint)
+docker compose -f docker-compose.single.yml run --rm gidede test
+
+# Только backend (pytest)
+docker compose -f docker-compose.single.yml run --rm gidede test backend
+
+# Только frontend (vitest)
+docker compose -f docker-compose.single.yml run --rm gidede test frontend
+
+# Только линтеры (Ruff + ESLint)
+docker compose -f docker-compose.single.yml run --rm gidede test lint
+
+# Тесты с покрытием кода
+docker compose -f docker-compose.single.yml run --rm gidede test coverage
+```
+
+> **Примечание**: Docker-тестирование использует тот же `Dockerfile.all-in-one`, что и production-деплой. Это гарантирует идентичность окружения. Внутри контейнера PostgreSQL запускается с pgvector, Redis — с AOF persistence, а Alembic применяет все миграции перед запуском тестов.
+
 ---
 
 ## 2. Автоматизированные программные тесты (Backend — pytest)
 
 ### 2.0 Сводная таблица
 
-**Итого: 928 тестов в 23 файлах (backend) + 30 тестов в 3 файлах (frontend) + 17 E2E тестов в 5 файлах**
+**Итого: 978 тестов в 24 файлах (backend) + 283 теста в 8 файлах (frontend) + 17 E2E тестов в 5 файлах + 12 load-задач = 1290 всего**
 
 | # | Файл | Количество | Что тестирует |
 |---|------|------------|---------------|
@@ -81,22 +104,23 @@ npx eslint src/            # TypeScript
 | 5 | test_gbe_bridge_service.py | 69 | GBE Bridge: mapping to/from, sync, webhooks, edge cases, Pydantic-модели |
 | 6 | test_ai_assistant_service.py | 60 | AI Assistant: context, session, history, knowledge, alerts, suggestions, chat, stream |
 | 7 | test_pipeline_4d9_integration.py | 60 | Pipeline Blocks 6-7-8 integration: GDD+Checklist+AI+GBE |
-| 8 | test_blocks_6_7_integration.py | 42 | GDD+Checklist+AI cross-module: форматы, чеклисты, контекст, API |
-| 9 | test_gdd_stages_6_8.py | 32 | GDD assemble, format, export: сшивка, Markdown, HTML, PDF, DOCX |
-| 10 | test_pipeline_service.py | 31 | Pipeline Blocks 1-5: prepare_input, stale, зависимости, модели, уведомления |
-| 11 | test_ai_assistant_api.py | 20 | AI API endpoints: chat, stream, suggestions, alerts, history, status |
-| 12 | test_rag_service.py | 12 | RAG: чанкирование, метаданные, поиск, статистика |
-| 13 | test_prompt_registry.py | 8 | Prompt Registry: 31+ промптов, PromptSpec, фильтрация, статистика |
-| 14 | test_auth.py | 6 | Auth: register, login, JWT, protected endpoints |
-| 15 | test_text_chunker.py | 6 | TextChunker: длинные абзацы, русский, код, токены |
-| 16 | test_concept_service.py | 41 | Concept: classify_genre, extract_aesthetics, derive_dynamics, select_mechanics, pipeline |
-| 17 | test_coreloop_service.py | 40 | CoreLoop: classify, hierarchy, pathologies, validation, recommendations, design_full |
-| 18 | test_mda_service.py | 45 | MDA: target dynamics, mechanics mapping, set assembly, classic MDA, lenses, Bond matrix |
-| 19 | test_progression_service.py | 45 | Progression: macro params, tiers, curves, content plan, validation, pipeline |
-| 20 | test_project_service.py | 14 | Project: CRUD, block flags, edge cases |
-| 21 | test_projects.py | 4 | Projects: CRUD, изоляция |
-| 22 | test_health.py | 2 | Health check API |
-| 23 | integration/test_full_pipeline.py | 28 | Full pipeline idea→economy, data flow, stale, graceful degradation |
+| 8 | test_metrics.py | 50 | Prometheus metrics, logging, health endpoint, structured logs |
+| 9 | test_mda_service.py | 45 | MDA: target dynamics, mechanics mapping, set assembly, classic MDA, lenses, Bond matrix |
+| 10 | test_progression_service.py | 45 | Progression: macro params, tiers, curves, content plan, validation, pipeline |
+| 11 | test_blocks_6_7_integration.py | 42 | GDD+Checklist+AI cross-module: форматы, чеклисты, контекст, API |
+| 12 | test_coreloop_service.py | 41 | CoreLoop: classify, hierarchy, pathologies, validation, recommendations, design_full |
+| 13 | test_concept_service.py | 40 | Concept: classify_genre, extract_aesthetics, derive_dynamics, select_mechanics, pipeline |
+| 14 | test_gdd_stages_6_8.py | 32 | GDD assemble, format, export: сшивка, Markdown, HTML, PDF, DOCX |
+| 15 | test_pipeline_service.py | 31 | Pipeline Blocks 1-5: prepare_input, stale, зависимости, модели, уведомления |
+| 16 | test_project_service.py | 14 | Project: CRUD, block flags, edge cases |
+| 17 | test_ai_assistant_api.py | 20 | AI API endpoints: chat, stream, suggestions, alerts, history, status |
+| 18 | test_rag_service.py | 12 | RAG: чанкирование, метаданные, поиск, статистика |
+| 19 | test_prompt_registry.py | 8 | Prompt Registry: 31+ промптов, PromptSpec, фильтрация, статистика |
+| 20 | test_auth.py | 6 | Auth: register, login, JWT, protected endpoints |
+| 21 | test_text_chunker.py | 6 | TextChunker: длинные абзацы, русский, код, токены |
+| 22 | test_projects.py | 4 | Projects: CRUD, изоляция |
+| 23 | test_health.py | 2 | Health check API |
+| 24 | integration/test_full_pipeline.py | 28 | Full pipeline idea→economy, data flow, stale, graceful degradation |
 
 ```
 mini-services/api-service/tests/

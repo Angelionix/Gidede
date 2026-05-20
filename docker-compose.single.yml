@@ -3,8 +3,15 @@
 # =============================================================================
 # Вариант: всё в одном контейнере (PostgreSQL + Redis + Backend + Frontend)
 #
-# Запуск:
+# Запуск приложения:
 #   docker compose -f docker-compose.single.yml up
+#
+# Запуск тестов:
+#   docker compose -f docker-compose.single.yml run --rm gidede test
+#   docker compose -f docker-compose.single.yml run --rm gidede test backend
+#   docker compose -f docker-compose.single.yml run --rm gidede test frontend
+#   docker compose -f docker-compose.single.yml run --rm gidede test lint
+#   docker compose -f docker-compose.single.yml run --rm gidede test coverage
 #
 # С AI-ключами:
 #   OPENAI_API_KEY=sk-... docker compose -f docker-compose.single.yml up
@@ -41,9 +48,30 @@ services:
       timeout: 15s
       retries: 5
       start_period: 60s
+    profiles:
+      - main
+
+  # Тестовый сервис — запускает тесты и завершается
+  gidede-test:
+    build:
+      context: .
+      dockerfile: Dockerfile.all-in-one
+    container_name: gidede-test-runner
+    environment:
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ZAI_API_KEY: ${ZAI_API_KEY:-}
+      ZAI_BASE_URL: ${ZAI_BASE_URL:-https://api.z.ai/v1}
+    volumes:
+      - gidede_test_pgdata:/var/lib/postgresql/16/main
+    command: ["test", "${TEST_TARGET:-all}"]
+    profiles:
+      - test
 
 volumes:
   gidede_pgdata:
     driver: local
   gidede_redisdata:
+    driver: local
+  gidede_test_pgdata:
     driver: local

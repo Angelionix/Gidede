@@ -1,12 +1,14 @@
 /**
  * Gidede — Единый источник истины для API URL и роутов.
  *
- * DRY: заменяет 13+ дублирований `process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"`
+ * DRY: заменяет 13+ дублирований `process.env.NEXT_PUBLIC_API_URL || "http://localhost:3030"`
  * по всему фронтенду.
+ *
+ * Default: http://localhost:3030 — порт FastAPI backend.
  */
 
 export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
+  process.env.NEXT_PUBLIC_API_URL || "http://localhost:3030";
 
 // ============================================================
 // API ROUTES

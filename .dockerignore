@@ -1,0 +1,104 @@
+# =============================================================================
+# Gidede — Docker Ignore
+# =============================================================================
+# Исключает ненужные файлы из Docker build context.
+# Без этого файла build context весит ~1.5+ ГБ (PDF, node_modules, docs).
+# =============================================================================
+
+# === Dependencies (устанавливаются внутри Docker) ===
+node_modules/
+**/node_modules/
+.mini-services/api-service/node_modules/
+
+# === Next.js build output (собирается внутри Docker) ===
+.next/
+out/
+
+# === Python cache ===
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# === Virtual environments ===
+.venv/
+venv/
+env/
+
+# === Документация и медиа (не нужны в Docker) ===
+docs/gdd_examples/
+docs/books/
+docs/bible/*.pdf
+docs/концепт/
+docs/Алгоритмы/
+docs/анализ/
+docs/архитектура/
+docs/тестирование/
+*.pdf
+
+# === E2E test output ===
+e2e/results/
+test-results/
+playwright-report/
+coverage_html/
+coverage/
+
+# === IDE и системные файлы ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# === Git ===
+.git/
+.gitignore
+
+# === Docker файлы (не копировать внутрь) ===
+docker-compose*.yml
+Dockerfile*
+.dockerignore
+
+# === Environment файлы (передаются через docker-compose) ===
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+# === CI/CD ===
+.github/
+
+# === Monitoring конфиги (не нужны в all-in-one) ===
+monitoring/
+
+# === Nginx (не нужен в all-in-one, только в prod) ===
+nginx/
+
+# === Agent context ===
+agent-ctx/
+
+# === Logs ===
+*.log
+logs/
+
+# === Test artifacts ===
+test_report_*.txt
+coverage.json
+junit.xml
+
+# === Прочее ===
+*.md
+!README.md
+CHANGELOG.md
+CONTRIBUTING.md
+LICENSE
+worklog.md
+dirty_bomb-game_design_document.pdf

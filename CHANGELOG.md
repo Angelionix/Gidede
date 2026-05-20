@@ -9,6 +9,51 @@
 
 ---
 
+## [0.51.0] - 2026-05-20
+
+### Added
+- **Критические тесты безопасности** — закрыты 3 пробела в тестовом покрытии инфраструктуры:
+  - `test_security.py` — **51 тест**: hash_password (7), verify_password (8), create_access_token (11), create_refresh_token (6), decode_token (7), token roundtrip (4), edge cases (8)
+  - `test_auth_middleware.py` — **15 тестов**: get_current_user (9: valid/invalid/refresh token/missing sub/empty sub/nonexistent user/inactive/WWW-Authenticate/pro plan), get_current_active_user (2), require_plan (4)
+  - `test_user_service.py` — **17 тестов**: create_user (4), get_user_by_email (2), store_refresh_token (2), revoke_refresh_token (3), validate_refresh_token (6)
+- **API endpoint тесты** — покрытие 3 ключевых роутеров на HTTP-уровне:
+  - `test_concept_api.py` — **18 тестов**: POST /generate (8), GET /{id} (4), PUT /{id} (2), POST /{id}/validate (4)
+  - `test_pipeline_api.py` — **24 теста**: GET /state (3), GET /prepare-input (5), POST /notify (3), POST /run-pipeline (6), POST /run-full-pipeline (4), DELETE /stale (3)
+  - `test_gdd_api.py` — **22 теста**: POST /format (4), POST /map (2), POST /auto-fill (2), POST /generate (3), POST /generate-full (5), POST /checklist (2), POST /export (4)
+
+### Changed
+- Версия обновлена с 0.50.0 до 0.51.0
+- **Тестовая статистика**: 147 новых тестов (83 инфраструктурных + 64 API endpoint)
+- Backend тесты: 799 → 946 (+147)
+- Общее количество: 1290 → 1437 (+147)
+
+---
+
+## [0.50.0] - 2026-05-20
+
+### Added
+- **Docker: One-Click Deploy + Тестирование в контейнере**
+  - **`.dockerignore`** — новый файл: исключает docs/, PDF, node_modules/, .next/, мониторинг и другие ненужные файлы из Docker build context. Уменьшает размер контекста с ~1.5 ГБ до ~50 МБ
+  - **`Dockerfile.all-in-one`** — улучшен: добавлена стадия `test-deps` с pytest, pytest-asyncio, pytest-cov, ruff; добавлены исходники frontend для vitest-тестов; добавлен скрипт `docker-run-tests.sh`; скопированы pytest и ruff binaries
+  - **`scripts/docker-run-tests.sh`** — новый скрипт: запускает PostgreSQL, Redis, Alembic миграции внутри контейнера, затем прогоняет тесты. Поддерживает аргументы: `all` (default), `backend`, `frontend`, `lint`, `coverage`
+  - **`scripts/docker-entrypoint-all-in-one.sh`** — обновлён: добавлена поддержка команды `test` — если первый аргумент `test`, запускается `docker-run-tests.sh` вместо supervisord
+  - **`docker-compose.single.yml`** — обновлён: добавлен сервис `gidede-test` с профилем `test` и отдельным volume; добавлен профиль `main` для основного сервиса
+- **Команды для запуска тестов в Docker:**
+  - `docker compose -f docker-compose.single.yml run --rm gidede test` — все тесты
+  - `docker compose -f docker-compose.single.yml run --rm gidede test backend` — только backend (pytest)
+  - `docker compose -f docker-compose.single.yml run --rm gidede test frontend` — только frontend (vitest)
+  - `docker compose -f docker-compose.single.yml run --rm gidede test lint` — линтеры (Ruff + ESLint)
+  - `docker compose -f docker-compose.single.yml run --rm gidede test coverage` — тесты с покрытием
+
+### Fixed
+- **API URL default**: исправлен с `http://localhost:8000` на `http://localhost:3030` в `src/config/api.ts` — соответствует реальному порту FastAPI backend
+
+### Changed
+- Версия обновлена с 0.49.0 до 0.50.0
+- **Тестовая статистика**: 1290 тестов всего (978 backend + 283 frontend + 17 E2E + 12 load)
+
+---
+
 ## [0.49.0] - 2026-05-20
 
 ### Added

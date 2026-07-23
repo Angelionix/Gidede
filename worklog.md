@@ -1211,3 +1211,62 @@ Task: QA + реализация рекомендаций: 3D-версии нов
 3. **🟢 NICE-TO-HAVE — Auto-save из iframe**: postMessage bridge для автосохранения результата при win/lose.
 4. **🟢 NICE-TO-HAVE — Спрайты вместо примитивов**: emoji-спрайты или canvas-текстуры для большей наглядности.
 5. **🟢 NICE-TO-HAVE — Theme-aware chart colors**: использовать CSS variable resolver для recharts colors.
+
+---
+Task ID: 12 (webDevReview round 7 — coreloop fix + knowledge browser)
+Agent: webDevReview (cron job 287389)
+Task: QA + реализация рекомендаций: расширить coreloop API + страница базы знаний.
+
+## Current Project Status (assessment)
+- App стабильна после раундов 1-7: dark mode, реальный AI, персистентное хранилище, PDF, Bible RAG, AI enrichment, 2D/3D прототипы (6 типов), AI insights, playtest persistence + bar chart.
+- QA подтвердило: health 200, lint чистый, RAG работает (12 секций, 494 чанка, 10945 терминов), без ошибок.
+- Приступил к рекомендациям из Task ID 11: расширить coreloop API + knowledge browser.
+
+## Completed Modifications
+
+### 1. Расширена валидация coreloop API ✅
+- `src/app/api/v1/coreloop/design/route.ts`: `VALID_LOOP_TYPES` расширен с 4 до 7 типов:
+  - Было: engine, economy, ecology, hybrid
+  - Стало: engine, economy, ecology, hybrid, **tower_defense, rhythm, puzzle**
+- `classifyStructuralType()` уже использовал `desiredLoopType` напрямую — теперь новые типы проходят валидацию и сохраняются в ProjectCoreLoop.structuralType.
+- **Проверено**: 
+  - coreloop tower_defense: 200 (раньше 422)
+  - coreloop rhythm: 200
+  - Теперь проекты могут иметь core loop любого из 6 типов прототипов, и прототипы будут автоматически использовать правильный тип.
+
+### 2. Страница базы знаний (/knowledge) ✅
+- Создана `src/app/knowledge/page.tsx` — полноценный UI для поиска по Bible RAG:
+  - **Header**: BookOpen иконка, заголовок «База знаний», описание.
+  - **Stats card** (primary border/bg): 3 метрики — Разделов Библии (12), Чанков индекса (494), Уникальных терминов (10945). Данные из RAG API response.stats.
+  - **Search card**: Input + кнопка «Найти», Enter для поиска.
+  - **Suggested queries**: 8 chips (MDA framework, core loop, balance transitive, economy progression, Schell lenses, Triangle of Weirdness, Machinations, narrative design) — клик запускает поиск.
+  - **Results**: карточки с title, section badge, type badge (📖 Библия / ⭐ Куратор), source, score, snippet.
+  - Empty state с Lightbulb иконкой.
+  - Auth guard: redirect to login if not authenticated.
+- Добавлен пункт «База знаний» (BookOpen иконка) в сайдбар с amber badge «12» (количество разделов).
+- Middleware обновлён: /knowledge добавлен в PROTECTED_PREFIXES.
+- **Проверено**: страница рендерится, VLM подтвердил все элементы (заголовок, поисковая строка, подсказки, статистика). RAG search возвращает реальные результаты из Bible (2.4 Core Loop section).
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок.
+- Health: ✅ 200.
+- coreloop tower_defense: ✅ 200 (раньше 422).
+- coreloop rhythm: ✅ 200.
+- RAG search: ✅ 3 results, stats: 12 sections / 494 chunks / 10945 terms.
+- Страница /knowledge: ✅ рендерится без ошибок, VLM подтвердил все UI элементы.
+- Сайдбар: ✅ новый пункт «База знаний» с badge «12».
+- dev.log: ✅ без ошибок.
+
+## Unresolved Issues / Risks + Next-Phase Recommendations
+
+### Risks
+1. **Knowledge page — нет пагинации**: показывает top 10 результатов. Для больших запросов может не хватить, но TF-IDF обычно даёт релевантные топ-результаты.
+2. **Bible snippets — обрезаны на 300 символов**: может теряться контекст. Future: expandable snippets или modal с полным чанком.
+3. **Coreloop new types — классификация не углублённая**: tower_defense/rhythm/puzzle сохраняются как structuralType, но classifyStructuralType не имеет специфичной логики для них (pathologies, recommendations общие). Future: добавить тип-специфичные патологии.
+
+### Priority Recommendations for Next Phase
+1. **🟡 LOW — Mobile touch controls**: touch events для rhythm/puzzle прототипов на мобильных.
+2. **🟡 LOW — Expandable Bible snippets**: клик по результату открывает полный чанк в modal.
+3. **🟢 NICE-TO-HAVE — Auto-save из iframe**: postMessage bridge для автосохранения результата при win/lose.
+4. **🟢 NICE-TO-HAVE — Спрайты вместо примитивов**: emoji-спрайты или canvas-текстуры для прототипов.
+5. **🟢 NICE-TO-HAVE — Type-specific pathologies**: tower_defense (wave imbalance), rhythm (off-beat penalty), puzzle (stuck states).

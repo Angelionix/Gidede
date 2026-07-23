@@ -37,7 +37,7 @@ import {
 // Constants
 // ============================================================
 
-const VALID_LOOP_TYPES = ["engine", "economy", "ecology", "hybrid"];
+const VALID_LOOP_TYPES = ["engine", "economy", "ecology", "hybrid", "tower_defense", "rhythm", "puzzle"];
 
 const GENRE_DEFAULT_LOOP_TYPE: Record<string, string> = {
   action: "engine",

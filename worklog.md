@@ -1596,3 +1596,37 @@ Task: Virtual joystick для ecology 3D + настоящий DOCX export + line
 - DOCX export: ✅ ZIP (PK), 10777 bytes.
 - Playtest history: ✅ 6 результатов (5 win + 1 lose).
 - Push: ✅ 0b0f89a..be9044b main -> nextjs-port.
+
+---
+Task ID: 19 (Type-specific recommendations + comparison mode)
+Agent: orchestrator (main)
+Task: Type-specific recommendations для coreloop + comparison mode для прототипов.
+
+## Completed Modifications
+
+### 1. Type-specific recommendations (coreloop) ✅
+- `src/app/api/v1/coreloop/design/route.ts`: добавлены 9 type-specific рекомендаций в `buildRecommendations()`:
+  - **tower_defense** (3): Wave pacing curve (high — 15s→12s→10s), Economy vs defense tension (medium — build-vs-defend decision), Tower upgrade path (medium — 2+ tiers).
+  - **rhythm** (3): Difficulty ramp curve (high — 60 BPM start, +10-15 BPM), Visual feedback sync (high — <50ms delay), Miss recovery window (medium — 200ms grace).
+  - **puzzle** (3): Piece preview queue (high — show next 3), Hold/swap mechanic (medium — tactical layer), Difficulty via speed not complexity (medium — gradual speedup).
+- Каждая рекомендация имеет: target, recommendation, priority, category, source="formal".
+- **Проверено**:
+  - tower_defense: 6 recommendations (3 pathology-based + 3 type-specific + 1 AI-style).
+  - rhythm: 6 recommendations (2 pathology + 3 type-specific + 1 AI-style).
+
+### 2. Comparison mode для прототипов ✅
+- `src/app/prototypes/page.tsx`:
+  - Состояние: `compareMode`, `secondType`, `secondPrototype`, `iframe2Ref`.
+  - Кнопка «Сравнить» (Columns2 иконка) + селектор «vs [type]».
+  - handleGenerate: если compareMode — генерирует 2 прототипа параллельно (основной + secondType).
+  - Display: grid grid-cols-2 — 2 iframe side-by-side с各自的 type badges + goals.
+  - Single mode сохранён (ternary: compareMode && secondPrototype ? dual : single).
+  - Toast: "Прототип готов (2D ×2)" + "Сравнение: engine vs ecology".
+  - Селектор второго типа: TYPE_OPTIONS без "auto", формат "vs Engine".
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок.
+- tower_defense recommendations: ✅ Wave pacing [high] + Economy vs defense [medium] + Tower upgrade [medium].
+- rhythm recommendations: ✅ Difficulty ramp [high] + Visual feedback sync [high] + Miss recovery [medium].
+- Prototypes page: ✅ рендерится без ошибок (redirect to login — session не авторизован, но без errors).
+- dev.log: ✅ без критических ошибок.

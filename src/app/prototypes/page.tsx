@@ -428,20 +428,58 @@ export default function PrototypesPage() {
               </div>
             </CardHeader>
             <CardContent>
-              <div className="grid sm:grid-cols-[1fr_200px] gap-4">
-                <div className="rounded-lg overflow-hidden border border-border shadow-sm">
-                  <iframe
-                    ref={iframeRef}
-                    srcDoc={prototype.html}
-                    title="Прототип кор-лупа"
-                    className="w-full h-[340px] block"
-                  />
-                </div>
-                <div className="space-y-3">
+              {compareMode && secondPrototype ? (
+                /* Compare mode: two iframes side-by-side */
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Тип</p>
-                    <Badge variant="outline" className={TYPE_LABELS[prototype.config.type]?.color}>
-                      {TYPE_LABELS[prototype.config.type]?.label}
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge variant="outline" className={TYPE_LABELS[prototype.config.type]?.color}>
+                        {TYPE_LABELS[prototype.config.type]?.label || prototype.config.type}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">{prototype.config.goal}</span>
+                    </div>
+                    <div className="rounded-lg overflow-hidden border border-border shadow-sm">
+                      <iframe
+                        ref={iframeRef}
+                        srcDoc={prototype.html}
+                        title="Прототип 1"
+                        className="w-full h-[300px] block"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge variant="outline" className={TYPE_LABELS[secondPrototype.config.type]?.color}>
+                        {TYPE_LABELS[secondPrototype.config.type]?.label || secondPrototype.config.type}
+                      </Badge>
+                      <span className="text-xs text-muted-foreground">{secondPrototype.config.goal}</span>
+                    </div>
+                    <div className="rounded-lg overflow-hidden border border-border shadow-sm">
+                      <iframe
+                        ref={iframe2Ref}
+                        srcDoc={secondPrototype.html}
+                        title="Прототип 2"
+                        className="w-full h-[300px] block"
+                      />
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                /* Single prototype mode */
+                <div className="grid sm:grid-cols-[1fr_200px] gap-4">
+                  <div className="rounded-lg overflow-hidden border border-border shadow-sm">
+                    <iframe
+                      ref={iframeRef}
+                      srcDoc={prototype.html}
+                      title="Прототип кор-лупа"
+                      className="w-full h-[340px] block"
+                    />
+                  </div>
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Тип</p>
+                      <Badge variant="outline" className={TYPE_LABELS[prototype.config.type]?.color}>
+                        {TYPE_LABELS[prototype.config.type]?.label}
                     </Badge>
                     <p className="text-xs text-muted-foreground mt-1">
                       {TYPE_LABELS[prototype.config.type]?.desc}
@@ -461,6 +499,7 @@ export default function PrototypesPage() {
                   </div>
                 </div>
               </div>
+              )}
             </CardContent>
           </Card>
 

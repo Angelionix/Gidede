@@ -58,10 +58,21 @@ export default function PrototypesPage() {
   const [selectedProject, setSelectedProject] = useState<string>("");
   const [mode, setMode] = useState<"2d" | "3d">("2d");
   const [useAi, setUseAi] = useState(false);
+  const [typeOverride, setTypeOverride] = useState<string>("auto");
   const [loading, setLoading] = useState(false);
   const [prototype, setPrototype] = useState<PrototypeResponse | null>(null);
   const [history, setHistory] = useState<PlaytestHistoryEntry[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+
+  const TYPE_OPTIONS = [
+    { value: "auto", label: "Авто (из проекта)" },
+    { value: "engine", label: "Engine — генерация ресурса" },
+    { value: "economy", label: "Economy — конвертация" },
+    { value: "ecology", label: "Ecology — выживание" },
+    { value: "tower_defense", label: "Tower Defense — защита" },
+    { value: "rhythm", label: "Rhythm — ритм" },
+    { value: "puzzle", label: "Puzzle — тетрис-лайк" },
+  ];
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
@@ -86,7 +97,12 @@ export default function PrototypesPage() {
       const data = await apiFetch<PrototypeResponse>("/prototypes/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project_id: selectedProject, mode, use_ai: useAi }),
+        body: JSON.stringify({
+          project_id: selectedProject,
+          mode,
+          use_ai: useAi,
+          ...(typeOverride !== "auto" ? { type: typeOverride } : {}),
+        }),
       });
       setPrototype(data);
       toast({
@@ -266,6 +282,22 @@ export default function PrototypesPage() {
             </Button>
           </div>
 
+          {/* Type override selector */}
+          <div className="flex items-center gap-2 mt-3">
+            <span className="text-xs text-muted-foreground">Тип кор-лупа:</span>
+            <select
+              value={typeOverride}
+              onChange={(e) => setTypeOverride(e.target.value)}
+              className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+            >
+              {TYPE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </div>
+
           {projects.length === 0 && (
             <p className="text-xs text-muted-foreground mt-3">
               Нет проектов. Создайте проект на странице «Мои проекты».
@@ -367,7 +399,36 @@ export default function PrototypesPage() {
                 {history.length === 0 ? (
                   <p className="text-sm text-muted-foreground">Нет сохранённых результатов.</p>
                 ) : (
-                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                  <>
+                    {/* Stats summary */}
+                    {(() => {
+                      const wins = history.filter((h) => h.outcome === "win").length;
+                      const losses = history.length - wins;
+                      const winRate = Math.round((wins / history.length) * 100);
+                      const byType: Record<string, { win: number; lose: number }> = {};
+                      history.forEach((h) => {
+                        const t = h.prototype_type;
+                        if (!byType[t]) byType[t] = { win: 0, lose: 0 };
+                        byType[t][h.outcome === "win" ? "win" : "lose"]++;
+                      });
+                      return (
+                        <div className="mb-4 grid grid-cols-3 gap-2">
+                          <div className="rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 p-2 text-center">
+                            <div className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{wins}</div>
+                            <div className="text-[10px] text-muted-foreground">Победы</div>
+                          </div>
+                          <div className="rounded-lg border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/30 p-2 text-center">
+                            <div className="text-xl font-bold text-rose-700 dark:text-rose-300">{losses}</div>
+                            <div className="text-[10px] text-muted-foreground">Поражения</div>
+                          </div>
+                          <div className="rounded-lg border border-primary/20 bg-primary/5 p-2 text-center">
+                            <div className="text-xl font-bold text-primary">{winRate}%</div>
+                            <div className="text-[10px] text-muted-foreground">Win rate</div>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                    <div className="space-y-2 max-h-60 overflow-y-auto">
                     {history.map((h) => (
                       <div
                         key={h.id}
@@ -393,7 +454,8 @@ export default function PrototypesPage() {
                         </span>
                       </div>
                     ))}
-                  </div>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>

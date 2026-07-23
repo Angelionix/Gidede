@@ -33,7 +33,7 @@ interface CoreLoopData {
 export type PrototypeMode = "2d" | "3d";
 
 interface PrototypeConfig {
-  type: "engine" | "economy" | "ecology";
+  type: "engine" | "economy" | "ecology" | "tower_defense" | "rhythm" | "puzzle";
   steps: string[];
   resourceName: string;
   resourceIcon: string;
@@ -45,6 +45,9 @@ const RESOURCE_PRESETS: Record<string, { name: string; icon: string }> = {
   engine: { name: "Энергия", icon: "⚡" },
   economy: { name: "Золото", icon: "💰" },
   ecology: { name: "Здоровье", icon: "❤️" },
+  tower_defense: { name: "Очки базы", icon: "🏰" },
+  rhythm: { name: "Combo", icon: "🎵" },
+  puzzle: { name: "Линии", icon: "🧩" },
 };
 
 /**
@@ -96,10 +99,9 @@ export function buildPrototypeConfig(
   coreLoopData: CoreLoopData,
   mode: PrototypeMode = "2d"
 ): PrototypeConfig {
-  const type = (coreLoopData.structuralType || "engine").toLowerCase() as
-    | "engine"
-    | "economy"
-    | "ecology";
+  const validTypes = ["engine", "economy", "ecology", "tower_defense", "rhythm", "puzzle"];
+  const rawType = (coreLoopData.structuralType || "engine").toLowerCase();
+  const type = (validTypes.includes(rawType) ? rawType : "engine") as PrototypeConfig["type"];
 
   const steps = extractSteps(coreLoopData).slice(0, 5);
   const preset = RESOURCE_PRESETS[type] || RESOURCE_PRESETS.engine;
@@ -108,12 +110,18 @@ export function buildPrototypeConfig(
     engine: "Накопите 50 энергии за 30 секунд",
     economy: "Заработайте 100 золота, конвертируя ресурсы",
     ecology: "Выживите 30 секунд, уклоняясь от угроз",
+    tower_defense: "Защитите базу от 3 волн врагов за 30 секунд",
+    rhythm: "Поймайте 20 бит в ритме (стрелки ←→)",
+    puzzle: "Соберите 3 линии из блоков (как тетрис)",
   };
 
   const goals3d: Record<string, string> = {
     engine: "Накопите 50 энергии, кликая по 3D-кристаллам",
     economy: "Заработайте 100 золота, собирая 3D-монеты",
     ecology: "Выживите 30 секунд, уклоняясь от 3D-блоков в пространстве",
+    tower_defense: "Защитите 3D-базу от волн врагов",
+    rhythm: "Ловите 3D-ноты в ритме",
+    puzzle: "Соберите 3D-линии из блоков",
   };
 
   const goals = mode === "3d" ? goals3d : goals2d;
@@ -283,6 +291,156 @@ function generate2dHtml(config: PrototypeConfig): string {
         drawText('${resourceIcon} ' + Math.floor(health), vec2(20, canvasHeight-25), 16, new Color(1,1,1));
       }
     `,
+    tower_defense: `
+      let baseHp = 100;
+      let enemies = [];
+      let wave = 1;
+      let waveTimer = 0;
+      let enemiesInWave = 0;
+      let spawnTimer = 0;
+      function gameUpdate() {
+        // Spawn waves
+        if (wave <= 3) {
+          spawnTimer -= timeDelta;
+          if (spawnTimer <= 0 && enemiesInWave < 5*wave) {
+            spawnTimer = 1.2;
+            enemiesInWave++;
+            enemies.push({pos: vec2(-20, 50+Math.random()*(canvasHeight-100)), hp:1, t:0});
+          }
+          if (enemiesInWave >= 5*wave && enemies.length === 0) {
+            wave++; enemiesInWave = 0; spawnTimer = 1;
+          }
+        } else if (baseHp > 0) {
+          sfxWin(); win();
+        }
+        // Update enemies (move right toward base at x=canvasWidth)
+        enemies.forEach(e => { e.t += timeDelta; e.pos.x += 25*timeDelta; });
+        // Click to shoot
+        if (mouseWasPressed(0)) {
+          sfxConvert();
+          for (let i=enemies.length-1;i>=0;i--) {
+            if (enemies[i].pos.subtract(mousePos).length() < 30) {
+              spawnParticles(enemies[i].pos, 8, new Color(0.9,0.5,0.1,1));
+              enemies.splice(i,1);
+              break;
+            }
+          }
+        }
+        // Enemies reaching base
+        for (let i=enemies.length-1;i>=0;i--) {
+          if (enemies[i].pos.x >= canvasWidth-20) {
+            baseHp -= 20; sfxHit(); enemies.splice(i,1);
+            if (baseHp <= 0) { baseHp=0; sfxLose(); lose(); }
+          }
+        }
+      }
+      function gameRender() {
+        drawRect(vec2(0,0), new Color(0.06,0.09,0.16), 0, 0);
+        // Base (right side, blue tower)
+        drawRect(vec2(canvasWidth-15, canvasHeight/2), vec2(20, 80), new Color(0.2,0.5,1,1), 0, new Color(0.5,0.7,1,1), 2);
+        // Enemies (orange circles moving right)
+        enemies.forEach(e => {
+          drawCircle(e.pos, 12, new Color(0.9,0.5,0.1,1), 0, new Color(1,0.7,0.3,1), 2);
+        });
+        // Wave info
+        drawText('Волна ' + Math.min(wave,3) + '/3', vec2(canvasWidth/2, canvasHeight-60), 24, new Color(0.4,0.6,1));
+        drawText('${resourceIcon} ' + Math.floor(baseHp), vec2(canvasWidth/2, canvasHeight-95), 36, new Color(0.4,0.7,1));
+        drawText('ЛКМ = выстрел по врагу', vec2(canvasWidth/2, canvasHeight-130), 14, new Color(0.6,0.7,0.8));
+      }
+    `,
+    rhythm: `
+      let combo = 0;
+      let beats = [];
+      let beatTimer = 0;
+      let notesHit = 0;
+      let side = 0; // 0=left, 1=right
+      function gameUpdate() {
+        beatTimer -= timeDelta;
+        if (beatTimer <= 0) {
+          beatTimer = 0.7;
+          side = 1 - side;
+          beats.push({pos: vec2(side? canvasWidth-40 : 40, canvasHeight+20), fromLeft: side===0, hit:false});
+        }
+        beats.forEach(b => { b.pos.y -= 180*timeDelta; });
+        beats = beats.filter(b => b.pos.y > -20);
+        // Hit: ← for left side, → for right side
+        if (keyWasPressed('ArrowLeft')) {
+          const b = beats.find(x => x.fromLeft && !x.hit && Math.abs(x.pos.y-150)<40);
+          if (b) { b.hit=true; combo++; notesHit++; sfxCollect(); spawnParticles(b.pos, 6, new Color(0.2,0.9,0.5,1)); }
+          else { combo=0; sfxHit(); }
+        }
+        if (keyWasPressed('ArrowRight')) {
+          const b = beats.find(x => !x.fromLeft && !x.hit && Math.abs(x.pos.y-150)<40);
+          if (b) { b.hit=true; combo++; notesHit++; sfxCollect(); spawnParticles(b.pos, 6, new Color(0.2,0.9,0.5,1)); }
+          else { combo=0; sfxHit(); }
+        }
+        if (notesHit >= 20) { sfxWin(); win(); }
+      }
+      function gameRender() {
+        drawRect(vec2(0,0), new Color(0.06,0.09,0.16), 0, 0);
+        // Hit zone (y=150)
+        drawRect(vec2(canvasWidth/2, 150), vec2(canvasWidth, 4), new Color(0.4,0.6,0.8,0.5));
+        drawRect(vec2(40, 150), vec2(30, 4), new Color(0.2,0.9,0.5));
+        drawRect(vec2(canvasWidth-40, 150), vec2(30, 4), new Color(0.2,0.9,0.5));
+        // Beats
+        beats.forEach(b => {
+          if (!b.hit) {
+            drawCircle(b.pos, 14, b.fromLeft?new Color(0.2,0.9,0.5,1):new Color(0.9,0.5,0.2,1), 0, new Color(1,1,1,1), 2);
+          }
+        });
+        // Combo
+        drawText('${resourceIcon} ' + combo + '  •  ' + notesHit + '/20', vec2(canvasWidth/2, canvasHeight-50), 32, combo>0?new Color(1,0.85,0.2):new Color(0.5,0.5,0.5));
+        drawText('← левая нота  •  → правая нота', vec2(canvasWidth/2, canvasHeight-90), 14, new Color(0.6,0.7,0.8));
+      }
+    `,
+    puzzle: `
+      // Simple tetris-like: blocks fall, click to place, complete rows
+      const COLS = 8, ROWS = 10, CELL = 30;
+      let grid = [];
+      for (let r=0;r<ROWS;r++) grid.push(new Array(COLS).fill(0));
+      let lines = 0;
+      let current = {col: 3, row: 0, fall: 0};
+      let fallSpeed = 0.8;
+      function gameUpdate() {
+        current.fall -= timeDelta;
+        if (current.fall <= 0) {
+          current.fall = fallSpeed;
+          if (current.row < ROWS-1 && grid[current.row+1][current.col] === 0) {
+            current.row++;
+          } else {
+            grid[current.row][current.col] = 1;
+            // Check line
+            for (let r=0;r<ROWS;r++) {
+              if (grid[r].every(c => c===1)) {
+                grid.splice(r,1); grid.unshift(new Array(COLS).fill(0));
+                lines++; sfxConvert(); spawnParticles(vec2(canvasWidth/2,canvasHeight/2), 15, new Color(0.2,0.9,0.5,1));
+                if (lines >= 3) { sfxWin(); win(); }
+              }
+            }
+            current = {col: 3, row: 0, fall: 0};
+            if (grid[0][3] === 1) { sfxLose(); lose(); } // game over
+          }
+        }
+        // Controls: ← → move, ↓ drop
+        if (keyWasPressed('ArrowLeft') && current.col > 0 && grid[current.row][current.col-1]===0) current.col--;
+        if (keyWasPressed('ArrowRight') && current.col < COLS-1 && grid[current.row][current.col+1]===0) current.col++;
+        if (keyIsDown('ArrowDown')) current.fall = 0;
+      }
+      function gameRender() {
+        drawRect(vec2(0,0), new Color(0.06,0.09,0.16), 0, 0);
+        const ox = canvasWidth/2 - COLS*CELL/2;
+        const oy = 20;
+        // Grid
+        for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) {
+          if (grid[r][c]) drawRect(vec2(ox+c*CELL+CELL/2, oy+r*CELL+CELL/2), vec2(CELL-2), new Color(0.4,0.6,1,1), 0, new Color(0.6,0.8,1,1), 1);
+        }
+        // Current piece
+        drawRect(vec2(ox+current.col*CELL+CELL/2, oy+current.row*CELL+CELL/2), vec2(CELL-2), new Color(1,0.85,0.2,1), 0, new Color(1,1,0.4,1), 2);
+        // Lines
+        drawText('${resourceIcon} ' + lines + '/3', vec2(canvasWidth/2, canvasHeight-25), 28, new Color(1,0.85,0.2));
+        drawText('← → движение  •  ↓ ускорить', vec2(canvasWidth/2, canvasHeight-55), 12, new Color(0.6,0.7,0.8));
+      }
+    `,
   };
 
   return `<!doctype html>
@@ -345,7 +503,7 @@ function generate2dHtml(config: PrototypeConfig): string {
         timeLeft -= timeDelta;
         if (timeLeft <= 0) {
           running = false;
-          ${type === "ecology" ? "if (health > 0) { sfxWin(); resultText.textContent='⏰ Выживали ' + (30) + 'с — победа!'; } else { sfxLose(); resultText.textContent='⏰ Время вышло'; }" : "sfxLose(); resultText.textContent='⏰ Время вышло';"}
+          ${type === "ecology" || type === "tower_defense" ? `if (${type === "ecology" ? "health" : "baseHp"} > 0) { sfxWin(); resultText.textContent='⏰ Выживали — победа!'; } else { sfxLose(); resultText.textContent='⏰ Время вышло'; }` : "sfxLose(); resultText.textContent='⏰ Время вышло';"}
           overlay.classList.add('show');
         }
       }

@@ -29,6 +29,8 @@ export async function POST(request: NextRequest) {
     const projectId = body?.project_id?.toString().trim() || null;
     const mode = (body?.mode?.toString().trim() === "3d" ? "3d" : "2d") as "2d" | "3d";
     const useAi = body?.use_ai === true || body?.use_ai === "true";
+    // Optional override: test any prototype type without changing the project's core loop
+    const typeOverride = body?.type?.toString().trim() || null;
 
     if (!projectId) {
       return VALIDATION_ERROR("project_id обязателен");
@@ -57,7 +59,7 @@ export async function POST(request: NextRequest) {
     const cl = project.coreLoop;
     const config = buildPrototypeConfig(
       {
-        structuralType: cl?.structuralType || "engine",
+        structuralType: typeOverride || cl?.structuralType || "engine",
         steps: cl?.steps ? (cl.steps as unknown) : (cl?.stepsData as unknown),
         inputData: cl?.inputData || undefined,
       },

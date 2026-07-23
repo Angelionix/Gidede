@@ -689,6 +689,195 @@ function generate3dHtml(config: PrototypeConfig): string {
         bar.style.background = health>30?'#10b981':'#ef4444';
       }
     `,
+    tower_defense: `
+      // 3D tower defense: base + waves of enemies, click to shoot
+      let baseHp = 100;
+      let wave = 1, enemiesInWave = 0, spawnTimer = 0;
+      const enemies = [];
+      const enemyGeo = new THREE.SphereGeometry(0.4, 16, 16);
+      const enemyMat = new THREE.MeshStandardMaterial({color:0xf59e0b, emissive:0xf59e0b, emissiveIntensity:0.3});
+      // Base (blue tower)
+      const base = new THREE.Mesh(
+        new THREE.CylinderGeometry(0.8, 1.2, 2, 8),
+        new THREE.MeshStandardMaterial({color:0x3b82f6, emissive:0x3b82f6, emissiveIntensity:0.2})
+      );
+      base.position.set(5, 1, 0);
+      scene.add(base);
+      const baseLight = new THREE.PointLight(0x3b82f6, 1, 10);
+      baseLight.position.set(5, 3, 0);
+      scene.add(baseLight);
+      const raycaster = new THREE.Raycaster();
+      const mouseV = new THREE.Vector2();
+      window.addEventListener('click', (e) => {
+        const r = renderer.domElement.getBoundingClientRect();
+        mouseV.x = ((e.clientX-r.left)/r.width)*2-1;
+        mouseV.y = -((e.clientY-r.top)/r.height)*2+1;
+        raycaster.setFromCamera(mouseV, camera);
+        const hits = raycaster.intersectObjects(enemies);
+        if (hits.length > 0) {
+          sfxConvert();
+          scene.remove(hits[0].object);
+          enemies.splice(enemies.indexOf(hits[0].object), 1);
+        }
+      });
+      function tick(dt) {
+        if (wave <= 3) {
+          spawnTimer -= dt;
+          if (spawnTimer <= 0 && enemiesInWave < 4*wave) {
+            spawnTimer = 1.5;
+            enemiesInWave++;
+            const e = new THREE.Mesh(enemyGeo, enemyMat);
+            e.position.set(-5, 0.5, (Math.random()-0.5)*4);
+            e.userData = {speed: 0.8 + wave*0.2};
+            scene.add(e);
+            enemies.push(e);
+          }
+          if (enemiesInWave >= 4*wave && enemies.length === 0) {
+            wave++; enemiesInWave = 0; spawnTimer = 1.5;
+          }
+        } else if (baseHp > 0) {
+          sfxWin(); win();
+        }
+        enemies.forEach(e => { e.position.x += e.userData.speed * dt; e.rotation.y += dt*2; });
+        for (let i=enemies.length-1;i>=0;i--) {
+          if (enemies[i].position.x >= 4.5) {
+            baseHp -= 20; sfxHit();
+            scene.remove(enemies[i]); enemies.splice(i,1);
+            if (baseHp <= 0) { baseHp=0; sfxLose(); lose(); }
+          }
+        }
+      }
+      function render3d() {
+        document.getElementById('hud').innerHTML = '${resourceIcon} ' + Math.floor(baseHp) + '%  •  Волна ' + Math.min(wave,3) + '/3';
+        const bar = document.getElementById('hpbar');
+        bar.style.width = Math.max(0,baseHp) + '%';
+        bar.style.background = baseHp>30?'#3b82f6':'#ef4444';
+      }
+    `,
+    rhythm: `
+      // 3D rhythm: 3D notes approach a hit zone, ← / → to hit
+      let combo = 0, notesHit = 0;
+      const notes = [];
+      const noteGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+      const noteMatL = new THREE.MeshStandardMaterial({color:0x10b981, emissive:0x10b981, emissiveIntensity:0.3});
+      const noteMatR = new THREE.MeshStandardMaterial({color:0xf59e0b, emissive:0xf59e0b, emissiveIntensity:0.3});
+      // Hit zone markers (two glowing pillars)
+      const pillarL = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 3, 8), new THREE.MeshStandardMaterial({color:0x10b981, emissive:0x10b981, emissiveIntensity:0.5}));
+      pillarL.position.set(-2, 1.5, 4); scene.add(pillarL);
+      const pillarR = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 3, 8), new THREE.MeshStandardMaterial({color:0xf59e0b, emissive:0xf59e0b, emissiveIntensity:0.5}));
+      pillarR.position.set(2, 1.5, 4); scene.add(pillarR);
+      let spawnTimer = 0;
+      let side = 0;
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'ArrowLeft' || e.code === 'ArrowRight') {
+          const wantLeft = e.code === 'ArrowLeft';
+          for (let i=notes.length-1; i>=0; i--) {
+            const n = notes[i];
+            if (n.userData.fromLeft === wantLeft && n.position.z > 3.5 && n.position.z < 4.5) {
+              combo++; notesHit++; sfxCollect();
+              scene.remove(n); notes.splice(i,1);
+              if (notesHit >= 15) { sfxWin(); win(); }
+              return;
+            }
+          }
+          combo = 0; sfxHit();
+        }
+      });
+      function tick(dt) {
+        spawnTimer -= dt;
+        if (spawnTimer <= 0) {
+          spawnTimer = 0.8;
+          side = 1 - side;
+          const n = new THREE.Mesh(noteGeo, side === 0 ? noteMatL : noteMatR);
+          n.position.set(side === 0 ? -2 : 2, 0.5, -8);
+          n.userData = {fromLeft: side === 0, speed: 4};
+          scene.add(n);
+          notes.push(n);
+        }
+        for (let i=notes.length-1; i>=0; i--) {
+          notes[i].position.z += notes[i].userData.speed * dt;
+          notes[i].rotation.y += dt*3;
+          if (notes[i].position.z > 6) {
+            combo = 0; scene.remove(notes[i]); notes.splice(i,1);
+          }
+        }
+      }
+      function render3d() {
+        document.getElementById('hud').innerHTML = '${resourceIcon} ' + combo + '  •  ' + notesHit + '/15';
+      }
+    `,
+    puzzle: `
+      // 3D puzzle: blocks stack on a 3D grid, complete layers to score
+      const COLS = 5, ROWS = 6;
+      let lines = 0;
+      const grid = [];
+      for (let y=0; y<ROWS; y++) grid.push(new Array(COLS).fill(null));
+      const blockGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
+      const blockMats = [
+        new THREE.MeshStandardMaterial({color:0x3b82f6, emissive:0x3b82f6, emissiveIntensity:0.2}),
+        new THREE.MeshStandardMaterial({color:0x10b981, emissive:0x10b981, emissiveIntensity:0.2}),
+        new THREE.MeshStandardMaterial({color:0xf59e0b, emissive:0xf59e0b, emissiveIntensity:0.2}),
+      ];
+      let current = null;
+      let fallTimer = 0;
+      function spawnBlock() {
+        const col = 2;
+        const m = blockMats[Math.floor(Math.random()*blockMats.length)];
+        const b = new THREE.Mesh(blockGeo, m);
+        b.position.set((col-2)*1, 0.5, 0);
+        b.userData = {col, y: 0, mat: m};
+        scene.add(b);
+        current = b;
+        fallTimer = 0.8;
+      }
+      spawnBlock();
+      window.addEventListener('keydown', (e) => {
+        if (!current) return;
+        if (e.code === 'ArrowLeft' && current.userData.col > 0) {
+          current.userData.col--;
+          current.position.x = (current.userData.col-2)*1;
+          if (grid[current.userData.y][current.userData.col]) {
+            current.userData.col++; current.position.x = (current.userData.col-2)*1;
+          }
+        }
+        if (e.code === 'ArrowRight' && current.userData.col < COLS-1) {
+          current.userData.col++;
+          current.position.x = (current.userData.col-2)*1;
+          if (grid[current.userData.y][current.userData.col]) {
+            current.userData.col--; current.position.x = (current.userData.col-2)*1;
+          }
+        }
+        if (e.code === 'ArrowDown') fallTimer = 0;
+      });
+      function tick(dt) {
+        if (!current) return;
+        fallTimer -= dt;
+        if (fallTimer <= 0) {
+          fallTimer = 0.8;
+          if (current.userData.y < ROWS-1 && !grid[current.userData.y+1][current.userData.col]) {
+            current.userData.y++;
+            current.position.y = current.userData.y + 0.5;
+          } else {
+            grid[current.userData.y][current.userData.col] = current;
+            // Check line (full row at any y level)
+            for (let y=0; y<ROWS; y++) {
+              if (grid[y].every(c => c !== null)) {
+                grid[y].forEach(b => scene.remove(b));
+                grid[y] = new Array(COLS).fill(null);
+                lines++; sfxConvert();
+                if (lines >= 3) { sfxWin(); win(); }
+              }
+            }
+            if (grid[0].some(c => c !== null)) { sfxLose(); lose(); return; }
+            spawnBlock();
+          }
+        }
+        if (current) current.rotation.y += dt;
+      }
+      function render3d() {
+        document.getElementById('hud').innerHTML = '${resourceIcon} ' + lines + '/3';
+      }
+    `,
   };
 
   return `<!doctype html>
@@ -706,7 +895,7 @@ function generate3dHtml(config: PrototypeConfig): string {
   canvas{display:block;width:100%;height:100%}
   #hud{position:absolute;top:8px;left:8px;color:#fbbf24;font-size:20px;font-weight:bold;text-shadow:0 2px 4px rgba(0,0,0,0.8)}
   #timer{position:absolute;top:8px;right:8px;color:#94a3b8;font-size:14px;font-weight:bold;text-shadow:0 1px 2px rgba(0,0,0,0.8)}
-  #hpWrap{position:absolute;bottom:8px;left:8px;width:140px;height:10px;background:rgba(15,23,42,0.7);border-radius:5px;overflow:hidden;display:${type === "ecology" ? "block" : "none"}}
+  #hpWrap{position:absolute;bottom:8px;left:8px;width:140px;height:10px;background:rgba(15,23,42,0.7);border-radius:5px;overflow:hidden;display:${type === "ecology" || type === "tower_defense" ? "block" : "none"}}
   #hpbar{height:100%;width:100%;background:#10b981;transition:width 0.2s}
   .overlay{position:absolute;inset:0;background:rgba(0,0,0,0.88);display:none;flex-direction:column;align-items:center;justify-content:center;color:#fff;gap:10px}
   .overlay.show{display:flex}
@@ -729,7 +918,13 @@ function generate3dHtml(config: PrototypeConfig): string {
     </div>
   </div>
   <p class="steps">Шаги: ${steps.join(" → ")}</p>
-  <p class="hint">Powered by Three.js • ${type === "ecology" ? "WASD/стрелки" : "ЛКМ по объектам"}</p>
+  <p class="hint">Powered by Three.js • ${
+    type === "ecology" ? "WASD/стрелки" :
+    type === "tower_defense" ? "ЛКМ по врагам" :
+    type === "rhythm" ? "← → по нотам" :
+    type === "puzzle" ? "← → движение • ↓ ускорить" :
+    "ЛКМ по объектам"
+  }</p>
   <script src="/three.min.js"></script>
   <script>
     ${SFX_SNIPPET}
@@ -744,7 +939,13 @@ function generate3dHtml(config: PrototypeConfig): string {
     scene.fog = new THREE.Fog(0x0f172a, 10, 30);
 
     const camera = new THREE.PerspectiveCamera(60, 400/300, 0.1, 100);
-    camera.position.set(${type === "ecology" ? "0, 6, 8" : "0, 4, 8"});
+    camera.position.set(${
+      type === "ecology" ? "0, 6, 8" :
+      type === "tower_defense" ? "0, 5, 10" :
+      type === "rhythm" ? "0, 3, 10" :
+      type === "puzzle" ? "0, 4, 9" :
+      "0, 4, 8"
+    });
     camera.lookAt(0, 1, 0);
 
     const renderer = new THREE.WebGLRenderer({antialias:true});
@@ -788,7 +989,7 @@ function generate3dHtml(config: PrototypeConfig): string {
         timerEl.textContent = '⏱ ' + Math.max(0,Math.ceil(timeLeft)) + 'с';
         if (timeLeft <= 0) {
           running = false;
-          ${type === "ecology" ? "if (health > 0) { sfxWin(); resultText.textContent='⏰ Выживали — победа!'; } else { resultText.textContent='⏰ Время вышло'; }" : "sfxLose(); resultText.textContent='⏰ Время вышло';"}
+          ${type === "ecology" || type === "tower_defense" ? `if (${type === "ecology" ? "health" : "baseHp"} > 0) { sfxWin(); resultText.textContent='⏰ Выживали — победа!'; } else { sfxLose(); resultText.textContent='⏰ Время вышло'; }` : "sfxLose(); resultText.textContent='⏰ Время вышло';"}
           overlay.classList.add('show');
         }
       }

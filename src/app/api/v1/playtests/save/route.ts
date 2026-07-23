@@ -11,7 +11,7 @@ import { getCurrentUser } from "@/lib/server-auth";
 import { db } from "@/lib/db";
 import { UNAUTH, SERVER_ERROR, VALIDATION_ERROR } from "@/lib/api-helpers";
 
-const VALID_TYPES = ["engine", "economy", "ecology"];
+const VALID_TYPES = ["engine", "economy", "ecology", "tower_defense", "rhythm", "puzzle"];
 const VALID_MODES = ["2d", "3d"];
 const VALID_OUTCOMES = ["win", "lose", "timeout"];
 

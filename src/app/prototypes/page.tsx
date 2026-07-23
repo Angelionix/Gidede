@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -411,21 +412,50 @@ export default function PrototypesPage() {
                         if (!byType[t]) byType[t] = { win: 0, lose: 0 };
                         byType[t][h.outcome === "win" ? "win" : "lose"]++;
                       });
+                      const chartData = Object.entries(byType).map(([type, v]) => ({
+                        type: type.length > 8 ? type.slice(0, 7) + "…" : type,
+                        win: v.win,
+                        lose: v.lose,
+                      }));
                       return (
-                        <div className="mb-4 grid grid-cols-3 gap-2">
-                          <div className="rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 p-2 text-center">
-                            <div className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{wins}</div>
-                            <div className="text-[10px] text-muted-foreground">Победы</div>
+                        <>
+                          <div className="mb-4 grid grid-cols-3 gap-2">
+                            <div className="rounded-lg border border-emerald-200 dark:border-emerald-900 bg-emerald-50 dark:bg-emerald-950/30 p-2 text-center">
+                              <div className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{wins}</div>
+                              <div className="text-[10px] text-muted-foreground">Победы</div>
+                            </div>
+                            <div className="rounded-lg border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/30 p-2 text-center">
+                              <div className="text-xl font-bold text-rose-700 dark:text-rose-300">{losses}</div>
+                              <div className="text-[10px] text-muted-foreground">Поражения</div>
+                            </div>
+                            <div className="rounded-lg border border-primary/20 bg-primary/5 p-2 text-center">
+                              <div className="text-xl font-bold text-primary">{winRate}%</div>
+                              <div className="text-[10px] text-muted-foreground">Win rate</div>
+                            </div>
                           </div>
-                          <div className="rounded-lg border border-rose-200 dark:border-rose-900 bg-rose-50 dark:bg-rose-950/30 p-2 text-center">
-                            <div className="text-xl font-bold text-rose-700 dark:text-rose-300">{losses}</div>
-                            <div className="text-[10px] text-muted-foreground">Поражения</div>
-                          </div>
-                          <div className="rounded-lg border border-primary/20 bg-primary/5 p-2 text-center">
-                            <div className="text-xl font-bold text-primary">{winRate}%</div>
-                            <div className="text-[10px] text-muted-foreground">Win rate</div>
-                          </div>
-                        </div>
+                          {chartData.length > 0 && (
+                            <div className="mb-4 h-32">
+                              <p className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wide">По типам</p>
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart data={chartData} layout="vertical" margin={{ top: 0, right: 8, bottom: 0, left: 0 }}>
+                                  <XAxis type="number" tick={{ fontSize: 9, fill: "#94a3b8" }} />
+                                  <YAxis type="category" dataKey="type" tick={{ fontSize: 9, fill: "#94a3b8" }} width={70} />
+                                  <Tooltip
+                                    contentStyle={{
+                                      fontSize: 11,
+                                      background: "#0f172a",
+                                      border: "1px solid #334155",
+                                      borderRadius: 6,
+                                      color: "#e2e8f0",
+                                    }}
+                                  />
+                                  <Bar dataKey="win" stackId="a" fill="#10b981" radius={[0, 0, 0, 0]} />
+                                  <Bar dataKey="lose" stackId="a" fill="#ef4444" radius={[0, 4, 4, 0]} />
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          )}
+                        </>
                       );
                     })()}
                     <div className="space-y-2 max-h-60 overflow-y-auto">

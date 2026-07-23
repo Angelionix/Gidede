@@ -1145,3 +1145,69 @@ Task: QA + реализация рекомендаций: больше типо�
 3. **🟡 LOW — Столбчатая диаграмма по типам**: визуализация win/lose для каждого типа прототипа (recharts уже в deps).
 4. **🟢 NICE-TO-HAVE — Mobile touch controls**: touch events для rhythm/puzzle на мобильных.
 5. **🟢 NICE-TO-HAVE — Auto-save из iframe**: postMessage bridge для автосохранения результата при win/lose.
+
+---
+Task ID: 11 (webDevReview round 6 — 3D new types + bar chart)
+Agent: webDevReview (cron job 287389)
+Task: QA + реализация рекомендаций: 3D-версии новых типов прототипов + столбчатая диаграмма истории.
+
+## Current Project Status (assessment)
+- App стабильна после раундов 1-6: dark mode, реальный AI, персистентное хранилище, PDF, Bible RAG, AI enrichment, 2D/3D прототипы (6 типов в 2D, 3 в 3D), AI insights, playtest persistence + stats.
+- QA подтвердило: health 200, lint чистый, все APIs работают, без ошибок.
+- Приступил к рекомендациям из Task ID 10: 3D-версии новых типов + графики.
+
+## Completed Modifications
+
+### 1. 3D-версии новых типов прототипов (Three.js) ✅
+Добавлены 3D-механики для tower_defense, rhythm, puzzle в `mechanics3d` объекте `src/lib/prototype-generator.ts`:
+- **tower_defense (3D)**: синяя цилиндрическая база справа + point light, оранжевые сферы-враги движутся слева, raycasting для выстрела (ЛКМ), 3 волны по 4/8/12 врагов, HP-bar overlay (синий), win = пережить волны, lose = baseHp=0.
+- **rhythm (3D)**: 2 светящихся пиллара (зелёный слева, оранжевый справа) — зона попадания, ноты (BoxGeometry) движутся по z-оси к игроку, ← = левая нота, → = правая нота, combo счётчик, цель 15 попаданий, miss = combo reset.
+- **puzzle (3D)**: 3D-тетрис на сетке 5×6, блоки (BoxGeometry, 3 случайных цвета) падают, ← → движение, ↓ ускорить, полная линия удаляется, цель 3 линии, game over если верх заполнен.
+- Камера настроена для каждого типа: tower_defense (0,5,10), rhythm (0,3,10), puzzle (0,4,9), ecology (0,6,8), остальные (0,4,8).
+- Hint-текст обновлён для каждого типа (ЛКМ по врагам / ← → по нотам / ← → движение • ↓ ускорить).
+- HP-bar overlay показывается для ecology + tower_defense.
+- Timeout-win логика обновлена: tower_defense выигрывает при выживании (как ecology).
+- **Проверено**: все 6 типов в 3D генерируют HTML 7989–9320 байт (раньше fallback был ~5650).
+
+### 2. Столбчатая диаграмма по типам (recharts) ✅
+- Импорт BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer из recharts.
+- Обновлён блок «История плейтестов» в `/prototypes`:
+  - byType агрегация: для каждого prototype_type считается win/lose.
+  - chartData: массив {type, win, lose} с обрезкой длинных имён (>8 символов → 7+…).
+  - Bar chart (layout="vertical"): зелёные бары = wins, красные = loses, stacked.
+  - XAxis (number), YAxis (category, type labels), Tooltip с тёмной темой.
+  - Размер: h-32 (128px), ResponsiveContainer 100%.
+  - Показывается только если chartData.length > 0.
+
+### 3. Расширена валидация playtest save ✅
+- `src/app/api/v1/playtests/save/route.ts`: VALID_TYPES расширен с 3 до 6 (добавлены tower_defense, rhythm, puzzle).
+- Раньше сохранение результатов для новых типов возвращало 422 — теперь работает.
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок.
+- Health: ✅ 200.
+- Все 6 типов в 3D (API test):
+  - engine (3d): 7989 bytes
+  - economy (3d): 8001 bytes
+  - ecology (3d): 9295 bytes
+  - tower_defense (3d): 9219 bytes (новая 3D-механика)
+  - rhythm (3d): 8721 bytes (новая 3D-механика)
+  - puzzle (3d): 9320 bytes (новая 3D-механика)
+- Playtest save для новых типов: ✅ rhythm (win+lose), puzzle (win) сохранены.
+- History: ✅ 2 engine + 2 rhythm + 1 puzzle = 5 результатов (данные для графика есть).
+- Страница /prototypes: ✅ рендерится без ошибок.
+- dev.log: ✅ без ошибок.
+
+## Unresolved Issues / Risks + Next-Phase Recommendations
+
+### Risks
+1. **3D puzzle — упрощённая механика**: blocks падают по 1 (не как настоящий тетрис с фигурами). Достаточно для теста fun factor, но не полноценная игра.
+2. **Chart colors — fixed (не theme-aware)**: использованы #94a3b8, #0f172a, #334155 напрямую (не CSS variables), потому что recharts не поддерживает oklch. В dark mode выглядит нормально, но не адаптируется.
+3. **agent-browser login через find text нестабилен**: cookies теряются между рестартами сервера, семантические локаторы иногда не срабатывают. UI функционален (VLM подтверждает), но автотесты клика ненадёжны.
+
+### Priority Recommendations for Next Phase
+1. **🟡 LOW — Расширить coreloop API**: принять tower_defense/rhythm/puzzle в /coreloop/design валидации (сейчас 422 для новых типов).
+2. **🟡 LOW — Mobile touch controls**: touch events для rhythm/puzzle на мобильных.
+3. **🟢 NICE-TO-HAVE — Auto-save из iframe**: postMessage bridge для автосохранения результата при win/lose.
+4. **🟢 NICE-TO-HAVE — Спрайты вместо примитивов**: emoji-спрайты или canvas-текстуры для большей наглядности.
+5. **🟢 NICE-TO-HAVE — Theme-aware chart colors**: использовать CSS variable resolver для recharts colors.

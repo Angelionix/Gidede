@@ -33,6 +33,7 @@ import {
   SERVER_ERROR,
   VALIDATION_ERROR,
 } from "@/lib/api-helpers";
+import { enrichConcept } from "@/lib/ai-service";
 
 // ============================================================
 // Constants — valid enum values & static lookup tables
@@ -512,6 +513,7 @@ export async function POST(request: NextRequest) {
     const forbiddenMechanics = Array.isArray(body?.forbidden_mechanics)
       ? body.forbidden_mechanics
       : [];
+    const useAi = body?.use_ai === true || body?.use_ai === "true";
 
     // --- Stage 1: Genre inference ---
     const genre = explicitGenre || inferGenre(idea);
@@ -560,11 +562,11 @@ export async function POST(request: NextRequest) {
     const targetAudienceStr = `${experience}; motivations: ${motivations}`;
     const platformsStr = platforms?.length ? platforms.join(", ") : "PC";
 
-    const storySynopsis = `In "${proj.name || "Untitled Project"}", the player steps into a ${genre} world inspired by: ${idea}. The core conflict revolves around the player's ${aestheticSelection.primary} drive, set against a backdrop where ${dynamicsProfile.core_dynamics.join(", ")} shape every encounter. As the player progresses, ${dynamicsProfile.supporting_dynamics.join(", ")} emerge, creating a layered experience that rewards both short-term mastery and long-term investment.`;
+    let storySynopsis = `In "${proj.name || "Untitled Project"}", the player steps into a ${genre} world inspired by: ${idea}. The core conflict revolves around the player's ${aestheticSelection.primary} drive, set against a backdrop where ${dynamicsProfile.core_dynamics.join(", ")} shape every encounter. As the player progresses, ${dynamicsProfile.supporting_dynamics.join(", ")} emerge, creating a layered experience that rewards both short-term mastery and long-term investment.`;
 
-    const gameplayDescription = `Core gameplay revolves around a ${coreLoopCandidates[0].loop_type} loop of ${coreLoopCandidates[0].steps.length} steps: ${coreLoopCandidates[0].steps.join(" → ")}. The mechanic set spans ${mechanicSet.total_count} mechanics across 5 groups (base, combat, progression, spatial, social) with a compatibility score of ${mechanicSet.compatibility_score}%. Players target the ${experience} audience segment on ${platformsStr}.`;
+    let gameplayDescription = `Core gameplay revolves around a ${coreLoopCandidates[0].loop_type} loop of ${coreLoopCandidates[0].steps.length} steps: ${coreLoopCandidates[0].steps.join(" → ")}. The mechanic set spans ${mechanicSet.total_count} mechanics across 5 groups (base, combat, progression, spatial, social) with a compatibility score of ${mechanicSet.compatibility_score}%. Players target the ${experience} audience segment on ${platformsStr}.`;
 
-    const uniqueFeatures = uspCandidates.map(
+    let uniqueFeatures = uspCandidates.map(
       (c, i) => `USP #${i + 1}: ${c.usp}`
     );
 
@@ -586,6 +588,25 @@ export async function POST(request: NextRequest) {
     const latencyMs = Date.now() - startedAt;
     const stagesCompleted = [1, 2, 3, 4, 5, 6, 7];
 
+    // --- Optional AI enrichment (use_ai flag) ---
+    let aiEnrichment: { insights?: string; enriched: boolean } = { enriched: false };
+    if (useAi) {
+      const enrichment = await enrichConcept({
+        idea,
+        genre,
+        projectName: proj.name || "Untitled",
+        aesthetics: [aestheticProfile.primary, aestheticProfile.secondary, aestheticProfile.tertiary].filter(Boolean) as string[],
+      });
+      if (enrichment) {
+        storySynopsis = enrichment.story_synopsis;
+        gameplayDescription = enrichment.gameplay_description;
+        if (enrichment.unique_features.length > 0) {
+          uniqueFeatures = enrichment.unique_features;
+        }
+        aiEnrichment = { insights: enrichment.ai_insights, enriched: true };
+      }
+    }
+
     const result = {
       id: proj.id,
       title: `${proj.name || "Untitled"} — ${genre.toUpperCase()} Concept`,
@@ -606,7 +627,11 @@ export async function POST(request: NextRequest) {
       generation_metadata: {
         stages_completed: stagesCompleted,
         latency_ms: latencyMs,
-        models_used: ["deterministic-concept-v1", "rule-based-mda", "shell-lens-lite"],
+        models_used: useAi && aiEnrichment.enriched
+          ? ["deterministic-concept-v1", "rule-based-mda", "shell-lens-lite", "glm-4.6 (ai-enrichment)"]
+          : ["deterministic-concept-v1", "rule-based-mda", "shell-lens-lite"],
+        ai_enriched: aiEnrichment.enriched,
+        ai_insights: aiEnrichment.insights || undefined,
       },
     };
 

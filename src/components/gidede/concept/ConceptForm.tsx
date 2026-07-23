@@ -27,6 +27,7 @@ import {
   ChevronDown,
   ChevronUp,
   X,
+  Wand2,
 } from "lucide-react";
 import { GENRES } from "@/config/genres";
 import { YEE_MOTIVATIONS } from "@/config/aesthetics";
@@ -286,6 +287,35 @@ export function ConceptForm({
               </div>
             </div>
           )}
+        </div>
+
+        {/* AI enrichment toggle */}
+        <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
+          <button
+            type="button"
+            role="checkbox"
+            aria-checked={form.useAi}
+            onClick={() => updateField("useAi", !form.useAi)}
+            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors ${
+              form.useAi
+                ? "border-primary bg-primary text-primary-foreground"
+                : "border-input bg-background"
+            }`}
+          >
+            {form.useAi && <Checkbox checked className="h-3 w-3 border-0" />}
+          </button>
+          <div className="flex-1">
+            <div className="flex items-center gap-1.5">
+              <Wand2 className="h-3.5 w-3.5 text-primary" />
+              <label className="text-sm font-medium cursor-pointer" onClick={() => updateField("useAi", !form.useAi)}>
+                AI-обогащение концепции
+              </label>
+            </div>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Использовать LLM для генерации более креативных синопсиса, описания
+              геймплея и уникальных фич (медленнее, ~10 сек).
+            </p>
+          </div>
         </div>
 
         {/* Кнопка генерации */}

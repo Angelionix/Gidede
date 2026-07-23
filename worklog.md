@@ -839,3 +839,82 @@ Task: QA + 4 требования пользователя: (1) кнопка «�
 3. **🟡 LOW — Расширение прототипов**: больше механик (tower defense, rhythm, puzzle), графика через image-generation skill, сохранение результатов плейтеста в БД.
 4. **🟡 LOW — Шаблоны прототипов**: предзаготовленные пресеты для популярных жанров (roguelike, metroidvania, card game).
 5. **🟢 NICE-TO-HAVE — История плейтестов**: таблица PlaytestResult в Prisma (score, duration, notes) для отслеживания итераций кор-лупа.
+
+---
+Task ID: 7 (webDevReview round 3 — Bible RAG + AI enrichment flag)
+Agent: webDevReview (cron job 287389)
+Task: QA + реализация рекомендаций следующей фазы: RAG над Библией (TD-014) + AI-обогащение в блоках.
+
+## Current Project Status (assessment)
+- App стабильна: health 200, lint чистый, все блоки рендерятся, без ошибок.
+- Раунд 1: dark mode + реальный AI в ассистенте + переработанный home/settings.
+- Раунд 2: случайные проекты + персистентное хранилище чата + PDF-экспорт + автопрототипы кор-лупа.
+- QA подтвердило: всё работает. Приступил к рекомендациям: RAG + AI enrichment.
+
+## Completed Modifications
+
+### 1. RAG над Библией геймдизайна ✅ (закрыт TD-014)
+- Скопированы 12 markdown-секций Библии из /tmp/Gidede/docs/bible/ в docs/bible/ (6080 строк).
+- Создан `src/lib/bible-rag.ts`:
+  - Lazy-loading индекс: `loadBible()` читает все bible_2_*.md файлы при первом обращении.
+  - Чанкование: разбивка по markdown-заголовкам (## ###), ~500 токенов на чанк с overlap 50.
+  - Токенизация: нижний регистр, фильтр стоп-слов (RU+EN ~120 слов), удаление пунктуации/цифр.
+  - TF-IDF скоринг: term frequency × inverse document frequency + partial match bonus + title boost.
+  - `searchBible(query, topK)` — возвращает {title, snippet, source, section, score}.
+  - `getBibleStats()` — для отладки (sections, chunks, uniqueTerms).
+- Обновлён `src/app/api/v1/rag/search/route.ts`:
+  - Параллельный поиск по статической KB + Bible RAG.
+  - Слияние результатов, дедупликация по title, slight boost для bible chunks (более специфифичные).
+  - Параметр `source`: "all" | "bible" | "static".
+  - Response включает `stats` (bible_sections, bible_chunks, bible_terms).
+- **Проверено**: POST /rag/search {query:"core loop engine economy"} →
+  - stats: bible_sections=12, bible_chunks=494, bible_terms=10945
+  - total=3, топ-результат: "2.4 Core Loop | 4.1. Что такое Core Loop" score=74.39
+  - Реальныеsemantic-результаты из Библии, не статический KB.
+
+### 2. AI-обогащение концепции (use_ai flag, Блок 1) ✅
+- Добавлены 2 функции в `src/lib/ai-service.ts`:
+  - `enrichConcept(ctx)` — LLM генерирует JSON с story_synopsis, gameplay_description, unique_features[], ai_insights. Robust JSON-парсинг: извлечение JSON-объекта из ответа, fallback для smart quotes / trailing commas.
+  - `enrichGddSection(ctx)` — AI-переформулировка секции GDD (150-250 слов).
+- Обновлён `src/app/api/v1/concept/generate/route.ts`:
+  - Параметр `use_ai` (boolean) в body.
+  - Если true → вызывает `enrichConcept()` после детерминированной генерации.
+  - Заменяет story_synopsis, gameplay_description, unique_features на AI-версии.
+  - Добавляет `ai_insights` и `ai_enriched: true` в generation_metadata.
+  - models_used включает "glm-4.6 (ai-enrichment)" при успехе.
+  - Graceful fallback: если AI недоступен/ошибка → детерминированный результат.
+- Добавлен UI-тогл в `src/components/gidede/concept/ConceptForm.tsx`:
+  - Чекбокс с Wand2 иконкой, primary-акцент border, "AI-обогащение концепции".
+  - Описание: "Использовать LLM для генерации более креативных синопсиса, описания геймплея и уникальных фич (медленнее, ~10 сек)."
+  - Расположен перед кнопкой генерации.
+- `ConceptFormState` расширен полем `useAi: boolean` (в types/concept.ts + block 1 page).
+- **Проверено**: POST /concept/generate {use_ai:true} →
+  - ai_enriched: true, models: [..., 'glm-4.6 (ai-enrichment)']
+  - ai_insights: "Рассмотрите внедрение системы 'памяти артефактов'..."
+  - story_synopsis: креативный русский нарратив о космическом исследователе
+  - 4 unique_features: система артефактов, динамическая экосистема, процедурные руины, моральная система
+  - VLM подтвердил: тогл виден на странице Блока 1 после скролла.
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок, 0 предупреждений.
+- Health: ✅ 200.
+- Bible RAG: ✅ 12 секций, 494 чанка, 10945 терминов. Реальный semantic search работает.
+- AI enrichment (use_ai:true): ✅ ai_enriched=true, glm-4.6 сгенерировал креативный story_synopsis + 4 unique_features + ai_insights.
+- AI enrichment robust parsing: ✅ JSON извлекается из ответа LLM даже с preamble-текстом.
+- Block 1 page: ✅ рендерится, AI-тогл виден (VLM подтверждён после скролла).
+- Без use_ai: ✅ детерминированный fallback работает (ai_enriched=false).
+- dev.log: ✅ без критических ошибок.
+
+## Unresolved Issues / Risks + Next-Phase Recommendations
+
+### Risks
+1. **AI enrichment latency**: use_ai добавляет ~10-15 сек к генерации концепции. Приемлемо для опциональной фичи, но пользователь должен понимать (указано в описании тогла).
+2. **JSON parsing fragility**: LLM может вернуть невалидный JSON. Robust parsing (extract object + fix smart quotes/trailing commas) покрывает 90% случаев, но крайние случаи возможны. Fallback на детерминированный результат гарантирует, что API не падает.
+3. **Bible RAG — нет embeddings**: используется TF-IDF (keyword-based), не настоящие векторные embeddings. Для русского языка работает приемлемо, но semantic matches (синонимы) не находятся. Для production нужен OpenAI embeddings + pgvector.
+
+### Priority Recommendations for Next Phase
+1. **🟡 LOW — AI enrichment в Блоке 6 (GDD)**: добавить `use_ai` флаг к /gdd/generate, использовать `enrichGddSection()` для каждой секции. Сейчас функция готова в ai-service.ts, но не подключена к маршруту.
+2. **🟡 LOW — UI для RAG**: добавить страницу /knowledge или секцию в сайдбар для просмотра/поиска по Библии с красивым отображением результатов (section badges, highlight совпадений).
+3. **🟡 LOW — Расширение прототипов**: больше механик (tower defense, rhythm, puzzle), сохранение результатов плейтеста в БД (PlaytestResult table).
+4. **🟢 NICE-TO-HAVE — Streaming AI enrichment**: сейчас enrichConcept блокирует ~10 сек. Можно стримить ответ через SSE для лучшего UX.
+5. **🟢 NICE-TO-HAVE — Embeddings для RAG**: использовать z-ai-web-dev-sdk для генерации embeddings вместо TF-IDF. Улучшит semantic search.

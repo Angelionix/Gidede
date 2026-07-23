@@ -62,6 +62,7 @@ export default function Block1Page() {
     budget: "small",
     forbiddenMechanics: [],
     forbiddenInput: "",
+    useAi: false,
   });
 
   // --- Состояние генерации ---
@@ -163,6 +164,7 @@ export default function Block1Page() {
         },
         reference_games: form.referenceGames ? form.referenceGames.split(",").map((g) => g.trim()).filter(Boolean) : null,
         forbidden_mechanics: form.forbiddenMechanics.length > 0 ? form.forbiddenMechanics : null,
+        use_ai: form.useAi,
       };
 
       const response = await apiFetch<ConceptGenerationResult>("/concept/generate", {

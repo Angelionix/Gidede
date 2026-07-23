@@ -20,6 +20,7 @@ export interface ConceptFormState {
   budget: string;
   forbiddenMechanics: string[];
   forbiddenInput: string;
+  useAi: boolean;
 }
 
 export interface ConceptGenerationResult {

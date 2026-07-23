@@ -1748,3 +1748,67 @@ Task: Проверка worklog + MechanicsDB из карт SW.BAND + библи�
 - Mechanic save: ✅ { id, saved: true }.
 - Mechanic list: ✅ работает.
 - dev.log: ✅ POST /api/v1/mechanics/save 200.
+
+---
+Task ID: 23 (Backend parity: original Python vs Next.js port)
+Agent: orchestrator (main)
+Task: Сравнить бэкенды, реализовать недостающие эндпоинты, проверить worklog.
+
+## Сравнение: оригинал (Python FastAPI) vs порт (Next.js)
+
+### Результат: 59 Next.js routes vs 72 Python endpoints = 82% parity
+
+### Добавлено 15 новых эндпоинтов:
+
+**GET saved data (5):**
+- GET /concept/{id} — загружает сохранённую концепцию
+- GET /balance/{projectId} — сохранённый баланс
+- GET /progression/{projectId} — сохранённая прогрессия
+- GET /economy/{projectId} — сохранённая экономика
+- GET /rag/stats — статистика RAG (Bible + MechanicsDB)
+
+**GDD sub-endpoints (5):**
+- POST /gdd/format — выбор формата GDD (one_sheet/ten_pager/full)
+- POST /gdd/map — маппинг секций на источники данных
+- POST /gdd/auto-fill — автозаполнение из данных проекта
+- POST /gdd/generate-full — полный пайплайн (format→map→auto-fill→generate)
+- POST /gdd/checklist — чек-лист валидации GDD (5 checks, persistence)
+
+**Auth (2):**
+- PUT /auth/me — обновление профиля (name, plan)
+- POST /auth/change-password — смена пароля
+
+**Projects (1):**
+- PUT /projects/{id} — обновление проекта
+
+**Concept (2):**
+- GET /concept/{id} — GET концепции
+- POST /concept/{id}/validate — валидация концепции
+
+**AI assistant (1):**
+- GET /assistant/status — статус AI (доступность, модель, счётчики)
+
+### Remaining gap (13 endpoints, mostly sub-steps):
+- balance: 6 sub-step endpoints (transitive, intransitive, situational, qfactor, monte-carlo, machinations) — наш /analyze комбинирует их
+- progression: 4 sub-step endpoints (macro-params, plan-tiers, build-curves, content-plan) — наш /design комбинирует
+- economy: 2 sub-step (resources, classify) — наш /design комбинирует
+- concept: PUT /{id} — минорный
+- rag: /load, /load-bible — admin-only, не нужны в runtime
+
+### Worklog: незавершённые задачи
+Все "NICE-TO-HAVE" из worklog уже выполнены в предыдущих раундах:
+- ✅ Syntax highlighting (rehype-highlight)
+- ✅ Sprites/emoji в 2D + 3D
+- ✅ Type-specific pathologies
+- ✅ Virtual joystick для ecology 3D
+- ✅ Debounce auto-save
+- ✅ Reset autoSaved on restart
+- ✅ GDD export DOCX
+- ✅ MechanicsDB (128 механик из SW.BAND)
+- ✅ Mechanic library (SavedMechanic)
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок.
+- Все 15 новых эндпоинтов: ✅ 200 (balance/{id} = 404 — нет данных, корректно).
+- Total API routes: 59 (vs 72 original = 82% parity).
+- dev.log: ✅ без ошибок.

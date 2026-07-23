@@ -376,11 +376,13 @@ function generate2dHtml(config: PrototypeConfig): string {
       }
       function gameRender() {
         drawRect(vec2(0,0), new Color(0.06,0.09,0.16), 0, 0);
-        // Base (right side, blue tower)
+        // Base emoji + rect
         drawRect(vec2(canvasWidth-15, canvasHeight/2), vec2(20, 80), new Color(0.2,0.5,1,1), 0, new Color(0.5,0.7,1,1), 2);
-        // Enemies (orange circles moving right)
+        drawText('🏰', vec2(canvasWidth-15, canvasHeight/2), 32, new Color(1,1,1,1));
+        // Enemies emoji + circle
         enemies.forEach(e => {
-          drawCircle(e.pos, 12, new Color(0.9,0.5,0.1,1), 0, new Color(1,0.7,0.3,1), 2);
+          drawCircle(e.pos, 12, new Color(0.9,0.5,0.1,0.3), 0, new Color(1,0.7,0.3,1), 2);
+          drawText('👾', e.pos, 24, new Color(1,1,1,1));
         });
         // Wave info
         drawText('Волна ' + Math.min(wave,3) + '/3', vec2(canvasWidth/2, canvasHeight-60), 24, new Color(0.4,0.6,1));
@@ -422,10 +424,11 @@ function generate2dHtml(config: PrototypeConfig): string {
         drawRect(vec2(canvasWidth/2, 150), vec2(canvasWidth, 4), new Color(0.4,0.6,0.8,0.5));
         drawRect(vec2(40, 150), vec2(30, 4), new Color(0.2,0.9,0.5));
         drawRect(vec2(canvasWidth-40, 150), vec2(30, 4), new Color(0.2,0.9,0.5));
-        // Beats
+        // Beats with emoji
         beats.forEach(b => {
           if (!b.hit) {
-            drawCircle(b.pos, 14, b.fromLeft?new Color(0.2,0.9,0.5,1):new Color(0.9,0.5,0.2,1), 0, new Color(1,1,1,1), 2);
+            drawCircle(b.pos, 14, b.fromLeft?new Color(0.2,0.9,0.5,0.3):new Color(0.9,0.5,0.2,0.3), 0, new Color(1,1,1,1), 2);
+            drawText('🎵', b.pos, 22, new Color(1,1,1,1));
           }
         });
         // Combo
@@ -470,12 +473,16 @@ function generate2dHtml(config: PrototypeConfig): string {
         drawRect(vec2(0,0), new Color(0.06,0.09,0.16), 0, 0);
         const ox = canvasWidth/2 - COLS*CELL/2;
         const oy = 20;
-        // Grid
+        // Grid with emoji blocks
         for (let r=0;r<ROWS;r++) for (let c=0;c<COLS;c++) {
-          if (grid[r][c]) drawRect(vec2(ox+c*CELL+CELL/2, oy+r*CELL+CELL/2), vec2(CELL-2), new Color(0.4,0.6,1,1), 0, new Color(0.6,0.8,1,1), 1);
+          if (grid[r][c]) {
+            drawRect(vec2(ox+c*CELL+CELL/2, oy+r*CELL+CELL/2), vec2(CELL-2), new Color(0.4,0.6,1,0.5), 0, new Color(0.6,0.8,1,1), 1);
+            drawText('🟦', vec2(ox+c*CELL+CELL/2, oy+r*CELL+CELL/2), CELL-4, new Color(1,1,1,1));
+          }
         }
-        // Current piece
-        drawRect(vec2(ox+current.col*CELL+CELL/2, oy+current.row*CELL+CELL/2), vec2(CELL-2), new Color(1,0.85,0.2,1), 0, new Color(1,1,0.4,1), 2);
+        // Current piece with emoji
+        drawRect(vec2(ox+current.col*CELL+CELL/2, oy+current.row*CELL+CELL/2), vec2(CELL-2), new Color(1,0.85,0.2,0.5), 0, new Color(1,1,0.4,1), 2);
+        drawText('🟨', vec2(ox+current.col*CELL+CELL/2, oy+current.row*CELL+CELL/2), CELL-4, new Color(1,1,1,1));
         // Lines
         drawText('${resourceIcon} ' + lines + '/3', vec2(canvasWidth/2, canvasHeight-25), 28, new Color(1,0.85,0.2));
         drawText('← → движение  •  ↓ ускорить', vec2(canvasWidth/2, canvasHeight-55), 12, new Color(0.6,0.7,0.8));

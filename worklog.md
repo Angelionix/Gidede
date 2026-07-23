@@ -1439,3 +1439,57 @@ Task: QA + реализация рекомендаций: debounce auto-save д�
 3. **🟢 NICE-TO-HAVE — Virtual joystick**: для ecology 3D на мобильных.
 4. **🟢 NICE-TO-HAVE — Syntax highlighting**: rehype-highlight для code blocks в Bible modal.
 5. **🟢 NICE-TO-HAVE — Reset autoSaved on iframe restart**: сбрасывать при нажатии «Заново».
+
+---
+Task ID: 16 (Push to GitHub + type-specific pathologies + emoji sprites)
+Agent: orchestrator (main)
+Task: Запушить всё в удалённый Git + следующая фаза: type-specific pathologies + emoji sprites.
+
+## Current Project Status (assessment)
+- App стабильна после 10 раундов webDevReview.
+- Пользователь запросил push в удалённый Git + следующую фазу.
+
+## Completed Modifications
+
+### 1. Push to GitHub ✅
+- Настроен remote: https://github.com/Angelionix/Gidede.git (с PAT, затем PAT удалён).
+- 296 файлов закоммичены: "feat: Gidede Game Design AI System — Next.js port with 2D/3D prototypes, AI integration, Bible RAG".
+- Запушено в новую ветку `nextjs-port` (не перезаписала main).
+- PR: https://github.com/Angelionix/Gidede/pull/new/nextjs-port
+- PAT удалён из remote URL после push (безопасность).
+
+### 2. Type-specific pathologies (алгоритм 3.2 расширение) ✅
+- `src/app/api/v1/coreloop/design/route.ts`: добавлены 6 тип-специфичных патологий:
+  - **tower_defense**: Wave Imbalance (warning — build>defend ratio), No Recovery (info — нет repair/heal).
+  - **rhythm**: Off-Beat Penalty (warning — >50% negative feedback), Tempo Drift (info — нет calibration).
+  - **puzzle**: Stuck State (critical! — нет hint/undo/reset), Pattern Blindness (warning — >4 piece types).
+- Проверено:
+  - tower_defense с ["build","build","build"]: Wave Imbalance + No Recovery + Brittleness.
+  - puzzle с ["place","rotate","score"]: Stuck State (critical!) + Brittleness.
+
+### 3. Emoji sprites в 2D прототипах ✅
+- `src/lib/prototype-generator.ts`: добавлены emoji через drawText поверх форм:
+  - **tower_defense**: 🏰 для базы, 👾 для врагов.
+  - **rhythm**: 🎵 для нот.
+  - **puzzle**: 🟦 для размещённых блоков, 🟨 для текущего блока.
+- Формы (rect/circle) теперь с прозрачностью 0.3 — emoji визуально доминирует.
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок.
+- Push: ✅ ветка nextjs-port создана.
+- tower_defense pathologies: ✅ Wave Imbalance + No Recovery.
+- puzzle pathologies: ✅ Stuck State (critical).
+- Emoji: ✅ 🏰👾🎵🟦🟨 в HTML прототипов.
+
+## Unresolved Issues / Risks + Next-Phase Recommendations
+
+### Risks
+1. **Ветка nextjs-port, не main**: не перезаписала оригинальный Gidede. Пользователь может смерджить через PR.
+2. **Emoji рендеринг**: зависит от шрифта системы. На большинстве платформ работает, но может отличаться.
+
+### Priority Recommendations for Next Phase
+1. **🟢 NICE-TO-HAVE — Virtual joystick**: для ecology 3D на мобильных.
+2. **🟢 NICE-TO-HAVE — Syntax highlighting**: rehype-highlight для Bible modal.
+3. **🟢 NICE-TO-HAVE — Emoji в 3D прототипах**: текстуры с emoji для Three.js.
+4. **🟢 NICE-TO-HAVE — Reset autoSaved on iframe restart**.
+5. **🟢 NICE-TO-HAVE — GDD export в DOCX**: настоящий Word формат.

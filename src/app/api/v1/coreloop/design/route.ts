@@ -434,6 +434,107 @@ function detectPathologies(
     });
   }
 
+  // === Type-specific pathologies for new core loop types ===
+
+  const loopType = structuralType.type;
+
+  // Tower Defense specific pathologies
+  if (loopType === "tower_defense") {
+    // Wave imbalance: too few defense steps vs build steps
+    const buildSteps = steps.filter((s) =>
+      s.mechanics.some((m) => m.includes("build") || m.includes("place") || m.includes("upgrade"))
+    ).length;
+    const defendSteps = steps.filter((s) =>
+      s.mechanics.some((m) => m.includes("defend") || m.includes("shoot") || m.includes("attack"))
+    ).length;
+    if (defendSteps < buildSteps) {
+      pathologies.push({
+        name: "Wave Imbalance",
+        type: "wave_imbalance",
+        severity: "warning",
+        description: `Defense has ${defendSteps} defend vs ${buildSteps} build steps — players may over-invest in economy and ignore defense`,
+        correction: "Balance build:defend ratio closer to 1:1, or add urgency mechanics (timed waves)",
+        affected_resources: [],
+      });
+    }
+    // Snowball: no recovery mechanic
+    const hasRecovery = steps.some((s) =>
+      s.mechanics.some((m) => m.includes("repair") || m.includes("heal") || m.includes("recover"))
+    );
+    if (!hasRecovery) {
+      pathologies.push({
+        name: "No Recovery",
+        type: "no_recovery",
+        severity: "info",
+        description: "No repair/recovery mechanic — once base is damaged, players cannot bounce back",
+        correction: "Add a repair or shield regeneration step between waves",
+        affected_resources: [],
+      });
+    }
+  }
+
+  // Rhythm specific pathologies
+  if (loopType === "rhythm") {
+    // Off-beat penalty: too many negative feedback steps
+    const negativeCount = steps.filter((s) => s.feedback_type === "negative").length;
+    if (negativeCount > steps.length / 2) {
+      pathologies.push({
+        name: "Off-Beat Penalty",
+        type: "off_beat_penalty",
+        severity: "warning",
+        description: `${negativeCount}/${steps.length} steps have negative feedback — rhythm feels punishing, not rewarding`,
+        correction: "Increase positive feedback for successful hits; reduce miss penalty severity",
+        affected_resources: [],
+      });
+    }
+    // Tempo drift: no calibration step
+    const hasCalibration = steps.some((s) =>
+      s.mechanics.some((m) => m.includes("calibrate") || m.includes("sync") || m.includes("tempo"))
+    );
+    if (!hasCalibration && steps.length > 4) {
+      pathologies.push({
+        name: "Tempo Drift",
+        type: "tempo_drift",
+        severity: "info",
+        description: "No tempo calibration step — difficulty may drift unevenly across the song",
+        correction: "Add a tempo-sync or BPM-shift step to maintain consistent challenge curve",
+        affected_resources: [],
+      });
+    }
+  }
+
+  // Puzzle specific pathologies
+  if (loopType === "puzzle") {
+    // Stuck state: no hint or reset mechanic
+    const hasHint = steps.some((s) =>
+      s.mechanics.some((m) => m.includes("hint") || m.includes("reset") || m.includes("undo") || m.includes("clear"))
+    );
+    if (!hasHint) {
+      pathologies.push({
+        name: "Stuck State",
+        type: "stuck_state",
+        severity: "critical",
+        description: "No hint/undo/reset mechanic — players who make a mistake cannot recover, leading to frustration",
+        correction: "Add an undo step, hint system, or board-reset mechanic",
+        affected_resources: [],
+      });
+    }
+    // Pattern blindness: too many piece types
+    const pieceTypes = steps.filter((s) =>
+      s.mechanics.some((m) => m.includes("piece") || m.includes("shape") || m.includes("block"))
+    ).length;
+    if (pieceTypes > 4) {
+      pathologies.push({
+        name: "Pattern Blindness",
+        type: "pattern_blindness",
+        severity: "warning",
+        description: `${pieceTypes} piece-related steps — cognitive overload, players can't recognize patterns`,
+        correction: "Limit piece variety to 3-4 types; introduce complexity gradually",
+        affected_resources: [],
+      });
+    }
+  }
+
   return {
     pathologies,
     total_count: pathologies.length,

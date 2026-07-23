@@ -593,3 +593,83 @@ Unresolved / Next Steps:
 - The "middleware deprecated, use proxy" warning is cosmetic — middleware.ts still works in Next 16.
 - Styling could be further enhanced (the original app uses minimal theming; could add dark mode toggle).
 - More features could be added: real AI integration via z-ai-web-dev-sdk, export to PDF, etc.
+
+---
+Task ID: 4 (Documentation review)
+Agent: orchestrator (main)
+Task: Найти и изучить роадмап, бэклог и правила разработки в репозитории Gidede.
+
+Work Log:
+- Нашёл и прочитал ключевые документы из /tmp/Gidede/:
+  - `docs/ROADMAP.md` — главный роадмап (Фазы 1–4, 17 книг, 10 алгоритмов).
+  - `docs/ROADMAP_PHASE4.md` — детальный план Фазы 4 (52 задачи, субфазы 4.A–4.E).
+  - `docs/TECH_DEBT.md` — реестр техдолга TD-001..TD-023 + DEFERRED-001..005.
+  - `CONTRIBUTING.md` — правила контрибуции (SOLID/KISS/DRY/YAGNI, Conventional Commits, Git Flow).
+  - `docs/AI_RECOVERY_INSTRUCTIONS.md` — инструкция восстановления контекста.
+  - `.pre-commit-config.yaml` — pre-commit хуки (Ruff, mypy, ESLint, trailing-whitespace, detect-private-key).
+  - `VERSION` = 0.51.0; `CHANGELOG.md` — история v.X.Y.Z.
+
+Stage Summary — ключевое из документации:
+
+### РОАДМАП (docs/ROADMAP.md + ROADMAP_PHASE4.md)
+- **Фазы 1–3 завершены**: анализ 17 книг → Библия геймдизайна (12 разделов) → 10 алгоритмов (3.1–3.10).
+- **Фаза 4 (разработка)**: 5 субфаз, 52 задачи, оценка 15–20 недель:
+  - 4.A Инфраструктура (12 задач) ✅ — монорепо, Next.js+FastAPI+PostgreSQL+Redis, AI-сервис, RAG, авторизация.
+  - 4.B Основные модули Блоки 1–3 (12 задач) ✅ — Концепция, Core Loop, MDA + сквозной пайплайн.
+  - 4.C Продвинутые Блоки 4–5 (10 задач) ✅ — Баланс (transitive/intransitive/Monte Carlo/Machinations), Экономика/Прогрессия.
+  - 4.D Вывод и AI Блоки 6–7 (10 задач) ✅ — GDD Generator (8 форматов), AI-ассистент (SSE streaming, RAG).
+  - 4.E Интеграция/полировка Блок 8 (8 задач) ✅ — GBE Bridge (mock), React.memo (34 компонента), E2E Playwright, нагрузочные Locust+Prometheus+Grafana, документация.
+- **Критерии успеха**: C1 пайплайн «идея→GDD» ≤60 мин; C2 все 8 блоков функциональны; C3 AI 95%+ успеха; C4 API ≤2с, AI ≤30с; C5 данные переживают рестарт; C6 экспорт PDF/DOCX ≤10с; C7 AI контекстен; C8 coverage backend ≥60%, frontend ≥50%.
+- **В оригинале v0.51.0 заявлено 1437 тестов** (946 backend + 283 frontend + 17 E2E + 64 API + 83 инфра + 12 load).
+
+### БЭКЛОГ / ТЕХДОЛГ (docs/TECH_DEBT.md)
+- 23 записи TD-001..TD-023, почти все ✅ Resolved.
+- 🔧 Partially Resolved (открытые):
+  - **TD-014** — RAG-сервис реализован, но требует запуска с API-доступом для генерации эмбеддингов и загрузки данных в БД.
+  - **TD-018** — Две ORM (Prisma + SQLAlchemy). Стратегия: backend SQLAlchemy/Alembic — единственный источник истины; Prisma только для клиентских типов в Next.js. Shared типы синхронизированы (v0.41.0).
+- DEFERRED-004 — полная спецификация system/user prompts для оставшихся промптов реестра (частично).
+- **Правила ведения**: каждое компромиссное решение → новая запись; приоритизация 🔴→🟠→🟡→🟢; Resolved только при реальном устранении; пересмотр на стыке фаз.
+
+### ПРАВИЛА РАЗРАБОТКИ (CONTRIBUTING.md)
+- **Принципы кода**: SOLID, KISS, DRY, YAGNI.
+- **TypeScript**: strict mode, `noImplicitAny`, без `@ts-ignore`, type guards + discriminated unions, `React.memo` для тяжёлых компонентов, хуки в `src/hooks/`, типы в `src/types/`, константы в `src/constants/`.
+- **Python** (не применимо в нашей Next.js-only среде): type hints, Ruff, Black, Pydantic, async/await.
+- **Коммиты — Conventional Commits**: `<type>(<scope>): <description>` на английском в повелительном наклонении. Типы: feat/fix/docs/test/refactor/chore/perf/style. Scope: concept/coreloop/mda/balance/economy/gdd/ai/auth/api/ui. ≤100 символов. Breaking change → `BREAKING CHANGE:` в footer.
+  - Примечание: AI_RECOVERY_INSTRUCTIONS.md описывает альтернативную русскую схему префиксов (док:/фаза1:/фаза2:/фаза3:/фаза4:/фикс:/рефактор:) — есть расхождение между двумя документами.
+- **Ветвление**: упрощённый Git Flow — main (стабильная), develop (разработка), feature/*, fix/*, hotfix/*. В main/develop только через PR.
+- **Тесты обязательны**: backend pytest ≥60% coverage, frontend vitest ≥50%, E2E Playwright для критических сцен (авторизация, пайплайн, экспорт GDD, AI-ассистент).
+- **PR чек-лист**: код по правилам, strict TS, тесты написаны, существующие тесты проходят, документация обновлена, Conventional Commits, нет секретов в коммитах.
+- **Ревью**: ≥1 одобрение мейнтейнера, squash and merge.
+
+### ВЕРСИОНИРОВАНИЕ
+- Семантическое v.X.Y.Z (X=0 до релиза). Текущая **v0.51.0**. Управление через `scripts/version.sh`, единый источник — `VERSION`.
+
+### ПРИНЦИПЫ ПРОЕКТИРОВАНИЯ (из AI_RECOVERY)
+1. Reverse MDA как центральный принцип (эстетика → динамики → механики).
+2. Чёткое разделение AI и алгоритмов: AI для «что если»/«почему», алгоритмы для «сколько»/«правильно ли».
+3. Контекстная осведомлённость (единый Project State).
+4. Фреймворк-осведомлённость (ссылки на 17 книг).
+5. Модульность — блоки самостоятельны, обмениваются через Project State.
+
+### КЛЮЧЕВЫЕ КОНЦЕПЦИИ (глоссарий проекта)
+MDA Framework (Hunicke/LeBlanc/Zubek), Reverse MDA (Bond), Core Loop (Шелл/Селлерс/Зубек), MechanicsDB 127 механик (SW.BAND), 113 линз Шелла, Triangle of Weirdness (Rogers), Machinations (Adams/Dormans), Engine/Economy/Ecology (Sellers), 7 патологий, Model Yi (12 типов игроков → эстетика), Матрица 4×3 Бонда.
+
+### РЕЛЕВАНТНО ДЛЯ НАШЕГО ПОРТА (Next.js-only)
+- Оригинальный бэкенд на Python FastAPI (PostgreSQL+pgvector+Redis) в нашей песочнице НЕ запускается. Мы пере-реализовали все 30+ API-маршрутов как Next.js route handlers + Prisma/SQLite.
+- Соответствие критериям успеха:
+  - C1 (пайплайн ≤60 мин) — ✅ работает (детерминированная логика вместо реального AI = быстро).
+  - C2 (8 блоков функциональны) — ✅ все 8 страниц рендерятся, API отвечают 200.
+  - C3 (AI 95%+) — ⚠️ N/A: AI-логика детерминированная (мок), не реальный LLM. Реальную интеграцию можно добавить через z-ai-web-dev-sdk.
+  - C4 (производительность) — ✅ API отвечают <300мс.
+  - C5 (данные переживают рестарт) — ✅ Prisma/SQLite персистентна; chat history/GBE sync в памяти (сбрасываются при рестарте — известное ограничение).
+  - C6 (экспорт) — ✅ /gdd/export возвращает Markdown/HTML, PDF можно добавить.
+  - C7 (AI контекстен) — ✅ ассистент читает pipeline state проекта.
+  - C8 (тесты) — ⚠️ тесты оригинала (pytest/vitest/playwright) не перенесены; наш код покрыт ручным E2E через Agent Browser.
+
+### ОТКРЫТЫЕ ВОЗМОЖНОСТИ ДЛЯ ДАЛЬНЕЙШЕЙ РАБОТЫ
+1. Добавить таблицы ChatMessage + GbeSyncHistory в Prisma schema для персистентности (сейчас in-memory).
+2. Интегрировать z-ai-web-dev-sdk для реальных AI-ответов в ассистенте и блоках (вместо детерминированных моков).
+3. Добавить экспорт в PDF (через pdf skill или puppeteer) — C6.
+4. Перенести тесты оригинала (1437 шт.) под нашу Next.js-реализацию — C8.
+5. Внедрить dark mode (next-themes уже в зависимостях).
+6. Добавить RAG на основе docs/bible/ (12 разделов) — закрыть TD-014.

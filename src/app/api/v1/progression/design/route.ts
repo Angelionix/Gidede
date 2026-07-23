@@ -27,6 +27,7 @@ import {
   SERVER_ERROR,
   VALIDATION_ERROR,
 } from "@/lib/api-helpers";
+import { enrichProgression } from "@/lib/ai-service";
 
 // Valid enum values
 const VALID_PROGRESSION_TYPES = [
@@ -193,6 +194,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const projectId = body?.project_id?.toString().trim() || undefined;
+    const useAi = body?.use_ai === true || body?.use_ai === "true";
     const genre = body?.genre?.toString().trim() || "rpg";
     const targetDuration = Number(body?.target_duration) || 40;
     const targetLevels = Math.max(1, Math.min(500, Number(body?.target_levels) || 50));
@@ -547,6 +549,7 @@ export async function POST(request: NextRequest) {
       summary,
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,
+      models_used: ["deterministic-progression-v1", "tier-archetype-v1", "curve-builder-v1"],
     };
 
     // --- Persist ---
@@ -612,6 +615,20 @@ export async function POST(request: NextRequest) {
     });
 
     await updateProjectStage(proj.id, "progression");
+
+    // --- Optional AI enrichment ---
+    if (useAi) {
+      const aiInsights = await enrichProgression({
+        projectName: proj.name || "Untitled",
+        genre,
+        totalLevels: targetLevels,
+        targetDurationHours: targetDuration,
+      });
+      if (aiInsights) {
+        result.ai_insights = aiInsights;
+        result.models_used.push("glm-4.6 (ai-enrichment)");
+      }
+    }
 
     return NextResponse.json(result);
   } catch (error) {

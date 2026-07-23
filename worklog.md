@@ -1857,3 +1857,98 @@ Task: Визуальная SVG-диаграмма Core Loop + страница �
 - Pipeline page: ✅ рендерится без ошибок.
 - Block 2 page: ✅ рендерится без ошибок.
 - dev.log: ✅ без ошибок.
+
+---
+Task ID: 25
+Agent: ai-blocks-2-6
+Task: Wire use_ai flag + AI enrichment functions into 5 Next.js API routes
+  (Blocks 3-6: mda/analyze, balance/analyze, progression/design, economy/design, gdd/generate).
+
+Work Log:
+
+For each route file, added:
+1. Import of the corresponding enrich* function from `@/lib/ai-service`.
+2. `const useAi = body?.use_ai === true || body?.use_ai === "true";` parsing right after body load.
+3. AI enrichment block right before `return NextResponse.json(result)`:
+   - Calls enrich*(ctx) when useAi is true.
+   - On non-null result: sets `result.ai_insights = aiText` and pushes
+     `"glm-4.6 (ai-enrichment)"` to `result.models_used`.
+4. For routes whose result object previously lacked `models_used` (progression,
+   economy, gdd), added a deterministic baseline list so `.push()` works.
+
+### 1. `src/app/api/v1/mda/analyze/route.ts` (Block 3)
+- Imported `enrichMda` from `@/lib/ai-service`.
+- Added `useAi` parsing after `projectId`.
+- After `updateProjectStage(proj.id, "mda")`, before `return NextResponse.json(result)`:
+  if useAi → `enrichMda({ projectName: proj.name, genre, aesthetics: [primaryAesthetic, secondaryAesthetic, tertiaryAesthetic] })`.
+- `result.models_used` already existed → just `.push()` added.
+
+### 2. `src/app/api/v1/balance/analyze/route.ts` (Block 4)
+- Imported `enrichBalance`.
+- Added `useAi` parsing after `projectId`.
+- Before `return`: if useAi → `enrichBalance({ projectName: proj.name, genre, balanceType, elementCount: objects.length })`.
+- `result.models_used` already existed → `.push()` works directly.
+
+### 3. `src/app/api/v1/progression/design/route.ts` (Block 5 — progression)
+- Imported `enrichProgression`.
+- Added `useAi` parsing after `projectId`.
+- Added `models_used: ["deterministic-progression-v1", "tier-archetype-v1", "curve-builder-v1"]` to `result` object.
+- Before `return`: if useAi → `enrichProgression({ projectName: proj.name, genre, totalLevels: targetLevels, targetDurationHours: targetDuration })`.
+
+### 4. `src/app/api/v1/economy/design/route.ts` (Block 5 — economy)
+- Imported `enrichProgression` (reused — close enough context).
+- Added `useAi` parsing after `projectId`.
+- Added `models_used: ["deterministic-economy-v1", "machinations-builder-v1", "pathology-detector-v1", "monte-carlo-sim-v1"]` to `result`.
+- Before `return`: if useAi → `enrichProgression({ projectName: proj.name, genre, totalLevels: resources.length || 0 })`.
+
+### 5. `src/app/api/v1/gdd/generate/route.ts` (Block 6)
+- Imported `enrichGdd`.
+- Added `useAi` parsing after `projectId`.
+- Added `models_used: ["deterministic-gdd-v1", "section-assembler-v1", "consistency-checker-v1"]` to `profile` object.
+- Before `return NextResponse.json(profile)`: if useAi → `enrichGdd({ projectName: proj.name, genre: proj.genre || "game", format: targetFormat, sectionCount: sectionsList.length })`.
+
+### Pattern
+All five routes follow the same pattern as the reference Block 2 `coreloop/design/route.ts`:
+- Only call enrich* function when `useAi` is true (opt-in via body flag).
+- All enrich* functions return `Promise<string | null>` — null if SDK unavailable.
+- On null: result returned unchanged (graceful degradation to deterministic logic).
+- On non-null: response gains `ai_insights` text + `models_used` indicates AI usage.
+
+Stage Summary:
+- All 5 target route files updated.
+- `bun run lint`: 0 errors.
+- dev.log: no compile errors after changes.
+- AI enrichment now wired for Blocks 3, 4, 5 (×2: progression + economy), 6.
+- Combined with Block 2 (already done) and Block 1 (enrichConcept), the full
+  pipeline 1→6 now supports `use_ai` flag for optional LLM enrichment.
+
+---
+Task ID: 26 (AI enrichment in all blocks 2-6)
+Agent: orchestrator (main) + subagent
+Task: use_ai флаг в Блоках 2-6 (Core Loop, MDA, Balance, Progression, Economy, GDD).
+
+## Completed Modifications
+
+### AI enrichment functions (5 новых в ai-service.ts) ✅
+- `enrichCoreLoop(ctx)` — Block 2: инсайты по кор-лупу (fun factor, wow-моменты, риски).
+- `enrichMda(ctx)` — Block 3: MDA-анализ (механики→эстетики, динамики, линзы Шелла).
+- `enrichBalance(ctx)` — Block 4: баланс (метрики, дисбалансы, Monte-Carlo параметры).
+- `enrichProgression(ctx)` — Block 5: прогрессия (кривые, тиры, content gates).
+- `enrichGdd(ctx)` — Block 6: GDD (критичные секции, структура, чек-листы).
+
+### Подключение к маршрутам ✅
+- `coreloop/design`: use_ai → enrichCoreLoop, result.ai_insights + models_used.push.
+- `mda/analyze`: use_ai → enrichMda.
+- `balance/analyze`: use_ai → enrichBalance.
+- `progression/design`: use_ai → enrichProgression.
+- `economy/design`: use_ai → enrichProgression (reused for economy context).
+- `gdd/generate`: use_ai → enrichGdd.
+- Каждый маршрут: `let result: Record<string, unknown>` для возможности добавления ai_insights.
+- Pattern: if useAi → call enrich → if not null → result.ai_insights = text, models_used.push("glm-4.6").
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок.
+- Coreloop AI: ✅ ai_insights=true, "Сочетание исследования с неожиданными встречами...".
+- GDD AI: ✅ ai_insights=true, "Для RPG жанра наиболее критичными являются...".
+- models_used: ✅ includes "glm-4.6 (ai-enrichment)".
+- dev.log: ✅ без ошибок.

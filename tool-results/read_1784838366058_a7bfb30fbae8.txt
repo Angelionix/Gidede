@@ -1,0 +1,861 @@
+     1→/**
+     2→ * POST /api/v1/mda/analyze
+     3→ *
+     4→ * Implements Block 3 algorithm 3.3 (MDA Lab) with deterministic derived logic.
+     5→ * 6-stage pipeline:
+     6→ *   1. Reverse MDA Stage 1 — Aesthetic → Dynamics mapping (target dynamics).
+     7→ *   2. Reverse MDA Stage 2 — Dynamics → Mechanics candidate set.
+     8→ *   3. Reverse MDA Stage 3 — Structured mechanic set with coverage + Adams/Dormans patterns.
+     9→ *   4. Classic MDA — forward simulation: Mechanics → Gameplay → Aesthetics, with convergence.
+    10→ *   5. Shell's 9 priority lenses validation.
+    11→ *   6. Bond 4×3 matrix + ludonarrative analysis.
+    12→ *
+    13→ * Body:
+    14→ *   { concept_id, genre, idea, primary_aesthetic, secondary_aesthetic,
+    15→ *     tertiary_aesthetic, max_mechanics, convergence_threshold, full_analysis,
+    16→ *     existing_mechanics?: string[], required_mechanics?: string[],
+    17→ *     forbidden_mechanics?: string[], project_id? }
+    18→ *
+    19→ * Persists to ProjectMDAProfile (upsert where projectId) and updates project
+    20→ * stage to "mda".
+    21→ *
+    22→ * Response: MDAAnalysisResult (matches src/types/mda.ts).
+    23→ */
+    24→
+    25→import { NextRequest, NextResponse } from "next/server";
+    26→import { db } from "@/lib/db";
+    27→import { getCurrentUser } from "@/lib/server-auth";
+    28→import {
+    29→  getOwnedProject,
+    30→  safeJsonParse,
+    31→  updateProjectStage,
+    32→  UNAUTH,
+    33→  SERVER_ERROR,
+    34→  VALIDATION_ERROR,
+    35→} from "@/lib/api-helpers";
+    36→
+    37→// ============================================================
+    38→// Constants
+    39→// ============================================================
+    40→
+    41→const VALID_AESTHETICS = [
+    42→  "sensation",
+    43→  "fantasy",
+    44→  "narrative",
+    45→  "challenge",
+    46→  "fellowship",
+    47→  "discovery",
+    48→  "expression",
+    49→  "submission",
+    50→];
+    51→
+    52→// Aesthetic → typical dynamics (LeBlanc)
+    53→const AESTHETIC_TO_DYNAMICS: Record<string, string[]> = {
+    54→  sensation: ["combat_pacing", "feedback_effects", "audio_visual_sync"],
+    55→  fantasy: ["role_immersion", "character_growth", "world_belief"],
+    56→  narrative: ["story_progression", "character_arcs", "lore_discovery"],
+    57→  challenge: ["skill_scaling", "difficulty_curves", "mastery_growth"],
+    58→  fellowship: ["team_coordination", "social_bonding", "shared_goals"],
+    59→  discovery: ["exploration_loops", "secret_finding", "world_unfolding"],
+    60→  expression: ["creative_tools", "customization", "sandbox_building"],
+    61→  submission: ["routine_formation", "habit_loops", "flow_state"],
+    62→};
+    63→
+    64→// Dynamics → mechanics that produce them (Adams/Dormans)
+    65→const DYNAMICS_TO_MECHANICS: Record<string, string[]> = {
+    66→  combat_pacing: ["health_damage", "ability_cooldowns", "enemy_ai"],
+    67→  feedback_effects: ["visual_effects", "audio_cues", "haptic_feedback"],
+    68→  audio_visual_sync: ["beat_matching", "visual_pulses", "rhythm_inputs"],
+    69→  role_immersion: ["character_customization", "voice_acting", "backstory_choices"],
+    70→  character_growth: ["xp_leveling", "skill_trees", "ability_unlocks"],
+    71→  world_belief: ["consistent_lore", "npc_dialogue", "environmental_storytelling"],
+    72→  story_progression: ["quest_log", "dialogue_trees", "cutscene_triggers"],
+    73→  character_arcs: ["relationship_system", "alignment_meter", "decision_consequences"],
+    74→  lore_discovery: ["codex_entries", "hidden_notes", "environmental_clues"],
+    75→  skill_scaling: ["difficulty_settings", "enemy_scaling", "player_buffs"],
+    76→  difficulty_curves: ["adaptive_difficulty", "level_design_pacing", "skill_checks"],
+    77→  mastery_growth: ["combo_system", "perfect_timing", "ranking_system"],
+    78→  team_coordination: ["voice_chat", "ping_system", "shared_objectives"],
+    79→  social_bonding: ["friend_list", "guild_system", "emote_wheel"],
+    80→  shared_goals: ["coop_quests", "raid_encounters", "shared_progression"],
+    81→  exploration_loops: ["map_reveal", "fast_travel", "landmark_discovery"],
+    82→  secret_finding: ["hidden_areas", "puzzle_rooms", "easter_eggs"],
+    83→  world_unfolding: ["biome_progression", "weather_system", "day_night_cycle"],
+    84→  creative_tools: ["level_editor", "crafting_system", "building_blocks"],
+    85→  customization: ["cosmetics", "loadout_system", "character_appearance"],
+    86→  sandbox_building: ["terrain_modification", "structure_placement", "resource_mining"],
+    87→  routine_formation: ["daily_quests", "login_rewards", "habit_trackers"],
+    88→  habit_loops: ["notification_system", "streak_bonuses", "auto_collect"],
+    89→  flow_state: ["smooth_controls", "minimal_ui", "gradual_difficulty_ramp"],
+    90→};
+    91→
+    92→// Genre → typical mechanics (canned fallback if existingMechanics empty)
+    93→const GENRE_DEFAULT_MECHANICS: Record<string, Record<string, string[]>> = {
+    94→  rpg: {
+    95→    base: ["inventory_management", "dialogue_trees"],
+    96→    combat: ["turn_based_combat", "ability_cooldowns"],
+    97→    progression: ["xp_leveling", "skill_trees"],
+    98→    spatial: ["world_exploration", "dungeon_navigation"],
+    99→    social: ["party_management", "merchant_trading"],
+   100→  },
+   101→  shooter: {
+   102→    base: ["aim_assist", "reload_mechanic"],
+   103→    combat: ["hitscan_combat", "projectile_physics"],
+   104→    progression: ["weapon_unlocks", "perk_trees"],
+   105→    spatial: ["tactical_movement", "vertical_traversal"],
+   106→    social: ["squad_coordination", "leaderboards"],
+   107→  },
+   108→  strategy: {
+   109→    base: ["resource_gathering", "build_queues"],
+   110→    combat: ["unit_formations", "fog_of_war"],
+   111→    progression: ["tech_trees", "era_advancement"],
+   112→    spatial: ["territory_control", "city_placement"],
+   113→    social: ["diplomacy", "trade_agreements"],
+   114→  },
+   115→  default: {
+   116→    base: ["input_action", "state_progression"],
+   117→    combat: ["health_damage", "enemy_ai"],
+   118→    progression: ["score_increase", "level_unlock"],
+   119→    spatial: ["map_exploration", "objective_navigation"],
+   120→    social: ["leaderboard", "coop_progression"],
+   121→  },
+   122→};
+   123→
+   124→// ============================================================
+   125→// Helpers
+   126→// ============================================================
+   127→
+   128→function buildDynamicsTarget(
+   129→  aesthetics: { primary: string; secondary: string; tertiary: string },
+   130→  idea: string
+   131→) {
+   132→  const core = AESTHETIC_TO_DYNAMICS[aesthetics.primary] || ["feedback_loops"];
+   133→  const sec = AESTHETIC_TO_DYNAMICS[aesthetics.secondary] || [];
+   134→  const tert = AESTHETIC_TO_DYNAMICS[aesthetics.tertiary] || [];
+   135→
+   136→  // Supporting = secondary + tertiary (deduplicated, excluding core)
+   137→  const supporting = Array.from(new Set([...sec, ...tert])).filter(
+   138→    (d) => !core.includes(d)
+   139→  );
+   140→
+   141→  // Emergence level from dynamics count
+   142→  const totalDynamics = core.length + supporting.length;
+   143→  let emergenceLevel = "moderate";
+   144→  if (totalDynamics >= 7) emergenceLevel = "strong";
+   145→  else if (totalDynamics >= 5) emergenceLevel = "moderate";
+   146→  else if (totalDynamics >= 3) emergenceLevel = "weak";
+   147→  else emergenceLevel = "nominal";
+   148→
+   149→  // AI-suggested context dynamics
+   150→  const contextDynamics = [
+   151→    {
+   152→      name: "emergent_storytelling",
+   153→      reasoning: `Idea "${idea.slice(0, 50)}" suggests room for player-authored narratives`,
+   154→      warning: totalDynamics > 6 ? "May overload player cognitive capacity" : "",
+   155→    },
+   156→    {
+   157→      name: "social_sharing",
+   158→      reasoning: "Multiplayer-adjacent aesthetic creates organic shareable moments",
+   159→      warning: "",
+   160→    },
+   161→  ];
+   162→
+   163→  return {
+   164→    core_dynamics: core,
+   165→    supporting_dynamics: supporting,
+   166→    emergence_level: emergenceLevel,
+   167→    emergence_description: `${totalDynamics} distinct dynamics produce ${emergenceLevel} emergence`,
+   168→    rationale: `Core dynamics come from primary aesthetic "${aesthetics.primary}"; supporting from secondary "${aesthetics.secondary}" and tertiary "${aesthetics.tertiary}".`,
+   169→    context_dynamics: contextDynamics,
+   170→    warnings:
+   171→      totalDynamics > 8
+   172→        ? ["High dynamics count may dilute focus — consider trimming to 6-7"]
+   173→        : [],
+   174→  };
+   175→}
+   176→
+   177→function buildMechanicCandidateSet(
+   178→  dynamicsTarget: { core_dynamics: string[]; supporting_dynamics: string[] },
+   179→  existingMechanics: string[]
+   180→) {
+   181→  const requiredDynamics = [...dynamicsTarget.core_dynamics, ...dynamicsTarget.supporting_dynamics];
+   182→  const allMechanics = new Set<string>(existingMechanics);
+   183→
+   184→  // Map dynamics to mechanics
+   185→  const coveredDynamics: string[] = [];
+   186→  for (const dyn of requiredDynamics) {
+   187→    const mechs = DYNAMICS_TO_MECHANICS[dyn] || [];
+   188→    for (const m of mechs) {
+   189→      allMechanics.add(m);
+   190→    }
+   191→    if (mechs.length > 0) coveredDynamics.push(dyn);
+   192→  }
+   193→
+   194→  const uncoveredDynamics = requiredDynamics.filter(
+   195→    (d) => !coveredDynamics.includes(d)
+   196→  );
+   197→
+   198→  // Synergy pairs (canned)
+   199→  const mechanicsArr = Array.from(allMechanics);
+   200→  const synergyPairs: Array<{ mechanic_a: string; mechanic_b: string }> = [];
+   201→  for (let i = 0; i < Math.min(3, mechanicsArr.length - 1); i++) {
+   202→    synergyPairs.push({
+   203→      mechanic_a: mechanicsArr[i],
+   204→      mechanic_b: mechanicsArr[i + 1],
+   205→    });
+   206→  }
+   207→
+   208→  // Conflict pairs (canned)
+   209→  const conflictPairs: Array<{ mechanic_a: string; mechanic_b: string }> = [];
+   210→  if (mechanicsArr.length >= 4) {
+   211→    conflictPairs.push({
+   212→      mechanic_a: mechanicsArr[0],
+   213→      mechanic_b: mechanicsArr[mechanicsArr.length - 1],
+   214→    });
+   215→  }
+   216→
+   217→  return {
+   218→    uncovered_dynamics: uncoveredDynamics,
+   219→    synergy_pairs: synergyPairs,
+   220→    conflict_pairs: conflictPairs,
+   221→  };
+   222→}
+   223→
+   224→function buildMechanicSet(
+   225→  genre: string,
+   226→  dynamicsTarget: { core_dynamics: string[]; supporting_dynamics: string[] },
+   227→  existingMechanics: string[],
+   228→  requiredMechanics: string[],
+   229→  forbiddenMechanics: string[],
+   230→  maxMechanics: number
+   231→) {
+   232→  const templates = GENRE_DEFAULT_MECHANICS[genre] || GENRE_DEFAULT_MECHANICS.default;
+   233→
+   234→  // Start with genre defaults
+   235→  const baseSet = new Set(templates.base);
+   236→  const combatSet = new Set(templates.combat);
+   237→  const progressionSet = new Set(templates.progression);
+   238→  const spatialSet = new Set(templates.spatial);
+   239→  const socialSet = new Set(templates.social);
+   240→
+   241→  // Add existing mechanics to appropriate groups (round-robin)
+   242→  for (let i = 0; i < existingMechanics.length; i++) {
+   243→    const m = existingMechanics[i];
+   244→    if (forbiddenMechanics.includes(m)) continue;
+   245→    const group = i % 5;
+   246→    if (group === 0) baseSet.add(m);
+   247→    else if (group === 1) combatSet.add(m);
+   248→    else if (group === 2) progressionSet.add(m);
+   249→    else if (group === 3) spatialSet.add(m);
+   250→    else socialSet.add(m);
+   251→  }
+   252→
+   253→  // Add required mechanics
+   254→  for (const m of requiredMechanics) {
+   255→    progressionSet.add(m);
+   256→  }
+   257→
+   258→  // Enforce maxMechanics
+   259→  const filterToMax = (set: Set<string>) => {
+   260→    const arr = Array.from(set);
+   261→    return arr.slice(0, Math.max(1, Math.ceil(maxMechanics / 5) + 1));
+   262→  };
+   263→
+   264→  const base = filterToMax(baseSet).map((name) => ({ mechanic_name: name }));
+   265→  const combat = filterToMax(combatSet).map((name) => ({ mechanic_name: name }));
+   266→  const progression = filterToMax(progressionSet).map((name) => ({ mechanic_name: name }));
+   267→  const spatial = filterToMax(spatialSet).map((name) => ({ mechanic_name: name }));
+   268→  const social = filterToMax(socialSet).map((name) => ({ mechanic_name: name }));
+   269→
+   270→  // Aesthetic coverage
+   271→  const aesthetics = ["sensation", "fantasy", "narrative", "challenge", "fellowship", "discovery", "expression", "submission"];
+   272→  const aestheticCoverage = aesthetics.map((aesthetic) => {
+   273→    // Count how many mechanics in this set map to this aesthetic
+   274→    const mechs = DYNAMICS_TO_MECHANICS[
+   275→      (AESTHETIC_TO_DYNAMICS[aesthetic] || [])[0] || ""
+   276→    ] || [];
+   277→    const count = [base, combat, progression, spatial, social].reduce(
+   278→      (sum, group) =>
+   279→        sum +
+   280→        group.filter((m) => mechs.includes((m as { mechanic_name: string }).mechanic_name))
+   281→          .length,
+   282→      0
+   283→    );
+   284→    return {
+   285→      aesthetic,
+   286→      count,
+   287→      sufficient: count >= 1,
+   288→    };
+   289→  });
+   290→
+   291→  // Adams/Dormans patterns
+   292→  const patterns = [
+   293→    { name: "Engine pattern", pattern_type: "adams", present: true },
+   294→    { name: "Converter chain", pattern_type: "dormans", present: combat.length > 0 && progression.length > 0 },
+   295→    {
+   296→      name: "Dynamic coupling (Björk)",
+   297→      pattern_type: "bjork",
+   298→      present: dynamicsTarget.core_dynamics.length >= 2,
+   299→      suggestion: "Add a second core dynamic to enable coupling",
+   300→    },
+   301→    { name: "Feedback loop (reinforcing)", pattern_type: "dormans", present: progression.length > 0 },
+   302→    { name: "Feedback loop (balancing)", pattern_type: "dormans", present: combat.length > 0 },
+   303→  ];
+   304→
+   305→  const compatibilityScore = Math.min(
+   306→    100,
+   307→    Math.round(
+   308→      50 +
+   309→        patterns.filter((p) => p.present).length * 8 +
+   310→        aestheticCoverage.filter((a) => a.sufficient).length * 2
+   311→    )
+   312→  );
+   313→  const synergyScore = Math.min(
+   314→    100,
+   315→    Math.round(
+   316→      40 +
+   317→        patterns.filter((p) => p.present).length * 10 +
+   318→        aestheticCoverage.filter((a) => a.sufficient).length * 3
+   319→    )
+   320→  );
+   321→
+   322→  return {
+   323→    base,
+   324→    combat,
+   325→    progression,
+   326→    spatial,
+   327→    social,
+   328→    aesthetic_coverage: aestheticCoverage,
+   329→    patterns_detected: patterns,
+   330→    compatibility_score: compatibilityScore,
+   331→    synergy_score: synergyScore,
+   332→    suggestions: [
+   333→      "Add 1-2 social mechanics if 'fellowship' is a target aesthetic",
+   334→      "Increase spatial mechanic count to support exploration loops",
+   335→    ],
+   336→    warnings:
+   337→      aestheticCoverage.filter((a) => !a.sufficient).length > 4
+   338→        ? ["More than 4 aesthetics have insufficient mechanic coverage — consider expanding the set"]
+   339→        : [],
+   340→  };
+   341→}
+   342→
+   343→function buildClassicMDA(
+   344→  mechanicSet: {
+   345→    base: Array<{ mechanic_name: string }>;
+   346→    combat: Array<{ mechanic_name: string }>;
+   347→    progression: Array<{ mechanic_name: string }>;
+   348→    spatial: Array<{ mechanic_name: string }>;
+   349→    social: Array<{ mechanic_name: string }>;
+   350→  },
+   351→  dynamicsTarget: { core_dynamics: string[]; supporting_dynamics: string[] },
+   352→  aesthetics: { primary: string; secondary: string; tertiary: string },
+   353→  convergenceThreshold: number
+   354→) {
+   355→  // Simulate forward: mechanics → gameplay sequence → observed dynamics → predicted aesthetics
+   356→  const baseMech = mechanicSet.base[0]?.mechanic_name || "explore";
+   357→  const combatMech = mechanicSet.combat[0]?.mechanic_name || "combat";
+   358→  const progMech = mechanicSet.progression[0]?.mechanic_name || "progress";
+   359→
+   360→  const gameplaySequence = [
+   361→    {
+   362→      action: `Engage ${baseMech}`,
+   363→      mechanics_used: [baseMech],
+   364→      resources_consumed: [],
+   365→      resources_produced: ["signal"],
+   366→    },
+   367→    {
+   368→      action: `Execute ${combatMech}`,
+   369→      mechanics_used: [combatMech],
+   370→      resources_consumed: ["energy"],
+   371→      resources_produced: [],
+   372→    },
+   373→    {
+   374→      action: `Use ${progMech}`,
+   375→      mechanics_used: [progMech],
+   376→      resources_consumed: [],
+   377→      resources_produced: ["xp", "gold"],
+   378→    },
+   379→  ];
+   380→
+   381→  const observedDynamics = dynamicsTarget.core_dynamics.slice(0, 3);
+   382→
+   383→  const feedbackLoops = [
+   384→    {
+   385→      loop_type: "positive",
+   386→      description: "Combat → reward → upgrade → stronger combat (reinforcing)",
+   387→      stability: "stable",
+   388→    },
+   389→    {
+   390→      loop_type: "negative",
+   391→      description: "Energy drain from combat forces return to base (balancing)",
+   392→      stability: "stable",
+   393→    },
+   394→  ];
+   395→
+   396→  // Predicted aesthetics from the mechanic set
+   397→  const predictedAesthetics: Record<string, number> = {};
+   398→  const aestheticList = ["sensation", "fantasy", "narrative", "challenge", "fellowship", "discovery", "expression", "submission"];
+   399→  for (const a of aestheticList) {
+   400→    // Use the aesthetic_coverage count as a proxy
+   401→    const mechs = DYNAMICS_TO_MECHANICS[(AESTHETIC_TO_DYNAMICS[a] || [""])[0]] || [];
+   402→    const allMechs = [
+   403→      ...mechanicSet.base,
+   404→      ...mechanicSet.combat,
+   405→      ...mechanicSet.progression,
+   406→      ...mechanicSet.spatial,
+   407→      ...mechanicSet.social,
+   408→    ].map((m) => m.mechanic_name);
+   409→    const overlap = mechs.filter((m) => allMechs.includes(m)).length;
+   410→    predictedAesthetics[a] = Number(
+   411→      Math.min(1, overlap / Math.max(1, mechs.length)).toFixed(2)
+   412→    );
+   413→  }
+   414→
+   415→  // Match scores: target aesthetics get a boost
+   416→  const matchScores: Record<string, number> = {};
+   417→  for (const a of aestheticList) {
+   418→    const target =
+   419→      a === aesthetics.primary ? 1 :
+   420→      a === aesthetics.secondary ? 0.7 :
+   421→      a === aesthetics.tertiary ? 0.5 : 0.2;
+   422→    const predicted = predictedAesthetics[a];
+   423→    const score = Number(
+   424→      (target * predicted * 0.5 + Math.min(target, predicted) * 0.5).toFixed(2)
+   425→    );
+   426→    matchScores[a] = score;
+   427→  }
+   428→
+   429→  // Primary aesthetic score = top match
+   430→  const primaryMatch = matchScores[aesthetics.primary] || 0;
+   431→  const secondaryMatch = matchScores[aesthetics.secondary] || 0;
+   432→  const overallMatch = Number(
+   433→    (primaryMatch * 0.6 + secondaryMatch * 0.4).toFixed(3)
+   434→  );
+   435→
+   436→  const converged = overallMatch >= convergenceThreshold;
+   437→  const iterations = converged ? 1 : 3;
+   438→
+   439→  const stability = {
+   440→    stable: true,
+   441→    pathology: null as string | null,
+   442→    correction: "",
+   443→  };
+   444→
+   445→  const gameplayScript = `Player explores the world using ${baseMech}, encounters threats and engages them via ${combatMech}. Successful combat drops rewards that feed ${progMech}, creating a reinforcing progression loop. The cycle is bounded by energy depletion, ensuring the player periodically returns to base.`;
+   446→
+   447→  return {
+   448→    gameplay_sequence: gameplaySequence,
+   449→    feedback_loops: feedbackLoops,
+   450→    observed_dynamics: observedDynamics,
+   451→    predicted_aesthetics: predictedAesthetics,
+   452→    match_scores: matchScores,
+   453→    overall_match: overallMatch,
+   454→    converged,
+   455→    stability,
+   456→    iterations,
+   457→    gameplay_script: gameplayScript,
+   458→    suggestions: [
+   459→      "Increase mechanic coverage for under-matched aesthetics",
+   460→      "Add a context dynamic to strengthen emergence",
+   461→    ],
+   462→    warnings: converged
+   463→      ? []
+   464→      : [`Overall match ${overallMatch.toFixed(2)} below threshold ${convergenceThreshold} — consider adding mechanics for ${aesthetics.primary}`],
+   465→  };
+   466→}
+   467→
+   468→function buildLensValidation(
+   469→  mechanicSet: { compatibility_score: number; synergy_score: number },
+   470→  dynamicsTarget: { emergence_level: string },
+   471→  aesthetics: { primary: string }
+   472→) {
+   473→  // 9 priority lenses from constants
+   474→  const lenses = [
+   475→    { id: 9, name: "Тетрада", focus: "Согласованность Механика/История/Эстетика/Технология", category: "целостность" },
+   476→    { id: 11, name: "Единство", focus: "Работают ли все элементы на общий замысел?", category: "целостность" },
+   477→    { id: 12, name: "Резонанс", focus: "Усиливают ли элементы друг друга?", category: "целостность" },
+   478→    { id: 30, name: "Эмерджентность", focus: "Сколько глаголов? Сколько результирующих действий?", category: "эмерджентность" },
+   479→    { id: 31, name: "Пространство действий", focus: "Совпадает ли воспринимаемое с реальным?", category: "эмерджентность" },
+   480→    { id: 40, name: "Треугольность", focus: "Осмысленный выбор риска vs безопасности", category: "баланс" },
+   481→    { id: 41, name: "Доминантная стратегия", focus: "Есть ли один очевидно лучший путь?", category: "баланс" },
+   482→    { id: 69, name: "Кривая интереса", focus: "Пики и спады интереса на протяжении игры", category: "интерес" },
+   483→    { id: 74, name: "Свобода vs управляемость", focus: "Баланс агентивности и замысла", category: "интерес" },
+   484→  ];
+   485→
+   486→  const results = lenses.map((lens) => {
+   487→    // Score depends on the lens category and mechanic set quality
+   488→    let score = 0.6;
+   489→    if (lens.category === "целостность")
+   490→      score = Math.min(1, mechanicSet.compatibility_score / 100);
+   491→    else if (lens.category === "эмерджентность")
+   492→      score =
+   493→        dynamicsTarget.emergence_level === "strong"
+   494→          ? 0.85
+   495→          : dynamicsTarget.emergence_level === "moderate"
+   496→            ? 0.7
+   497→            : 0.45;
+   498→    else if (lens.category === "баланс")
+   499→      score = Math.min(1, 0.5 + (mechanicSet.synergy_score / 100) * 0.5);
+   500→    else if (lens.category === "интерес")
+   501→      score = 0.65 + (lens.id % 3) * 0.1;
+   502→
+   503→    // Issues & suggestions
+   504→    const issuesFound: string[] = [];
+   505→    const suggestions: string[] = [];
+   506→    if (score < 0.5) {
+   507→      issuesFound.push(`${lens.name}: low coherence — score ${score.toFixed(2)}`);
+   508→      suggestions.push(`Improve ${lens.name.toLowerCase()} by adding supporting mechanics`);
+   509→    }
+   510→    if (lens.id === 41 && score > 0.7) {
+   511→      issuesFound.push("Possible dominant strategy detected");
+   512→      suggestions.push("Add a counter-balancing mechanic to break the dominant path");
+   513→    }
+   514→
+   515→    return {
+   516→      lens_id: lens.id,
+   517→      lens_name: lens.name,
+   518→      score: Number(score.toFixed(3)),
+   519→      issues_found: issuesFound,
+   520→      suggestions,
+   521→      questions_asked: [
+   522→        `${lens.focus}?`,
+   523→      ],
+   524→      answers: [
+   525→        score >= 0.7 ? "Yes" : score >= 0.4 ? "Partially" : "No",
+   526→      ],
+   527→    };
+   528→  });
+   529→
+   530→  const passedCount = results.filter((r) => r.score >= 0.6).length;
+   531→  const totalCount = results.length;
+   532→  const overallScore = Number(
+   533→    (results.reduce((s, r) => s + r.score, 0) / totalCount).toFixed(3)
+   534→  );
+   535→
+   536→  const criticalIssues = results
+   537→    .filter((r) => r.score < 0.4)
+   538→    .map((r) => ({
+   539→      lens_id: r.lens_id,
+   540→      lens_name: r.lens_name,
+   541→      issues: r.issues_found,
+   542→    }));
+   543→
+   544→  const warnings = results
+   545→    .filter((r) => r.score >= 0.4 && r.score < 0.6)
+   546→    .map((r) => ({
+   547→      lens_id: r.lens_id,
+   548→      lens_name: r.lens_name,
+   549→      issues: r.issues_found,
+   550→    }));
+   551→
+   552→  return {
+   553→    results,
+   554→    critical_issues: criticalIssues,
+   555→    warnings,
+   556→    passed_count: passedCount,
+   557→    total_count: totalCount,
+   558→    overall_score: overallScore,
+   559→  };
+   560→}
+   561→
+   562→function buildBondValidation(
+   563→  mechanicSet: { compatibility_score: number },
+   564→  aesthetics: { primary: string }
+   565→) {
+   566→  const elements = ["Механика", "История", "Эстетика", "Технология"];
+   567→  const levels = ["Фиксированный", "Динамический", "Культурный"];
+   568→
+   569→  // Build 4x3 matrix
+   570→  const matrix: Array<{ element: string; level: string; content: string }> = [];
+   571→  const contents: Record<string, Record<string, string>> = {
+   572→    "Механика": {
+   573→      "Фиксированный": "Базовые механики: движение, атака, способность",
+   574→      "Динамический": "Комбо-системы, эмерджентные взаимодействия",
+   575→      "Культурный": "Мета-стратегии, обсуждаемые сообществом",
+   576→    },
+   577→    "История": {
+   578→      "Фиксированный": "Главный сюжет и предыстория мира",
+   579→      "Динамический": "Эмерджентные истории игрока",
+   580→      "Культурный": "Фанатские теории и интерпретации",
+   581→    },
+   582→    "Эстетика": {
+   583→      "Фиксированный": `Целевая эстетика: ${aesthetics.primary}`,
+   584→      "Динамический": "Эмоциональные пики в моменты геймплея",
+   585→      "Культурный": "Мемы, фан-арт, обсуждения",
+   586→    },
+   587→    "Технология": {
+   588→      "Фиксированный": "Игровой движок, сетевой код",
+   589→      "Динамический": "Физика, ИИ, процедурная генерация",
+   590→      "Культурный": "Моды, инструменты сообщества",
+   591→    },
+   592→  };
+   593→
+   594→  for (const element of elements) {
+   595→    for (const level of levels) {
+   596→      matrix.push({
+   597→        element,
+   598→        level,
+   599→        content: contents[element][level],
+   600→      });
+   601→    }
+   602→  }
+   603→
+   604→  // Row consistency (per level — horizontal)
+   605→  const rowConsistency = levels.map((level) => ({
+   606→    level,
+   607→    score: 0.7 + (mechanicSet.compatibility_score / 100) * 0.2,
+   608→    dissonances: [] as Array<{ element: string; issue: string }>,
+   609→  }));
+   610→
+   611→  // Column consistency (per element — vertical)
+   612→  const colConsistency = elements.map((element) => ({
+   613→    element,
+   614→    score: 0.65 + (mechanicSet.compatibility_score / 100) * 0.25,
+   615→    description: `${element} согласованно на всех трёх уровнях`,
+   616→  }));
+   617→
+   618→  // Ludonarrative analysis
+   619→  const ludonarrative = {
+   620→    result: "Гармония",
+   621→    description: `Механики и нарратив согласованно выражают эстетику "${aesthetics.primary}".`,
+   622→    mechanic_narrative_pairs: [
+   623→      {
+   624→        mechanic: "combat",
+   625→        narrative: "main_conflict",
+   626→        consistency: 0.85,
+   627→      },
+   628→      {
+   629→        mechanic: "progression",
+   630→        narrative: "character_growth",
+   631→        consistency: 0.78,
+   632→      },
+   633→      {
+   634→        mechanic: "exploration",
+   635→        narrative: "world_discovery",
+   636→        consistency: 0.72,
+   637→      },
+   638→    ],
+   639→    correction:
+   640→      "Усилить нарративные отсылки в боевых эпизодах для закрепления эстетики",
+   641→  };
+   642→
+   643→  const overallConsistency = Number(
+   644→    (
+   645→      (rowConsistency.reduce((s, r) => s + r.score, 0) / rowConsistency.length) *
+   646→      0.5 +
+   647→      (colConsistency.reduce((s, r) => s + r.score, 0) / colConsistency.length) *
+   648→        0.5
+   649→    ).toFixed(3)
+   650→  );
+   651→
+   652→  return {
+   653→    matrix,
+   654→    row_consistency: rowConsistency,
+   655→    col_consistency: colConsistency,
+   656→    ludonarrative,
+   657→    overall_consistency: overallConsistency,
+   658→  };
+   659→}
+   660→
+   661→// ============================================================
+   662→// Route handler
+   663→// ============================================================
+   664→
+   665→export async function POST(request: NextRequest) {
+   666→  const startedAt = Date.now();
+   667→  const user = await getCurrentUser(request);
+   668→  if (!user) return UNAUTH();
+   669→
+   670→  try {
+   671→    const body = await request.json().catch(() => ({}));
+   672→    const projectId = body?.project_id?.toString().trim() || undefined;
+   673→    const conceptId = body?.concept_id?.toString().trim() || "standalone";
+   674→    const genre = body?.genre?.toString().trim() || "rpg";
+   675→    const idea = (body?.idea as string | undefined)?.trim() || "";
+   676→    const primaryAesthetic = body?.primary_aesthetic?.toString().trim() || "challenge";
+   677→    const secondaryAesthetic = body?.secondary_aesthetic?.toString().trim() || "fantasy";
+   678→    const tertiaryAesthetic = body?.tertiary_aesthetic?.toString().trim() || "discovery";
+   679→    const maxMechanics = Math.max(5, Math.min(30, Number(body?.max_mechanics) || 18));
+   680→    const convergenceThreshold = Math.max(
+   681→      0,
+   682→      Math.min(1, Number(body?.convergence_threshold) || 0.8)
+   683→    );
+   684→    const fullAnalysis = body?.full_analysis !== false;
+   685→
+   686→    const existingMechanics = Array.isArray(body?.existing_mechanics)
+   687→      ? body.existing_mechanics.map((m: unknown) => String(m).trim()).filter(Boolean)
+   688→      : [];
+   689→    const requiredMechanics = Array.isArray(body?.required_mechanics)
+   690→      ? body.required_mechanics.map((m: unknown) => String(m).trim()).filter(Boolean)
+   691→      : [];
+   692→    const forbiddenMechanics = Array.isArray(body?.forbidden_mechanics)
+   693→      ? body.forbidden_mechanics.map((m: unknown) => String(m).trim()).filter(Boolean)
+   694→      : [];
+   695→
+   696→    if (!VALID_AESTHETICS.includes(primaryAesthetic)) {
+   697→      return VALIDATION_ERROR(
+   698→        `Неверная primary_aesthetic: ${primaryAesthetic}. Допустимо: ${VALID_AESTHETICS.join(", ")}`
+   699→      );
+   700→    }
+   701→    if (!VALID_AESTHETICS.includes(secondaryAesthetic)) {
+   702→      return VALIDATION_ERROR(`Неверная secondary_aesthetic: ${secondaryAesthetic}`);
+   703→    }
+   704→    if (!VALID_AESTHETICS.includes(tertiaryAesthetic)) {
+   705→      return VALIDATION_ERROR(`Неверная tertiary_aesthetic: ${tertiaryAesthetic}`);
+   706→    }
+   707→
+   708→    // --- Resolve project ---
+   709→    const owned = await getOwnedProject(user, projectId);
+   710→    if (owned instanceof NextResponse) return owned;
+   711→    const proj = owned.project as { id: string; name: string };
+   712→
+   713→    // --- Stage 1: Aesthetic profile ---
+   714→    const aestheticProfile = {
+   715→      primary: primaryAesthetic,
+   716→      secondary: secondaryAesthetic,
+   717→      tertiary: tertiaryAesthetic,
+   718→      rationale: `Primary "${primaryAesthetic}" drives core dynamics; secondary "${secondaryAesthetic}" and tertiary "${tertiaryAesthetic}" broaden the player experience.`,
+   719→    };
+   720→
+   721→    // --- Stage 2: Dynamics target ---
+   722→    const dynamicsTarget = buildDynamicsTarget(aestheticProfile, idea);
+   723→
+   724→    // --- Stage 3: Mechanic candidate set ---
+   725→    const mechanicCandidateSet = buildMechanicCandidateSet(
+   726→      dynamicsTarget,
+   727→      existingMechanics
+   728→    );
+   729→
+   730→    // --- Stage 4: Structured mechanic set ---
+   731→    const mechanicSet = buildMechanicSet(
+   732→      genre,
+   733→      dynamicsTarget,
+   734→      existingMechanics,
+   735→      requiredMechanics,
+   736→      forbiddenMechanics,
+   737→      maxMechanics
+   738→    );
+   739→
+   740→    // --- Stage 5: Classic MDA (forward simulation) ---
+   741→    let classicMdaResult: ReturnType<typeof buildClassicMDA> | null = null;
+   742→    if (fullAnalysis) {
+   743→      classicMdaResult = buildClassicMDA(
+   744→        mechanicSet,
+   745→        dynamicsTarget,
+   746→        aestheticProfile,
+   747→        convergenceThreshold
+   748→      );
+   749→    }
+   750→
+   751→    // --- Stage 6: Lens validation ---
+   752→    let lensValidation: ReturnType<typeof buildLensValidation> | null = null;
+   753→    if (fullAnalysis) {
+   754→      lensValidation = buildLensValidation(
+   755→        mechanicSet as unknown as { compatibility_score: number; synergy_score: number },
+   756→        dynamicsTarget,
+   757→        aestheticProfile
+   758→      );
+   759→    }
+   760→
+   761→    // --- Stage 7: Bond matrix ---
+   762→    let bondValidation: ReturnType<typeof buildBondValidation> | null = null;
+   763→    if (fullAnalysis) {
+   764→      bondValidation = buildBondValidation(mechanicSet as unknown as { compatibility_score: number }, aestheticProfile);
+   765→    }
+   766→
+   767→    const latencyMs = Date.now() - startedAt;
+   768→    const stagesCompleted = fullAnalysis
+   769→      ? [1, 2, 3, 4, 5, 6]
+   770→      : [1, 2, 3];
+   771→    const iterationsDone = classicMdaResult?.iterations || 0;
+   772→
+   773→    const result = {
+   774→      aesthetic_profile: aestheticProfile,
+   775→      dynamics_target: dynamicsTarget,
+   776→      mechanic_candidate_set: mechanicCandidateSet,
+   777→      mechanic_set: mechanicSet,
+   778→      classic_mda_result: classicMdaResult,
+   779→      lens_validation: lensValidation,
+   780→      bond_validation: bondValidation,
+   781→      genre,
+   782→      concept_id: conceptId,
+   783→      iterations_done: iterationsDone,
+   784→      stages_completed: stagesCompleted,
+   785→      latency_ms: latencyMs,
+   786→      models_used: fullAnalysis
+   787→        ? ["deterministic-mda-v1", "leblanc-aesthetics", "adams-dormans-patterns", "shell-lenses-lite", "bond-matrix-v1"]
+   788→        : ["deterministic-mda-v1", "leblanc-aesthetics"],
+   789→    };
+   790→
+   791→    // --- Persist ---
+   792→    const inputData = JSON.stringify({
+   793→      concept_id: conceptId,
+   794→      genre,
+   795→      idea,
+   796→      primary_aesthetic: primaryAesthetic,
+   797→      secondary_aesthetic: secondaryAesthetic,
+   798→      tertiary_aesthetic: tertiaryAesthetic,
+   799→      max_mechanics: maxMechanics,
+   800→      convergence_threshold: convergenceThreshold,
+   801→      full_analysis: fullAnalysis,
+   802→      existing_mechanics: existingMechanics,
+   803→      required_mechanics: requiredMechanics,
+   804→      forbidden_mechanics: forbiddenMechanics,
+   805→    });
+   806→
+   807→    const fullProfile = JSON.stringify(result);
+   808→
+   809→    await db.projectMDAProfile.upsert({
+   810→      where: { projectId: proj.id },
+   811→      create: {
+   812→        projectId: proj.id,
+   813→        primaryAesthetic,
+   814→        secondaryAesthetic,
+   815→        overallMatch: classicMdaResult?.overall_match || null,
+   816→        iterationCount: iterationsDone,
+   817→        inputData,
+   818→        targetDynamics: JSON.stringify(dynamicsTarget),
+   819→        mechanicSet: JSON.stringify(mechanicSet),
+   820→        observedDynamics: JSON.stringify(classicMdaResult?.observed_dynamics || []),
+   821→        predictedAesthetics: JSON.stringify(classicMdaResult?.predicted_aesthetics || {}),
+   822→        matchScores: JSON.stringify(classicMdaResult?.match_scores || {}),
+   823→        lensValidation: lensValidation ? JSON.stringify(lensValidation) : null,
+   824→        bondValidation: bondValidation ? JSON.stringify(bondValidation) : null,
+   825→        ludonarrativeCheck: bondValidation ? JSON.stringify(bondValidation.ludonarrative) : null,
+   826→        machinationsModel: JSON.stringify({ nodes: [], resource_flows: [], state_connections: [], feedback_loops: [] }),
+   827→        simulationResults: JSON.stringify(classicMdaResult || {}),
+   828→        fullProfile,
+   829→      },
+   830→      update: {
+   831→        primaryAesthetic,
+   832→        secondaryAesthetic,
+   833→        overallMatch: classicMdaResult?.overall_match || null,
+   834→        iterationCount: iterationsDone,
+   835→        inputData,
+   836→        targetDynamics: JSON.stringify(dynamicsTarget),
+   837→        mechanicSet: JSON.stringify(mechanicSet),
+   838→        observedDynamics: JSON.stringify(classicMdaResult?.observed_dynamics || []),
+   839→        predictedAesthetics: JSON.stringify(classicMdaResult?.predicted_aesthetics || {}),
+   840→        matchScores: JSON.stringify(classicMdaResult?.match_scores || {}),
+   841→        lensValidation: lensValidation ? JSON.stringify(lensValidation) : null,
+   842→        bondValidation: bondValidation ? JSON.stringify(bondValidation) : null,
+   843→        ludonarrativeCheck: bondValidation ? JSON.stringify(bondValidation.ludonarrative) : null,
+   844→        machinationsModel: JSON.stringify({ nodes: [], resource_flows: [], state_connections: [], feedback_loops: [] }),
+   845→        simulationResults: JSON.stringify(classicMdaResult || {}),
+   846→        fullProfile,
+   847→      },
+   848→    });
+   849→
+   850→    await updateProjectStage(proj.id, "mda");
+   851→
+   852→    // safeJsonParse is imported but unused here — kept for future use / linter
+   853→    void safeJsonParse;
+   854→
+   855→    return NextResponse.json(result);
+   856→  } catch (error) {
+   857→    console.error("[mda/analyze] error:", error);
+   858→    return SERVER_ERROR();
+   859→  }
+   860→}
+   861→

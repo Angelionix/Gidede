@@ -29,6 +29,7 @@ import {
   UNAUTH,
   SERVER_ERROR,
 } from "@/lib/api-helpers";
+import { enrichGdd } from "@/lib/ai-service";
 
 const VALID_FORMATS = [
   "one_sheet",
@@ -684,6 +685,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const projectId = body?.project_id?.toString().trim() || undefined;
+    const useAi = body?.use_ai === true || body?.use_ai === "true";
     const targetFormat = body?.target_format?.toString().trim() || "full_gdd";
     const detailLevel = body?.detail_level?.toString().trim() || "standard";
     const audience = body?.target_audience_doc?.toString().trim() || "team_sync";
@@ -976,6 +978,11 @@ export async function POST(request: NextRequest) {
       stages_completed: stagesCompleted,
       coverage_score: Number(coverageScore.toFixed(3)),
       latency_ms: latencyMs,
+      models_used: [
+        "deterministic-gdd-v1",
+        "section-assembler-v1",
+        "consistency-checker-v1",
+      ],
     };
 
     // --- Persist ---
@@ -1033,6 +1040,20 @@ export async function POST(request: NextRequest) {
     });
 
     await updateProjectStage(proj.id, "gdd");
+
+    // --- Optional AI enrichment ---
+    if (useAi) {
+      const aiInsights = await enrichGdd({
+        projectName: proj.name || "Untitled",
+        genre: proj.genre || "game",
+        format: targetFormat,
+        sectionCount: sectionsList.length,
+      });
+      if (aiInsights) {
+        profile.ai_insights = aiInsights;
+        profile.models_used.push("glm-4.6 (ai-enrichment)");
+      }
+    }
 
     return NextResponse.json(profile);
   } catch (error) {

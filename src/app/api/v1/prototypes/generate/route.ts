@@ -18,7 +18,7 @@ import {
   buildPrototypeConfig,
   generatePrototypeHtml,
 } from "@/lib/prototype-generator";
-import { generatePrototypeInsights } from "@/lib/ai-service";
+import { generatePrototypeInsights, generateCustomMechanic } from "@/lib/ai-service";
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser(request);
@@ -70,12 +70,20 @@ export async function POST(request: NextRequest) {
 
     // Optional AI insights for the prototype
     let aiInsights: string | null = null;
+    let customMechanic: { mechanicName: string; description: string; codeSnippet: string } | null = null;
     if (useAi) {
       aiInsights = await generatePrototypeInsights({
         projectName: project.name,
         genre: project.genre || "—",
         coreLoopType: config.type,
         steps: config.steps,
+        mode: config.mode,
+        idea: project.description || undefined,
+      });
+      customMechanic = await generateCustomMechanic({
+        projectName: project.name,
+        genre: project.genre || "—",
+        coreLoopType: config.type,
         mode: config.mode,
         idea: project.description || undefined,
       });
@@ -92,6 +100,7 @@ export async function POST(request: NextRequest) {
         goal: config.goalText,
       },
       ai_insights: aiInsights,
+      custom_mechanic: customMechanic,
       ai_generated: useAi && aiInsights !== null,
       project_id: project.id,
       project_name: project.name,

@@ -7,7 +7,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineCh
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Gamepad2, Play, RotateCcw, Lightbulb, AlertCircle, Loader2, FlaskConical, Box, Square, Wand2, Sparkles, Save, History, Columns2 } from "lucide-react";
+import { Gamepad2, Play, RotateCcw, Lightbulb, AlertCircle, Loader2, FlaskConical, Box, Square, Wand2, Sparkles, Save, History, Columns2, Download, Upload } from "lucide-react";
 
 interface Project {
   id: string;
@@ -27,6 +27,7 @@ interface PrototypeResponse {
     goal: string;
   };
   ai_insights: string | null;
+  custom_mechanic: { mechanicName: string; description: string; codeSnippet: string } | null;
   ai_generated: boolean;
   project_id: string;
   project_name: string;
@@ -520,14 +521,132 @@ export default function PrototypesPage() {
             </Card>
           )}
 
+          {/* AI Custom Mechanic (if generated) */}
+          {prototype.custom_mechanic && (
+            <Card className="mb-4 border-primary/30 bg-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Wand2 className="h-4 w-4 text-primary" />
+                  AI-механика: {prototype.custom_mechanic.mechanicName}
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-3 leading-relaxed">
+                  {prototype.custom_mechanic.description}
+                </p>
+                {prototype.custom_mechanic.codeSnippet && (
+                  <div className="relative">
+                    <pre className="text-xs bg-muted/50 rounded-lg p-3 overflow-x-auto max-h-48 overflow-y-auto border border-border">
+                      <code>{prototype.custom_mechanic.codeSnippet}</code>
+                    </pre>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="absolute top-1 right-1 h-6 px-2 text-[10px]"
+                      onClick={() => {
+                        navigator.clipboard?.writeText(prototype.custom_mechanic?.codeSnippet || "");
+                        toast({ title: "Скопировано", description: "Код механики в буфере обмена" });
+                      }}
+                    >
+                      Копировать
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {/* Playtest history */}
           {showHistory && (
             <Card className="mb-4">
               <CardHeader className="pb-2">
-                <CardTitle className="text-base flex items-center gap-2">
-                  <History className="h-4 w-4 text-primary" />
-                  История плейтестов ({history.length})
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-base flex items-center gap-2">
+                    <History className="h-4 w-4 text-primary" />
+                    История плейтестов ({history.length})
+                  </CardTitle>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={async () => {
+                        try {
+                          const res = await apiFetch("/playtests/export?format=json");
+                          const blob = new Blob([JSON.stringify(res, null, 2)], { type: "application/json" });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url; a.download = "playtest-history.json"; a.click();
+                          URL.revokeObjectURL(url);
+                          toast({ title: "Экспортировано", description: "JSON файл загружен" });
+                        } catch (e) {
+                          toast({ title: "Ошибка экспорта", variant: "destructive" });
+                        }
+                      }}
+                    >
+                      <Download className="h-3 w-3 mr-1" /> JSON
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      onClick={async () => {
+                        try {
+                          const res = await apiFetch("/playtests/export?format=csv");
+                          const blob = new Blob([res as unknown as string], { type: "text/csv" });
+                          const url = URL.createObjectURL(blob);
+                          const a = document.createElement("a");
+                          a.href = url; a.download = "playtest-history.csv"; a.click();
+                          URL.revokeObjectURL(url);
+                          toast({ title: "Экспортировано", description: "CSV файл загружен" });
+                        } catch (e) {
+                          toast({ title: "Ошибка экспорта", variant: "destructive" });
+                        }
+                      }}
+                    >
+                      <Download className="h-3 w-3 mr-1" /> CSV
+                    </Button>
+                    <label className="cursor-pointer">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={() => document.getElementById("import-file")?.click()}
+                      >
+                        <Upload className="h-3 w-3 mr-1" /> Импорт
+                      </Button>
+                      <input
+                        id="import-file"
+                        type="file"
+                        accept=".json"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            const text = await file.text();
+                            const data = JSON.parse(text);
+                            const results = data.results || data;
+                            const res = await apiFetch("/playtests/import", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({ results }),
+                            });
+                            toast({
+                              title: "Импортировано",
+                              description: `${res.imported} результатов (${res.skipped} пропущено)`,
+                            });
+                            // Reload history
+                            const hist = await apiFetch<{ results: PlaytestHistoryEntry[] }>("/playtests/history?limit=10");
+                            setHistory(hist.results);
+                          } catch (err) {
+                            toast({ title: "Ошибка импорта", variant: "destructive" });
+                          }
+                        }}
+                      />
+                    </label>
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 {history.length === 0 ? (

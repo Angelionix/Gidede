@@ -1664,3 +1664,46 @@ Task: Project templates (пресеты для жанров) + win rate comparis
 - Projects page: ✅ рендерится.
 - Prototypes page: ✅ рендерится.
 - dev.log: ✅ без ошибок.
+
+---
+Task ID: 21 (Export/import playtest data + AI custom mechanic)
+Agent: orchestrator (main)
+Task: Export/import playtest data (CSV/JSON) + AI-generated custom mechanic code.
+
+## Completed Modifications
+
+### 1. Export/import playtest data ✅
+- `GET /api/v1/playtests/export?format=json|csv` — экспорт истории:
+  - JSON: { exported_at, count, results: [...] }.
+  - CSV: header + rows (id, project_id, prototype_type, mode, outcome, score, duration_sec, ai_generated, created_at).
+  - Content-Disposition: attachment для скачивания.
+- `POST /api/v1/playtests/import` — импорт из JSON:
+  - Body: { results: [...], project_id? }.
+  - Валидация каждого элемента (type/mode/outcome/duration).
+  - Response: { imported: N, skipped: M, total: N+M }.
+- UI в `/prototypes` (секция истории):
+  - Кнопки «JSON» и «CSV» (Download иконка) — скачивание файлов.
+  - Кнопка «Импорт» (Upload иконка) — file input для .json, парсинг + отправка.
+  - Toast подтверждения: «Экспортировано» / «Импортировано N результатов».
+- **Проверено**: JSON count=6, CSV header+rows корректны.
+
+### 2. AI-generated custom mechanic code ✅
+- `src/lib/ai-service.ts`: новая функция `generateCustomMechanic(ctx)`:
+  - LLM генерирует JSON: { mechanicName, description, codeSnippet }.
+  - codeSnippet — реальный JS код (10-30 строк) для LittleJS или Three.js.
+  - Robust JSON parsing (extract object, fix smart quotes/trailing commas).
+  - Контекст: projectName, genre, coreLoopType, mode, engine-specific API hints.
+- `POST /api/v1/prototypes/generate`: при use_ai=true вызывает generateCustomMechanic.
+  - Response включает `custom_mechanic: { mechanicName, description, codeSnippet } | null`.
+- UI в `/prototypes`: карточка «AI-механика: [name]» с:
+  - Description (text-sm, muted).
+  - Code snippet (pre/code, bg-muted, max-h-48 scroll, border).
+  - Кнопка «Копировать» (clipboard API + toast).
+- **Проверено**: mechanicName="Ритмический блок", description о защитных барьерах, codeSnippet 696 символов (реальный JS класс RhythmBarrier).
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок.
+- Export JSON: ✅ count=6.
+- Export CSV: ✅ header + rows.
+- AI Custom Mechanic: ✅ mechanicName + description + 696-char codeSnippet.
+- dev.log: ✅ без критических ошибок.

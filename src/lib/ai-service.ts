@@ -424,3 +424,74 @@ ${ctx.idea ? `Идея проекта: ${ctx.idea}` : ""}
     return null;
   }
 }
+
+// ============================================================
+// AI-generated custom mechanic code (sandboxed)
+// ============================================================
+
+export interface CustomMechanicInput {
+  projectName: string;
+  genre: string;
+  coreLoopType: string;
+  mode: "2d" | "3d";
+  idea?: string;
+}
+
+export async function generateCustomMechanic(
+  ctx: CustomMechanicInput
+): Promise<{ mechanicName: string; description: string; codeSnippet: string } | null> {
+  const zai = await getZai();
+  if (!zai) return null;
+
+  try {
+    const engine = ctx.mode === "3d" ? "Three.js" : "LittleJS (canvas 2D)";
+    const prompt = `Ты — экспертный геймдизайнер и game-программист. Предложи уникальную кастомную механику для прототипа кор-лупа.
+
+Проект: ${ctx.projectName}
+Жанр: ${ctx.genre}
+Тип кор-лупа: ${ctx.coreLoopType}
+Режим: ${ctx.mode} (${engine})
+
+Сгенерируй JSON с полями:
+- mechanicName: краткое название механики (2-4 слова, на русском)
+- description: описание механики (2-3 предложения, на русском)
+- codeSnippet: JS код-сниппет (10-30 строк) для ${engine}. Без HTML, только JS. Используй: ${ctx.mode === "3d" ? "THREE.Mesh, scene.add, THREE.BoxGeometry" : "drawCircle, vec2, keyWasPressed, timeDelta"}.
+
+Ответ — только валидный JSON, без markdown.`;
+
+    const response = await zai.chat.completions.create({
+      messages: [
+        { role: "system", content: "Ты — AI-ассистент по геймдизайну и программированию. Отвечай только валидным JSON." },
+        { role: "user", content: prompt },
+      ],
+      stream: false,
+      thinking: { type: "disabled" },
+    });
+
+    const raw = response.choices?.[0]?.message?.content?.trim() || "";
+    let cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+    const jsonStart = cleaned.indexOf("{");
+    const jsonEnd = cleaned.lastIndexOf("}");
+    if (jsonStart >= 0 && jsonEnd > jsonStart) {
+      cleaned = cleaned.slice(jsonStart, jsonEnd + 1);
+    }
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      const fixed = cleaned.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]").replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'");
+      parsed = JSON.parse(fixed);
+    }
+
+    if (!parsed.mechanicName || !parsed.description) return null;
+    return {
+      mechanicName: String(parsed.mechanicName),
+      description: String(parsed.description),
+      codeSnippet: String(parsed.codeSnippet || ""),
+    };
+  } catch (e) {
+    console.error("[ai-service] generateCustomMechanic failed:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}

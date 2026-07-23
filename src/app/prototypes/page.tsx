@@ -7,7 +7,7 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineCh
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Gamepad2, Play, RotateCcw, Lightbulb, AlertCircle, Loader2, FlaskConical, Box, Square, Wand2, Sparkles, Save, History } from "lucide-react";
+import { Gamepad2, Play, RotateCcw, Lightbulb, AlertCircle, Loader2, FlaskConical, Box, Square, Wand2, Sparkles, Save, History, Columns2 } from "lucide-react";
 
 interface Project {
   id: string;
@@ -65,6 +65,10 @@ export default function PrototypesPage() {
   const [prototype, setPrototype] = useState<PrototypeResponse | null>(null);
   const [history, setHistory] = useState<PlaytestHistoryEntry[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [compareMode, setCompareMode] = useState(false);
+  const [secondType, setSecondType] = useState<string>("ecology");
+  const [secondPrototype, setSecondPrototype] = useState<PrototypeResponse | null>(null);
+  const iframe2Ref = useRef<HTMLIFrameElement>(null);
 
   const TYPE_OPTIONS = [
     { value: "auto", label: "Авто (из проекта)" },
@@ -130,6 +134,7 @@ export default function PrototypesPage() {
     }
     setLoading(true);
     setPrototype(null);
+    setSecondPrototype(null);
     try {
       const data = await apiFetch<PrototypeResponse>("/prototypes/generate", {
         method: "POST",
@@ -143,9 +148,31 @@ export default function PrototypesPage() {
       });
       setPrototype(data);
       setAutoSaved(false);
+
+      // If compare mode, generate second prototype
+      if (compareMode) {
+        try {
+          const data2 = await apiFetch<PrototypeResponse>("/prototypes/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              project_id: selectedProject,
+              mode,
+              use_ai: useAi,
+              type: secondType,
+            }),
+          });
+          setSecondPrototype(data2);
+        } catch {
+          // Second prototype failed — not critical
+        }
+      }
+
       toast({
-        title: `Прототип готов (${mode.toUpperCase()}${useAi ? " + AI" : ""})`,
-        description: `Тип: ${data.config.type}, ресурс: ${data.config.resource}`,
+        title: `Прототип готов (${mode.toUpperCase()}${useAi ? " + AI" : ""}${compareMode ? " ×2" : ""})`,
+        description: compareMode
+          ? `Сравнение: ${data.config.type} vs ${secondType}`
+          : `Тип: ${data.config.type}, ресурс: ${data.config.resource}`,
       });
     } catch (err) {
       toast({
@@ -335,6 +362,35 @@ export default function PrototypesPage() {
                 </option>
               ))}
             </select>
+
+            {/* Compare mode toggle */}
+            <div className="w-px h-5 bg-border mx-1" />
+            <button
+              type="button"
+              onClick={() => setCompareMode(!compareMode)}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                compareMode
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:bg-muted/50"
+              }`}
+              title="Сравнить 2 прототипа side-by-side"
+            >
+              <Columns2 className="h-3.5 w-3.5" />
+              Сравнить
+            </button>
+            {compareMode && (
+              <select
+                value={secondType}
+                onChange={(e) => setSecondType(e.target.value)}
+                className="h-8 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-2 focus:ring-ring"
+              >
+                {TYPE_OPTIONS.filter((o) => o.value !== "auto").map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    vs {opt.label.split(" — ")[0]}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {projects.length === 0 && (

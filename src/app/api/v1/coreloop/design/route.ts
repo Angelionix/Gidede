@@ -657,6 +657,82 @@ function buildRecommendations(
     });
   }
 
+  // === Type-specific recommendations for new core loop types ===
+
+  const loopType = structuralType.type;
+
+  if (loopType === "tower_defense") {
+    recommendations.push({
+      target: "Wave pacing curve",
+      recommendation: "Design wave intervals as 15s → 12s → 10s to create rising tension without overwhelming the player early",
+      priority: "high",
+      category: "pacing",
+      source: "formal",
+    });
+    recommendations.push({
+      target: "Economy vs defense tension",
+      recommendation: "Force a build-vs-defend decision every wave: spending on economy now means weaker defense next wave",
+      priority: "medium",
+      category: "decision_design",
+      source: "formal",
+    });
+    recommendations.push({
+      target: "Tower upgrade path",
+      recommendation: "Add at least 2 upgrade tiers per tower type (damage + range) to give long-term progression",
+      priority: "medium",
+      category: "progression",
+      source: "formal",
+    });
+  }
+
+  if (loopType === "rhythm") {
+    recommendations.push({
+      target: "Difficulty ramp curve",
+      recommendation: "Start at 60 BPM, increase by 10-15 BPM every 30 seconds — let players warm up before peak tempo",
+      priority: "high",
+      category: "pacing",
+      source: "formal",
+    });
+    recommendations.push({
+      target: "Visual feedback sync",
+      recommendation: "Ensure note visuals pulse exactly on beat — even 50ms visual delay breaks the rhythm feel",
+      priority: "high",
+      category: "feedback",
+      source: "formal",
+    });
+    recommendations.push({
+      target: "Miss recovery window",
+      recommendation: "Add a 200ms grace window after a miss where combo doesn't reset — reduces frustration without removing challenge",
+      priority: "medium",
+      category: "forgiveness",
+      source: "formal",
+    });
+  }
+
+  if (loopType === "puzzle") {
+    recommendations.push({
+      target: "Piece preview queue",
+      recommendation: "Show the next 3 pieces in a preview panel — lets players plan strategy instead of reacting randomly",
+      priority: "high",
+      category: "strategic_depth",
+      source: "formal",
+    });
+    recommendations.push({
+      target: "Hold/swap mechanic",
+      recommendation: "Allow players to hold one piece and swap it later — adds tactical layer and recovery option",
+      priority: "medium",
+      category: "mechanic_depth",
+      source: "formal",
+    });
+    recommendations.push({
+      target: "Difficulty via speed, not complexity",
+      recommendation: "Increase fall speed gradually (not piece variety) — cognitive overload kills fun faster than speed",
+      priority: "medium",
+      category: "difficulty_curve",
+      source: "formal",
+    });
+  }
+
   // AI-style recommendation
   recommendations.push({
     target: "Playtest the 30-second fun test",

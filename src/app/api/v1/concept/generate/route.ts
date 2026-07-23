@@ -34,6 +34,7 @@ import {
   VALIDATION_ERROR,
 } from "@/lib/api-helpers";
 import { enrichConcept } from "@/lib/ai-service";
+import { buildMechanicSetForGenre, type Mechanic } from "@/lib/mechanics-db";
 
 // ============================================================
 // Constants — valid enum values & static lookup tables
@@ -231,46 +232,75 @@ function buildMechanicSet(
   genre: string,
   forbiddenMechanics: string[]
 ) {
-  const templates = GENRE_MECHANICS[genre] || GENRE_MECHANICS.default;
+  // Используем MechanicsDB (128 механик из SW.BAND карт) вместо упрощённой таблицы
+  const dbResult = buildMechanicSetForGenre(genre, forbiddenMechanics);
 
-  // Filter out forbidden mechanics
-  const filterList = (list: string[]) =>
-    list.filter((m) => !forbiddenMechanics.includes(m));
+  // Маппим группы MechanicsDB на 5 категорий концепции
+  const groupMap: Record<string, string> = {
+    "Базовые": "base",
+    "Боевые": "combat",
+    "Прогрессия": "progression",
+    "Пространство": "spatial",
+    "Экономика": "social",
+    "Движение": "spatial",
+    "Социальные": "social",
+    "Выживание": "base",
+    "Стелс": "combat",
+    "Навыки": "progression",
+    "Время": "base",
+    "Территория": "spatial",
+    "Сюжет": "social",
+    "Информация": "base",
+    "Мета": "progression",
+  };
 
-  const base = filterList(templates.base);
-  const combat = filterList(templates.combat);
-  const progression = filterList(templates.progression);
-  const spatial = filterList(templates.spatial);
-  const social = filterList(templates.social);
+  const categories: Record<string, Array<{ name: string; group: string; desc?: string }>> = {
+    base: [],
+    combat: [],
+    progression: [],
+    spatial: [],
+    social: [],
+  };
 
-  const total = base.length + combat.length + progression.length + spatial.length + social.length;
+  for (const [groupName, mechanics] of Object.entries(dbResult.groups)) {
+    const category = groupMap[groupName] || "base";
+    for (const m of mechanics) {
+      categories[category].push({ name: m.name, group: groupName, desc: m.desc });
+    }
+  }
 
-  // Synergies (canned)
+  // Fallback: если категория пуста, берём из default
+  for (const [cat, list] of Object.entries(categories)) {
+    if (list.length === 0) {
+      const templates = GENRE_MECHANICS.default;
+      const key = cat as keyof typeof templates;
+      categories[cat] = templates[key].map((name: string) => ({ name, group: cat }));
+    }
+  }
+
+  const total = Object.values(categories).reduce((sum, arr) => sum + arr.length, 0);
+
+  // Synergies (from MechanicsDB data)
   const synergies = [
-    { name: `${progression[0] || "progression"} ↔ ${combat[0] || "combat"}`, score: 0.85 },
-    { name: `${base[0] || "base"} ↔ ${spatial[0] || "spatial"}`, score: 0.72 },
+    { name: `${categories.progression[0]?.name || "progression"} ↔ ${categories.combat[0]?.name || "combat"}`, score: 0.85 },
+    { name: `${categories.base[0]?.name || "base"} ↔ ${categories.spatial[0]?.name || "spatial"}`, score: 0.72 },
   ];
 
-  // Conflicts (canned)
   const conflicts = forbiddenMechanics.length > 0
     ? [`Removed ${forbiddenMechanics.length} forbidden mechanic(s): ${forbiddenMechanics.join(", ")}`]
     : [];
 
-  const compatibilityScore = Math.min(
-    100,
-    Math.round(60 + total * 2.5 + synergies.length * 5 - conflicts.length * 3)
-  );
-
   return {
-    base: base.map((name) => ({ name, group: "base" })),
-    combat: combat.map((name) => ({ name, group: "combat" })),
-    progression: progression.map((name) => ({ name, group: "progression" })),
-    spatial: spatial.map((name) => ({ name, group: "spatial" })),
-    social: social.map((name) => ({ name, group: "social" })),
+    base: categories.base,
+    combat: categories.combat,
+    progression: categories.progression,
+    spatial: categories.spatial,
+    social: categories.social,
     total_count: total,
     conflicts_resolved: conflicts,
     synergies_detected: synergies,
-    compatibility_score: compatibilityScore,
+    compatibility_score: dbResult.compatibility_score,
+    mechanics_db_source: dbResult.source,
   };
 }
 

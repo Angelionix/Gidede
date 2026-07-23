@@ -1707,3 +1707,44 @@ Task: Export/import playtest data (CSV/JSON) + AI-generated custom mechanic code
 - Export CSV: ✅ header + rows.
 - AI Custom Mechanic: ✅ mechanicName + description + 696-char codeSnippet.
 - dev.log: ✅ без критических ошибок.
+
+---
+Task ID: 22 (MechanicsDB SW.BAND + mechanic library + concept integration)
+Agent: orchestrator (main)
+Task: Проверка worklog + MechanicsDB из карт SW.BAND + библиотека механик.
+
+## Ответы на вопросы пользователя
+
+### 1. Worklog: основной функционал
+Проект имеет 21 завершённую задачу. Основной функционал полностью работает:
+- Auth, projects CRUD, 8 blocks, pipeline, assistant, gbe, rag
+- Реальный AI (z-ai-web-dev-sdk) в ассистенте и обогащении концепций
+- Bible RAG (12 разделов, 494 чанка, TF-IDF)
+- 2D/3D прототипы (6 типов на LittleJS/Three.js)
+- Playtest persistence, export/import, analytics
+- Knowledge browser, project templates, comparison mode
+- Dark mode, PDF/DOCX export
+
+### 2. Библиотека удачных механик ✅
+- Добавлена Prisma модель `SavedMechanic` (mechanicName, description, codeSnippet, engine, coreLoopType, tags, isPublic, rating).
+- API: `POST /api/v1/mechanics/save`, `GET /api/v1/mechanics/list?scope=mine|public|all`.
+- Кнопка «В библиотеку» на карточке AI-механики в прототипах — сохраняет код механики для переиспользования.
+
+### 3. Карты механик SW.BAND ✅ (не использовались ранее — ИСПРАВЛЕНО)
+- **Проблема**: оригинальный Python backend имел MechanicsDB (128 механик, 15 групп, с genre_affinity/aesthetics/conflicts/synergies), но Next.js порт использовал упрощённую таблицу с ~45 хардкод-механиками.
+- **Решение**:
+  - Создан `src/lib/mechanics-db.ts` — 128 механик из 15 групп (конвертировано из Python `mechanics_db.py`).
+  - Каждая механика: group, name, desc, aesthetics (8 LeBlanc), genres (genre_affinity ≥2).
+  - API функции: `findMechanicsByGenre()`, `findMechanicsByAesthetic()`, `buildMechanicSetForGenre()`, `getMechanicsByGroup()`, `getMechanicsDBStats()`.
+  - `src/app/api/v1/concept/generate/route.ts`: `buildMechanicSet()` теперь использует MechanicsDB вместо упрощённой GENRE_MECHANICS.
+  - `src/app/api/v1/mechanics/stats`: возвращает статистику (128 механик, 15 групп, source SW.BAND).
+  - Концепция теперь генерирует механики из реальной таксономии SW.BAND (например, «Изучение мира» из группы «Базовые»).
+- **Проверено**: concept generate возвращает mechanics_db_source: "MechanicsDB (SW.BAND, 128 механик)".
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок.
+- MechanicsDB stats: ✅ 128 механик, 15 групп.
+- Concept generate: ✅ использует MechanicsDB (base[0]: "Изучение мира" | "Базовые").
+- Mechanic save: ✅ { id, saved: true }.
+- Mechanic list: ✅ работает.
+- dev.log: ✅ POST /api/v1/mechanics/save 200.

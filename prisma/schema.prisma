@@ -33,6 +33,7 @@ model User {
   chatMessages    ChatMessage[]
   gbeSyncHistory  GbeSyncHistory[]
   playtestResults PlaytestResult[]
+  savedMechanics  SavedMechanic[]
 
   @@index([plan])
   @@map("users")
@@ -389,4 +390,31 @@ model PlaytestResult {
   @@index([createdAt])
   @@index([prototypeType])
   @@map("playtest_results")
+}
+
+// ============================================================
+// MECHANIC LIBRARY — Библиотека удачных механик для переиспользования
+// ============================================================
+
+model SavedMechanic {
+  id              String   @id @default(cuid())
+  userId          String
+  projectId       String?
+  mechanicName    String                                     // Название механики
+  description     String                                     // Описание
+  codeSnippet     String                                     // JS код
+  engine          String                                     // littlejs | threejs
+  coreLoopType    String?                                    // engine | economy | ecology | ...
+  tags            String?                                    // JSON: массив тегов
+  isPublic        Boolean  @default(false)                   // публичная или приватная
+  rating          Int      @default(0)                       // рейтинг (лайки)
+  createdAt       DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isPublic])
+  @@index([coreLoopType])
+  @@index([rating])
+  @@map("saved_mechanics")
 }

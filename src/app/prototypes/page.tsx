@@ -550,6 +550,34 @@ export default function PrototypesPage() {
                     >
                       Копировать
                     </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="absolute top-1 right-20 h-6 px-2 text-[10px] border border-primary/30 text-primary"
+                      onClick={async () => {
+                        if (!prototype.custom_mechanic) return;
+                        try {
+                          await apiFetch("/mechanics/save", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              mechanicName: prototype.custom_mechanic.mechanicName,
+                              description: prototype.custom_mechanic.description,
+                              codeSnippet: prototype.custom_mechanic.codeSnippet,
+                              engine: prototype.config.mode === "3d" ? "threejs" : "littlejs",
+                              coreLoopType: prototype.config.type,
+                              projectId: prototype.project_id,
+                              isPublic: false,
+                            }),
+                          });
+                          toast({ title: "✅ Сохранено", description: "Механика в библиотеке" });
+                        } catch {
+                          toast({ title: "Ошибка", variant: "destructive" });
+                        }
+                      }}
+                    >
+                      В библиотеку
+                    </Button>
                   </div>
                 )}
               </CardContent>

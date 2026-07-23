@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
 
     // Store the user's message
     const userMsgId = `u-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-    appendMessage(user.id, projectId || null, {
+    await appendMessage(user.id, projectId || null, {
       id: userMsgId,
       role: "user",
       content: message,
@@ -74,7 +74,7 @@ export async function POST(request: NextRequest) {
     });
 
     // Gather recent history for AI context
-    const hist = getHistory(user.id, projectId || null, 6);
+    const hist = await getHistory(user.id, projectId || null, 6);
     const historyForAi = hist.messages
       .reverse()
       .map((m) => ({
@@ -132,7 +132,7 @@ export async function POST(request: NextRequest) {
     const assistantMsgId = `a-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const latencyMs = Date.now() - startedAt;
 
-    appendMessage(user.id, projectId || null, {
+    await appendMessage(user.id, projectId || null, {
       id: assistantMsgId,
       role: "assistant",
       content: responseText,

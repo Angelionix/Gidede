@@ -115,8 +115,8 @@ export async function POST(request: NextRequest) {
     const timestamp = new Date().toISOString();
     const latencyMs = Date.now() - startedAt;
 
-    // Append to in-memory sync history
-    appendSyncHistory(user.id, {
+    // Persist to sync history (Prisma)
+    await appendSyncHistory(user.id, {
       sync_id: syncId,
       direction: "to_gbe",
       components_synced: componentsSynced,

@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     const timestamp = new Date().toISOString();
     const latencyMs = Date.now() - startedAt;
 
-    appendSyncHistory(user.id, {
+    await appendSyncHistory(user.id, {
       sync_id: syncId,
       direction: "from_gbe",
       components_synced: componentsSynced,

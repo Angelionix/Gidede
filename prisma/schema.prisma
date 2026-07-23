@@ -28,8 +28,10 @@ model User {
   updatedAt       DateTime @updatedAt
   lastLoginAt     DateTime?
 
-  projects       Project[]
-  refreshTokens  RefreshToken[]
+  projects        Project[]
+  refreshTokens   RefreshToken[]
+  chatMessages    ChatMessage[]
+  gbeSyncHistory  GbeSyncHistory[]
 
   @@index([plan])
   @@map("users")
@@ -318,4 +320,47 @@ model ProjectChecklist {
 
   @@index([readinessLevel])
   @@map("project_checklists")
+}
+
+// ============================================================
+// AI ASSISTANT — Сообщения чата (Блок 7)
+// ============================================================
+
+model ChatMessage {
+  id         String   @id @default(cuid())
+  userId     String
+  projectId  String?                                   // nullable — общий чат без проекта
+  role       String                                     // user | assistant | system
+  content    String
+  metadata   String?                                    // JSON: { model_used, provider, latency_ms }
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, projectId])
+  @@index([createdAt])
+  @@map("chat_messages")
+}
+
+// ============================================================
+// GBE SYNC HISTORY — История синхронизации (Блок 8)
+// ============================================================
+
+model GbeSyncHistory {
+  id            String   @id @default(cuid())
+  userId        String
+  projectId     String?
+  syncDirection String                                     // to | from | webhook
+  endpoint      String?
+  status        String                                     // success | error
+  componentsCount Int     @default(0)
+  errorsCount   Int      @default(0)
+  detail        String?                                    // JSON: детали
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, projectId])
+  @@index([createdAt])
+  @@map("gbe_sync_history")
 }

@@ -1,13 +1,13 @@
 /**
- * Gidede — In-memory store for AI Assistant (Block 7).
+ * Gidede — Persistent store for AI Assistant (Block 7).
  *
- * The Prisma schema has no ChatMessage / AssistantSuggestion / AssistantAlert
- * tables. Another agent is actively editing the schema, so we DON'T modify it.
- * Instead we keep chat history + ephemeral state in module-level Maps keyed by
- * `userId` (or `userId:projectId` when project_id is provided).
+ * Чат-история и метаданные сохраняются в Prisma (модели ChatMessage +
+ * GbeSyncHistory). Данные переживают перезапуск сервера (критерий C5).
  *
- * Trade-off: data is reset on server restart — acceptable for a demo / preview.
+ * Интерфейс ChatMsg сохранён для обратной совместимости с вызовами в route handlers.
  */
+
+import { db } from "@/lib/db";
 
 export interface ChatMsg {
   id: string;
@@ -18,47 +18,70 @@ export interface ChatMsg {
   project_id?: string | null;
 }
 
-/** Key: `${userId}` or `${userId}:${projectId}` */
-const chatHistory = new Map<string, ChatMsg[]>();
-
-function keyFor(userId: string, projectId?: string | null): string {
-  return projectId ? `${userId}:${projectId}` : userId;
-}
-
-export function getHistory(
+export async function getHistory(
   userId: string,
   projectId: string | null | undefined,
   limit = 50
-): { messages: ChatMsg[]; total: number } {
-  const k = keyFor(userId, projectId || undefined);
-  const all = chatHistory.get(k) || [];
-  // Most-recent first → reverse chronological; we slice the latest `limit`.
-  const sliced = all.slice(-limit).reverse();
-  return { messages: sliced, total: all.length };
+): Promise<{ messages: ChatMsg[]; total: number }> {
+  const where = projectId
+    ? { userId, projectId }
+    : { userId, projectId: null };
+
+  const [rows, total] = await Promise.all([
+    db.chatMessage.findMany({
+      where,
+      orderBy: { createdAt: "desc" },
+      take: limit,
+    }),
+    db.chatMessage.count({ where }),
+  ]);
+
+  // findMany с desc уже возвращает самые свежие первыми — это и есть наш reverse-chron
+  const messages: ChatMsg[] = rows.map((r) => ({
+    id: r.id,
+    role: r.role as "user" | "assistant" | "system",
+    content: r.content,
+    timestamp: r.createdAt.getTime(),
+    metadata: r.metadata ? safeJsonParse(r.metadata) : undefined,
+    project_id: r.projectId,
+  }));
+
+  return { messages, total };
 }
 
-export function appendMessage(
+export async function appendMessage(
   userId: string,
   projectId: string | null | undefined,
   msg: ChatMsg
-): void {
-  const k = keyFor(userId, projectId || undefined);
-  const list = chatHistory.get(k) || [];
-  list.push(msg);
-  // Cap to 1000 messages per key to avoid unbounded growth.
-  if (list.length > 1000) list.splice(0, list.length - 1000);
-  chatHistory.set(k, list);
+): Promise<void> {
+  await db.chatMessage.create({
+    data: {
+      userId,
+      projectId: projectId ?? null,
+      role: msg.role,
+      content: msg.content,
+      metadata: msg.metadata ? JSON.stringify(msg.metadata) : null,
+    },
+  });
 }
 
-export function clearHistory(
+export async function clearHistory(
   userId: string,
   projectId: string | null | undefined
-): number {
-  const k = keyFor(userId, projectId || undefined);
-  const list = chatHistory.get(k) || [];
-  const n = list.length;
-  chatHistory.delete(k);
-  return n;
+): Promise<number> {
+  const where = projectId
+    ? { userId, projectId }
+    : { userId, projectId: null };
+  const result = await db.chatMessage.deleteMany({ where });
+  return result.count;
+}
+
+function safeJsonParse(s: string): Record<string, unknown> | undefined {
+  try {
+    return JSON.parse(s);
+  } catch {
+    return undefined;
+  }
 }
 
 // ============================================================

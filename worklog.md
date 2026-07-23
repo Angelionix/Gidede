@@ -751,3 +751,91 @@ Replaced empty placeholder with full-featured settings page:
 4. **🟡 LOW — AI in block endpoints**: Currently blocks 1-6 use deterministic logic. Could add an optional `use_ai: true` flag to call z-ai-web-dev-sdk for richer AI-enriched sections (concept USP generation, GDD section enrichment).
 5. **🟡 LOW — E2E test for AI**: Add an agent-browser test that sends a chat message in block 7 and verifies a real AI response streams in.
 6. **🟢 NICE-TO-HAVE — Typo contrast tweak**: VLM noted body text is slightly light; bump font-weight to 400-500 on hero subtitle.
+
+---
+Task ID: 6 (webDevReview round 2 — random projects + persistent storage + PDF + prototypes)
+Agent: webDevReview (cron job 287389)
+Task: QA + 4 требования пользователя: (1) кнопка «Создать случайно», (2) персистентное хранилище, (3) PDF-экспорт, (4) автопрототипы кор-лупа.
+
+## Current Project Status (assessment)
+- App стабильна: health 200, lint чистый, все блоки рендерятся, без ошибок.
+- Реальный AI (z-ai-web-dev-sdk) работает из раунда 1.
+- Dark mode + переработанный home/settings из раунда 1.
+- QA подтвердило: история чата теперь персистентна (переживает рестарт).
+
+## Completed Modifications
+
+### 1. Кнопка «Создать случайно» в диалоге создания проекта ✅
+- Создан `src/lib/project-generator.ts`:
+  - 5 тематических пулов: SETTINGS (15), PROTAGONISTS (15), HOOKS (15), MECHANICS (15), ADJECTIVES+NOUNS (12+12).
+  - `generateRandomProject()` — генерирует связную концепцию: название = прилагательное+существительное (напр. «Вечный Эхо»), описание = протагонист в сеттинге + хук + механика, жанр = случайный из GENRES (29 жанров таксономии Роджерса).
+- Обновлён диалог в `src/app/projects/page.tsx`:
+  - Кнопка «Создать случайно» (variant=outline, primary-акцент) в верхней части диалога.
+  - Info-блок (Sparkles иконка) показывается когда поля заполнены — подсказывает пользователю логику.
+  - Расширил ширину диалога 480→520px.
+- **Проверено**: bun-тест сгенерировал 3 валидных концепта:
+  - «Вечный Эхо» / Fighting / картограф в пиратском архипелаге
+  - «Вечный Обещание» / Roguelike / дитя двух миров
+  - «Багровый Осколок» / Стратегия / учёный-генетик в викторианском особняке
+
+### 2. Персистентное хранилище чата и GBE sync history ✅ (критерий C5 закрыт)
+- Добавлены 2 модели в `prisma/schema.prisma`:
+  - `ChatMessage` (id, userId, projectId?, role, content, metadata?, createdAt) — индексы на [userId, projectId] и [createdAt].
+  - `GbeSyncHistory` (id, userId, projectId?, syncDirection, endpoint?, status, componentsCount, errorsCount, detail?, createdAt).
+  - Relations добавлены в User model (chatMessages, gbeSyncHistory), cascade delete.
+- `bun run db:push` — схема применена к SQLite.
+- Мигрирован `src/lib/assistant-store.ts`: getHistory/appendMessage/clearHistory теперь async, ходят в `db.chatMessage` вместо in-memory Map. Интерфейс ChatMsg сохранён для обратной совместимости.
+- Мигрирован `src/lib/gbe-store.ts`: appendSyncHistory/getSyncHistory теперь async, ходят в `db.gbeSyncHistory`.
+- Обновлены 4 route-файла с `await`: assistant/chat, assistant/chat/stream, assistant/history, assistant/history/clear, gbe/sync-to, gbe/sync-from, gbe/sync-history, gbe/status.
+- **Проверено**: отправил чат-сообщение → total=2 (user+assistant) → перезапустил сервер → history выживала (total=2, оба сообщения на месте). Критерий C5 «данные переживают рестарт» выполнен.
+
+### 3. PDF-экспорт GDD ✅ (критерий C6 улучшен)
+- Загружен pdf skill (SKILL.md) — routing: Report brief (ReportLab) или HTML→Playwright.
+- Обновлён `src/app/api/v1/gdd/export/route.ts`:
+  - Новая функция `generateRealPdf(md, title)` — конвертирует markdown→HTML (через существующую mdToHtml), затем вызывает `html2pdf-next.js` (Playwright + Paged.js) для генерации векторного PDF.
+  - Fallback: если Playwright недоступен → минимальный text-PDF (mdToPdfLike).
+  - Temp-файлы в `os.tmpdir()/gidede-export/`, cleanup в finally.
+- **Проверено**: POST /gdd/export {format:pdf} → валидный PDF (%PDF-1.4 header, 4577 bytes, filename=Test_RPG.pdf). Playwright упал в этой среде → корректный fallback сработал, PDF всё равно валидный.
+
+### 4. Автогенерация простых прототипов кор-лупа ✅ (новая фича, ответ на задачу пользователя)
+- Создан `src/lib/prototype-generator.ts`:
+  - `buildPrototypeConfig(coreLoopData)` — извлекает структурный тип (engine/economy/ecology) и шаги из ProjectCoreLoop, подбирает ресурс (⚡Энергия / 💰Золото / ❤️Здоровье) и цель (напр. «Накопите 50 энергии за 30 секунд»).
+  - `generatePrototypeHtml(config)` — генерирует self-contained HTML прототипа (canvas + vanilla JS):
+    - **Engine**: клик генерирует ресурс, авто-рост со временем, прогресс-бар до цели.
+    - **Economy**: собираем сырьё кликами, конвертируем в золото кнопкой (3→5💰).
+    - **Ecology**: уклоняемся курсором от падающих угроз, здоровье тает при касании.
+    - Общее: таймер 30 сек, win/lose overlay с кнопкой «Заново», spawnParticle эффекты, responsive canvas.
+- Создан API `POST /api/v1/prototypes/generate` — авторизация + getOwnedProject + генерация.
+- Создана страница `/prototypes/page.tsx`:
+  - Header с иконкой FlaskConical, концепт-карточка («Зачем это нужно?» — объясняет тест «30 секунд веселья» из алгоритма 3.2).
+  - Селектор проекта + кнопка «Сгенерировать прототип».
+  - Дисплей прототипа: iframe (srcDoc) + sidebar с типом/шагами/ресурсом + кнопка «Заново».
+  - Amber-карточка предупреждения: «это супер-упрощённый прототип для проверки fun factor».
+- Добавлен пункт «Прототипы» (FlaskConical иконка) + Badge «NEW» в сайдбар.
+- Middleware обновлён: /prototypes и /settings добавлены в PROTECTED_PREFIXES.
+- **Проверено**: API вернул playable=true, type=engine, goal «Накопите 50 энергии за 30 секунд», steps [Собрать, Преобразовать, Использовать], html 4699 символов. VLM оценил страницу прототипов **8/10**.
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок, 0 предупреждений.
+- Health: ✅ 200.
+- Random generator: ✅ 3 валидных концепта (bun-тест).
+- Persistent chat: ✅ history выжила рестарт сервера (total=2 до и после).
+- PDF export: ✅ валидный PDF (%PDF-1.4, 4577 bytes), fallback сработал.
+- Prototypes API: ✅ playable=true, type=engine, html=4699 chars.
+- Prototypes page: ✅ рендерится, VLM 8/10.
+- Все страницы: ✅ без console errors.
+- dev.log: ✅ без критических ошибок (только ожидаемый Playwright fallback в PDF).
+
+## Unresolved Issues / Risks + Next-Phase Recommendations
+
+### Risks
+1. **Playwright недоступен в этой песочнице** — `html2pdf-next.js` падает, PDF-экспорт использует text-PDF fallback (валидный, но простой). Для векторного PDF нужен Playwright/Chromium.
+2. **Прототипы базовые** — 3 механики (engine/economy/ecology), нет настоящей графики, нет звука. Это сознательное упрощение для быстрого теста fun factor.
+3. **agent-browser find text** нестабильно находит кнопки после перезапуска сервера (cookies теряются) — UI функционален (VLM подтверждает), но автоматический E2E клик через семантические локаторы иногда не срабатывает.
+
+### Priority Recommendations for Next Phase
+1. **🟠 MEDIUM — RAG над Библией**: загрузить `docs/bible/` (12 markdown-секций) в knowledge base, расширить `/rag/search` для реального семантического поиска. Закроет TD-014.
+2. **🟠 MEDIUM — AI в block endpoints**: добавить опциональный флаг `use_ai: true` в блоках 1-6 для AI-обогащения (USP candidates, GDD section enrichment) через z-ai-web-dev-sdk.
+3. **🟡 LOW — Расширение прототипов**: больше механик (tower defense, rhythm, puzzle), графика через image-generation skill, сохранение результатов плейтеста в БД.
+4. **🟡 LOW — Шаблоны прототипов**: предзаготовленные пресеты для популярных жанров (roguelike, metroidvania, card game).
+5. **🟢 NICE-TO-HAVE — История плейтестов**: таблица PlaytestResult в Prisma (score, duration, notes) для отслеживания итераций кор-лупа.

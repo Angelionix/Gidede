@@ -42,7 +42,7 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    const { messages, total } = getHistory(user.id, projectId || null, limit);
+    const { messages, total } = await getHistory(user.id, projectId || null, limit);
     return NextResponse.json({ messages, total });
   } catch (error) {
     console.error("[assistant/history] error:", error);

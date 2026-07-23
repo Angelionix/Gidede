@@ -29,6 +29,7 @@ import {
   Circle,
   AlertTriangle,
   Loader2,
+  FlaskConical,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ProgressSidebar } from "@/components/gidede/progress-sidebar";
@@ -155,6 +156,17 @@ export function GidedeSidebar() {
                   <Link href="/projects">
                     <FolderOpen className="h-4 w-4" />
                     <span>Мои проекты</span>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/prototypes"}>
+                  <Link href="/prototypes">
+                    <FlaskConical className="h-4 w-4" />
+                    <span>Прототипы</span>
+                    <Badge variant="outline" className="text-[10px] ml-auto px-1.5 py-0 bg-primary/10 text-primary border-primary/20">
+                      NEW
+                    </Badge>
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>

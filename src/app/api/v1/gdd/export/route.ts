@@ -23,6 +23,10 @@ import {
   SERVER_ERROR,
   VALIDATION_ERROR,
 } from "@/lib/api-helpers";
+import { writeFile, readFile, unlink, mkdir } from "fs/promises";
+import { join } from "path";
+import { tmpdir } from "os";
+import { randomBytes } from "crypto";
 
 const VALID_FORMATS = ["pdf", "docx", "html", "md"];
 
@@ -78,8 +82,6 @@ ${paragraphs.join("\n")}
 function mdToPdfLike(md: string, title: string): string {
   // PDF is binary; we cannot easily produce a real PDF without heavy deps.
   // Emit a minimal valid PDF wrapper containing the markdown as a text stream.
-  // (Preview UI decodes base64 → Blob → download; a malformed PDF will still
-  // be downloaded as .pdf and open in text viewers.)
   const text = `${title}\n\n${md}`;
   // Build a minimal one-page PDF with the text in a stream.
   const header = "%PDF-1.4\n";
@@ -103,6 +105,63 @@ function mdToPdfLike(md: string, title: string): string {
   }
   pdf += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xrefStart}\n%%EOF`;
   return pdf;
+}
+
+/**
+ * Сгенерировать настоящий PDF через pdf skill (html2pdf-next.js, Playwright).
+ * Возвращает Buffer с бинарным PDF. Если Playwright недоступен — fallback
+ * на минимальный text-PDF.
+ */
+async function generateRealPdf(md: string, title: string): Promise<Buffer> {
+  const html = mdToHtml(md, title);
+  const tmp = join(tmpdir(), "gidede-export");
+  await mkdir(tmp, { recursive: true });
+  const id = randomBytes(8).toString("hex");
+  const htmlPath = join(tmp, `${id}.html`);
+  const pdfPath = join(tmp, `${id}.pdf`);
+  const scriptPath = join(
+    process.cwd(),
+    "skills",
+    "pdf",
+    "scripts",
+    "html2pdf-next.js"
+  );
+
+  await writeFile(htmlPath, html, "utf8");
+
+  try {
+    const { execFile } = await import("child_process");
+    await new Promise<void>((resolve, reject) => {
+      execFile(
+        "node",
+        [scriptPath, htmlPath, "--output", pdfPath, "--width", "210mm", "--height", "297mm"],
+        { timeout: 30000, maxBuffer: 10 * 1024 * 1024 },
+        (err, stdout, stderr) => {
+          if (err) {
+            console.error("[gdd/export] html2pdf-next failed:", err.message);
+            console.error("[gdd/export] stderr:", stderr?.slice(-500));
+            reject(err);
+          } else {
+            resolve();
+          }
+        }
+      );
+    });
+
+    const pdfBuffer = await readFile(pdfPath);
+    if (pdfBuffer.length > 0) {
+      return pdfBuffer;
+    }
+    throw new Error("PDF buffer empty");
+  } catch (err) {
+    console.error("[gdd/export] Falling back to text-PDF:", err);
+    // Fallback на минимальный text-PDF
+    return Buffer.from(mdToPdfLike(md, title), "latin1");
+  } finally {
+    // Clean up temp files
+    await unlink(htmlPath).catch(() => {});
+    await unlink(pdfPath).catch(() => {});
+  }
 }
 
 export async function POST(request: NextRequest) {
@@ -189,7 +248,8 @@ export async function POST(request: NextRequest) {
         mimeType = MIME_TYPES.docx;
         break;
       case "pdf":
-        content = toBase64(mdToPdfLike(markdown, title));
+        const pdfBuffer = await generateRealPdf(markdown, title);
+        content = pdfBuffer.toString("base64");
         filename = `${title.replace(/[^a-z0-9_-]+/gi, "_")}.pdf`;
         mimeType = MIME_TYPES.pdf;
         break;

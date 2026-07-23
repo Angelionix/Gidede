@@ -36,7 +36,10 @@ import {
   Trash2,
   FolderOpen,
   Gamepad2,
+  Shuffle,
+  Sparkles,
 } from "lucide-react";
+import { generateRandomProject } from "@/lib/project-generator";
 
 // ============================================================
 // Types
@@ -208,9 +211,16 @@ function CreateProjectDialog({
     }
   };
 
+  const handleRandomize = () => {
+    const idea = generateRandomProject();
+    setName(idea.name);
+    setDescription(idea.description);
+    setGenre(idea.genre);
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[480px]">
+      <DialogContent className="sm:max-w-[520px]">
         <DialogHeader>
           <DialogTitle>Новый проект</DialogTitle>
           <DialogDescription>
@@ -218,6 +228,21 @@ function CreateProjectDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">
+              Нет идей? Сгенерируйте случайно.
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={handleRandomize}
+              className="gap-1.5 border-primary/40 text-primary hover:bg-primary/5"
+            >
+              <Shuffle className="h-3.5 w-3.5" />
+              Создать случайно
+            </Button>
+          </div>
           <div className="grid gap-2">
             <label htmlFor="name" className="text-sm font-medium">
               Название *
@@ -252,6 +277,22 @@ function CreateProjectDialog({
               onChange={(e) => setGenre(e.target.value)}
             />
           </div>
+          {(name || description || genre) && (
+            <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs">
+              <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
+              <div className="text-muted-foreground">
+                {description ? (
+                  <span>
+                    Концепт: <strong className="text-foreground">{name || "—"}</strong>
+                    {genre && <span> • {genre}</span>}. Нажмите «Создать проект»
+                    или «Создать случайно» ещё раз для другого варианта.
+                  </span>
+                ) : (
+                  <span>Заполните поля вручную или нажмите «Создать случайно».</span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>

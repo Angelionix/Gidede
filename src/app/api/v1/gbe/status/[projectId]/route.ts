@@ -34,7 +34,7 @@ export async function GET(
     // Derive a plausible GBE sync status from the project's pipeline state.
     // If the user has any sync history entries, use the most-recent one as
     // last_sync; otherwise report "never".
-    const { history } = getSyncHistory(user.id, 1);
+    const { history } = await getSyncHistory(user.id, 1);
 
     let syncStatus: string;
     let lastSync: string | null;

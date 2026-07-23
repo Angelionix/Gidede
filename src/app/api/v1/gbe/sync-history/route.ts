@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
     const limitParam = searchParams.get("limit");
     const limit = Math.max(1, Math.min(100, Number(limitParam) || 10));
 
-    const { history, total } = getSyncHistory(user.id, limit);
+    const { history, total } = await getSyncHistory(user.id, limit);
     return NextResponse.json({ history, total, limit });
   } catch (error) {
     console.error("[gbe/sync-history] error:", error);

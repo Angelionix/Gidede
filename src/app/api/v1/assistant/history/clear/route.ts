@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const cleared = clearHistory(user.id, projectId || null);
+    const cleared = await clearHistory(user.id, projectId || null);
     return NextResponse.json({ ok: true, cleared });
   } catch (error) {
     console.error("[assistant/history/clear] error:", error);

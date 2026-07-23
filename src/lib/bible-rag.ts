@@ -30,6 +30,7 @@ interface BibleChunk {
 export interface BibleRagResult {
   title: string;
   snippet: string;
+  fullContent?: string;
   source: string;
   section: string;
   score: number;
@@ -261,6 +262,7 @@ export async function searchBible(
     results: scored.map((s) => ({
       title: s.chunk.title,
       snippet: s.chunk.content.slice(0, 300).replace(/\n+/g, " ").trim() + "...",
+      fullContent: s.chunk.content,
       source: s.chunk.source,
       section: s.chunk.section,
       score: Number(s.score.toFixed(2)),

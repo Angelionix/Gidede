@@ -164,6 +164,46 @@ const SFX_SNIPPET = `
 `;
 
 // ============================================================
+// Touch controls (shared, for mobile)
+// ============================================================
+
+const TOUCH_SNIPPET = `
+  // Touch controls: emit synthetic key events for mobile
+  let touchStartX = 0, touchStartY = 0, touchActive = false;
+  function emitKey(code, type) {
+    const ev = new KeyboardEvent(type, { code: code, bubbles: true });
+    window.dispatchEvent(ev);
+    if (typeof document !== 'undefined') {
+      document.dispatchEvent(ev);
+    }
+  }
+  document.addEventListener('touchstart', (e) => {
+    if (e.touches.length > 0) {
+      touchStartX = e.touches[0].clientX;
+      touchStartY = e.touches[0].clientY;
+      touchActive = true;
+    }
+  }, { passive: true });
+  document.addEventListener('touchend', (e) => {
+    if (!touchActive) return;
+    touchActive = false;
+    const t = e.changedTouches[0];
+    if (!t) return;
+    const dx = t.clientX - touchStartX;
+    const dy = t.clientY - touchStartY;
+    const absX = Math.abs(dx), absY = Math.abs(dy);
+    if (absX < 20 && absY < 20) return; // tap, not swipe
+    if (absX > absY) {
+      // Horizontal swipe
+      emitKey(dx > 0 ? 'ArrowRight' : 'ArrowLeft', 'keydown');
+    } else {
+      // Vertical swipe
+      emitKey(dy > 0 ? 'ArrowDown' : 'ArrowUp', 'keydown');
+    }
+  }, { passive: true });
+`;
+
+// ============================================================
 // 2D прототип на LittleJS
 // ============================================================
 
@@ -474,10 +514,11 @@ function generate2dHtml(config: PrototypeConfig): string {
     </div>
   </div>
   <p class="steps">Шаги: ${steps.join(" → ")}</p>
-  <p class="hint">Powered by LittleJS • WASD/стрелки • ЛКМ</p>
+  <p class="hint">Powered by LittleJS • WASD/стрелки • ЛКМ${(type === "rhythm" || type === "puzzle" || type === "ecology") ? " • swipe на мобильных" : ""}</p>
   <script src="/littlejs.min.js"></script>
   <script>
     ${SFX_SNIPPET}
+    ${(type === "rhythm" || type === "puzzle" || type === "ecology") ? TOUCH_SNIPPET : ""}
     let timeLeft = 30;
     let running = true;
     const overlay = document.getElementById('overlay');
@@ -928,6 +969,7 @@ function generate3dHtml(config: PrototypeConfig): string {
   <script src="/three.min.js"></script>
   <script>
     ${SFX_SNIPPET}
+    ${(type === "rhythm" || type === "puzzle" || type === "ecology") ? TOUCH_SNIPPET : ""}
     const THREE = window.THREE;
     const container = document.getElementById('gameContainer');
     const overlay = document.getElementById('overlay');

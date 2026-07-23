@@ -1270,3 +1270,66 @@ Task: QA + реализация рекомендаций: расширить cor
 3. **🟢 NICE-TO-HAVE — Auto-save из iframe**: postMessage bridge для автосохранения результата при win/lose.
 4. **🟢 NICE-TO-HAVE — Спрайты вместо примитивов**: emoji-спрайты или canvas-текстуры для прототипов.
 5. **🟢 NICE-TO-HAVE — Type-specific pathologies**: tower_defense (wave imbalance), rhythm (off-beat penalty), puzzle (stuck states).
+
+---
+Task ID: 13 (webDevReview round 8 — mobile touch + expandable snippets)
+Agent: webDevReview (cron job 287389)
+Task: QA + реализация рекомендаций: mobile touch controls + expandable Bible snippets.
+
+## Current Project Status (assessment)
+- App стабильна после раундов 1-8: dark mode, реальный AI, персистентное хранилище, PDF, Bible RAG, AI enrichment, 2D/3D прототипы (6 типов), AI insights, playtest persistence + bar chart, knowledge browser, coreloop 7 типов.
+- QA подтвердило: health 200, lint чистый, RAG работает, без ошибок.
+- Приступил к рекомендациям из Task ID 12: mobile touch + expandable snippets.
+
+## Completed Modifications
+
+### 1. Mobile touch controls для прототипов ✅
+- Создан `TOUCH_SNIPPET` в `src/lib/prototype-generator.ts` — shared touch handler:
+  - `touchstart`: записывает начальные координаты.
+  - `touchend`: вычисляет swipe (dx, dy), если > 20px — эмитит синтетический KeyboardEvent с нужным code (ArrowLeft/Right/Down/Up).
+  - Horizontal swipe → ArrowLeft/Right, Vertical swipe → ArrowDown/Up.
+  - passive: true (не блокирует скролл).
+- Внедрён в 2D HTML для типов rhythm/puzzle/ecology (где нужны стрелки).
+- Внедрён в 3D HTML для типов rhythm/puzzle/ecology.
+- Hint-текст обновлён: «swipe на мобильных» добавлен для rhythm/puzzle/ecology.
+- Engine/economy/tower_defense — без touch (используют ЛКМ, touch уже работает через click).
+- **Проверено**:
+  - 2D rhythm: содержит emitKey×3, swipe×4, touchstart×1.
+  - 2D engine: 0 touchstart (правильно — не нужен).
+  - 3D rhythm/puzzle/ecology: touch snippet внедрён.
+
+### 2. Expandable Bible snippets (modal) ✅
+- `src/lib/bible-rag.ts`: BibleRagResult расширен полем `fullContent?: string`. searchBible() теперь возвращает полный текст чанка (не обрезанный).
+- `src/app/api/v1/rag/search/route.ts`: fullContent прокидывается через в response для bible-результатов.
+- `src/app/knowledge/page.tsx`:
+  - RagResult interface расширен fullContent.
+  - Состояние `selectedResult` для выбранного результата.
+  - Кнопка «Показать полностью (N символов)» с Maximize2 иконкой — показывается когда fullContent длиннее snippet.
+  - Dialog modal: заголовок с title + section badge, description с source + score, scrollable pre с fullContent (whitespace-pre-wrap, font-sans).
+  - max-w-2xl, max-h-[80vh], overflow-y-auto.
+- **Проверено**:
+  - RAG API: snippet 303 chars, fullContent 1616/3461 chars — есть что расширять.
+  - VLM подтвердил: кнопка «Показать полностью (1616 символов)» с Maximize2 иконкой видна под результатом.
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок.
+- Health: ✅ 200.
+- RAG fullContent: ✅ snippet 303 chars, fullContent 1616/3461 chars.
+- 2D rhythm touch: ✅ emitKey×3, swipe×4, touchstart×1.
+- 2D engine no touch: ✅ 0 touchstart (правильно).
+- Knowledge page: ✅ рендерится, VLM подтвердил кнопку «Показать полностью».
+- dev.log: ✅ без ошибок.
+
+## Unresolved Issues / Risks + Next-Phase Recommendations
+
+### Risks
+1. **Touch swipe — только 4 направления**: нет multi-touch (двойной тап, long press). Достаточно для rhythm/puzzle, но future: добавить tap zones для rhythm (левая/правая половина экрана).
+2. **Modal — markdown не рендерится**: fullContent показывается как pre (plain text). Bible chunks — markdown, но без рендеринга. Future: react-markdown для красивого отображения.
+3. **3D touch — свайп работает, но нет virtual joystick для ecology**: ecology 3D использует WASD (4 направления), свайп покрывает это, но непривычно. Future: virtual joystick для свободного движения.
+
+### Priority Recommendations for Next Phase
+1. **🟢 NICE-TO-HAVE — Markdown rendering в modal**: react-markdown для Bible fullContent (заголовки, списки, bold).
+2. **🟢 NICE-TO-HAVE — Auto-save из iframe**: postMessage bridge для автосохранения результата при win/lose.
+3. **🟢 NICE-TO-HAVE — Спрайты вместо примитивов**: emoji-спрайты или canvas-текстуры для прототипов.
+4. **🟢 NICE-TO-HAVE — Type-specific pathologies**: tower_defense (wave imbalance), rhythm (off-beat), puzzle (stuck).
+5. **🟢 NICE-TO-HAVE — Virtual joystick**: для ecology 3D на мобильных (свободное движение вместо свайпов).

@@ -7,11 +7,19 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { BookOpen, Search, Loader2, Lightbulb, ExternalLink } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { BookOpen, Search, Loader2, Lightbulb, ExternalLink, Maximize2, X } from "lucide-react";
 
 interface RagResult {
   title: string;
   snippet: string;
+  fullContent?: string;
   source: string;
   section?: string;
   score: number;
@@ -47,6 +55,7 @@ export default function KnowledgePage() {
   const [stats, setStats] = useState<{ bible_sections: number; bible_chunks: number; bible_terms: number } | null>(null);
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
+  const [selectedResult, setSelectedResult] = useState<RagResult | null>(null);
 
   const handleSearch = async (q?: string) => {
     const searchQuery = (q ?? query).trim();
@@ -231,11 +240,47 @@ export default function KnowledgePage() {
                   </div>
                 </div>
                 <p className="text-sm text-foreground/90 leading-relaxed">{r.snippet}</p>
+                {r.fullContent && r.fullContent.length > r.snippet.length && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="mt-2 h-7 text-xs text-primary"
+                    onClick={() => setSelectedResult(r)}
+                  >
+                    <Maximize2 className="h-3 w-3 mr-1" />
+                    Показать полностью ({r.fullContent.length} символов)
+                  </Button>
+                )}
               </CardContent>
             </Card>
           ))}
         </div>
       )}
+
+      {/* Full content modal */}
+      <Dialog open={!!selectedResult} onOpenChange={(open) => !open && setSelectedResult(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 flex-wrap">
+              {selectedResult?.title}
+              {selectedResult?.section && (
+                <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20">
+                  {selectedResult.section}
+                </Badge>
+              )}
+            </DialogTitle>
+            <DialogDescription className="flex items-center gap-1">
+              <ExternalLink className="h-3 w-3" />
+              {selectedResult?.source} • score: {selectedResult?.score}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="overflow-y-auto flex-1 pr-2">
+            <pre className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap font-sans">
+              {selectedResult?.fullContent}
+            </pre>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -53,6 +53,7 @@ export async function POST(request: NextRequest) {
       ...bibleResult.results.map((r) => ({
         title: r.title,
         snippet: r.snippet,
+        fullContent: r.fullContent,
         source: r.source,
         section: r.section,
         score: r.score * 1.2, // slight boost: bible chunks are more specific

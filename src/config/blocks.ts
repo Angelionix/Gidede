@@ -65,7 +65,7 @@ export const BLOCKS: BlockConfig[] = [
       "Transitive/intransitive анализ, Monte Carlo симуляция, Machinations-визуализация экономики.",
     icon: Scale,
     algorithm: "3.4",
-    status: "skeleton",
+    status: "active",
   },
   {
     id: 5,
@@ -75,7 +75,7 @@ export const BLOCKS: BlockConfig[] = [
       "Конструктор внутренней экономики на основе Machinations. Кривые прогрессии, контент-план.",
     icon: TrendingUp,
     algorithm: "3.5–3.6",
-    status: "skeleton",
+    status: "active",
   },
   {
     id: 6,
@@ -85,7 +85,7 @@ export const BLOCKS: BlockConfig[] = [
       "Генерация дизайн-документов по шаблонам (38 секций Роджерса). 5 типов чек-листов валидации.",
     icon: FileText,
     algorithm: "3.7–3.8",
-    status: "skeleton",
+    status: "active",
   },
   {
     id: 7,
@@ -95,7 +95,7 @@ export const BLOCKS: BlockConfig[] = [
       "Контекстно-осведомлённый чат-бот. Знает проект, цитирует книги, предлагает рекомендации.",
     icon: Bot,
     algorithm: "3.9",
-    status: "skeleton",
+    status: "active",
   },
   {
     id: 8,
@@ -105,6 +105,6 @@ export const BLOCKS: BlockConfig[] = [
       "API Bridge для GDCombine. Blueprint-синхронизация, Linter-правила, шаблоны документов.",
     icon: Puzzle,
     algorithm: "—",
-    status: "planned",
+    status: "active",
   },
 ];

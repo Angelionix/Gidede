@@ -52,3 +52,16 @@ prompt
 server.log
 # Skills directory
 /skills/
+# Database (binary, changes frequently)
+db/*.db
+db/*.db-journal
+
+# Dev artifacts
+.zscripts/dev.pid
+dev.log
+agent-ctx/
+upload/
+download/
+
+# Skills (external)
+skills/

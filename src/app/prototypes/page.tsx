@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Gamepad2, Play, RotateCcw, Lightbulb, AlertCircle, Loader2, FlaskConical } from "lucide-react";
+import { Gamepad2, Play, RotateCcw, Lightbulb, AlertCircle, Loader2, FlaskConical, Box, Square } from "lucide-react";
 
 interface Project {
   id: string;
@@ -20,6 +20,7 @@ interface PrototypeResponse {
   html: string;
   config: {
     type: string;
+    mode: string;
     steps: string[];
     resource: string;
     goal: string;
@@ -41,6 +42,7 @@ export default function PrototypesPage() {
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>("");
+  const [mode, setMode] = useState<"2d" | "3d">("2d");
   const [loading, setLoading] = useState(false);
   const [prototype, setPrototype] = useState<PrototypeResponse | null>(null);
 
@@ -67,11 +69,11 @@ export default function PrototypesPage() {
       const data = await apiFetch<PrototypeResponse>("/prototypes/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project_id: selectedProject }),
+        body: JSON.stringify({ project_id: selectedProject, mode }),
       });
       setPrototype(data);
       toast({
-        title: "Прототип готов",
+        title: `Прототип готов (${mode.toUpperCase()})`,
         description: `Тип: ${data.config.type}, ресурс: ${data.config.resource}`,
       });
     } catch (err) {
@@ -155,7 +157,7 @@ export default function PrototypesPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col sm:flex-row gap-3">
+          <div className="flex flex-col sm:flex-row gap-3 mb-4">
             <select
               value={selectedProject}
               onChange={(e) => setSelectedProject(e.target.value)}
@@ -180,6 +182,36 @@ export default function PrototypesPage() {
               )}
             </Button>
           </div>
+
+          {/* Mode toggle 2D / 3D */}
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground mr-1">Режим:</span>
+            <button
+              type="button"
+              onClick={() => setMode("2d")}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                mode === "2d"
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:bg-muted/50"
+              }`}
+            >
+              <Square className="h-3.5 w-3.5" />
+              2D (LittleJS)
+            </button>
+            <button
+              type="button"
+              onClick={() => setMode("3d")}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                mode === "3d"
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:bg-muted/50"
+              }`}
+            >
+              <Box className="h-3.5 w-3.5" />
+              3D (Three.js)
+            </button>
+          </div>
+
           {projects.length === 0 && (
             <p className="text-xs text-muted-foreground mt-3">
               Нет проектов. Создайте проект на странице «Мои проекты».
@@ -204,6 +236,9 @@ export default function PrototypesPage() {
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className={TYPE_LABELS[prototype.config.type]?.color}>
                     {TYPE_LABELS[prototype.config.type]?.label || prototype.config.type}
+                  </Badge>
+                  <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
+                    {prototype.config.mode?.toUpperCase()}
                   </Badge>
                   <Button variant="outline" size="sm" onClick={handleRestart}>
                     <RotateCcw className="h-3.5 w-3.5 mr-1" /> Заново

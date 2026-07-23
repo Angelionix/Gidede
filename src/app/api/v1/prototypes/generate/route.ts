@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const projectId = body?.project_id?.toString().trim() || null;
+    const mode = (body?.mode?.toString().trim() === "3d" ? "3d" : "2d") as "2d" | "3d";
 
     if (!projectId) {
       return VALIDATION_ERROR("project_id обязателен");
@@ -41,6 +42,7 @@ export async function POST(request: NextRequest) {
     const project = owned.project as {
       id: string;
       name: string;
+      genre: string | null;
       coreLoop?: {
         structuralType: string | null;
         steps: string | null;
@@ -50,11 +52,14 @@ export async function POST(request: NextRequest) {
     };
 
     const cl = project.coreLoop;
-    const config = buildPrototypeConfig({
-      structuralType: cl?.structuralType || "engine",
-      steps: cl?.steps ? (cl.steps as unknown) : (cl?.stepsData as unknown),
-      inputData: cl?.inputData || undefined,
-    });
+    const config = buildPrototypeConfig(
+      {
+        structuralType: cl?.structuralType || "engine",
+        steps: cl?.steps ? (cl.steps as unknown) : (cl?.stepsData as unknown),
+        inputData: cl?.inputData || undefined,
+      },
+      mode
+    );
 
     const html = generatePrototypeHtml(config);
 
@@ -63,6 +68,7 @@ export async function POST(request: NextRequest) {
       html,
       config: {
         type: config.type,
+        mode: config.mode,
         steps: config.steps,
         resource: config.resourceName,
         goal: config.goalText,

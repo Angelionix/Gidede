@@ -918,3 +918,80 @@ Task: QA + реализация рекомендаций следующей фа
 3. **🟡 LOW — Расширение прототипов**: больше механик (tower defense, rhythm, puzzle), сохранение результатов плейтеста в БД (PlaytestResult table).
 4. **🟢 NICE-TO-HAVE — Streaming AI enrichment**: сейчас enrichConcept блокирует ~10 сек. Можно стримить ответ через SSE для лучшего UX.
 5. **🟢 NICE-TO-HAVE — Embeddings для RAG**: использовать z-ai-web-dev-sdk для генерации embeddings вместо TF-IDF. Улучшит semantic search.
+
+---
+Task ID: 8 (LittleJS 2D + Three.js 3D прототипы)
+Agent: orchestrator (main)
+Task: Внедрить LittleJS для 2D прототипов + Three.js для 3D, переключатель режимов.
+
+## Current Project Status (assessment)
+- App стабильна после раундов 1-3: dark mode, реальный AI, персистентное хранилище, PDF, Bible RAG, AI enrichment.
+- Прототипы кор-лупа работали на vanilla canvas (раунд 2) — базовые квадратики.
+- Пользователь предложил внедрить игровой движок. После анализа выбран LittleJS (2D) + Three.js (3D).
+
+## Completed Modifications
+
+### 1. Скачивание библиотек ✅
+- `public/littlejs.min.js` (52КБ, v1.18.24) — LittleJS, zero-dep HTML5 движок.
+- `public/three.min.js` (669КБ, r0.160) — Three.js, WebGL 3D движок.
+- Оба файла загружаются через `<script src="/...">` в iframe srcDoc.
+- ESLint config обновлён: `public/**` и `docs/**` добавлены в ignores (минифицированные файлы давали 1570 warnings).
+
+### 2. Переписан prototype-generator.ts на 2 движка ✅
+**Полностью переписан `src/lib/prototype-generator.ts`:**
+- `PrototypeMode = "2d" | "3d"` — новый тип режима.
+- `buildPrototypeConfig(coreLoopData, mode)` — принимает mode, возвращает разные goals для 2D/3D.
+- `generate2dHtml(config)` — LittleJS прототип (WebGL2+Canvas2D гибрид):
+  - **Engine**: 3 кликабельных 3D-кристалла (шестиугольники с пульсацией), клик +3 энергии, авто +0.6/с, прогресс-бар, частицы при сборе.
+  - **Economy**: 4 синих узла, ЛКМ собирает сырьё, ПКМ/C конвертирует 3→5 золота, счётчики обоих ресурсов.
+  - **Ecology**: player (зелёный круг) с управлением WASD/стрелки, падающие красные блоки с коллизиями, HP-bar, частицы при ударе.
+  - Общее: таймер 30 сек, win/lose overlay, WebAudio SFX (collect/convert/hit/win/lose), spawnParticles().
+  - LittleJS API: engineInit(gameInit, gameUpdate, gameUpdatePost, gameRender, gameRenderPost), drawRect/drawCircle/drawPolygon/drawText, keyIsDown/keyWasPressed/mouseWasPressed/mousePos, Color, vec2, timeDelta, canvasWidth/canvasHeight, clamp.
+- `generate3dHtml(config)` — Three.js прототип (WebGL, перспективная камера):
+  - Сцена с ambient + directional light, ground plane, GridHelper для пространственной ориентации.
+  - **Engine**: 3D Octahedron-кристаллы (вращаются + пульсируют), raycasting для клика, HUD показывает счётчик.
+  - **Economy**: 3D Cylinder-монеты (вращаются, пульсируют), raycasting, спавн каждые 0.8 сек.
+  - **Ecology**: Sphere-player с WASD управлением + point light, падающие Box-угрозы с коллизиями (AABB), HP-bar overlay.
+  - Камера: ecology — статичная от 3-го лица, остальные — лёгкое орбитальное вращение.
+  - Общее: HUD/timer/HPbar overlay через CSS, туман (Fog) для глубины, antialiasing.
+- `generatePrototypeHtml(config)` — dispatch по config.mode.
+- WebAudio SFX snippet (shared): sfxCollect (880→1320Hz square), sfxConvert (523→784Hz triangle), sfxHit (120Hz sawtooth), sfxWin (523→659→784Hz arpeggio), sfxLose (220→110Hz sawtooth).
+
+### 3. Обновлён API маршрут ✅
+- `src/app/api/v1/prototypes/generate/route.ts`:
+  - Параметр `mode` ("2d" | "3d") в body, default "2d".
+  - Передаётся в buildPrototypeConfig и generatePrototypeHtml.
+  - Response включает `config.mode`.
+
+### 4. Обновлён UI страницы /prototypes ✅
+- `src/app/prototypes/page.tsx`:
+  - Состояние `mode: "2d" | "3d"`, default "2d".
+  - Переключатель режима: 2 кнопки с иконками Square (2D) / Box (3D), active-state с primary акцентом.
+  - Badge режима (2D/3D) в заголовке прототипа рядом с type badge.
+  - Toast показывает режим: "Прототип готов (2D)" / "(3D)".
+  - Body отправляет `mode` в запрос.
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок (после ignores для public/docs).
+- Health: ✅ 200.
+- Статические файлы: littlejs:200, three:200.
+- 2D прототип API: ✅ mode=2d, type=engine, html=6196 символов, содержит littlejs.min.js.
+- 3D прототип API: ✅ mode=3d, type=engine, html=7245 символов.
+- Страница /prototypes: ✅ рендерится без ошибок.
+- VLM подтвердил: переключатель 2D/3D виден, 2 кнопки (2D LittleJS / 3D Three.js) в секции выбора проекта.
+- dev.log: ✅ без ошибок (после фикса `${clickValue}` → конкатенация).
+
+## Unresolved Issues / Risks + Next-Phase Recommendations
+
+### Risks
+1. **Three.js размер**: 669КБ — загружается при первом 3D-прототипе (~1 сек). Приемлемо, но можно использовать ES module build для tree-shaking в будущем.
+2. **iframe srcDoc + относительные пути**: `<script src="/littlejs.min.js">` работает потому что iframe наследует origin родителя. Если прототип открывается на другом домене — сломается. Решение: можно встроить скрипт inline, но усложнит генерацию.
+3. **LittleJS globals**: использует глобальные функции (engineInit, drawRect, etc.) — это нормально для прототипа, но не для production кода.
+4. **3D performance**: WebGL в iframe работает, но на слабых устройствах может тормозить. Fog + antialiasing могут быть отключены при FPS < 30 (не реализовано, future enhancement).
+
+### Priority Recommendations for Next Phase
+1. **🟡 MEDIUM — AI-генерация кода прототипа**: добавить `use_ai` флаг — LLM генерирует кастомный игровой код из описания кор-лупа (вместо шаблона). Сейчас шаблонный подход, но AI может создать уникальные механики.
+2. **🟡 LOW — Больше типов прототипов**: добавить tower-defense, rhythm, puzzle пресеты. Сейчас 3 (engine/economy/ecology).
+3. **🟡 LOW — Сохранение результатов плейтеста**: таблица PlaytestResult в Prisma (score, duration, win/lose, notes).
+4. **🟢 NICE-TO-HAVE — Mobile touch controls**: сейчас только keyboard+mouse. Touch events для ecology-type на мобильных.
+5. **🟢 NICE-TO-HAVE — Спрайты вместо примитивов**: генерировать простые текстуры (canvas) или использовать emoji-спрайты для большей наглядности.

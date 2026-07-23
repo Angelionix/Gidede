@@ -533,8 +533,11 @@ function generate2dHtml(config: PrototypeConfig): string {
       }
     }
 
-    function win() { running=false; resultText.textContent='🎉 Победа!'; overlay.classList.add('show'); }
-    function lose() { running=false; resultText.textContent='💀 Поражение'; overlay.classList.add('show'); }
+    function notifyParent(outcome, score, duration) {
+      try { window.parent.postMessage({ type: 'gidede-playtest', outcome: outcome, score: score||null, duration: duration||30, prototypeType: '${type}', mode: '2d' }, '*'); } catch(e) {}
+    }
+    function win(score) { running=false; resultText.textContent='🎉 Победа!'; overlay.classList.add('show'); notifyParent('win', score, Math.max(0, 30-timeLeft)); }
+    function lose(score) { running=false; resultText.textContent='💀 Поражение'; overlay.classList.add('show'); notifyParent('lose', score, Math.max(0, 30-timeLeft)); }
     window.restart = function() { location.reload(); };
 
     ${mechanics[type]}
@@ -1016,8 +1019,11 @@ function generate3dHtml(config: PrototypeConfig): string {
 
     let timeLeft = 30;
     let running = true;
-    function win() { running=false; resultText.textContent='🎉 Победа!'; overlay.classList.add('show'); }
-    function lose() { running=false; resultText.textContent='💀 Поражение'; overlay.classList.add('show'); }
+    function notifyParent(outcome, score, duration) {
+      try { window.parent.postMessage({ type: 'gidede-playtest', outcome: outcome, score: score||null, duration: duration||30, prototypeType: '${type}', mode: '3d' }, '*'); } catch(e) {}
+    }
+    function win(score) { running=false; resultText.textContent='🎉 Победа!'; overlay.classList.add('show'); notifyParent('win', score, Math.max(0, 30-timeLeft)); }
+    function lose(score) { running=false; resultText.textContent='💀 Поражение'; overlay.classList.add('show'); notifyParent('lose', score, Math.max(0, 30-timeLeft)); }
 
     ${mechanics3d[type]}
 

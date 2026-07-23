@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -14,7 +15,7 @@ import {
   DialogTitle,
   DialogDescription,
 } from "@/components/ui/dialog";
-import { BookOpen, Search, Loader2, Lightbulb, ExternalLink, Maximize2, X } from "lucide-react";
+import { BookOpen, Search, Loader2, Lightbulb, ExternalLink, Maximize2 } from "lucide-react";
 
 interface RagResult {
   title: string;
@@ -275,9 +276,9 @@ export default function KnowledgePage() {
             </DialogDescription>
           </DialogHeader>
           <div className="overflow-y-auto flex-1 pr-2">
-            <pre className="text-sm text-foreground/90 leading-relaxed whitespace-pre-wrap font-sans">
-              {selectedResult?.fullContent}
-            </pre>
+            <div className="prose prose-sm dark:prose-invert max-w-none text-foreground/90 leading-relaxed [&_h1]:text-lg [&_h1]:font-bold [&_h1]:mt-4 [&_h1]:mb-2 [&_h2]:text-base [&_h2]:font-semibold [&_h2]:mt-3 [&_h2]:mb-1.5 [&_h3]:text-sm [&_h3]:font-medium [&_h3]:mt-2 [&_h3]:mb-1 [&_p]:my-2 [&_ul]:my-2 [&_ul]:list-disc [&_ul]:pl-5 [&_ol]:my-2 [&_ol]:list-decimal [&_ol]:pl-5 [&_li]:my-0.5 [&_strong]:font-semibold [&_code]:text-xs [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:rounded [&_blockquote]:border-l-2 [&_blockquote]:border-primary [&_blockquote]:pl-3 [&_blockquote]:text-muted-foreground">
+              <ReactMarkdown>{selectedResult?.fullContent || ""}</ReactMarkdown>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

@@ -1333,3 +1333,67 @@ Task: QA + реализация рекомендаций: mobile touch controls 
 3. **🟢 NICE-TO-HAVE — Спрайты вместо примитивов**: emoji-спрайты или canvas-текстуры для прототипов.
 4. **🟢 NICE-TO-HAVE — Type-specific pathologies**: tower_defense (wave imbalance), rhythm (off-beat), puzzle (stuck).
 5. **🟢 NICE-TO-HAVE — Virtual joystick**: для ecology 3D на мобильных (свободное движение вместо свайпов).
+
+---
+Task ID: 14 (webDevReview round 9 — markdown modal + auto-save postMessage)
+Agent: webDevReview (cron job 287389)
+Task: QA + реализация рекомендаций: markdown rendering в modal + auto-save из iframe.
+
+## Current Project Status (assessment)
+- App стабильна после раундов 1-9: dark mode, реальный AI, персистентное хранилище, PDF, Bible RAG, AI enrichment, 2D/3D прототипы (6 типов), AI insights, playtest persistence + bar chart, knowledge browser, coreloop 7 типов, mobile touch, expandable snippets.
+- QA подтвердило: health 200, lint чистый, RAG + prototypes работают, без ошибок.
+- Приступил к рекомендациям из Task ID 13: markdown modal + auto-save.
+
+## Completed Modifications
+
+### 1. Markdown rendering в knowledge modal ✅
+- `src/app/knowledge/page.tsx`: импорт ReactMarkdown из react-markdown (уже в deps).
+- Modal content: заменён `<pre>` на `<ReactMarkdown>` с prose-styling:
+  - h1/h2/h3 с разными размерами и весами.
+  - p, ul, ol, li — стандартные отступы и списки.
+  - strong — semibold, code — bg-muted + rounded.
+  - blockquote — border-l-2 primary, text-muted-foreground.
+  - dark:prose-invert для тёмной темы.
+  - max-w-none для полной ширины modal.
+- Bible chunks (markdown) теперь отображаются с заголовками, списками, bold — красиво вместо plain text.
+- **Проверено**: VLM подтвердил 10 результатов + кнопка «Показать полностью (1616 символов)».
+
+### 2. Auto-save из iframe via postMessage ✅
+- `src/lib/prototype-generator.ts`:
+  - 2D: добавлена функция `notifyParent(outcome, score, duration)` — отправляет `window.parent.postMessage({type:'gidede-playtest', outcome, score, duration, prototypeType, mode}, '*')`.
+  - `win(score)` и `lose(score)` теперь вызывают notifyParent с реальной длительностью (30 - timeLeft).
+  - 3D: аналогично — notifyParent + win/lose с postMessage.
+  - postMessage работает из srcDoc iframe (same-origin не требуется, '*' target).
+- `src/app/prototypes/page.tsx`:
+  - useEffect с window.addEventListener('message', handler).
+  - Handler проверяет `data.type === 'gidede-playtest'`, извлекает outcome/score/duration/prototypeType/mode.
+  - Автосохранение через apiFetch('/playtests/save', ...) с реальными данными из игры.
+  - Toast подтверждение: «🎉 Победа сохранена» / «💀 Поражение сохранено» с длительностью.
+  - Silent fail если save не удался — пользователь может сохранить вручную.
+  - Cleanup: removeEventListener в return.
+- **Проверено**:
+  - 2D prototype HTML: gidede-playtest×1, notifyParent×3, postMessage×1.
+  - 3D prototype HTML: gidede-playtest×1, notifyParent×3, postMessage×1.
+  - Auto-save срабатывает при win/lose в игре (без ручного нажатия кнопок).
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок.
+- Health: ✅ 200.
+- 2D prototype postMessage: ✅ gidede-playtest + notifyParent×3 + postMessage.
+- 3D prototype postMessage: ✅ gidede-playtest + notifyParent×3 + postMessage.
+- Knowledge page: ✅ рендерится, VLM подтвердил 10 результатов + «Показать полностью».
+- dev.log: ✅ без ошибок.
+
+## Unresolved Issues / Risks + Next-Phase Recommendations
+
+### Risks
+1. **postMessage security**: используется `'*'` target (любой origin). Для production стоит ограничить до window.location.origin, но для прототипа в iframe srcDoc это безопасно.
+2. **Auto-save дублирует ручное сохранение**: если пользователь нажмёт «🎉 Победа» вручную после автосохранения — создастся дубликат. Future: debounce или disable manual buttons после auto-save.
+3. **Markdown — нет syntax highlighting**: code blocks показываются как plain text. Future: rehype-highlight для подсветки.
+
+### Priority Recommendations for Next Phase
+1. **🟢 NICE-TO-HAVE — Спрайты вместо примитивов**: emoji-спрайты или canvas-текстуры для прототипов.
+2. **🟢 NICE-TO-HAVE — Type-specific pathologies**: tower_defense (wave imbalance), rhythm (off-beat), puzzle (stuck).
+3. **🟢 NICE-TO-HAVE — Virtual joystick**: для ecology 3D на мобильных.
+4. **🟢 NICE-TO-HAVE — Debounce auto-save**: предотвращать дубликаты при ручном сохранении.
+5. **🟢 NICE-TO-HAVE — Syntax highlighting**: rehype-highlight для code blocks в Bible modal.

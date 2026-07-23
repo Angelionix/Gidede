@@ -83,6 +83,38 @@ export default function PrototypesPage() {
     }
   }, [authLoading, isAuthenticated, apiFetch]);
 
+  // Auto-save playtest result from iframe postMessage
+  useEffect(() => {
+    const handler = async (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || data.type !== "gidede-playtest") return;
+      if (!data.outcome || !prototype) return;
+      try {
+        await apiFetch("/playtests/save", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            project_id: prototype.project_id,
+            prototype_type: data.prototypeType || prototype.config.type,
+            mode: data.mode || prototype.config.mode,
+            outcome: data.outcome,
+            score: data.score || null,
+            duration_sec: Math.round(data.duration || 30),
+            ai_generated: prototype.ai_generated,
+          }),
+        });
+        toast({
+          title: data.outcome === "win" ? "🎉 Победа сохранена" : "💀 Поражение сохранено",
+          description: `Результат автосохранён (${Math.round(data.duration || 30)}с)`,
+        });
+      } catch {
+        // Silent fail — user can still save manually
+      }
+    };
+    window.addEventListener("message", handler);
+    return () => window.removeEventListener("message", handler);
+  }, [prototype, apiFetch, toast]);
+
   const handleGenerate = async () => {
     if (!selectedProject) {
       toast({

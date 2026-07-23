@@ -38,8 +38,10 @@ import {
   Gamepad2,
   Shuffle,
   Sparkles,
+  LayoutGrid,
 } from "lucide-react";
 import { generateRandomProject } from "@/lib/project-generator";
+import { PROJECT_TEMPLATES, TEMPLATE_CATEGORIES, type ProjectTemplate } from "@/lib/project-templates";
 
 // ============================================================
 // Types
@@ -196,6 +198,8 @@ function CreateProjectDialog({
   const [description, setDescription] = useState("");
   const [genre, setGenre] = useState("");
   const [isCreating, setIsCreating] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const [templateCategory, setTemplateCategory] = useState("All");
 
   const handleCreate = async () => {
     if (!name.trim()) return;
@@ -218,9 +222,20 @@ function CreateProjectDialog({
     setGenre(idea.genre);
   };
 
+  const applyTemplate = (t: ProjectTemplate) => {
+    setName(t.name);
+    setDescription(t.description);
+    setGenre(t.genre);
+    setShowTemplates(false);
+  };
+
+  const filteredTemplates = templateCategory === "All"
+    ? PROJECT_TEMPLATES
+    : PROJECT_TEMPLATES.filter((t) => t.category === templateCategory);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent className="sm:max-w-[560px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Новый проект</DialogTitle>
           <DialogDescription>
@@ -228,21 +243,68 @@ function CreateProjectDialog({
           </DialogDescription>
         </DialogHeader>
         <div className="grid gap-4 py-4">
-          <div className="flex items-center justify-between">
-            <span className="text-sm text-muted-foreground">
-              Нет идей? Сгенерируйте случайно.
-            </span>
+          {/* Action buttons row */}
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={() => setShowTemplates(!showTemplates)}
+              className="gap-1.5 border-primary/40 text-primary hover:bg-primary/5"
+            >
+              <LayoutGrid className="h-3.5 w-3.5" />
+              Шаблоны
+            </Button>
             <Button
               type="button"
               variant="outline"
               size="sm"
               onClick={handleRandomize}
-              className="gap-1.5 border-primary/40 text-primary hover:bg-primary/5"
+              className="gap-1.5"
             >
-              <Shuffle className="h-3.5 w-3.5" />
-              Создать случайно
+              <Shuffle className="h-5 w-5" />
+              Случайно
             </Button>
           </div>
+
+          {/* Templates grid */}
+          {showTemplates && (
+            <div className="space-y-2">
+              {/* Category filter */}
+              <div className="flex flex-wrap gap-1">
+                {TEMPLATE_CATEGORIES.map((cat) => (
+                  <button
+                    key={cat}
+                    onClick={() => setTemplateCategory(cat)}
+                    className={`rounded-full px-2.5 py-0.5 text-xs transition-colors ${
+                      templateCategory === cat
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}
+                  >
+                    {cat}
+                  </button>
+                ))}
+              </div>
+              {/* Template cards */}
+              <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto">
+                {filteredTemplates.map((t) => (
+                  <button
+                    key={t.id}
+                    onClick={() => applyTemplate(t)}
+                    className="flex items-start gap-2 rounded-lg border border-border p-2 text-left hover:border-primary/40 hover:bg-primary/5 transition-all"
+                  >
+                    <span className="text-xl shrink-0">{t.icon}</span>
+                    <div className="min-w-0">
+                      <p className="text-xs font-medium truncate">{t.name}</p>
+                      <p className="text-[10px] text-muted-foreground truncate">{t.genre} • {t.coreLoopType}</p>
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div className="grid gap-2">
             <label htmlFor="name" className="text-sm font-medium">
               Название *

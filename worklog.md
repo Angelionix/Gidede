@@ -1630,3 +1630,37 @@ Task: Type-specific recommendations для coreloop + comparison mode для п�
 - rhythm recommendations: ✅ Difficulty ramp [high] + Visual feedback sync [high] + Miss recovery [medium].
 - Prototypes page: ✅ рендерится без ошибок (redirect to login — session не авторизован, но без errors).
 - dev.log: ✅ без критических ошибок.
+
+---
+Task ID: 20 (Project templates + playtest comparison analytics)
+Agent: orchestrator (main)
+Task: Project templates (пресеты для жанров) + win rate comparison по типам.
+
+## Completed Modifications
+
+### 1. Project templates (10 пресетов) ✅
+- Создан `src/lib/project-templates.ts`:
+  - 10 готовых шаблонов: 🗡️ Roguelike, 🏰 Tower Defense, 🎵 Rhythm, 🧩 Puzzle, 🗺️ Metroidvania, 🃏 Card Battler, 🔥 Survival Craft, 🚀 Space Shooter, 🌾 Farming Sim, 🏎️ Racing.
+  - Каждый: id, name, description, genre, coreLoopType, icon, category.
+  - 9 категорий: Action, Strategy, Puzzle, Adventure, Survival, Music, Simulation, Racing, All.
+- Обновлён диалог создания проекта (`src/app/projects/page.tsx`):
+  - Кнопка «Шаблоны» (LayoutGrid иконка) + «Случайно» (Shuffle).
+  - Templates grid: 2 колонки, фильтр по категориям (chips), max-h-48 scroll.
+  - applyTemplate() — заполняет name, description, genre из шаблона.
+  - Диалог расширен: 520→560px, max-h-85vh, overflow-y-auto.
+
+### 2. Playtest comparison analytics ✅
+- Обновлён блок «История плейтестов» в `/prototypes`:
+  - typeStats: агрегация win/total по каждому prototype_type.
+  - sortedTypes: сортировка по win rate (desc).
+  - Per-type win rate bars: горизонтальные прогресс-бары (emerald ≥50%, rose <50%).
+  - Текст поверх: «{rate}% ({win}/{total})».
+  - Показывается при history.length >= 2.
+  - Заголовок: «Win rate по типам».
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок.
+- Templates: ✅ 10 шаблонов, 9 категорий (bun-тест).
+- Projects page: ✅ рендерится.
+- Prototypes page: ✅ рендерится.
+- dev.log: ✅ без ошибок.

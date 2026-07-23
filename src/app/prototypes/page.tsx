@@ -647,6 +647,46 @@ export default function PrototypesPage() {
                       </div>
                     ))}
                     </div>
+
+                    {/* Per-type win rate comparison */}
+                    {history.length >= 2 && (() => {
+                      const typeStats: Record<string, { win: number; total: number }> = {};
+                      history.forEach((h) => {
+                        const t = h.prototype_type;
+                        if (!typeStats[t]) typeStats[t] = { win: 0, total: 0 };
+                        typeStats[t].total++;
+                        if (h.outcome === "win") typeStats[t].win++;
+                      });
+                      const sortedTypes = Object.entries(typeStats).sort((a, b) => {
+                        const ra = a[1].win / a[1].total;
+                        const rb = b[1].win / b[1].total;
+                        return rb - ra;
+                      });
+                      return (
+                        <div className="mb-4 mt-3">
+                          <p className="text-[10px] text-muted-foreground mb-2 uppercase tracking-wide">Win rate по типам</p>
+                          <div className="space-y-1.5">
+                            {sortedTypes.map(([type, stats]) => {
+                              const rate = Math.round((stats.win / stats.total) * 100);
+                              return (
+                                <div key={type} className="flex items-center gap-2">
+                                  <span className="text-xs font-medium w-24 shrink-0 truncate">{type}</span>
+                                  <div className="flex-1 h-5 bg-muted rounded-full overflow-hidden relative">
+                                    <div
+                                      className={`h-full transition-all ${rate >= 50 ? "bg-emerald-500" : "bg-rose-500"}`}
+                                      style={{ width: `${rate}%` }}
+                                    />
+                                    <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
+                                      {rate}% ({stats.win}/{stats.total})
+                                    </span>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </>
                 )}
               </CardContent>

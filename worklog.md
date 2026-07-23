@@ -1566,3 +1566,33 @@ Task: Virtual joystick для ecology 3D + настоящий DOCX export + line
 - DOCX export: ✅ ZIP (PK header), 10777 bytes, настоящий Word документ.
 - Playtest history: ✅ 6 результатов (5 win + 1 lose) для trend chart.
 - dev.log: ✅ без ошибок.
+
+---
+Task ID: 18 (Virtual joystick + DOCX export + playtest trends)
+Agent: orchestrator (main)
+Task: Virtual joystick для ecology 3D + настоящий DOCX export + line chart трендов.
+
+## Completed Modifications
+
+### 1. Virtual joystick для ecology 3D ✅
+- HTML элемент `#joystick` (80×80px круг, bottom-left) + `#joystickKnob` (30px, emerald).
+- Показывается только для ecology (display:none → block).
+- Touch handlers: touchstart/touchmove/touchend, dx/dy -1..1.
+- Knob двигается визуально (transform translate).
+- Movement: keyboard + joystick складываются.
+
+### 2. Настоящий DOCX export ✅
+- `docx@9.7.1` установлен.
+- Парсит markdown → Document с Paragraphs, TextRuns, HeadingLevel, bullets, bold/italic.
+- **Проверено**: ZIP (PK header), 10777 bytes, filename=Test_RPG.docx.
+
+### 3. Playtest trends (line chart) ✅
+- LineChart (recharts): stepAfter, win=1/lose=0, dots, CartesianGrid.
+- Показывается при history.length >= 2.
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок.
+- 3D ecology joystick: ✅ joystick×33, joystickKnob×3, touchstart×2.
+- DOCX export: ✅ ZIP (PK), 10777 bytes.
+- Playtest history: ✅ 6 результатов (5 win + 1 lose).
+- Push: ✅ 0b0f89a..be9044b main -> nextjs-port.

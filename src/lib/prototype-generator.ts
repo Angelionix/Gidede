@@ -692,20 +692,52 @@ function generate3dHtml(config: PrototypeConfig): string {
       scene.add(playerLight);
       const blocks = [];
       const blockGeo = new THREE.BoxGeometry(0.6, 0.6, 0.6);
-      const blockMat = new THREE.MeshStandardMaterial({color:0xef4444, emissive:0xef4444, emissiveIntensity:0.2});
+      const blockMat = emojiMaterial('💥', 0xef4444);
       let spawnTimer = 0;
       const keys = {};
       window.addEventListener('keydown', e => keys[e.code]=true);
       window.addEventListener('keyup', e => keys[e.code]=false);
+      // Virtual joystick for mobile
+      let joystick = { active: false, x: 0, y: 0, dx: 0, dy: 0 };
+      const joystickEl = document.getElementById('joystick');
+      if (joystickEl) {
+        joystickEl.style.display = 'block';
+        joystickEl.addEventListener('touchstart', (e) => {
+          e.preventDefault();
+          const r = joystickEl.getBoundingClientRect();
+          joystick.active = true;
+          joystick.x = r.left + r.width/2;
+          joystick.y = r.top + r.height/2;
+        }, { passive: false });
+        joystickEl.addEventListener('touchmove', (e) => {
+          e.preventDefault();
+          if (!joystick.active || !e.touches[0]) return;
+          const t = e.touches[0];
+          joystick.dx = (t.clientX - joystick.x) / 50;
+          joystick.dy = (t.clientY - joystick.y) / 50;
+          joystick.dx = Math.max(-1, Math.min(1, joystick.dx));
+          joystick.dy = Math.max(-1, Math.min(1, joystick.dy));
+          const knob = document.getElementById('joystickKnob');
+          if (knob) { knob.style.transform = 'translate(' + (joystick.dx*20) + 'px,' + (joystick.dy*20) + 'px)'; }
+        }, { passive: false });
+        joystickEl.addEventListener('touchend', (e) => {
+          e.preventDefault();
+          joystick.active = false; joystick.dx = 0; joystick.dy = 0;
+          const knob = document.getElementById('joystickKnob');
+          if (knob) { knob.style.transform = 'translate(0,0)'; }
+        }, { passive: false });
+      }
       function tick(dt) {
-        // Movement
+        // Movement (keyboard + joystick)
         const speed = 6*dt;
-        if (keys['KeyA']||keys['ArrowLeft']) player.position.x -= speed;
-        if (keys['KeyD']||keys['ArrowRight']) player.position.x += speed;
-        if (keys['KeyW']||keys['ArrowUp']) player.position.z -= speed;
-        if (keys['KeyS']||keys['ArrowDown']) player.position.z += speed;
-        player.position.x = Math.max(-5, Math.min(5, player.position.x));
-        player.position.z = Math.max(-3, Math.min(3, player.position.z));
+        let mx = 0, mz = 0;
+        if (keys['KeyA']||keys['ArrowLeft']) mx -= 1;
+        if (keys['KeyD']||keys['ArrowRight']) mx += 1;
+        if (keys['KeyW']||keys['ArrowUp']) mz -= 1;
+        if (keys['KeyS']||keys['ArrowDown']) mz += 1;
+        if (joystick.active) { mx += joystick.dx; mz += joystick.dy; }
+        player.position.x = Math.max(-5, Math.min(5, player.position.x + mx*speed));
+        player.position.z = Math.max(-3, Math.min(3, player.position.z + mz*speed));
         playerLight.position.copy(player.position);
         playerLight.position.y = 1.5;
         // Spawn blocks
@@ -963,6 +995,9 @@ function generate3dHtml(config: PrototypeConfig): string {
     <div id="hud">${resourceIcon} 0</div>
     <div id="timer">⏱ 30с</div>
     <div id="hpWrap"><div id="hpbar"></div></div>
+    <div id="joystick" style="display:none;position:absolute;bottom:15px;left:15px;width:80px;height:80px;background:rgba(15,23,42,0.5);border:2px solid rgba(148,163,184,0.4);border-radius:50%;touch-action:none;z-index:10">
+      <div id="joystickKnob" style="position:absolute;top:50%;left:50%;width:30px;height:30px;margin:-15px 0 0 -15px;background:rgba(16,185,129,0.6);border:2px solid #10b981;border-radius:50%;transition:transform 0.05s"></div>
+    </div>
     <div class="overlay" id="overlay">
       <h2 id="resultText"></h2>
       <button onclick="location.reload()">Заново</button>
@@ -970,7 +1005,7 @@ function generate3dHtml(config: PrototypeConfig): string {
   </div>
   <p class="steps">Шаги: ${steps.join(" → ")}</p>
   <p class="hint">Powered by Three.js • ${
-    type === "ecology" ? "WASD/стрелки" :
+    type === "ecology" ? "WASD/стрелки • joystick на мобильных" :
     type === "tower_defense" ? "ЛКМ по врагам" :
     type === "rhythm" ? "← → по нотам" :
     type === "puzzle" ? "← → движение • ↓ ускорить" :

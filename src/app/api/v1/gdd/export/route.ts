@@ -240,10 +240,52 @@ export async function POST(request: NextRequest) {
         mimeType = MIME_TYPES.html;
         break;
       case "docx":
-        // Use Word XML (.xml) — browsers will download; mime_type set to docx
-        // so the frontend treats it as a Word document. Some viewers may
-        // require explicit rename to .xml, but the type is set.
-        content = toBase64(mdToDocxLikeXml(markdown, title));
+        // Real DOCX via the 'docx' npm package (Packer.toBuffer → base64)
+        try {
+          const { Document, Packer, Paragraph, HeadingLevel, TextRun } = await import("docx");
+          const blocks: Paragraph[] = [];
+          // Title
+          blocks.push(new Paragraph({
+            heading: HeadingLevel.TITLE,
+            children: [new TextRun(title)],
+          }));
+          // Parse markdown into paragraphs
+          for (const line of markdown.split("\n")) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            if (trimmed.startsWith("### ")) {
+              blocks.push(new Paragraph({ heading: HeadingLevel.HEADING_3, children: [new TextRun(trimmed.slice(4))] }));
+            } else if (trimmed.startsWith("## ")) {
+              blocks.push(new Paragraph({ heading: HeadingLevel.HEADING_2, children: [new TextRun(trimmed.slice(3))] }));
+            } else if (trimmed.startsWith("# ")) {
+              blocks.push(new Paragraph({ heading: HeadingLevel.HEADING_1, children: [new TextRun(trimmed.slice(2))] }));
+            } else if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
+              blocks.push(new Paragraph({ bullet: { level: 0 }, children: [new TextRun(trimmed.slice(2))] }));
+            } else if (trimmed.startsWith("> ")) {
+              blocks.push(new Paragraph({ children: [new TextRun({ text: trimmed.slice(2), italics: true })] }));
+            } else {
+              // Parse bold/italic markdown inline
+              const runs: TextRun[] = [];
+              const parts = trimmed.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/);
+              for (const part of parts) {
+                if (part.startsWith("**") && part.endsWith("**")) {
+                  runs.push(new TextRun({ text: part.slice(2, -2), bold: true }));
+                } else if (part.startsWith("*") && part.endsWith("*")) {
+                  runs.push(new TextRun({ text: part.slice(1, -1), italics: true }));
+                } else if (part) {
+                  runs.push(new TextRun(part));
+                }
+              }
+              blocks.push(new Paragraph({ children: runs }));
+            }
+          }
+          const doc = new Document({ sections: [{ children: blocks }] });
+          const buffer = await Packer.toBuffer(doc);
+          content = buffer.toString("base64");
+        } catch (e) {
+          console.error("[gdd/export] DOCX generation failed, falling back to XML:", e);
+          content = toBase64(mdToDocxLikeXml(markdown, title));
+        }
         filename = `${title.replace(/[^a-z0-9_-]+/gi, "_")}.docx`;
         mimeType = MIME_TYPES.docx;
         break;

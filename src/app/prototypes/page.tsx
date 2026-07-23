@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef } from "react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from "recharts";
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell, LineChart, Line, CartesianGrid } from "recharts";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -493,6 +493,35 @@ export default function PrototypesPage() {
                               </ResponsiveContainer>
                             </div>
                           )}
+                          {history.length >= 2 && (() => {
+                            const trendData = [...history].reverse().map((h, i) => ({
+                              idx: i + 1,
+                              outcome: h.outcome === "win" ? 1 : 0,
+                              duration: Math.round(h.duration_sec),
+                            }));
+                            return (
+                              <div className="mb-4 h-28">
+                                <p className="text-[10px] text-muted-foreground mb-1 uppercase tracking-wide">Тренд (win=1, lose=0)</p>
+                                <ResponsiveContainer width="100%" height="100%">
+                                  <LineChart data={trendData} margin={{ top: 2, right: 8, bottom: 2, left: -20 }}>
+                                    <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
+                                    <XAxis dataKey="idx" tick={{ fontSize: 8, fill: "#94a3b8" }} />
+                                    <YAxis domain={[0, 1]} tick={{ fontSize: 8, fill: "#94a3b8" }} ticks={[0, 1]} />
+                                    <Tooltip
+                                      contentStyle={{
+                                        fontSize: 10,
+                                        background: "#0f172a",
+                                        border: "1px solid #334155",
+                                        borderRadius: 6,
+                                        color: "#e2e8f0",
+                                      }}
+                                    />
+                                    <Line type="stepAfter" dataKey="outcome" stroke="#10b981" strokeWidth={2} dot={{ r: 3, fill: "#10b981" }} />
+                                  </LineChart>
+                                </ResponsiveContainer>
+                              </div>
+                            );
+                          })()}
                         </>
                       );
                     })()}

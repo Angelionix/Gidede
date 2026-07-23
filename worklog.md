@@ -1527,3 +1527,42 @@ Task: Emoji textures в 3D прототипах + syntax highlighting в Bible m
 - 3D puzzle: ✅ emojiMaterial×4, 🟦🟩🟧.
 - Knowledge page: ✅ рендерится.
 - dev.log: ✅ без ошибок (EADDRINUSE — старый сервер, не критично).
+
+---
+Task ID: 18 (Virtual joystick + DOCX export + playtest trends)
+Agent: orchestrator (main)
+Task: Virtual joystick для ecology 3D + настоящий DOCX export + line chart трендов.
+
+## Completed Modifications
+
+### 1. Virtual joystick для ecology 3D ✅
+- Добавлен HTML элемент `#joystick` (80×80px круг, bottom-left, z-index:10) + `#joystickKnob` (30×30px, emerald).
+- Joystick показывается только для ecology типа (display:none по умолчанию, ecology делает display:block).
+- Touch handlers: touchstart (активация), touchmove (dx/dy -1..1), touchend (сброс).
+- Knob визуально двигается (transform translate до 20px).
+- Movement интегрирован: keyboard (WASD/arrows) + joystick (dx/dy) складываются.
+- Hint обновлён: "WASD/стрелки • joystick на мобильных".
+- blockMat заменён на emojiMaterial('💥') для угроз.
+
+### 2. Настоящий DOCX export ✅
+- Установлен `docx@9.7.1`.
+- `src/app/api/v1/gdd/export/route.ts`: case "docx" полностью переписан:
+  - Парсит markdown: # H1, ## H2, ### H3, - bullets, > quotes, **bold**, *italic*.
+  - Создаёт Document с sections, Paragraphs, TextRuns, HeadingLevel.
+  - Packer.toBuffer → base64.
+  - Fallback на XML при ошибке.
+- **Проверено**: формат DOCX = ZIP (PK\x03\x04 header), 10777 bytes, filename=Test_RPG.docx.
+
+### 3. Playtest trends (line chart) ✅
+- `src/app/prototypes/page.tsx`: импорт LineChart, Line, CartesianGrid.
+- trendData: history.reverse() → {idx, outcome (win=1, lose=0), duration}.
+- LineChart: stepAfter, stroke #10b981, dots, CartesianGrid, XAxis (idx), YAxis (0..1).
+- Показывается при history.length >= 2.
+- Заголовок: "Тренд (win=1, lose=0)".
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок.
+- 3D ecology joystick: ✅ joystick×33, joystickKnob×3, touchstart×2.
+- DOCX export: ✅ ZIP (PK header), 10777 bytes, настоящий Word документ.
+- Playtest history: ✅ 6 результатов (5 win + 1 lose) для trend chart.
+- dev.log: ✅ без ошибок.

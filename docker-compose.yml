@@ -1,0 +1,29 @@
+# Docker Compose for Gidede — Single container
+# Usage: docker compose up -d
+# Stop:   docker compose down
+# Logs:   docker compose logs -f
+
+services:
+  gidede:
+    build: .
+    container_name: gidede
+    ports:
+      - "3000:3000"
+    volumes:
+      # Persistent SQLite database
+      - ./db:/app/db
+      # Public assets (optional, for swapping littlejs/three.js)
+      - ./public:/app/public
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=file:/app/db/custom.db
+      - JWT_SECRET_KEY=${JWT_SECRET_KEY:-gidede-change-me-in-production}
+      - NEXT_PUBLIC_API_URL=
+      - ZAI_API_KEY=${ZAI_API_KEY:-}
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s

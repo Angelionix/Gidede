@@ -417,9 +417,21 @@ export default function Block2Page() {
             <StructuralTypeCard structuralType={result.structural_type} />
           )}
 
-          {/* 2. Core Loop Diagram */}
+          {/* 1.5. Visual Core Loop Diagram */}
           {result.steps && result.steps.length > 0 && (
-            <CoreLoopDiagram steps={result.steps} />
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Визуальная диаграмма Core Loop</CardTitle>
+                <CardDescription>Круговая визуализация шагов игрового цикла</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <CoreLoopDiagram
+                  steps={result.steps}
+                  structuralType={result.structural_type?.type}
+                  pathologies={result.pathologies?.pathologies}
+                />
+              </CardContent>
+            </Card>
           )}
 
           {/* 3. Loop Hierarchy */}

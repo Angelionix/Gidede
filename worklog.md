@@ -1812,3 +1812,48 @@ Task: Сравнить бэкенды, реализовать недостающ
 - Все 15 новых эндпоинтов: ✅ 200 (balance/{id} = 404 — нет данных, корректно).
 - Total API routes: 59 (vs 72 original = 82% parity).
 - dev.log: ✅ без ошибок.
+
+---
+Task ID: 24 (Visual Core Loop diagram + Pipeline page)
+Agent: orchestrator (main)
+Task: Визуальная SVG-диаграмма Core Loop + страница сквозного пайплайна.
+
+## Completed Modifications
+
+### 1. Визуальная SVG-диаграмма Core Loop ✅
+- Переписан `src/components/gidede/coreloop/CoreLoopDiagram.tsx`:
+  - Круговая SVG-диаграмма с шагами кор-лупа (300×300px).
+  - Цветовая схема по структурному типу (engine=amber, economy=blue, ecology=red, tower_defense=purple, rhythm=pink, puzzle=green).
+  - Стрелки между шагами с SVG markers (curve paths).
+  - Центральный label: тип + количество шагов.
+  - Pathology indicators: critical/warnings/none badges.
+  - Steps list с иконками-номерами и описаниями.
+- Интегрирован в страницу Блока 2 (`src/app/blocks/2/page.tsx`):
+  - Карточка «Визуальная диаграмма Core Loop» после StructuralTypeCard.
+  - Передаёт steps, structuralType, pathologies.
+
+### 2. Сквозной пайплайн — страница /pipeline ✅
+- Создан `src/app/pipeline/page.tsx`:
+  - Header с Rocket иконкой, «Сквозной пайплайн».
+  - Селектор проекта + кнопка «Запустить пайплайн».
+  - **Run Full Pipeline**: последовательно вызывает 8 API эндпоинтов:
+    1. /concept/generate → 2. /coreloop/design → 3. /mda/analyze →
+    4. /balance/analyze → 5. /progression/design → 6. /economy/design →
+    7. /gdd/generate → 8. /gdd/checklist
+  - Прогресс-бар + текущий шаг (1/8: Концепция...).
+  - Toast на каждый шаг (✅ успех / ⚠️ ошибка).
+  - **Pipeline visualization**: 8 карточек в grid 2×4 с иконками:
+    - Зелёный = completed (✅), жёлтый = stale (⚠️), серый = empty (○).
+    - Стрелки между шагами (ArrowRight).
+    - Клик на карточку → переход на страницу блока.
+  - Progress bar с completion_percent.
+  - Концепт-карточка «Как это работает».
+- Добавлен пункт «Пайплайн» (Rocket иконка) в сайдбар с NEW badge.
+- Middleware: /pipeline добавлен в PROTECTED_PREFIXES.
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок.
+- Health: ✅ 200.
+- Pipeline page: ✅ рендерится без ошибок.
+- Block 2 page: ✅ рендерится без ошибок.
+- dev.log: ✅ без ошибок.

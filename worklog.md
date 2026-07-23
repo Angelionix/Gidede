@@ -1397,3 +1397,45 @@ Task: QA + реализация рекомендаций: markdown rendering в 
 3. **🟢 NICE-TO-HAVE — Virtual joystick**: для ecology 3D на мобильных.
 4. **🟢 NICE-TO-HAVE — Debounce auto-save**: предотвращать дубликаты при ручном сохранении.
 5. **🟢 NICE-TO-HAVE — Syntax highlighting**: rehype-highlight для code blocks в Bible modal.
+
+---
+Task ID: 15 (webDevReview round 10 — auto-save debounce + UI polish)
+Agent: webDevReview (cron job 287389)
+Task: QA + реализация рекомендаций: debounce auto-save для предотвращения дубликатов.
+
+## Current Project Status (assessment)
+- App стабильна после раундов 1-10: dark mode, реальный AI, персистентное хранилище, PDF, Bible RAG, AI enrichment, 2D/3D прототипы (6 типов), AI insights, playtest persistence + bar chart, knowledge browser + markdown modal, coreloop 7 типов, mobile touch, auto-save postMessage.
+- QA подтвердило: health 200, lint чистый, prototypes + playtest APIs работают, без ошибок.
+- Приступил к рекомендациям из Task ID 14: debounce auto-save.
+
+## Completed Modifications
+
+### 1. Debounce auto-save (предотвращение дубликатов) ✅
+- `src/app/prototypes/page.tsx`:
+  - Новое состояние `autoSaved: boolean` (default false).
+  - Auto-save handler: проверяет `if (autoSaved) return` — предотвращает повторные сохранения.
+  - `setAutoSaved(true)` при успешном автосохранении, `setAutoSaved(false)` при ошибке (fallback на ручное).
+  - `setAutoSaved(false)` при генерации нового прототипа (сброс для следующей игры).
+  - useEffect dependency array включает autoSaved.
+  - Manual save buttons (🎉 Победа / 💀 Поражение) теперь `disabled={autoSaved}`.
+  - Описание карточки сохранения меняется: «✅ Результат автосохранён из игры...» когда autoSaved=true, иначе «...результат сохранится автоматически».
+- Логика: игра отправляет postMessage → handler проверяет autoSaved → если false, сохраняет + ставит true → кнопки disabled → пользователь не может создать дубликат → при новой генерации autoSaved сбрасывается.
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок.
+- Health: ✅ 200.
+- Prototypes page: ✅ рендерится без ошибок.
+- dev.log: ✅ без ошибок.
+
+## Unresolved Issues / Risks + Next-Phase Recommendations
+
+### Risks
+1. **autoSaved сбрасывается только при новой генерации**: если пользователь нажмёт «Заново» в iframe (location.reload), autoSaved не сбросится, и новый результат не сохранится. Future: сбрасывать autoSaved при restart.
+2. **Нет visual indicator автосохранения**: кнопки просто disabled, без badge «✓ Saved». Future: показать badge или toast persistent.
+
+### Priority Recommendations for Next Phase
+1. **🟢 NICE-TO-HAVE — Спрайты вместо примитивов**: emoji-спрайты или canvas-текстуры для прототипов.
+2. **🟢 NICE-TO-HAVE — Type-specific pathologies**: tower_defense (wave imbalance), rhythm (off-beat), puzzle (stuck).
+3. **🟢 NICE-TO-HAVE — Virtual joystick**: для ecology 3D на мобильных.
+4. **🟢 NICE-TO-HAVE — Syntax highlighting**: rehype-highlight для code blocks в Bible modal.
+5. **🟢 NICE-TO-HAVE — Reset autoSaved on iframe restart**: сбрасывать при нажатии «Заново».

@@ -60,6 +60,7 @@ export default function PrototypesPage() {
   const [mode, setMode] = useState<"2d" | "3d">("2d");
   const [useAi, setUseAi] = useState(false);
   const [typeOverride, setTypeOverride] = useState<string>("auto");
+  const [autoSaved, setAutoSaved] = useState(false);
   const [loading, setLoading] = useState(false);
   const [prototype, setPrototype] = useState<PrototypeResponse | null>(null);
   const [history, setHistory] = useState<PlaytestHistoryEntry[]>([]);
@@ -89,6 +90,8 @@ export default function PrototypesPage() {
       const data = event.data;
       if (!data || data.type !== "gidede-playtest") return;
       if (!data.outcome || !prototype) return;
+      if (autoSaved) return; // Prevent duplicates
+      setAutoSaved(true);
       try {
         await apiFetch("/playtests/save", {
           method: "POST",
@@ -109,11 +112,12 @@ export default function PrototypesPage() {
         });
       } catch {
         // Silent fail — user can still save manually
+        setAutoSaved(false);
       }
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [prototype, apiFetch, toast]);
+  }, [prototype, apiFetch, toast, autoSaved]);
 
   const handleGenerate = async () => {
     if (!selectedProject) {
@@ -138,6 +142,7 @@ export default function PrototypesPage() {
         }),
       });
       setPrototype(data);
+      setAutoSaved(false);
       toast({
         title: `Прототип готов (${mode.toUpperCase()}${useAi ? " + AI" : ""})`,
         description: `Тип: ${data.config.type}, ресурс: ${data.config.resource}`,
@@ -531,12 +536,15 @@ export default function PrototypesPage() {
                 <div className="flex-1">
                   <p className="text-sm font-medium mb-1">Сохранить результат плейтеста</p>
                   <p className="text-xs text-muted-foreground mb-3">
-                    Запишите исход, чтобы отслеживать итерации кор-лупа. Время засчитывается как 30 сек.
+                    {autoSaved
+                      ? "✅ Результат автосохранён из игры. Сгенерируйте новый прототип для следующего теста."
+                      : "Запишите исход, чтобы отслеживать итерации кор-лупа. Или просто играйте — результат сохранится автоматически."}
                   </p>
                   <div className="flex gap-2">
                     <Button
                       size="sm"
                       variant="outline"
+                      disabled={autoSaved}
                       className="border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
                       onClick={async () => {
                         try {
@@ -563,6 +571,7 @@ export default function PrototypesPage() {
                     <Button
                       size="sm"
                       variant="outline"
+                      disabled={autoSaved}
                       className="border-rose-500/40 text-rose-700 dark:text-rose-300 hover:bg-rose-500/10"
                       onClick={async () => {
                         try {

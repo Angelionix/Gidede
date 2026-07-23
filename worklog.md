@@ -1493,3 +1493,37 @@ Task: Запушить всё в удалённый Git + следующая ф�
 3. **🟢 NICE-TO-HAVE — Emoji в 3D прототипах**: текстуры с emoji для Three.js.
 4. **🟢 NICE-TO-HAVE — Reset autoSaved on iframe restart**.
 5. **🟢 NICE-TO-HAVE — GDD export в DOCX**: настоящий Word формат.
+
+---
+Task ID: 17 (3D emoji textures + syntax highlighting + reset autoSaved)
+Agent: orchestrator (main)
+Task: Emoji textures в 3D прототипах + syntax highlighting в Bible modal + reset autoSaved.
+
+## Completed Modifications
+
+### 1. Emoji textures в 3D прототипах (Three.js) ✅
+- Добавлены helper-функции в 3D HTML шаблон:
+  - `emojiTexture(emoji, size)` — создаёт CanvasTexture из emoji (canvas 128×128, font sans-serif).
+  - `emojiMaterial(emoji, color)` — MeshStandardMaterial с map=emojiTexture, transparent.
+- Обновлены 3D механики:
+  - **tower_defense**: enemyMat → emojiMaterial('👾'), враги теперь 3D-сферы с emoji-текстурой 👾.
+  - **rhythm**: noteMatL/noteMatR → emojiMaterial('🎵'), ноты с emoji 🎵.
+  - **puzzle**: blockMats → 3 emoji-материала (🟦 синий, 🟩 зелёный, 🟧 оранжевый).
+- Формы остаются (BoxGeometry/SphereGeometry), но emoji-текстура накладывается сверху — визуально richer.
+
+### 2. Syntax highlighting в Bible modal ✅
+- Установлен `rehype-highlight@7.0.2`.
+- `src/app/knowledge/page.tsx`: ReactMarkdown с `rehypePlugins={[rehypeHighlight]}`.
+- Code blocks в Bible chunks теперь подсвечиваются (если есть ```code``` блоки).
+
+### 3. Reset autoSaved при рестарте iframe ✅
+- `src/app/prototypes/page.tsx`: handleRestart() теперь вызывает `setAutoSaved(false)`.
+- При нажатии «Заново» autoSaved сбрасывается — новый результат может быть сохранён.
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок.
+- 3D tower_defense: ✅ emojiMaterial×2, CanvasTexture, emojiTexture.
+- 3D rhythm: ✅ emojiMaterial×3, 🎵×4.
+- 3D puzzle: ✅ emojiMaterial×4, 🟦🟩🟧.
+- Knowledge page: ✅ рендерится.
+- dev.log: ✅ без ошибок (EADDRINUSE — старый сервер, не критично).

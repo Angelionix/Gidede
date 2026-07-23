@@ -159,6 +159,7 @@ export default function PrototypesPage() {
   };
 
   const handleRestart = () => {
+    setAutoSaved(false);
     if (iframeRef.current) {
       // Перезагружаем iframe, чтобы перезапустить игру
       const src = iframeRef.current.src;

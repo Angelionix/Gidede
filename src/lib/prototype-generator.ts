@@ -746,7 +746,7 @@ function generate3dHtml(config: PrototypeConfig): string {
       let wave = 1, enemiesInWave = 0, spawnTimer = 0;
       const enemies = [];
       const enemyGeo = new THREE.SphereGeometry(0.4, 16, 16);
-      const enemyMat = new THREE.MeshStandardMaterial({color:0xf59e0b, emissive:0xf59e0b, emissiveIntensity:0.3});
+      const enemyMat = emojiMaterial('👾', 0xf59e0b);
       // Base (blue tower)
       const base = new THREE.Mesh(
         new THREE.CylinderGeometry(0.8, 1.2, 2, 8),
@@ -810,8 +810,8 @@ function generate3dHtml(config: PrototypeConfig): string {
       let combo = 0, notesHit = 0;
       const notes = [];
       const noteGeo = new THREE.BoxGeometry(0.5, 0.5, 0.5);
-      const noteMatL = new THREE.MeshStandardMaterial({color:0x10b981, emissive:0x10b981, emissiveIntensity:0.3});
-      const noteMatR = new THREE.MeshStandardMaterial({color:0xf59e0b, emissive:0xf59e0b, emissiveIntensity:0.3});
+      const noteMatL = emojiMaterial('🎵', 0x10b981);
+      const noteMatR = emojiMaterial('🎵', 0xf59e0b);
       // Hit zone markers (two glowing pillars)
       const pillarL = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 3, 8), new THREE.MeshStandardMaterial({color:0x10b981, emissive:0x10b981, emissiveIntensity:0.5}));
       pillarL.position.set(-2, 1.5, 4); scene.add(pillarL);
@@ -865,9 +865,9 @@ function generate3dHtml(config: PrototypeConfig): string {
       for (let y=0; y<ROWS; y++) grid.push(new Array(COLS).fill(null));
       const blockGeo = new THREE.BoxGeometry(0.8, 0.8, 0.8);
       const blockMats = [
-        new THREE.MeshStandardMaterial({color:0x3b82f6, emissive:0x3b82f6, emissiveIntensity:0.2}),
-        new THREE.MeshStandardMaterial({color:0x10b981, emissive:0x10b981, emissiveIntensity:0.2}),
-        new THREE.MeshStandardMaterial({color:0xf59e0b, emissive:0xf59e0b, emissiveIntensity:0.2}),
+        emojiMaterial('🟦', 0x3b82f6),
+        emojiMaterial('🟩', 0x10b981),
+        emojiMaterial('🟧', 0xf59e0b),
       ];
       let current = null;
       let fallTimer = 0;
@@ -985,6 +985,26 @@ function generate3dHtml(config: PrototypeConfig): string {
     const overlay = document.getElementById('overlay');
     const resultText = document.getElementById('resultText');
     const timerEl = document.getElementById('timer');
+
+    // Helper: create emoji texture for 3D sprites
+    function emojiTexture(emoji, size) {
+      size = size || 128;
+      const c = document.createElement('canvas');
+      c.width = size; c.height = size;
+      const ctx = c.getContext('2d');
+      ctx.font = (size*0.8) + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(emoji, size/2, size/2);
+      const tex = new THREE.CanvasTexture(c);
+      tex.needsUpdate = true;
+      return tex;
+    }
+    function emojiMaterial(emoji, color, size) {
+      const m = new THREE.MeshStandardMaterial({ color: color || 0xffffff, transparent: true });
+      m.map = emojiTexture(emoji, size);
+      return m;
+    }
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0f172a);

@@ -995,3 +995,78 @@ Task: Внедрить LittleJS для 2D прототипов + Three.js для
 3. **🟡 LOW — Сохранение результатов плейтеста**: таблица PlaytestResult в Prisma (score, duration, win/lose, notes).
 4. **🟢 NICE-TO-HAVE — Mobile touch controls**: сейчас только keyboard+mouse. Touch events для ecology-type на мобильных.
 5. **🟢 NICE-TO-HAVE — Спрайты вместо примитивов**: генерировать простые текстуры (canvas) или использовать emoji-спрайты для большей наглядности.
+
+---
+Task ID: 9 (webDevReview round 4 — AI prototype insights + playtest persistence)
+Agent: webDevReview (cron job 287389)
+Task: QA + реализация рекомендаций: AI-инсайты для прототипов + сохранение результатов плейтестов.
+
+## Current Project Status (assessment)
+- App стабильна после раундов 1-4: dark mode, реальный AI в ассистенте, персистентное хранилище чата, PDF-экспорт, Bible RAG, AI enrichment концепций, 2D/3D прототипы на LittleJS/Three.js.
+- QA подтвердило: health 200, lint чистый, 2D/3D прототипы работают, без ошибок.
+- Приступил к рекомендациям из Task ID 8: AI-инсайты для прототипов + PlaytestResult persistence.
+
+## Completed Modifications
+
+### 1. PlaytestResult модель в Prisma ✅
+- Добавлена модель `PlaytestResult` в `prisma/schema.prisma`:
+  - id, userId, projectId?, prototypeType (engine|economy|ecology), mode (2d|3d), outcome (win|lose|timeout), score?, durationSec, notes?, aiGenerated, createdAt.
+  - Индексы на [userId, projectId], [createdAt], [prototypeType].
+  - Relation в User model (playtestResults), cascade delete.
+- `bun run db:push` — схема применена к SQLite.
+
+### 2. API маршруты для плейтестов ✅
+- `POST /api/v1/playtests/save` — сохраняет результат плейтеста:
+  - Валидация: prototype_type (engine|economy|ecology), mode (2d|3d), outcome (win|lose|timeout), duration_sec (0-600).
+  - Проверка владения проектом.
+  - Возвращает { id, saved: true }.
+- `GET /api/v1/playtests/history` — возвращает историю плейтестов пользователя:
+  - Пагинация (limit, page), фильтр по project_id.
+  - Возвращает { results: [...], total, page, limit }.
+
+### 3. AI-инсайты для прототипов ✅
+- Добавлена функция `generatePrototypeInsights(ctx)` в `src/lib/ai-service.ts`:
+  - LLM генерирует 3-4 конкретных совета по прототипу кор-лупа для теста «30 секунд веселья».
+  - Контекст: projectName, genre, coreLoopType, steps, mode, idea.
+  - Совет 1: что добавить для fun; 2: wow-механика; 3: на что обратить внимание; 4: баланс-предупреждение.
+  - Возвращает текст с нумерованными пунктами (не JSON, проще для LLM).
+- Обновлён `POST /api/v1/prototypes/generate`:
+  - Параметр `use_ai` (boolean) в body.
+  - Если true → вызывает generatePrototypeInsights после генерации HTML.
+  - Response включает `ai_insights` (string|null) и `ai_generated` (boolean).
+
+### 4. UI обновления страницы /prototypes ✅
+- `src/app/prototypes/page.tsx`:
+  - Состояние `useAi`, `history`, `showHistory`.
+  - Переключатель «AI-инсайты» (Wand2 иконка) рядом с 2D/3D — активирует генерацию AI-советов.
+  - Кнопка «История» (History иконка) — открывает/скрывает панель с историей плейтестов.
+  - PrototypeResponse расширен: ai_insights, ai_generated.
+  - AI Insights Card (Sparkles иконка, primary border/bg) — отображает AI-советы под прототипом.
+  - Playtest History Card — список сохранённых результатов (outcome badge, тип, режим, длительность, AI-badge, дата).
+  - Save Result Card (Save иконка) — 2 кнопки «🎉 Победа» / «💀 Поражение», сохраняют результат в БД.
+  - Toast подтверждает сохранение.
+  - Body отправляет use_ai в запрос, toast показывает режим + AI.
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок.
+- Health: ✅ 200.
+- AI insights API (use_ai:true): ✅ ai_generated=true, LLM сгенерировал советы ("Для веселого ощущения добавьте анимированные эффекты при сборе ресурсов...").
+- Playtest save API: ✅ {id: "cmrxp8tew...", saved: true}.
+- Playtest history API: ✅ total=1, показывает сохранённый результат (win, engine, 2d, 28s, AI).
+- Страница /prototypes: ✅ рендерится без ошибок.
+- VLM подтвердил: все новые элементы видны — переключатели 2D/3D, AI-инсайты (Wand2), История (History).
+- dev.log: ✅ без ошибок.
+
+## Unresolved Issues / Risks + Next-Phase Recommendations
+
+### Risks
+1. **Playtest result — ручной ввод**: пользователь сам нажимает «Победа/Поражение», нет автоматической интеграции с iframe (iframe не может отправить postMessage из-за srcDoc sandbox). Future: postMessage bridge для автосохранения.
+2. **AI insights — не код, а советы**: LLM генерирует текст-описание, не исполняемый код (безопаснее, но менее мощно). Future: AI-генерация кастомных механик в sandbox.
+3. **History — без фильтров**: сейчас только последние 10. Future: фильтры по типу/режиму/исходу, графики успеха.
+
+### Priority Recommendations for Next Phase
+1. **🟡 MEDIUM — Больше типов прототипов**: tower-defense, rhythm, puzzle пресеты (сейчас 3: engine/economy/ecology).
+2. **🟡 LOW — Mobile touch controls**: touch events для ecology-type на мобильных (сейчас только keyboard+mouse).
+3. **🟡 LOW — Графики истории плейтестов**: столбчатая диаграмма win/lose по типам, trend line успеха.
+4. **🟢 NICE-TO-HAVE — Auto-save из iframe**: postMessage от iframe к родителю при win/lose (нужен sandbox="allow-scripts" + postMessage bridge).
+5. **🟢 NICE-TO-HAVE — AI-генерация кода механики**: LLM генерирует кастомный JS-код для уникальной механики (sandboxed execution, рискованно но мощно).

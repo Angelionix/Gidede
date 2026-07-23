@@ -355,3 +355,72 @@ ${ctx.existingContent}
     return null;
   }
 }
+
+// ============================================================
+// AI-generated prototype code (use_ai flag for /prototypes/generate)
+// ============================================================
+
+export interface PrototypeAiInput {
+  projectName: string;
+  genre: string;
+  coreLoopType: string;   // engine | economy | ecology
+  steps: string[];
+  mode: "2d" | "3d";
+  idea?: string;
+}
+
+/**
+ * AI генерирует описание уникальной механики для прототипа кор-лупа.
+ * Возвращает текст-описание (~150 слов) как прототип должен себя вести,
+ * какие объекты/взаимодействия добавить сверх базового шаблона.
+ *
+ * Код не генерируется напрямую (рискованно), но AI описывает концепцию,
+ * которая подсвечивается в UI как «AI-инсайты для прототипа».
+ */
+export async function generatePrototypeInsights(
+  ctx: PrototypeAiInput
+): Promise<string | null> {
+  const zai = await getZai();
+  if (!zai) return null;
+
+  try {
+    const prompt = `Ты — экспертный геймдизайнер. Дай конкретные советы по прототипу кор-лупа для теста «30 секунд веселья».
+
+Проект: ${ctx.projectName}
+Жанр: ${ctx.genre}
+Тип кор-лупа: ${ctx.coreLoopType} (engine=генерация ресурса, economy=конвертация, ecology=выживание)
+Режим прототипа: ${ctx.mode}
+Шаги кор-лупа: ${ctx.steps.join(" → ")}
+${ctx.idea ? `Идея проекта: ${ctx.idea}` : ""}
+
+Дай 3-4 конкретных совета (на русском, каждый 1-2 предложения):
+1. Что добавить в прототип, чтобы кор-луп ощущался веселее
+2. Какая «wow-механика» сделает тест запоминающимся
+3. На что обратить внимание при плейтесте (что считать успехом/провалом)
+4. Баланс-предупреждение (что может сломать fun)
+
+Ответ — обычный текст с нумерованными пунктами, без JSON.`;
+
+    const response = await zai.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content:
+            "Ты — AI-ассистент по геймдизайну, специализирующийся на прототипировании кор-лупов.",
+        },
+        { role: "user", content: prompt },
+      ],
+      stream: false,
+      thinking: { type: "disabled" },
+    });
+
+    const text = response.choices?.[0]?.message?.content?.trim();
+    return text && text.length > 30 ? text : null;
+  } catch (e) {
+    console.error(
+      "[ai-service] generatePrototypeInsights failed:",
+      e instanceof Error ? e.message : e
+    );
+    return null;
+  }
+}

@@ -6,7 +6,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Gamepad2, Play, RotateCcw, Lightbulb, AlertCircle, Loader2, FlaskConical, Box, Square } from "lucide-react";
+import { Gamepad2, Play, RotateCcw, Lightbulb, AlertCircle, Loader2, FlaskConical, Box, Square, Wand2, Sparkles, Save, History } from "lucide-react";
 
 interface Project {
   id: string;
@@ -25,8 +25,22 @@ interface PrototypeResponse {
     resource: string;
     goal: string;
   };
+  ai_insights: string | null;
+  ai_generated: boolean;
   project_id: string;
   project_name: string;
+}
+
+interface PlaytestHistoryEntry {
+  id: string;
+  prototype_type: string;
+  mode: string;
+  outcome: string;
+  score: number | null;
+  duration_sec: number;
+  notes: string | null;
+  ai_generated: boolean;
+  created_at: string;
 }
 
 const TYPE_LABELS: Record<string, { label: string; color: string; desc: string }> = {
@@ -43,8 +57,11 @@ export default function PrototypesPage() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>("");
   const [mode, setMode] = useState<"2d" | "3d">("2d");
+  const [useAi, setUseAi] = useState(false);
   const [loading, setLoading] = useState(false);
   const [prototype, setPrototype] = useState<PrototypeResponse | null>(null);
+  const [history, setHistory] = useState<PlaytestHistoryEntry[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
@@ -69,11 +86,11 @@ export default function PrototypesPage() {
       const data = await apiFetch<PrototypeResponse>("/prototypes/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ project_id: selectedProject, mode }),
+        body: JSON.stringify({ project_id: selectedProject, mode, use_ai: useAi }),
       });
       setPrototype(data);
       toast({
-        title: `Прототип готов (${mode.toUpperCase()})`,
+        title: `Прототип готов (${mode.toUpperCase()}${useAi ? " + AI" : ""})`,
         description: `Тип: ${data.config.type}, ресурс: ${data.config.resource}`,
       });
     } catch (err) {
@@ -184,7 +201,7 @@ export default function PrototypesPage() {
           </div>
 
           {/* Mode toggle 2D / 3D */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs text-muted-foreground mr-1">Режим:</span>
             <button
               type="button"
@@ -210,6 +227,43 @@ export default function PrototypesPage() {
               <Box className="h-3.5 w-3.5" />
               3D (Three.js)
             </button>
+            <div className="w-px h-5 bg-border mx-1" />
+            <button
+              type="button"
+              onClick={() => setUseAi(!useAi)}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                useAi
+                  ? "border-primary bg-primary/10 text-primary"
+                  : "border-border text-muted-foreground hover:bg-muted/50"
+              }`}
+              title="AI сгенерирует инсайты для прототипа (~10 сек)"
+            >
+              <Wand2 className="h-3.5 w-3.5" />
+              AI-инсайты
+            </button>
+            <div className="w-px h-5 bg-border mx-1" />
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              className="h-8 px-2 text-xs"
+              onClick={async () => {
+                setShowHistory(!showHistory);
+                if (!showHistory) {
+                  try {
+                    const data = await apiFetch<{ results: PlaytestHistoryEntry[] }>(
+                      `/playtests/history?limit=10`
+                    );
+                    setHistory(data.results);
+                  } catch (e) {
+                    /* ignore */
+                  }
+                }
+              }}
+            >
+              <History className="h-3.5 w-3.5 mr-1" />
+              История
+            </Button>
           </div>
 
           {projects.length === 0 && (
@@ -277,6 +331,137 @@ export default function PrototypesPage() {
                   <div>
                     <p className="text-xs text-muted-foreground uppercase tracking-wide mb-1">Ресурс</p>
                     <p className="text-sm font-medium">{prototype.config.resource}</p>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* AI Insights (if generated) */}
+          {prototype.ai_insights && (
+            <Card className="mb-4 border-primary/30 bg-primary/5">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  AI-инсайты для прототипа
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="text-sm text-muted-foreground whitespace-pre-wrap leading-relaxed">
+                  {prototype.ai_insights}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Playtest history */}
+          {showHistory && (
+            <Card className="mb-4">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <History className="h-4 w-4 text-primary" />
+                  История плейтестов ({history.length})
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {history.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">Нет сохранённых результатов.</p>
+                ) : (
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {history.map((h) => (
+                      <div
+                        key={h.id}
+                        className="flex items-center gap-3 rounded-lg border border-border p-2 text-xs"
+                      >
+                        <span className={`px-2 py-0.5 rounded font-medium ${
+                          h.outcome === "win"
+                            ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300"
+                            : "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300"
+                        }`}>
+                          {h.outcome === "win" ? "Победа" : "Поражение"}
+                        </span>
+                        <span className="font-medium">{h.prototype_type}</span>
+                        <span className="text-muted-foreground">{h.mode.toUpperCase()}</span>
+                        <span className="text-muted-foreground">{Math.round(h.duration_sec)}с</span>
+                        {h.ai_generated && (
+                          <Badge variant="outline" className="text-[10px] bg-primary/10 text-primary border-primary/20">
+                            AI
+                          </Badge>
+                        )}
+                        <span className="text-muted-foreground ml-auto">
+                          {new Date(h.created_at).toLocaleString("ru-RU")}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Save result buttons */}
+          <Card className="mb-4 border-primary/20">
+            <CardContent className="pt-5">
+              <div className="flex items-start gap-3">
+                <Save className="h-4 w-4 text-primary mt-0.5 shrink-0" />
+                <div className="flex-1">
+                  <p className="text-sm font-medium mb-1">Сохранить результат плейтеста</p>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Запишите исход, чтобы отслеживать итерации кор-лупа. Время засчитывается как 30 сек.
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-emerald-500/40 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/10"
+                      onClick={async () => {
+                        try {
+                          await apiFetch("/playtests/save", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              project_id: prototype.project_id,
+                              prototype_type: prototype.config.type,
+                              mode: prototype.config.mode,
+                              outcome: "win",
+                              duration_sec: 30,
+                              ai_generated: prototype.ai_generated,
+                            }),
+                          });
+                          toast({ title: "Сохранено", description: "Победа записана в историю" });
+                        } catch (e) {
+                          toast({ title: "Ошибка", description: "Не удалось сохранить", variant: "destructive" });
+                        }
+                      }}
+                    >
+                      🎉 Победа
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-rose-500/40 text-rose-700 dark:text-rose-300 hover:bg-rose-500/10"
+                      onClick={async () => {
+                        try {
+                          await apiFetch("/playtests/save", {
+                            method: "POST",
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify({
+                              project_id: prototype.project_id,
+                              prototype_type: prototype.config.type,
+                              mode: prototype.config.mode,
+                              outcome: "lose",
+                              duration_sec: 30,
+                              ai_generated: prototype.ai_generated,
+                            }),
+                          });
+                          toast({ title: "Сохранено", description: "Поражение записано в историю" });
+                        } catch (e) {
+                          toast({ title: "Ошибка", description: "Не удалось сохранить", variant: "destructive" });
+                        }
+                      }}
+                    >
+                      💀 Поражение
+                    </Button>
                   </div>
                 </div>
               </div>

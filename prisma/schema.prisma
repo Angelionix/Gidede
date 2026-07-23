@@ -32,6 +32,7 @@ model User {
   refreshTokens   RefreshToken[]
   chatMessages    ChatMessage[]
   gbeSyncHistory  GbeSyncHistory[]
+  playtestResults PlaytestResult[]
 
   @@index([plan])
   @@map("users")
@@ -363,4 +364,29 @@ model GbeSyncHistory {
   @@index([userId, projectId])
   @@index([createdAt])
   @@map("gbe_sync_history")
+}
+
+// ============================================================
+// PLAYTEST RESULT — Результаты тестирования прототипов кор-лупа
+// ============================================================
+
+model PlaytestResult {
+  id            String   @id @default(cuid())
+  userId        String
+  projectId     String?
+  prototypeType String                                     // engine | economy | ecology
+  mode          String                                     // 2d | 3d
+  outcome       String                                     // win | lose | timeout
+  score         Float?
+  durationSec   Float                                      // длительность плейтеста
+  notes         String?
+  aiGenerated   Boolean  @default(false)                   // был ли код сгенерирован AI
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, projectId])
+  @@index([createdAt])
+  @@index([prototypeType])
+  @@map("playtest_results")
 }

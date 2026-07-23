@@ -18,6 +18,7 @@ import {
   buildPrototypeConfig,
   generatePrototypeHtml,
 } from "@/lib/prototype-generator";
+import { generatePrototypeInsights } from "@/lib/ai-service";
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser(request);
@@ -27,6 +28,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const projectId = body?.project_id?.toString().trim() || null;
     const mode = (body?.mode?.toString().trim() === "3d" ? "3d" : "2d") as "2d" | "3d";
+    const useAi = body?.use_ai === true || body?.use_ai === "true";
 
     if (!projectId) {
       return VALIDATION_ERROR("project_id обязателен");
@@ -43,6 +45,7 @@ export async function POST(request: NextRequest) {
       id: string;
       name: string;
       genre: string | null;
+      description: string | null;
       coreLoop?: {
         structuralType: string | null;
         steps: string | null;
@@ -63,6 +66,19 @@ export async function POST(request: NextRequest) {
 
     const html = generatePrototypeHtml(config);
 
+    // Optional AI insights for the prototype
+    let aiInsights: string | null = null;
+    if (useAi) {
+      aiInsights = await generatePrototypeInsights({
+        projectName: project.name,
+        genre: project.genre || "—",
+        coreLoopType: config.type,
+        steps: config.steps,
+        mode: config.mode,
+        idea: project.description || undefined,
+      });
+    }
+
     return NextResponse.json({
       playable: true,
       html,
@@ -73,6 +89,8 @@ export async function POST(request: NextRequest) {
         resource: config.resourceName,
         goal: config.goalText,
       },
+      ai_insights: aiInsights,
+      ai_generated: useAi && aiInsights !== null,
       project_id: project.id,
       project_name: project.name,
     });

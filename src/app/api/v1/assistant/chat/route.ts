@@ -23,7 +23,9 @@ import { getCurrentUser } from "@/lib/server-auth";
 import {
   appendMessage,
   generateAssistantResponse,
+  getHistory,
 } from "@/lib/assistant-store";
+import { generateAiResponse } from "@/lib/ai-service";
 import {
   UNAUTH,
   SERVER_ERROR,
@@ -71,8 +73,22 @@ export async function POST(request: NextRequest) {
       project_id: projectId || null,
     });
 
-    // Build canned-but-contextual response
-    const ai = generateAssistantResponse({
+    // Gather recent history for AI context
+    const hist = getHistory(user.id, projectId || null, 6);
+    const historyForAi = hist.messages
+      .reverse()
+      .map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      }))
+      .filter((m) => m.role === "user" || m.role === "assistant");
+
+    // Try real AI first; fall back to deterministic rules engine
+    let responseText: string;
+    let modelUsed: string;
+    let provider: string;
+
+    const aiText = await generateAiResponse({
       message,
       projectName,
       hasConcept: snap?.hasConcept,
@@ -85,7 +101,33 @@ export async function POST(request: NextRequest) {
       hasChecklist: snap?.hasChecklist,
       completionPercent: snap?.completionPercent,
       currentStage: snap?.currentStage,
+      history: historyForAi,
     });
+
+    if (aiText) {
+      responseText = aiText;
+      modelUsed = "glm-4.6";
+      provider = "z-ai-web-dev-sdk";
+    } else {
+      // Deterministic fallback
+      const fallback = generateAssistantResponse({
+        message,
+        projectName,
+        hasConcept: snap?.hasConcept,
+        hasCoreLoop: snap?.hasCoreLoop,
+        hasMda: snap?.hasMda,
+        hasBalance: snap?.hasBalance,
+        hasProgression: snap?.hasProgression,
+        hasEconomy: snap?.hasEconomy,
+        hasGdd: snap?.hasGdd,
+        hasChecklist: snap?.hasChecklist,
+        completionPercent: snap?.completionPercent,
+        currentStage: snap?.currentStage,
+      });
+      responseText = fallback.text;
+      modelUsed = "gidede-rules-v1";
+      provider = "rules-engine (fallback)";
+    }
 
     const assistantMsgId = `a-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const latencyMs = Date.now() - startedAt;
@@ -93,11 +135,11 @@ export async function POST(request: NextRequest) {
     appendMessage(user.id, projectId || null, {
       id: assistantMsgId,
       role: "assistant",
-      content: ai.text,
+      content: responseText,
       timestamp: Date.now(),
       metadata: {
-        model_used: "gidede-rules-v1",
-        provider: "rules-engine",
+        model_used: modelUsed,
+        provider,
         latency_ms: latencyMs,
       },
       project_id: projectId || null,
@@ -105,11 +147,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       message_id: assistantMsgId,
-      response: ai.text,
-      reply: ai.text, // frontend compatibility
-      suggestions: ai.suggestions,
-      model_used: "gidede-rules-v1",
-      provider: "rules-engine",
+      response: responseText,
+      reply: responseText, // frontend compatibility
+      model_used: modelUsed,
+      provider,
       latency_ms: latencyMs,
     });
   } catch (error) {

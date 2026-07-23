@@ -35,6 +35,7 @@ import { ProgressSidebar } from "@/components/gidede/progress-sidebar";
 import { usePipeline } from "@/hooks/use-pipeline";
 import type { BlockStatus } from "@/hooks/use-pipeline";
 import { BLOCKS } from "@/config/blocks";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 // ============================================================
 // СТАТУСЫ РЕАЛИЗАЦИИ (dev-статус) vs RUNTIME-СТАТУС (pipeline)
@@ -245,6 +246,12 @@ export function GidedeSidebar() {
       </SidebarContent>
 
       <SidebarFooter className="border-t border-border p-3">
+        <div className="flex items-center justify-between px-1 pb-1">
+          <p className="text-xs text-muted-foreground">
+            Фаза 4.E • v0.51.0
+          </p>
+          <ThemeToggle />
+        </div>
         {/* User info / Auth */}
         {isAuthenticated && user ? (
           <div className="space-y-2">
@@ -321,10 +328,6 @@ export function GidedeSidebar() {
             </Button>
           </div>
         )}
-
-        <p className="text-xs text-muted-foreground px-2 pt-1">
-          Фаза 4.B • v0.14.0
-        </p>
       </SidebarFooter>
     </Sidebar>
   );

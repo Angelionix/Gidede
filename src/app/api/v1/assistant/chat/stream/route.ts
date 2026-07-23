@@ -23,7 +23,9 @@ import { getCurrentUser } from "@/lib/server-auth";
 import {
   appendMessage,
   generateAssistantResponse,
+  getHistory,
 } from "@/lib/assistant-store";
+import { streamAiResponse } from "@/lib/ai-service";
 import {
   UNAUTH,
   VALIDATION_ERROR,
@@ -66,8 +68,7 @@ export async function POST(request: NextRequest) {
     projectName = snap.projectName;
   }
 
-  // Store the user message immediately (so it shows up in history even if
-  // the stream is aborted).
+  // Store the user message immediately
   const userMsgId = `u-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   appendMessage(user.id, projectId || null, {
     id: userMsgId,
@@ -77,23 +78,17 @@ export async function POST(request: NextRequest) {
     project_id: projectId || null,
   });
 
-  const ai = generateAssistantResponse({
-    message,
-    projectName,
-    hasConcept: snap?.hasConcept,
-    hasCoreLoop: snap?.hasCoreLoop,
-    hasMda: snap?.hasMda,
-    hasBalance: snap?.hasBalance,
-    hasProgression: snap?.hasProgression,
-    hasEconomy: snap?.hasEconomy,
-    hasGdd: snap?.hasGdd,
-    hasChecklist: snap?.hasChecklist,
-    completionPercent: snap?.completionPercent,
-    currentStage: snap?.currentStage,
-  });
+  // Gather recent history for AI context
+  const hist = getHistory(user.id, projectId || null, 6);
+  const historyForAi = hist.messages
+    .reverse()
+    .map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    }))
+    .filter((m) => m.role === "user" || m.role === "assistant");
 
   const assistantMsgId = `a-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const latencyMs = Date.now() - startedAt;
 
   // Build the SSE stream
   const stream = new ReadableStream({
@@ -107,48 +102,100 @@ export async function POST(request: NextRequest) {
         send({
           type: "start",
           message_id: assistantMsgId,
-          model_used: "gidede-rules-v1",
-          provider: "rules-engine",
+          model_used: "glm-4.6",
+          provider: "z-ai-web-dev-sdk",
         });
 
-        // 2. Stream the response word-by-word. Send accumulated content
-        //    in each "message" event so the frontend can replace the prior
-        //    buffer (per block 7 page.tsx).
-        const words = ai.text.split(/(\s+)/); // keep whitespace tokens
-        let accumulated = "";
-        for (const w of words) {
-          accumulated += w;
-          send({
-            type: "message",
-            message_id: assistantMsgId,
-            content: accumulated,
+        let fullText = "";
+        let modelUsed = "glm-4.6";
+        let provider = "z-ai-web-dev-sdk";
+
+        // 2. Try real AI streaming first
+        const aiText = await streamAiResponse(
+          {
+            message,
+            projectName,
+            hasConcept: snap?.hasConcept,
+            hasCoreLoop: snap?.hasCoreLoop,
+            hasMda: snap?.hasMda,
+            hasBalance: snap?.hasBalance,
+            hasProgression: snap?.hasProgression,
+            hasEconomy: snap?.hasEconomy,
+            hasGdd: snap?.hasGdd,
+            hasChecklist: snap?.hasChecklist,
+            completionPercent: snap?.completionPercent,
+            currentStage: snap?.currentStage,
+            history: historyForAi,
+          },
+          (chunk) => {
+            fullText += chunk;
+            send({
+              type: "message",
+              message_id: assistantMsgId,
+              content: fullText,
+            });
+          }
+        );
+
+        // 3. If AI streaming failed, fall back to deterministic response
+        if (!aiText || fullText.length === 0) {
+          const fallback = generateAssistantResponse({
+            message,
+            projectName,
+            hasConcept: snap?.hasConcept,
+            hasCoreLoop: snap?.hasCoreLoop,
+            hasMda: snap?.hasMda,
+            hasBalance: snap?.hasBalance,
+            hasProgression: snap?.hasProgression,
+            hasEconomy: snap?.hasEconomy,
+            hasGdd: snap?.hasGdd,
+            hasChecklist: snap?.hasChecklist,
+            completionPercent: snap?.completionPercent,
+            currentStage: snap?.currentStage,
           });
-          // Throttle to simulate token streaming
-          await new Promise((r) => setTimeout(r, 25));
+          fullText = fallback.text;
+          modelUsed = "gidede-rules-v1";
+          provider = "rules-engine (fallback)";
+
+          // Stream the fallback word-by-word
+          const words = fallback.text.split(/(\s+)/);
+          let accumulated = "";
+          for (const w of words) {
+            accumulated += w;
+            send({
+              type: "message",
+              message_id: assistantMsgId,
+              content: accumulated,
+            });
+            await new Promise((r) => setTimeout(r, 25));
+          }
+        } else {
+          fullText = aiText;
         }
 
-        // 3. Store the assistant message in history (final, full text)
+        const latencyMs = Date.now() - startedAt;
+
+        // 4. Store the assistant message in history
         appendMessage(user.id, projectId || null, {
           id: assistantMsgId,
           role: "assistant",
-          content: ai.text,
+          content: fullText,
           timestamp: Date.now(),
           metadata: {
-            model_used: "gidede-rules-v1",
-            provider: "rules-engine",
+            model_used: modelUsed,
+            provider,
             latency_ms: latencyMs,
           },
           project_id: projectId || null,
         });
 
-        // 4. Done event with metadata
+        // 5. Done event with metadata
         send({
           type: "done",
           message_id: assistantMsgId,
-          model_used: "gidede-rules-v1",
-          provider: "rules-engine",
+          model_used: modelUsed,
+          provider,
           latency_ms: latencyMs,
-          suggestions: ai.suggestions,
         });
       } catch (err) {
         console.error("[assistant/chat/stream] stream error:", err);

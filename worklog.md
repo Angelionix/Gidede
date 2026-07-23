@@ -673,3 +673,81 @@ MDA Framework (Hunicke/LeBlanc/Zubek), Reverse MDA (Bond), Core Loop (Шелл/�
 4. Перенести тесты оригинала (1437 шт.) под нашу Next.js-реализацию — C8.
 5. Внедрить dark mode (next-themes уже в зависимостях).
 6. Добавить RAG на основе docs/bible/ (12 разделов) — закрыть TD-014.
+
+---
+Task ID: 5 (webDevReview round 1 — styling + dark mode + real AI)
+Agent: webDevReview (cron job 287389)
+Task: QA the ported Gidede app, then improve styling + add features (dark mode, real AI via z-ai-web-dev-sdk).
+
+## Current Project Status (assessment)
+- App is **stable and functional**: health 200, login works, all 8 block pages render, no console errors.
+- QA via curl + agent-browser confirmed: auth, projects, all block APIs, pipeline, assistant, gbe, rag all return 200.
+- Lint was already clean (0 errors, 0 warnings).
+- No bugs found — proceeded to feature/styling improvements.
+
+## Completed Modifications
+
+### 1. Dark mode (next-themes integration) ✅
+- Created `src/components/theme-provider.tsx` — wraps `next-themes` ThemeProvider.
+- Created `src/components/theme-toggle.tsx` — Sun/Moon icon toggle button with animated transitions.
+- Wired ThemeProvider into `src/app/layout.tsx` (attribute="class", defaultTheme="light", enableSystem).
+- Added ThemeToggle to sidebar footer (`src/components/gidede/sidebar.tsx`) next to version label.
+- Updated version label from "v0.14.0 / Фаза 4.B" → "v0.51.0 / Фаза 4.E" (was stale).
+- **Verified**: agent-browser clicked "Тёмная" theme → home & settings pages render in dark mode (VLM confirmed "black background, dark mode active").
+
+### 2. Home page redesign (`src/app/page.tsx`) ✅
+Addressed all VLM-identified weaknesses (flat cards, weak hierarchy, rigid progress steps):
+- **Gradient hero section** with decorative blur orbs (primary + emerald), version badge, 4xl title, CTA buttons.
+- **Stats grid** (2×2) showing key metrics: 10 алгоритмов, 34 AI-промптов, 17 книг, 8 эстетик MDA.
+- **Polished progress timeline**: circular phase indicators with connecting line, emerald for completed phases, animated pulse for active phase 4.
+- **Block cards redesigned**: rounded icon containers with hover color transition (primary/10 → primary), status badges with semantic colors (emerald/amber/gray + dark variants), hover lift effect (-translate-y-0.5 + shadow-lg), arrow micro-animation on hover.
+- **Dynamic CTA**: shows "Мои проекты" when authenticated, "Начать бесплатно" when not.
+- VLM rated redesign **8.5/10** — "significant upgrade, product-grade SaaS territory".
+
+### 3. Settings page redesign (`src/app/settings/page.tsx`) ✅
+Replaced empty placeholder with full-featured settings page:
+- **Внешний вид (Appearance)**: 3-button theme picker (Светлая/Тёмная/Системная) with active-state highlighting + checkmark.
+- **Аккаунт (Account)**: avatar with initials, name, email, plan badge, registration date, active status.
+- **Использование AI (AI Usage)**: progress bar (gradient primary→emerald) showing ai_calls_count/limit, remaining count, Pro upgrade prompt for free users.
+- **Уведомления (Notifications)**: 3 Switch toggles (pipeline stale, AI alerts, email).
+- **О приложении (About)**: version, framework, backend, database info.
+- VLM confirmed all sections render correctly in both light and dark modes.
+
+### 4. Real AI integration via z-ai-web-dev-sdk ✅ (most impactful feature)
+- Created `src/lib/ai-service.ts`:
+  - `generateAiResponse(ctx)` — non-streaming LLM call with game-design system prompt (references MDA, Reverse MDA, Core Loop, 113 Schell lenses, Machinations, Triangle of Weirdness, Bond matrix, Model Yi).
+  - `streamAiResponse(ctx, onDelta)` — streaming LLM call for SSE token-by-token output.
+  - Context-aware: includes project name, stage, completion %, filled blocks, recent chat history (last 6 messages).
+  - Graceful fallback: returns null if SDK unavailable → caller falls back to deterministic rules engine.
+- Updated `src/app/api/v1/assistant/chat/route.ts` (non-streaming): tries real AI first, falls back to `generateAssistantResponse()` rules engine. Includes chat history for multi-turn context.
+- Updated `src/app/api/v1/assistant/chat/stream/route.ts` (SSE streaming): streams real AI tokens via `streamAiResponse()`, falls back to word-by-word deterministic streaming if AI fails.
+- **Verified**: 
+  - Non-stream: provider=`z-ai-web-dev-sdk`, model=`glm-4.6`, latency=7431ms, response = genuine detailed MDA explanation in Russian.
+  - Stream: 1 start + 81 message chunks + 1 done event = real token streaming works.
+
+## Verification Results
+- `bun run lint`: ✅ 0 errors, 0 warnings.
+- Health endpoint: ✅ 200.
+- Real AI (non-stream): ✅ glm-4.6 responded with structured Russian explanation of MDA framework.
+- Real AI (stream): ✅ 81 token chunks streamed for "Triangle of Weirdness" query.
+- Dark mode toggle: ✅ VLM confirmed dark background on home + settings.
+- Home page redesign: ✅ VLM rated 8.5/10 ("product-grade SaaS").
+- Settings page: ✅ VLM confirmed all 5 sections render (Appearance, Account, AI Usage, Notifications, About).
+- Block 7 (AI assistant) page: ✅ renders, no console errors.
+- No dev.log errors.
+
+## Unresolved Issues / Risks + Next-Phase Recommendations
+
+### Risks
+1. **AI latency**: Real LLM calls take ~7s (non-stream). Acceptable but slower than the deterministic mock. Streaming mitigates perceived latency.
+2. **AI SDK availability**: `z-ai-web-dev-sdk` initialization could fail in some environments — fallback to rules engine ensures the app never breaks.
+3. **Chat history still in-memory** (Map in assistant-store.ts) — resets on server restart. Not yet moved to Prisma (schema unchanged per earlier constraint).
+4. **No persistent storage for ChatMessage/GbeSyncHistory** — still open from worklog Task ID 4.
+
+### Priority Recommendations for Next Phase
+1. **🔴 HIGH — Persistent chat storage**: Add `ChatMessage` + `GbeSyncHistory` models to `prisma/schema.prisma`, run `db:push`, migrate assistant-store + gbe-store from in-memory Maps to Prisma queries. Closes the C5 criterion gap.
+2. **🟠 MEDIUM — RAG over the Bible**: Load `docs/bible/` (12 markdown sections) into a knowledge base, wire `rag/search` to use real semantic search. Closes TD-014.
+3. **🟠 MEDIUM — PDF export**: Use the `pdf` skill (ReportLab) or puppeteer to generate real PDF from GDD content. Currently `/gdd/export` only returns Markdown/HTML. Closes C6 fully.
+4. **🟡 LOW — AI in block endpoints**: Currently blocks 1-6 use deterministic logic. Could add an optional `use_ai: true` flag to call z-ai-web-dev-sdk for richer AI-enriched sections (concept USP generation, GDD section enrichment).
+5. **🟡 LOW — E2E test for AI**: Add an agent-browser test that sends a chat message in block 7 and verifies a real AI response streams in.
+6. **🟢 NICE-TO-HAVE — Typo contrast tweak**: VLM noted body text is slightly light; bump font-weight to 400-500 on hero subtitle.

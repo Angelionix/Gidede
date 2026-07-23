@@ -1,0 +1,728 @@
+     1→/**
+     2→ * Gidede — In-memory store for AI Assistant (Block 7).
+     3→ *
+     4→ * The Prisma schema has no ChatMessage / AssistantSuggestion / AssistantAlert
+     5→ * tables. Another agent is actively editing the schema, so we DON'T modify it.
+     6→ * Instead we keep chat history + ephemeral state in module-level Maps keyed by
+     7→ * `userId` (or `userId:projectId` when project_id is provided).
+     8→ *
+     9→ * Trade-off: data is reset on server restart — acceptable for a demo / preview.
+    10→ */
+    11→
+    12→export interface ChatMsg {
+    13→  id: string;
+    14→  role: "user" | "assistant" | "system";
+    15→  content: string;
+    16→  timestamp: number;
+    17→  metadata?: Record<string, unknown>;
+    18→  project_id?: string | null;
+    19→}
+    20→
+    21→/** Key: `${userId}` or `${userId}:${projectId}` */
+    22→const chatHistory = new Map<string, ChatMsg[]>();
+    23→
+    24→function keyFor(userId: string, projectId?: string | null): string {
+    25→  return projectId ? `${userId}:${projectId}` : userId;
+    26→}
+    27→
+    28→export function getHistory(
+    29→  userId: string,
+    30→  projectId: string | null | undefined,
+    31→  limit = 50
+    32→): { messages: ChatMsg[]; total: number } {
+    33→  const k = keyFor(userId, projectId || undefined);
+    34→  const all = chatHistory.get(k) || [];
+    35→  // Most-recent first → reverse chronological; we slice the latest `limit`.
+    36→  const sliced = all.slice(-limit).reverse();
+    37→  return { messages: sliced, total: all.length };
+    38→}
+    39→
+    40→export function appendMessage(
+    41→  userId: string,
+    42→  projectId: string | null | undefined,
+    43→  msg: ChatMsg
+    44→): void {
+    45→  const k = keyFor(userId, projectId || undefined);
+    46→  const list = chatHistory.get(k) || [];
+    47→  list.push(msg);
+    48→  // Cap to 1000 messages per key to avoid unbounded growth.
+    49→  if (list.length > 1000) list.splice(0, list.length - 1000);
+    50→  chatHistory.set(k, list);
+    51→}
+    52→
+    53→export function clearHistory(
+    54→  userId: string,
+    55→  projectId: string | null | undefined
+    56→): number {
+    57→  const k = keyFor(userId, projectId || undefined);
+    58→  const list = chatHistory.get(k) || [];
+    59→  const n = list.length;
+    60→  chatHistory.delete(k);
+    61→  return n;
+    62→}
+    63→
+    64→// ============================================================
+    65→// Deterministic AI response generator (NO real LLM)
+    66→// ============================================================
+    67→
+    68→interface ResponseContext {
+    69→  message: string;
+    70→  projectName?: string;
+    71→  hasConcept?: boolean;
+    72→  hasCoreLoop?: boolean;
+    73→  hasMda?: boolean;
+    74→  hasBalance?: boolean;
+    75→  hasProgression?: boolean;
+    76→  hasEconomy?: boolean;
+    77→  hasGdd?: boolean;
+    78→  hasChecklist?: boolean;
+    79→  completionPercent?: number;
+    80→  currentStage?: string | null;
+    81→}
+    82→
+    83→interface AiResponse {
+    84→  text: string;
+    85→  suggestions?: Array<{
+    86→    title: string;
+    87→    description: string;
+    88→    action: string;
+    89→    priority: string;
+    90→    data?: Record<string, unknown>;
+    91→  }>;
+    92→}
+    93→
+    94→/**
+    95→ * Build a canned-but-contextual Russian response based on the user's message
+    96→ * and the project's pipeline state. Keyword-driven — no real LLM.
+    97→ */
+    98→export function generateAssistantResponse(ctx: ResponseContext): AiResponse {
+    99→  const msg = ctx.message.toLowerCase();
+   100→  const projectName = ctx.projectName || "ваш проект";
+   101→  const completion = ctx.completionPercent ?? 0;
+   102→  const stage = ctx.currentStage || "—";
+   103→
+   104→  // --- Balance / balancing
+   105→  if (/(баланс|balanc|transitive|intransitive|имбаланс|неравновес)/.test(msg)) {
+   106→    return {
+   107→      text:
+   108→        `Для балансировки проекта «${projectName}» используйте трёхшаговую модель:\n` +
+   109→        `1. Классифицируйте элементы (transitive / intransitive / mixed).\n` +
+   110→        `2. Постройте cost-power кривые для каждого класса.\n` +
+   111→        `3. Запустите Monte-Carlo симуляцию (≥1000 итераций) и проверьте Nash equilibrium для intransitive-наборов.\n\n` +
+   112→        (ctx.hasBalance
+   113→          ? "У вас уже сохранён результат балансировки — откройте Блок 4 для просмотра imbalances и corrections."
+   114→          : "Сейчас в проекте нет данных по балансу. Запустите алгоритм Блока 4 (Balance Analyze), чтобы получить полный отчёт."),
+   115→      suggestions: [
+   116→        {
+   117→          title: "Запустить балансировку",
+   118→          description:
+   119→            "Запустит алгоритм 3.4 — построит cost-power кривые и найдёт патологии.",
+   120→          action: "generate",
+   121→          priority: ctx.hasBalance ? "low" : "high",
+   122→          data: { block_id: 4 },
+   123→        },
+   124→      ],
+   125→    };
+   126→  }
+   127→
+   128→  // --- Core loop
+   129→  if (/(core.?loop|кор.?луп|основной цикл|gameplay loop|внутренний цикл)/.test(msg)) {
+   130→    return {
+   131→      text:
+   132→        `Core Loop — это сердце проекта «${projectName}». Структурно core loop бывает трёх типов:\n` +
+   133→        `• Engine — генерирует ресурсы (например, farming).\n` +
+   134→        `• Economy — конвертирует ресурсы (crafting, торговля).\n` +
+   135→        `• Ecology — конкуренция за ресурсы (PvP, asymmetric).\n\n` +
+   136→        `Рекомендую анализировать иерархию: inner loop (секунды) → core loop (минуты) → outer loop (часы) → meta loop (сессии). ` +
+   137→        `Проверьте каждый цикл на патологии: positive feedback runaway, dynamic inefficiency, dominant strategy.`,
+   138→      suggestions: [
+   139→        {
+   140→          title: "Проверить Core Loop на патологии",
+   141→          description:
+   142→            "Анализ 3.2 найдёт runaways, dynamic inefficiency и dominant strategies.",
+   143→          action: "validate",
+   144→          priority: "medium",
+   145→          data: { block_id: 2 },
+   146→        },
+   147→      ],
+   148→    };
+   149→  }
+   150→
+   151→  // --- Economy
+   152→  if (/(экономик|economy|ресурс|faucet|drain|инфляц)/.test(msg)) {
+   153→    return {
+   154→      text:
+   155→        `Экономика «${projectName}» оценивается через faucet/drain ratio и Machinations-модель.\n` +
+   156→        `Ключевые шаги:\n` +
+   157→        `1. Составьте inventory ресурсов (валюты, материалы, прогрессия).\n` +
+   158→        `2. Найдите все conversion chains (gold → items → upgrades).\n` +
+   159→        `3. Запустите симуляцию на 50+ тиков с шумом ±10%.\n` +
+   160→        `4. Найдите патологии: inflation, drain, stall, runaway.\n\n` +
+   161→        (ctx.hasEconomy
+   162→          ? "Экономика уже смоделирована — откройте Блок 5 (вкладка Economy) для просмотра Machinations-графа."
+   163→          : "Экономика пока не смоделирована. Запустите алгоритм 3.6 в Блоке 5."),
+   164→      suggestions: [
+   165→        {
+   166→          title: "Смоделировать экономику",
+   167→          description: "Алгоритм 3.6 — построит Machinations graph и найдёт патологии.",
+   168→          action: "generate",
+   169→          priority: ctx.hasEconomy ? "low" : "high",
+   170→          data: { block_id: 5 },
+   171→        },
+   172→      ],
+   173→    };
+   174→  }
+   175→
+   176→  // --- Progression
+   177→  if (/(прогресс|progression|xp|уровн|level|tier)/.test(msg)) {
+   178→    return {
+   179→      text:
+   180→        `Для прогрессии «${projectName}» определите:\n` +
+   181→        `• total_levels и target_duration_hours.\n` +
+   182→        `• progression_type (linear / exponential / diminishing / s_curve / intermittent / custom).\n` +
+   183→        `• monetization_model (f2p, b2p, subscription, p2w, cosmetic, hybrid).\n` +
+   184→        `• pacing (relaxed, balanced, intense).\n\n` +
+   185→        `Затем алгоритм 3.5 построит tier-модель, XP/power/cost/difficulty кривые и content plan с unlock tree.`,
+   186→      suggestions: [
+   187→        {
+   188→          title: "Спроектировать прогрессию",
+   189→          description: "Алгоритм 3.5 — построит кривые, tier-модель и validation report.",
+   190→          action: "generate",
+   191→          priority: ctx.hasProgression ? "low" : "high",
+   192→          data: { block_id: 5 },
+   193→        },
+   194→      ],
+   195→    };
+   196→  }
+   197→
+   198→  // --- GDD
+   199→  if (/(gdd|дизайн.?документ|one.?pager|ten.?pager)/.test(msg)) {
+   200→    return {
+   201→      text:
+   202→        `GDD (Game Design Document) собирается из данных предыдущих блоков.\n` +
+   203→        `Форматы: one_sheet | ten_pager | full_gdd.\n` +
+   204→        `Для «${projectName}» рекомендую формат full_gdd — он даёт 21 секцию (title, concept, mechanics, dynamics, aesthetics, narrative, balance, progression, economy, monetization и т.д.).\n\n` +
+   205→        (ctx.hasGdd
+   206→          ? "GDD уже сгенерирован — вы можете экспортировать его в md/html/docx/pdf через Блок 6."
+   207→          : "GDD ещё не сгенерирован. Откройте Блок 6 и нажмите «Сгенерировать GDD»."),
+   208→      suggestions: [
+   209→        {
+   210→          title: ctx.hasGdd ? "Экспортировать GDD" : "Сгенерировать GDD",
+   211→          description: ctx.hasGdd
+   212→            ? "Экспорт в Markdown / HTML / DOCX / PDF."
+   213→            : "Алгоритм 3.7 соберёт GDD из данных предыдущих блоков.",
+   214→          action: "generate",
+   215→          priority: "medium",
+   216→          data: { block_id: 6 },
+   217→        },
+   218→      ],
+   219→    };
+   220→  }
+   221→
+   222→  // --- MDA
+   223→  if (/(mda|mechanic|dynamic|aesthetic|механик|динамик|эстетик)/.test(msg)) {
+   224→    return {
+   225→      text:
+   226→        `MDA-фреймворк (Hunicke, LeBlanc, Zubek, 2004) описывает игру с трёх точек зрения:\n` +
+   227→        `• Mechanics — правила, данные, алгоритмы (что «делает» игра).\n` +
+   228→        `• Dynamics — поведение системы во времени (что «возникает» из правил).\n` +
+   229→        `• Aesthetics — желаемые эмоции игрока (Sensation, Fantasy, Narrative, Challenge, Fellowship, Discovery, Expression, Submission, Abnegation).\n\n` +
+   230→        `Алгоритм 3.3 строит StructuredMechanicSet → предсказывает Dynamics → соотносит с целевыми Aesthetics через match-score.`,
+   231→      suggestions: [
+   232→        {
+   233→          title: "Запустить MDA-анализ",
+   234→          description: "Алгоритм 3.3 — построит mechanic → dynamic → aesthetic mapping.",
+   235→          action: "generate",
+   236→          priority: ctx.hasMda ? "low" : "high",
+   237→          data: { block_id: 3 },
+   238→        },
+   239→      ],
+   240→    };
+   241→  }
+   242→
+   243→  // --- Ludonarrative
+   244→  if (/(лудонарратив|ludonarrative|диссонанс)/.test(msg)) {
+   245→    return {
+   246→      text:
+   247→        `Лудонарративный диссонанс (Seropian, 2007) — конфликт между тем, что игра рассказывает (narrative), и тем, что игрок делает (ludus).\n` +
+   248→        `Например: сюжет про пацифиста, но gameplay требует убивать сотни врагов.\n\n` +
+   249→        `Алгоритм 3.3 включает ludonarrative_check: сравнивает заявленные aesthetics с фактическими dynamics и помечает конфликты. Запустите Блок 3 для проверки.`,
+   250→    };
+   251→  }
+   252→
+   253→  // --- Concept
+   254→  if (/(концепт|concept|idea|идея|logline|жанр|genre)/.test(msg)) {
+   255→    return {
+   256→      text:
+   257→        `Концепция проекта — фундамент всего пайплайна. Убедитесь, что у «${projectName}» есть:\n` +
+   258→        `• Жанр и поджанр.\n` +
+   259→        `• Logline (1-2 предложения, кто игрок и что делает).\n` +
+   260→        `• USP (unique selling proposition) — что отличает от аналогов.\n` +
+   261→        `• Primary aesthetic — главная эмоция (Sensation, Challenge, Narrative и т.д.).\n` +
+   262→        `• Целевая аудитория и платформы.\n\n` +
+   263→        (ctx.hasConcept
+   264→          ? "Концепция уже задана. Можете запустить Блок 2 (Core Loop) или Блок 3 (MDA)."
+   265→          : "Концепция пока не сгенерирована. Откройте Блок 1 и введите идею."),
+   266→      suggestions: [
+   267→        {
+   268→          title: "Сгенерировать концепцию",
+   269→          description: "Алгоритм 3.1 — построит one-pager, aesthetic profile, dynamics profile.",
+   270→          action: "generate",
+   271→          priority: ctx.hasConcept ? "low" : "high",
+   272→          data: { block_id: 1 },
+   273→        },
+   274→      ],
+   275→    };
+   276→  }
+   277→
+   278→  // --- Validation / checklist
+   279→  if (/(валид|провер|validate|checklist|issue|проблем|готовност)/.test(msg)) {
+   280→    return {
+   281→      text:
+   282→        `Финальная валидация проекта «${projectName}» выполняется алгоритмом 3.8.\n` +
+   283→        `Проверяет 5 линз:\n` +
+   284→        `1. MDA — соответствие mechanics → aesthetics.\n` +
+   285→        `2. Balance — Nash equilibrium, Monte-Carlo, патологии.\n` +
+   286→        `3. Narrative — ludonarrative consistency.\n` +
+   287→        `4. Economy — faucet/drain, inflation, drain, stall.\n` +
+   288→        `5. Lens — Schell's lens-анализ.\n\n` +
+   289→        `Результат: overall_score (0..1), readiness (ready / almost / not_ready), top issues + quick wins.`,
+   290→      suggestions: [
+   291→        {
+   292→          title: "Запустить валидацию",
+   293→          description: "Алгоритм 3.8 — runs MDA + balance + narrative + economy + lens checks.",
+   294→          action: "validate",
+   295→          priority: ctx.hasChecklist ? "low" : "high",
+   296→          data: { block_id: 6 },
+   297→        },
+   298→      ],
+   299→    };
+   300→  }
+   301→
+   302→  // --- F2P / monetization
+   303→  if (/(f2p|free.?to.?play|монетиз|monetiz|p2w|pay.?to.?win|subscrib|cosmetic)/.test(msg)) {
+   304→    return {
+   305→      text:
+   306→        `Модели монетизации:\n` +
+   307→        `• F2P — бесплатные, доход от микротранзакций. Нужны мягкие/жёсткие стены.\n` +
+   308→        `• B2P — единоразовая покупка, без стен.\n` +
+   309→        `• Subscription — постоянный темп, регулярные награды.\n` +
+   310→        `• P2W — стены преодолеваются только покупкой (избегать!).\n` +
+   311→        `• Cosmetic — монетизация вне прогрессии.\n` +
+   312→        `• Hybrid — комбинированный.\n\n` +
+   313→        `Для «${projectName}» рекомендую проверить: не конфликтует ли monetization с pacing (relaxed + F2P = проблема).`,
+   314→    };
+   315→  }
+   316→
+   317→  // --- Pipeline status
+   318→  if (/(пайплайн|pipeline|статус|прогресс проекта|что дальше|следующий шаг)/.test(msg)) {
+   319→    const filled: string[] = [];
+   320→    if (ctx.hasConcept) filled.push("Concept");
+   321→    if (ctx.hasCoreLoop) filled.push("Core Loop");
+   322→    if (ctx.hasMda) filled.push("MDA");
+   323→    if (ctx.hasBalance) filled.push("Balance");
+   324→    if (ctx.hasProgression) filled.push("Progression");
+   325→    if (ctx.hasEconomy) filled.push("Economy");
+   326→    if (ctx.hasGdd) filled.push("GDD");
+   327→    if (ctx.hasChecklist) filled.push("Validation");
+   328→    return {
+   329→      text:
+   330→        `Текущее состояние проекта «${projectName}»:\n` +
+   331→        `• Заполнено блоков: ${filled.length} / 8 (${completion}%).\n` +
+   332→        `• Текущая стадия: ${stage}.\n` +
+   333→        `• Заполненные блоки: ${filled.length > 0 ? filled.join(", ") : "пока ничего"}.\n\n` +
+   334→        `Следующий шаг: ${
+   335→          !ctx.hasConcept
+   336→            ? "сгенерируйте концепцию (Блок 1)."
+   337→            : !ctx.hasCoreLoop
+   338→              ? "спроектируйте Core Loop (Блок 2)."
+   339→              : !ctx.hasMda
+   340→                ? "выполните MDA-анализ (Блок 3)."
+   341→                : !ctx.hasBalance
+   342→                  ? "запустите балансировку (Блок 4)."
+   343→                  : !ctx.hasProgression
+   344→                    ? "спроектируйте прогрессию (Блок 5)."
+   345→                    : !ctx.hasEconomy
+   346→                      ? "смоделируйте экономику (Блок 5)."
+   347→                      : !ctx.hasGdd
+   348→                        ? "сгенерируйте GDD (Блок 6)."
+   349→                        : !ctx.hasChecklist
+   350→                          ? "запустите финальную валидацию (Блок 6)."
+   351→                          : "пайплайн завершён — экспортируйте GDD и переходите к GBE-интеграции (Блок 8)."
+   352→        }`,
+   353→      suggestions: [
+   354→        {
+   355→          title: "Открыть следующий блок",
+   356→          description: "Перейдите к следующему незаполненному блоку пайплайна.",
+   357→          action: "review",
+   358→          priority: "medium",
+   359→        },
+   360→      ],
+   361→    };
+   362→  }
+   363→
+   364→  // --- Greeting
+   365→  if (/^(привет|здравствуй|hello|hi|хай|добрый)/.test(msg.trim())) {
+   366→    return {
+   367→      text:
+   368→        `Здравствуйте! Я AI-ассистент Gidede. Помогу с геймдизайном проекта «${projectName}».\n` +
+   369→        `Можете спросить про:\n` +
+   370→        `• Core Loop, MDA, балансировку, экономику, прогрессию, GDD.\n` +
+   371→        `• Запустить следующий блок пайплайна.\n` +
+   372→        `• Проверить проект на проблемы.\n\n` +
+   373→        `Текущий прогресс: ${completion}% (стадия: ${stage}).`,
+   374→    };
+   375→  }
+   376→
+   377→  // --- Default fallback
+   378→  return {
+   379→    text:
+   380→      `Я получил ваш запрос: «${ctx.message}».\n\n` +
+   381→      `Я могу помочь с геймдизайном проекта «${projectName}» — core loop, MDA, баланс, экономика, прогрессия, GDD, валидация.\n` +
+   382→      `Уточните, какой аспект вы хотите обсудить, или запустите следующий блок пайплайна.\n\n` +
+   383→      `Текущий прогресс: ${completion}%, стадия: ${stage}.`,
+   384→    suggestions: [
+   385→      {
+   386→        title: "Открыть пайплайн",
+   387→        description: "Проверить текущее состояние проекта.",
+   388→        action: "review",
+   389→        priority: "low",
+   390→      },
+   391→    ],
+   392→  };
+   393→}
+   394→
+   395→// ============================================================
+   396→// Block-specific suggestions (used by /assistant/suggestions)
+   397→// ============================================================
+   398→
+   399→interface ProjectPipelineSnapshot {
+   400→  hasConcept?: boolean;
+   401→  hasCoreLoop?: boolean;
+   402→  hasMda?: boolean;
+   403→  hasBalance?: boolean;
+   404→  hasProgression?: boolean;
+   405→  hasEconomy?: boolean;
+   406→  hasGdd?: boolean;
+   407→  hasChecklist?: boolean;
+   408→  completionPercent?: number;
+   409→}
+   410→
+   411→interface Suggestion {
+   412→  title: string;
+   413→  description: string;
+   414→  action: string;
+   415→  priority: string;
+   416→  data?: Record<string, unknown>;
+   417→}
+   418→
+   419→/** Per-block canned suggestions derived from project state. */
+   420→export function getBlockSuggestions(
+   421→  blockId: number,
+   422→  snap: ProjectPipelineSnapshot
+   423→): Suggestion[] {
+   424→  switch (blockId) {
+   425→    case 1: // Concept
+   426→      return [
+   427→        {
+   428→          title: snap.hasConcept ? "Уточнить USP" : "Сгенерировать концепцию",
+   429→          description: snap.hasConcept
+   430→            ? "USP уже задан — проверьте triangle check и differentiation."
+   431→            : "Запустите алгоритм 3.1 — построит one-pager, aesthetic profile и dynamics profile.",
+   432→          action: "generate",
+   433→          priority: snap.hasConcept ? "low" : "high",
+   434→          data: { block_id: 1 },
+   435→        },
+   436→        {
+   437→          title: "Проверить triangle check",
+   438→          description: "Убедитесь, что USP, жанр и audience не конфликтуют.",
+   439→          action: "validate",
+   440→          priority: "medium",
+   441→        },
+   442→      ];
+   443→    case 2: // Core Loop
+   444→      return [
+   445→        {
+   446→          title: snap.hasCoreLoop
+   447→            ? "Проверить патологии Core Loop"
+   448→            : "Спроектировать Core Loop",
+   449→          description: snap.hasCoreLoop
+   450→            ? "Алгоритм 3.2 найдёт runaways, dynamic inefficiency, dominant strategies."
+   451→            : "Определите structural type (Engine / Economy / Ecology) иерархию циклов.",
+   452→          action: snap.hasCoreLoop ? "validate" : "generate",
+   453→          priority: snap.hasCoreLoop ? "medium" : "high",
+   454→          data: { block_id: 2 },
+   455→        },
+   456→        {
+   457→          title: "Анализ иерархии циклов",
+   458→          description: "Inner → core → outer → meta — проверьте переходы.",
+   459→          action: "review",
+   460→          priority: "low",
+   461→        },
+   462→      ];
+   463→    case 3: // MDA
+   464→      return [
+   465→        {
+   466→          title: snap.hasMda ? "Запустить lens check" : "Запустить MDA-анализ",
+   467→          description: snap.hasMda
+   468→            ? "Проверьте lens validation и bond validation для aesthetics."
+   469→            : "Алгоритм 3.3 построит mechanic → dynamic → aesthetic mapping.",
+   470→          action: snap.hasMda ? "validate" : "generate",
+   471→          priority: snap.hasMda ? "medium" : "high",
+   472→          data: { block_id: 3 },
+   473→        },
+   474→        {
+   475→          title: "Проверить ludonarrative",
+   476→          description: "Убедитесь, что narrative и ludus не конфликтуют.",
+   477→          action: "review",
+   478→          priority: "medium",
+   479→        },
+   480→      ];
+   481→    case 4: // Balance
+   482→      return [
+   483→        {
+   484→          title: snap.hasBalance
+   485→            ? "Перепроверить Nash equilibrium"
+   486→            : "Запустить балансировку",
+   487→          description: snap.hasBalance
+   488→            ? "Intransitive-наборы должны иметь стабильное равновесие."
+   489→            : "Алгоритм 3.4 построит cost-power кривые и найдёт патологии.",
+   490→          action: snap.hasBalance ? "validate" : "generate",
+   491→          priority: snap.hasBalance ? "medium" : "high",
+   492→          data: { block_id: 4 },
+   493→        },
+   494→        {
+   495→          title: "Monte-Carlo симуляция",
+   496→          description: "Запустите ≥1000 итераций для проверки win-rate.",
+   497→          action: "review",
+   498→          priority: "low",
+   499→        },
+   500→      ];
+   501→    case 5: // Progression + Economy
+   502→      return [
+   503→        {
+   504→          title: snap.hasProgression
+   505→            ? "Проверить XP runaway"
+   506→            : "Спроектировать прогрессию",
+   507→          description: snap.hasProgression
+   508→            ? "Контролируйте growth_rate XP-кривой (ratio < 200)."
+   509→            : "Алгоритм 3.5 построит tier-модель и кривые.",
+   510→          action: snap.hasProgression ? "validate" : "generate",
+   511→          priority: snap.hasProgression ? "medium" : "high",
+   512→          data: { block_id: 5 },
+   513→        },
+   514→        {
+   515→          title: snap.hasEconomy
+   516→            ? "Найти патологии экономики"
+   517→            : "Смоделировать экономику",
+   518→          description: snap.hasEconomy
+   519→            ? "Проверьте inflation, drain, stall, runaway."
+   520→            : "Алгоритм 3.6 построит Machinations graph и симуляцию.",
+   521→          action: snap.hasEconomy ? "validate" : "generate",
+   522→          priority: snap.hasEconomy ? "medium" : "high",
+   523→          data: { block_id: 5 },
+   524→        },
+   525→      ];
+   526→    case 6: // GDD + Validation
+   527→      return [
+   528→        {
+   529→          title: snap.hasGdd
+   530→            ? "Экспортировать GDD"
+   531→            : "Сгенерировать GDD",
+   532→          description: snap.hasGdd
+   533→            ? "Экспортируйте в md / html / docx / pdf."
+   534→            : "Алгоритм 3.7 соберёт GDD из данных предыдущих блоков.",
+   535→          action: "generate",
+   536→          priority: snap.hasGdd ? "low" : "high",
+   537→          data: { block_id: 6 },
+   538→        },
+   539→        {
+   540→          title: snap.hasChecklist
+   541→            ? "Просмотреть issues"
+   542→            : "Запустить финальную валидацию",
+   543→          description: snap.hasChecklist
+   544→            ? "Проверьте top_5_issues и quick_wins."
+   545→            : "Алгоритм 3.8 проверит MDA, balance, narrative, economy, lens.",
+   546→          action: snap.hasChecklist ? "review" : "validate",
+   547→          priority: snap.hasChecklist ? "medium" : "high",
+   548→          data: { block_id: 6 },
+   549→        },
+   550→      ];
+   551→    case 7: // AI Assistant
+   552→      return [
+   553→        {
+   554→          title: "Спросить про баланс",
+   555→          description: "Получите рекомендации по балансировке проекта.",
+   556→          action: "review",
+   557→          priority: "low",
+   558→        },
+   559→        {
+   560→          title: "Спросить про core loop",
+   561→          description: "Узнайте, как проектировать основной цикл игры.",
+   562→          action: "review",
+   563→          priority: "low",
+   564→        },
+   565→      ];
+   566→    case 8: // GBE Bridge
+   567→      return [
+   568→        {
+   569→          title: "Проверить подключение GBE",
+   570→          description: "Test connection к GDCombine API (mock-режим).",
+   571→          action: "validate",
+   572→          priority: "low",
+   573→          data: { block_id: 8 },
+   574→        },
+   575→        {
+   576→          title: "Синхронизировать с GBE",
+   577→          description: "Экспортируйте проект в GDCombine или импортируйте изменения.",
+   578→          action: "generate",
+   579→          priority: "low",
+   580→          data: { block_id: 8 },
+   581→        },
+   582→      ];
+   583→    default:
+   584→      return [];
+   585→  }
+   586→}
+   587→
+   588→// ============================================================
+   589→// Proactive alerts (used by /assistant/alerts)
+   590→// ============================================================
+   591→
+   592→interface Alert {
+   593→  id: string;
+   594→  alert_type: string;
+   595→  severity: string;
+   596→  block_id: number;
+   597→  title: string;
+   598→  description: string;
+   599→  suggestion: string;
+   600→  timestamp: number;
+   601→}
+   602→
+   603→/** Derive alerts from project's pipeline state. Empty stages → warnings. */
+   604→export function deriveAlerts(snap: ProjectPipelineSnapshot): Alert[] {
+   605→  const now = Date.now();
+   606→  const alerts: Alert[] = [];
+   607→
+   608→  if (!snap.hasConcept) {
+   609→    alerts.push({
+   610→      id: `alert-concept-${now}`,
+   611→      alert_type: "missing_stage",
+   612→      severity: "warning",
+   613→      block_id: 1,
+   614→      title: "Концепция не сгенерирована",
+   615→      description: "Проект не имеет сгенерированной концепции — это фундамент всего пайплайна.",
+   616→      suggestion: "Откройте Блок 1 и сгенерируйте концепцию (алгоритм 3.1).",
+   617→      timestamp: now,
+   618→    });
+   619→  }
+   620→
+   621→  if (snap.hasConcept && !snap.hasCoreLoop) {
+   622→    alerts.push({
+   623→      id: `alert-coreloop-${now}`,
+   624→      alert_type: "missing_stage",
+   625→      severity: "warning",
+   626→      block_id: 2,
+   627→      title: "Core Loop не спроектирован",
+   628→      description: "Концепция есть, но core loop ещё не построен.",
+   629→      suggestion: "Откройте Блок 2 и задайте structural type + шаги цикла.",
+   630→      timestamp: now,
+   631→    });
+   632→  }
+   633→
+   634→  if (snap.hasCoreLoop && !snap.hasMda) {
+   635→    alerts.push({
+   636→      id: `alert-mda-${now}`,
+   637→      alert_type: "missing_stage",
+   638→      severity: "info",
+   639→      block_id: 3,
+   640→      title: "MDA-анализ не выполнен",
+   641→      description: "Core Loop есть, но MDA-профиль не построен.",
+   642→      suggestion: "Запустите алгоритм 3.3 — построит mechanic → aesthetic mapping.",
+   643→      timestamp: now,
+   644→    });
+   645→  }
+   646→
+   647→  if (snap.hasMda && !snap.hasBalance) {
+   648→    alerts.push({
+   649→      id: `alert-balance-${now}`,
+   650→      alert_type: "missing_stage",
+   651→      severity: "info",
+   652→      block_id: 4,
+   653→      title: "Балансировка не запущена",
+   654→      description: "MDA есть, но балансировка элементов не выполнена.",
+   655→      suggestion: "Запустите алгоритм 3.4 — построит cost-power кривые.",
+   656→      timestamp: now,
+   657→    });
+   658→  }
+   659→
+   660→  if (snap.hasBalance && !snap.hasProgression) {
+   661→    alerts.push({
+   662→      id: `alert-progression-${now}`,
+   663→      alert_type: "missing_stage",
+   664→      severity: "info",
+   665→      block_id: 5,
+   666→      title: "Прогрессия не спроектирована",
+   667→      description: "Баланс есть, но прогрессия не построена.",
+   668→      suggestion: "Запустите алгоритм 3.5 — построит tier-модель и кривые.",
+   669→      timestamp: now,
+   670→    });
+   671→  }
+   672→
+   673→  if (snap.hasProgression && !snap.hasEconomy) {
+   674→    alerts.push({
+   675→      id: `alert-economy-${now}`,
+   676→      alert_type: "missing_stage",
+   677→      severity: "info",
+   678→      block_id: 5,
+   679→      title: "Экономика не смоделирована",
+   680→      description: "Прогрессия есть, но экономика не построена.",
+   681→      suggestion: "Запустите алгоритм 3.6 — построит Machinations graph.",
+   682→      timestamp: now,
+   683→    });
+   684→  }
+   685→
+   686→  if (snap.hasEconomy && !snap.hasGdd) {
+   687→    alerts.push({
+   688→      id: `alert-gdd-${now}`,
+   689→      alert_type: "missing_stage",
+   690→      severity: "warning",
+   691→      block_id: 6,
+   692→      title: "GDD не сгенерирован",
+   693→      description: "Все предыдущие блоки готовы — пора собрать GDD.",
+   694→      suggestion: "Запустите алгоритм 3.7 в Блоке 6.",
+   695→      timestamp: now,
+   696→    });
+   697→  }
+   698→
+   699→  if (snap.hasGdd && !snap.hasChecklist) {
+   700→    alerts.push({
+   701→      id: `alert-checklist-${now}`,
+   702→      alert_type: "missing_stage",
+   703→      severity: "warning",
+   704→      block_id: 6,
+   705→      title: "Финальная валидация не выполнена",
+   706→      description: "GDD есть, но checklist не запущен.",
+   707→      suggestion: "Запустите алгоритм 3.8 — проверит MDA, balance, narrative, economy, lens.",
+   708→      timestamp: now,
+   709→    });
+   710→  }
+   711→
+   712→  // Completion milestone
+   713→  if ((snap.completionPercent ?? 0) >= 100) {
+   714→    alerts.push({
+   715→      id: `alert-complete-${now}`,
+   716→      alert_type: "milestone",
+   717→      severity: "info",
+   718→      block_id: 8,
+   719→      title: "Проект готов к экспорту",
+   720→      description: "Все 8 блоков пайплайна завершены.",
+   721→      suggestion: "Экспортируйте GDD и синхронизируйте с GBE (Блок 8).",
+   722→      timestamp: now,
+   723→    });
+   724→  }
+   725→
+   726→  return alerts;
+   727→}
+   728→

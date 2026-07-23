@@ -745,6 +745,8 @@ function buildRecommendations(
   return recommendations;
 }
 
+import { enrichCoreLoop } from "@/lib/ai-service";
+
 // ============================================================
 // Route handler
 // ============================================================
@@ -757,6 +759,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const projectId = body?.project_id?.toString().trim() || undefined;
+    const useAi = body?.use_ai === true || body?.use_ai === "true";
     const conceptId = body?.concept_id?.toString().trim() || "standalone";
     const genre = body?.genre?.toString().trim() || "action";
     const desiredLoopType = body?.desired_loop_type?.toString().trim() || undefined;
@@ -847,7 +850,7 @@ export async function POST(request: NextRequest) {
     const latencyMs = Date.now() - startedAt;
     const stagesCompleted = [1, 2, 3, 4, 5];
 
-    const result = {
+    let result: Record<string, unknown> = {
       id: proj.id,
       structural_type: structuralType,
       steps,
@@ -862,6 +865,21 @@ export async function POST(request: NextRequest) {
       latency_ms: latencyMs,
       models_used: ["deterministic-coreloop-v1", "sellers-typology", "pathology-detector-v1"],
     };
+
+    // --- Optional AI enrichment ---
+    let aiInsights: string | null = null;
+    if (useAi) {
+      aiInsights = await enrichCoreLoop({
+        projectName: proj.name || "Untitled",
+        genre,
+        coreLoopType: structuralType.type,
+        steps: steps.map((s) => s.action),
+      });
+      if (aiInsights) {
+        result.ai_insights = aiInsights;
+        result.models_used.push("glm-4.6 (ai-enrichment)");
+      }
+    }
 
     // --- Persist ---
     const inputData = JSON.stringify({

@@ -33,6 +33,7 @@ import {
   SERVER_ERROR,
   VALIDATION_ERROR,
 } from "@/lib/api-helpers";
+import { enrichMda } from "@/lib/ai-service";
 
 // ============================================================
 // Constants
@@ -670,6 +671,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const projectId = body?.project_id?.toString().trim() || undefined;
+    const useAi = body?.use_ai === true || body?.use_ai === "true";
     const conceptId = body?.concept_id?.toString().trim() || "standalone";
     const genre = body?.genre?.toString().trim() || "rpg";
     const idea = (body?.idea as string | undefined)?.trim() || "";
@@ -851,6 +853,19 @@ export async function POST(request: NextRequest) {
 
     // safeJsonParse is imported but unused here — kept for future use / linter
     void safeJsonParse;
+
+    // --- Optional AI enrichment ---
+    if (useAi) {
+      const aiInsights = await enrichMda({
+        projectName: proj.name || "Untitled",
+        genre,
+        aesthetics: [primaryAesthetic, secondaryAesthetic, tertiaryAesthetic],
+      });
+      if (aiInsights) {
+        result.ai_insights = aiInsights;
+        result.models_used.push("glm-4.6 (ai-enrichment)");
+      }
+    }
 
     return NextResponse.json(result);
   } catch (error) {

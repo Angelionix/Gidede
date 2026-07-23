@@ -495,3 +495,221 @@ export async function generateCustomMechanic(
     return null;
   }
 }
+
+// ============================================================
+// AI enrichment for Block 2 (Core Loop)
+// ============================================================
+
+export interface CoreLoopAiInput {
+  projectName: string;
+  genre: string;
+  coreLoopType: string;
+  steps: string[];
+}
+
+export async function enrichCoreLoop(ctx: CoreLoopAiInput): Promise<string | null> {
+  const zai = await getZai();
+  if (!zai) return null;
+  try {
+    const prompt = `Ты — экспертный геймдизайнер. Дай инсайты по кор-лупу для теста «30 секунд веселья».
+
+Проект: ${ctx.projectName}
+Жанр: ${ctx.genre}
+Тип кор-лупа: ${ctx.coreLoopType}
+Шаги: ${ctx.steps.join(" → ")}
+
+Дай 3 конкретных совета (на русском, каждый 1-2 предложения):
+1. Что делает этот кор-луп увлекательным
+2. Какие wow-моменты добавить
+3. Какие риски fun factor могут возникнуть
+
+Ответ — обычный текст с нумерованными пунктами.`;
+    const response = await zai.chat.completions.create({
+      messages: [
+        { role: "system", content: "Ты — AI-ассистент по геймдизайну, специализирующийся на core loop проектировании." },
+        { role: "user", content: prompt },
+      ],
+      stream: false,
+      thinking: { type: "disabled" },
+    });
+    const text = response.choices?.[0]?.message?.content?.trim();
+    return text && text.length > 30 ? text : null;
+  } catch (e) {
+    console.error("[ai-service] enrichCoreLoop failed:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+// ============================================================
+// AI enrichment for Block 3 (MDA)
+// ============================================================
+
+export interface MdaAiInput {
+  projectName: string;
+  genre: string;
+  aesthetics: string[];
+}
+
+export async function enrichMda(ctx: MdaAiInput): Promise<string | null> {
+  const zai = await getZai();
+  if (!zai) return null;
+  try {
+    const prompt = `Ты — экспертный геймдизайнер. Проанализируй MDA-профиль игры.
+
+Проект: ${ctx.projectName}
+Жанр: ${ctx.genre}
+Целевые эстетики (LeBlanc): ${ctx.aesthetics.join(", ")}
+
+Дай 3 рекомендации (на русском):
+1. Какие механики лучше всего вызовут эти эстетики
+2. Какие динамики могут возникнуть и как их направить
+3. Какие линзы Шелла приоритетны для этого набора эстетик
+
+Ответ — обычный текст с нумерованными пунктами.`;
+    const response = await zai.chat.completions.create({
+      messages: [
+        { role: "system", content: "Ты — AI-ассистент по геймдизайну, эксперт по MDA фреймворку." },
+        { role: "user", content: prompt },
+      ],
+      stream: false,
+      thinking: { type: "disabled" },
+    });
+    const text = response.choices?.[0]?.message?.content?.trim();
+    return text && text.length > 30 ? text : null;
+  } catch (e) {
+    console.error("[ai-service] enrichMda failed:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+// ============================================================
+// AI enrichment for Block 4 (Balance)
+// ============================================================
+
+export interface BalanceAiInput {
+  projectName: string;
+  genre: string;
+  balanceType: string;
+  elementCount: number;
+}
+
+export async function enrichBalance(ctx: BalanceAiInput): Promise<string | null> {
+  const zai = await getZai();
+  if (!zai) return null;
+  try {
+    const prompt = `Ты — эксперт по балансу игр. Дай рекомендации.
+
+Проект: ${ctx.projectName}
+Жанр: ${ctx.genre}
+Тип баланса: ${ctx.balanceType}
+Количество элементов: ${ctx.elementCount}
+
+Дай 3 совета (на русском):
+1. Какие метрики баланса наиболее важны для этого типа
+2. Какие дисбалансы вероятны и как их предотвратить
+3. Какие Monte-Carlo параметры рекомендуются (итерации, критерии победы)
+
+Ответ — обычный текст с нумерованными пунктами.`;
+    const response = await zai.chat.completions.create({
+      messages: [
+        { role: "system", content: "Ты — AI-ассистент по геймдизайну, эксперт по балансу." },
+        { role: "user", content: prompt },
+      ],
+      stream: false,
+      thinking: { type: "disabled" },
+    });
+    const text = response.choices?.[0]?.message?.content?.trim();
+    return text && text.length > 30 ? text : null;
+  } catch (e) {
+    console.error("[ai-service] enrichBalance failed:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+// ============================================================
+// AI enrichment for Block 5 (Progression + Economy)
+// ============================================================
+
+export interface ProgressionAiInput {
+  projectName: string;
+  genre: string;
+  totalLevels: number;
+  targetDurationHours?: number;
+}
+
+export async function enrichProgression(ctx: ProgressionAiInput): Promise<string | null> {
+  const zai = await getZai();
+  if (!zai) return null;
+  try {
+    const prompt = `Ты — эксперт по прогрессии в играх. Дай рекомендации.
+
+Проект: ${ctx.projectName}
+Жанр: ${ctx.genre}
+Уровней: ${ctx.totalLevels}
+Целевая длительность: ${ctx.targetDurationHours || "—"} часов
+
+Дай 3 совета (на русском):
+1. Какая кривая прогрессии оптимальна (exp, polynomial, logarithmic)
+2. Сколько тиров и как их распределить
+3. Какие content gates рекомендуются
+
+Ответ — обычный текст с нумерованными пунктами.`;
+    const response = await zai.chat.completions.create({
+      messages: [
+        { role: "system", content: "Ты — AI-ассистент по геймдизайну, эксперт по прогрессии." },
+        { role: "user", content: prompt },
+      ],
+      stream: false,
+      thinking: { type: "disabled" },
+    });
+    const text = response.choices?.[0]?.message?.content?.trim();
+    return text && text.length > 30 ? text : null;
+  } catch (e) {
+    console.error("[ai-service] enrichProgression failed:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+// ============================================================
+// AI enrichment for Block 6 (GDD)
+// ============================================================
+
+export interface GddAiInput {
+  projectName: string;
+  genre: string;
+  format: string;
+  sectionCount: number;
+}
+
+export async function enrichGdd(ctx: GddAiInput): Promise<string | null> {
+  const zai = await getZai();
+  if (!zai) return null;
+  try {
+    const prompt = `Ты — технический писатель GDD. Дай рекомендации по структуре дизайн-документа.
+
+Проект: ${ctx.projectName}
+Жанр: ${ctx.genre}
+Формат: ${ctx.format}
+Секций: ${ctx.sectionCount}
+
+Дай 3 совета (на русском):
+1. Какие секции наиболее критичны для этого жанра
+2. Как структурировать narrative и gameplay секции
+3. Какие чек-листы валидации приоритетны
+
+Ответ — обычный текст с нумерованными пунктами.`;
+    const response = await zai.chat.completions.create({
+      messages: [
+        { role: "system", content: "Ты — AI-ассистент по геймдизайну, эксперт по написанию GDD." },
+        { role: "user", content: prompt },
+      ],
+      stream: false,
+      thinking: { type: "disabled" },
+    });
+    const text = response.choices?.[0]?.message?.content?.trim();
+    return text && text.length > 30 ? text : null;
+  } catch (e) {
+    console.error("[ai-service] enrichGdd failed:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}

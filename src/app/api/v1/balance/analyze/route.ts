@@ -34,6 +34,7 @@ import {
   SERVER_ERROR,
   VALIDATION_ERROR,
 } from "@/lib/api-helpers";
+import { enrichBalance } from "@/lib/ai-service";
 
 // ============================================================
 // Types
@@ -813,6 +814,7 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const projectId = body?.project_id?.toString().trim() || undefined;
+    const useAi = body?.use_ai === true || body?.use_ai === "true";
     const objectsRaw: unknown = body?.objects;
     const gameMode =
       (body?.game_mode as string | undefined)?.trim() || "PvP";
@@ -1034,6 +1036,20 @@ export async function POST(request: NextRequest) {
 
     // safeJsonParse is imported but unused — satisfy linter
     void safeJsonParse;
+
+    // --- Optional AI enrichment ---
+    if (useAi) {
+      const aiInsights = await enrichBalance({
+        projectName: proj.name || "Untitled",
+        genre,
+        balanceType,
+        elementCount: objects.length,
+      });
+      if (aiInsights) {
+        result.ai_insights = aiInsights;
+        result.models_used.push("glm-4.6 (ai-enrichment)");
+      }
+    }
 
     return NextResponse.json(result);
   } catch (error) {

@@ -32,6 +32,7 @@ import {
   FlaskConical,
   BookOpen,
   Rocket,
+  Workflow,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ProgressSidebar } from "@/components/gidede/progress-sidebar";
@@ -188,6 +189,17 @@ export function GidedeSidebar() {
                   <Link href="/pipeline">
                     <Rocket className="h-4 w-4" />
                     <span>Пайплайн</span>
+                    <Badge variant="outline" className="text-[10px] ml-auto px-1.5 py-0 bg-primary/10 text-primary border-primary/20">
+                      NEW
+                    </Badge>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/prototype-editor"}>
+                  <Link href="/prototype-editor">
+                    <Workflow className="h-4 w-4" />
+                    <span>Node-редактор</span>
                     <Badge variant="outline" className="text-[10px] ml-auto px-1.5 py-0 bg-primary/10 text-primary border-primary/20">
                       NEW
                     </Badge>

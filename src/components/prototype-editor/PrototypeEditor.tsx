@@ -8,7 +8,7 @@ import { NodePalette } from "./NodePalette";
 import { GraphCanvas } from "./GraphCanvas";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Save, Play, Upload, Download, Loader2, AlertCircle } from "lucide-react";
+import { Save, Play, Upload, Download, Loader2, AlertCircle, Sparkles, Lightbulb } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { GRAPH_TEMPLATES } from "@/lib/graph/templates";
@@ -126,6 +126,56 @@ function PrototypeEditorInner() {
     toast({ title: `Шаблон: ${tpl.name}`, description: tpl.description });
   };
 
+  // AI Generate from text
+  const [aiText, setAiText] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiSuggestions, setAiSuggestions] = useState<Array<{ type: string; message: string; suggestedNode?: string }>>([]);
+  const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
+
+  const handleAiGenerate = async () => {
+    if (!aiText.trim()) return;
+    setAiLoading(true);
+    try {
+      const result = await apiFetch<{ nodes: Array<{ id: string; type: string; label: string; position: { x: number; y: number }; properties: Record<string, unknown> }>; edges: Array<{ source: string; sourceHandle: string; target: string; targetHandle: string }> }>("/prototype-graph/ai-generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ description: aiText, mode }),
+      });
+      const loadedNodes: Node[] = (result.nodes || []).map((n) => ({
+        id: n.id, type: "gameNode", position: n.position,
+        data: { label: NODE_DEFINITIONS[n.type as NodeType]?.label || n.label || n.type, nodeType: n.type, properties: n.properties || {} },
+      }));
+      const loadedEdges: Edge[] = (result.edges || []).map((e, i) => ({ id: `e${i}-${Date.now()}`, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle, animated: true }));
+      setNodes(loadedNodes);
+      setEdges(loadedEdges);
+      setShowPreview(false);
+      setCompiledHtml(null);
+      toast({ title: "✅ AI граф создан", description: `${loadedNodes.length} нод, ${loadedEdges.length} связей` });
+    } catch (err) {
+      toast({ title: "AI недоступен", description: "Попробуйте позже или используйте шаблон", variant: "destructive" });
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const handleAiSuggest = async () => {
+    if (nodes.length === 0) return;
+    setAiSuggestLoading(true);
+    try {
+      const nodeTypes = nodes.map((n) => (n.data as Record<string, unknown>)?.nodeType as string);
+      const result = await apiFetch<{ suggestions: Array<{ type: string; message: string; suggestedNode?: string }> }>("/prototype-graph/ai-suggest", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ nodeTypes, edgeCount: edges.length, description: aiText }),
+      });
+      setAiSuggestions(result.suggestions || []);
+    } catch {
+      toast({ title: "AI недоступен", variant: "destructive" });
+    } finally {
+      setAiSuggestLoading(false);
+    }
+  };
+
   return (
     <div className="flex h-[calc(100vh-3.5rem)] overflow-hidden">
       {/* Left: Palette */}
@@ -198,6 +248,37 @@ function PrototypeEditorInner() {
               </div>
             ))}
           </div>
+        </div>
+        {/* AI Generate */}
+        <div className="p-3 border-t border-border">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2 flex items-center gap-1">
+            <Sparkles className="h-3 w-3 text-primary" /> AI генерация
+          </h3>
+          <textarea
+            placeholder="Опиши игру: собери 5 кристаллов, уклоняйся от врагов..."
+            value={aiText}
+            onChange={(e) => setAiText(e.target.value)}
+            className="w-full h-16 rounded-md border border-input bg-background px-2 py-1 text-xs resize-none focus:outline-none focus:ring-2 focus:ring-ring"
+          />
+          <Button size="sm" className="w-full mt-1.5" onClick={handleAiGenerate} disabled={aiLoading || !aiText.trim()}>
+            {aiLoading ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Генерация...</> : <><Sparkles className="h-3 w-3 mr-1" /> AI: граф из текста</>}
+          </Button>
+          <Button size="sm" variant="outline" className="w-full mt-1" onClick={handleAiSuggest} disabled={aiSuggestLoading || nodes.length === 0}>
+            {aiSuggestLoading ? <><Loader2 className="h-3 w-3 mr-1 animate-spin" /> Анализ...</> : <><Lightbulb className="h-3 w-3 mr-1" /> AI: проверить граф</>}
+          </Button>
+          {aiSuggestions.length > 0 && (
+            <div className="mt-2 space-y-1">
+              {aiSuggestions.map((s, i) => (
+                <div key={i} className={`rounded-md border px-2 py-1 text-[10px] ${
+                  s.type === "error" ? "border-red-300 bg-red-50 dark:bg-red-950/30 dark:border-red-900 text-red-700 dark:text-red-300" :
+                  s.type === "warning" ? "border-amber-300 bg-amber-50 dark:bg-amber-950/30 dark:border-amber-900 text-amber-700 dark:text-amber-300" :
+                  "border-primary/20 bg-primary/5 text-primary"
+                }`}>
+                  {s.message}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

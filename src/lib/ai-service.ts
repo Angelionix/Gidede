@@ -713,3 +713,260 @@ export async function enrichGdd(ctx: GddAiInput): Promise<string | null> {
     return null;
   }
 }
+
+// ============================================================
+// AI Graph Generation (Phase 3.1)
+// ============================================================
+
+export interface AiGraphInput {
+  description: string;
+  mode?: "2d" | "3d";
+}
+
+export interface AiGraphResult {
+  nodes: Array<{
+    id: string;
+    type: string;
+    label: string;
+    position: { x: number; y: number };
+    properties: Record<string, unknown>;
+  }>;
+  edges: Array<{
+    source: string;
+    sourceHandle: string;
+    target: string;
+    targetHandle: string;
+  }>;
+}
+
+/**
+ * AI генерирует граф прототипа из текстового описания игры.
+ * LLM возвращает JSON с nodes и edges, используя 20 типов нод.
+ */
+export async function generateGraphFromText(
+  ctx: AiGraphInput
+): Promise<AiGraphResult | null> {
+  const zai = await getZai();
+  if (!zai) return null;
+
+  try {
+    const prompt = `Ты — экспертный геймдизайнер и визуальный программист. Создай граф игрового прототипа из описания.
+
+Описание: "${ctx.description}"
+Режим: ${ctx.mode || "2d"}
+
+Доступные типы нод (20):
+Events: onGameStart, onTick, onCollision, onKey, onTimerEnd
+Entities: player, enemy, collectible, base, spawner
+Flow: branch, forEach, delay, sequence
+Data: counter, random, math, array
+Output: win, lose
+
+Каждая нода имеет inputs и outputs (pins). Связи идут от output pin к input pin.
+
+Сгенерируй JSON:
+{
+  "nodes": [
+    { "id": "n1", "type": "onGameStart", "label": "Start", "position": {"x":50,"y":50}, "properties": {} },
+    { "id": "n2", "type": "player", "label": "Player", "position": {"x":50,"y":150}, "properties": {"speed":150} },
+    ... (5-10 нод)
+  ],
+  "edges": [
+    { "source": "n3", "sourceHandle": "onCollect", "target": "n4", "targetHandle": "increment" },
+    ...
+  ]
+}
+
+Правила:
+- Должен быть хотя бы 1 event (onGameStart) + win или lose
+- Позиции: x от 50 до 500, y от 50 до 300
+- Properties из defaultProperties соответствующего типа ноды
+- Связи: sourceHandle и targetHandle должны существовать у нод
+
+Ответ — только валидный JSON, без markdown.`;
+
+    const response = await zai.chat.completions.create({
+      messages: [
+        { role: "system", content: "Ты — AI-ассистент по геймдизайну. Отвечай только валидным JSON." },
+        { role: "user", content: prompt },
+      ],
+      stream: false,
+      thinking: { type: "disabled" },
+    });
+
+    const raw = response.choices?.[0]?.message?.content?.trim() || "";
+    let cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+    const jsonStart = cleaned.indexOf("{");
+    const jsonEnd = cleaned.lastIndexOf("}");
+    if (jsonStart >= 0 && jsonEnd > jsonStart) {
+      cleaned = cleaned.slice(jsonStart, jsonEnd + 1);
+    }
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      const fixed = cleaned.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]").replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'");
+      parsed = JSON.parse(fixed);
+    }
+
+    if (!Array.isArray(parsed.nodes) || parsed.nodes.length === 0) return null;
+
+    return {
+      nodes: parsed.nodes as AiGraphResult["nodes"],
+      edges: Array.isArray(parsed.edges) ? (parsed.edges as AiGraphResult["edges"]) : [],
+    };
+  } catch (e) {
+    console.error("[ai-service] generateGraphFromText failed:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+// ============================================================
+// AI Graph Validation & Suggestions (Phase 3.2)
+// ============================================================
+
+export interface AiGraphSuggestion {
+  type: "error" | "warning" | "suggestion";
+  message: string;
+  suggestedNode?: string;
+  fixAction?: string;
+}
+
+/**
+ * AI анализирует граф и предлагает улучшения.
+ */
+export async function validateGraphWithAI(
+  nodeTypes: string[],
+  edgeCount: number,
+  description?: string
+): Promise<AiGraphSuggestion[] | null> {
+  const zai = await getZai();
+  if (!zai) return null;
+
+  try {
+    const prompt = `Проанализируй граф прототипа и дай рекомендации.
+
+Ноды (${nodeTypes.length}): ${nodeTypes.join(", ")}
+Связей: ${edgeCount}
+${description ? `Описание игры: ${description}` : ""}
+
+Доступные типы нод: onGameStart, onTick, onCollision, onKey, onTimerEnd, player, enemy, collectible, base, spawner, branch, forEach, delay, sequence, counter, random, math, array, win, lose
+
+Проверь:
+1. Есть ли Event нода?
+2. Есть ли Win/Lose?
+3. Есть ли Player?
+4. Достаточно ли связей?
+5. Что можно улучшить?
+
+Ответ — JSON массив: [{"type":"error|warning|suggestion","message":"...","suggestedNode":"тип ноды (опционально)","fixAction":"описание (опционально)"}]`;
+
+    const response = await zai.chat.completions.create({
+      messages: [
+        { role: "system", content: "Ты — AI-ассистент по геймдизайну. Отвечай только валидным JSON массивом." },
+        { role: "user", content: prompt },
+      ],
+      stream: false,
+      thinking: { type: "disabled" },
+    });
+
+    const raw = response.choices?.[0]?.message?.content?.trim() || "";
+    let cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+    const arrStart = cleaned.indexOf("[");
+    const arrEnd = cleaned.lastIndexOf("]");
+    if (arrStart >= 0 && arrEnd > arrStart) {
+      cleaned = cleaned.slice(arrStart, arrEnd + 1);
+    }
+
+    const parsed = JSON.parse(cleaned);
+    if (!Array.isArray(parsed)) return null;
+
+    return parsed as AiGraphSuggestion[];
+  } catch (e) {
+    console.error("[ai-service] validateGraphWithAI failed:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+// ============================================================
+// AI Graph from GDD (Phase 3.3)
+// ============================================================
+
+export interface GddToGraphInput {
+  projectName: string;
+  genre: string;
+  coreLoopType: string;
+  steps: string[];
+  mechanicsDb?: string[];
+}
+
+/**
+ * Генерирует граф прототипа из данных проекта (GDD + core loop).
+ */
+export async function generateGraphFromGdd(
+  ctx: GddToGraphInput
+): Promise<AiGraphResult | null> {
+  const zai = await getZai();
+  if (!zai) return null;
+
+  try {
+    const prompt = `Создай граф прототипа на основе данных проекта.
+
+Проект: ${ctx.projectName}
+Жанр: ${ctx.genre}
+Тип кор-лупа: ${ctx.coreLoopType}
+Шаги кор-лупа: ${ctx.steps.join(" → ")}
+${ctx.mechanicsDb ? `Механики из MechanicsDB: ${ctx.mechanicsDb.join(", ")}` : ""}
+
+Маппинг шагов → ноды:
+- "explore"/"study" → player + collectible
+- "combat"/"fight" → enemy + base
+- "build"/"place" → spawner + base
+- "upgrade"/"progress" → counter
+- "reward"/"score" → win
+
+Доступные типы: onGameStart, onTick, onCollision, onKey, onTimerEnd, player, enemy, collectible, base, spawner, branch, forEach, delay, sequence, counter, random, math, array, win, lose
+
+Сгенерируй JSON: {"nodes":[...], "edges":[...]}
+- 5-10 нод, позиции x:50-500, y:50-300
+- Event + Win/Lose обязательны
+
+Ответ — только валидный JSON.`;
+
+    const response = await zai.chat.completions.create({
+      messages: [
+        { role: "system", content: "Ты — AI-ассистент по геймдизайну. Отвечай только валидным JSON." },
+        { role: "user", content: prompt },
+      ],
+      stream: false,
+      thinking: { type: "disabled" },
+    });
+
+    const raw = response.choices?.[0]?.message?.content?.trim() || "";
+    let cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+    const jsonStart = cleaned.indexOf("{");
+    const jsonEnd = cleaned.lastIndexOf("}");
+    if (jsonStart >= 0 && jsonEnd > jsonStart) {
+      cleaned = cleaned.slice(jsonStart, jsonEnd + 1);
+    }
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      const fixed = cleaned.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]").replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'");
+      parsed = JSON.parse(fixed);
+    }
+
+    if (!Array.isArray(parsed.nodes)) return null;
+
+    return {
+      nodes: parsed.nodes as AiGraphResult["nodes"],
+      edges: Array.isArray(parsed.edges) ? (parsed.edges as AiGraphResult["edges"]) : [],
+    };
+  } catch (e) {
+    console.error("[ai-service] generateGraphFromGdd failed:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}

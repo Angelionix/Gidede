@@ -50,7 +50,10 @@ export async function POST(request: NextRequest) {
       description: string | null;
       coreLoop?: {
         structuralType: string | null;
-        steps: string | null;
+        // NOTE: в Prisma-модели ProjectCoreLoop нет колонки `steps` —
+        // только `stepsData` (JSON-строка с массивом CoreStep[]). Раньше тут
+        // был отдельный dead-code branch под cl?.steps, который никогда не
+        // срабатывал; убран за ненадобностью.
         stepsData: string | null;
         inputData: string | null;
       } | null;
@@ -60,11 +63,10 @@ export async function POST(request: NextRequest) {
     const config = buildPrototypeConfig(
       {
         structuralType: typeOverride || cl?.structuralType || "engine",
-        steps: cl?.steps
-          ? (JSON.parse(cl.steps) as string[] | { name?: string; description?: string; action?: string }[])
-          : cl?.stepsData
-            ? (JSON.parse(cl.stepsData) as string[] | { name?: string; description?: string; action?: string }[])
-            : undefined,
+        // stepsData — единственная каноничная JSON-колонка с массивом шагов.
+        steps: cl?.stepsData
+          ? (JSON.parse(cl.stepsData) as string[] | { name?: string; description?: string; action?: string }[])
+          : undefined,
         inputData: cl?.inputData || undefined,
       },
       mode

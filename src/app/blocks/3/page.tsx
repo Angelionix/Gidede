@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -81,23 +81,79 @@ export default function Block3Page() {
     setIsLoadingPipeline(true);
     setPipelineWarning(null);
     try {
-      const data = await pipeline.prepareInput(3) as Record<string, unknown> | null;
+      const data = (await pipeline.prepareInput(3)) as Record<string, unknown> | null;
       if (!data) {
         toast({ title: "Нет данных", description: "Не удалось загрузить данные из пайплайна. Убедитесь, что предыдущие блоки заполнены.", variant: "destructive" });
         return;
       }
+
+      // Реальная форма ответа /pipeline/prepare-input:
+      //   { project_id, block_id, block_name, prepared_input: {
+      //       upstream: { concept: {...}, core_loop: {...}, mda: {...} },
+      //       suggested: { genre, ... } }, context, ready }
+      const prepared = (data.prepared_input as Record<string, unknown> | undefined) || data;
+      const upstream = (prepared.upstream as Record<string, unknown> | undefined) || {};
+      const concept = (upstream.concept as Record<string, unknown> | undefined) || {};
+      const coreLoop = (upstream.core_loop as Record<string, unknown> | undefined) || {};
+      const suggested = (prepared.suggested as Record<string, unknown> | undefined) || {};
+
       const updates: Partial<MDAFormState> = {};
-      if (data.concept_id) updates.conceptId = data.concept_id as string;
-      if (data.genre) updates.genre = data.genre as string;
-      if (data.primary_aesthetic) updates.primaryAesthetic = data.primary_aesthetic as string;
-      if (data.secondary_aesthetic) updates.secondaryAesthetic = data.secondary_aesthetic as string;
-      if (data.tertiary_aesthetic) updates.tertiaryAesthetic = data.tertiary_aesthetic as string;
-      if (data.idea) updates.idea = data.idea as string;
-      if (Array.isArray(data.existing_mechanics) && data.existing_mechanics.length > 0) {
-        updates.existingMechanics = (data.existing_mechanics as string[]).join(", ");
+      if (typeof data.project_id === "string") updates.conceptId = data.project_id;
+      const genre = (concept.genre as string | undefined) || (suggested.genre as string | undefined);
+      if (genre) updates.genre = genre;
+
+      // primary_aesthetic — из concept.aesthetic_profile (вложенный объект),
+      // либо из top-level concept.primary_aesthetic.
+      const aestheticProfile = concept.aesthetic_profile as Record<string, unknown> | undefined;
+      const primaryAesthetic =
+        (aestheticProfile?.primary_aesthetic as string | undefined) ||
+        (concept.primary_aesthetic as string | undefined);
+      if (primaryAesthetic) updates.primaryAesthetic = primaryAesthetic;
+      const secondaryAesthetic = aestheticProfile?.secondary_aesthetic as string | undefined;
+      if (secondaryAesthetic) updates.secondaryAesthetic = secondaryAesthetic;
+      const tertiaryAesthetic = aestheticProfile?.tertiary_aesthetic as string | undefined;
+      if (tertiaryAesthetic) updates.tertiaryAesthetic = tertiaryAesthetic;
+
+      const idea = (concept.one_pager as string | undefined) ||
+        (data.project_description as string | undefined);
+      if (idea) updates.idea = idea;
+
+      // Существующие механики — из core_loop.steps (массив CoreStep с mechanics[]) или concept.mechanic_set
+      const existingMechanics = new Set<string>();
+      const coreSteps = coreLoop.steps;
+      if (Array.isArray(coreSteps)) {
+        for (const step of coreSteps) {
+          if (step && typeof step === "object") {
+            const mechs = (step as Record<string, unknown>).mechanics;
+            if (Array.isArray(mechs)) {
+              for (const m of mechs) {
+                if (typeof m === "string") existingMechanics.add(m);
+              }
+            }
+          }
+        }
       }
+      const conceptMechanicSet = concept.mechanic_set;
+      if (Array.isArray(conceptMechanicSet)) {
+        for (const m of conceptMechanicSet) {
+          if (typeof m === "string") existingMechanics.add(m);
+          else if (m && typeof m === "object") {
+            const obj = m as Record<string, unknown>;
+            const name = (obj.name as string | undefined) || (obj.id as string | undefined);
+            if (name) existingMechanics.add(name);
+          }
+        }
+      }
+      if (existingMechanics.size > 0) {
+        updates.existingMechanics = Array.from(existingMechanics).join(", ");
+      }
+
       if (data.warning) setPipelineWarning(data.warning as string);
-      if (data.has_core_loop === false) setPipelineWarning("Блок 2 (Core Loop) ещё не заполнен. Результаты могут быть неполными.");
+      // core_loop отсутствует — предупреждаем (но не блокируем).
+      if (!coreLoop || Object.keys(coreLoop).length === 0) {
+        setPipelineWarning("Блок 2 (Core Loop) ещё не заполнен. Результаты MDA могут быть неполными.");
+      }
+
       if (Object.keys(updates).length > 0) {
         setForm((prev) => ({ ...prev, ...updates }));
         setPipelineLoaded(true);
@@ -117,6 +173,13 @@ export default function Block3Page() {
       setIsLoadingPipeline(false);
     }
   }, [projectId, pipeline, toast]);
+
+  // Авто-загрузка данных из пайплайна при первом монтировании.
+  useEffect(() => {
+    if (projectId && !pipelineLoaded && !isLoadingPipeline) {
+      handleLoadFromPipeline();
+    }
+  }, [projectId, pipelineLoaded, isLoadingPipeline, handleLoadFromPipeline]);
 
   // --- Validation & Handlers ---
   const isFormValid = form.primaryAesthetic !== "" && form.genre !== "";
@@ -150,6 +213,11 @@ export default function Block3Page() {
         convergence_threshold: form.convergenceThreshold,
         full_analysis: form.fullAnalysis,
       };
+      // Отправляем project_id, чтобы сервер записал результат в правильный проект,
+      // а не в auto-selected "most-recent".
+      if (projectId) {
+        body.project_id = projectId;
+      }
       if (mechanicsList.length > 0) body.existing_mechanics = mechanicsList;
       if (requiredList.length > 0) body.required_mechanics = requiredList;
       if (forbiddenList.length > 0) body.forbidden_mechanics = forbiddenList;

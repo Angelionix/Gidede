@@ -124,11 +124,23 @@ export default function PrototypesPage() {
     return () => window.removeEventListener("message", handler);
   }, [prototype, apiFetch, toast, autoSaved]);
 
+  // Найти выбранный проект, чтобы проверить наличие Core Loop.
+  const selectedProjectObj = projects.find((p) => p.id === selectedProject) || null;
+  const hasCoreLoop = !!selectedProjectObj?.has_core_loop;
+
   const handleGenerate = async () => {
     if (!selectedProject) {
       toast({
         title: "Выберите проект",
         description: "Укажите проект для генерации прототипа",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!hasCoreLoop) {
+      toast({
+        title: "Нет Core Loop",
+        description: "Сначала создайте Core Loop в Блоке 2 — без него прототип будет содержать только дефолтные шаги.",
         variant: "destructive",
       });
       return;
@@ -270,7 +282,12 @@ export default function PrototypesPage() {
                 </option>
               ))}
             </select>
-            <Button onClick={handleGenerate} disabled={loading || !selectedProject} className="sm:w-auto">
+            <Button
+              onClick={handleGenerate}
+              disabled={loading || !selectedProject || !hasCoreLoop}
+              className="sm:w-auto"
+              title={!hasCoreLoop && selectedProject ? "Сначала создайте Core Loop в Блоке 2" : undefined}
+            >
               {loading ? (
                 <>
                   <Loader2 className="h-4 w-4 animate-spin mr-1" /> Генерация...
@@ -282,6 +299,29 @@ export default function PrototypesPage() {
               )}
             </Button>
           </div>
+
+          {/* Guard: warn the user if the project has no Core Loop */}
+          {selectedProjectObj && !hasCoreLoop && (
+            <div className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 dark:border-amber-800 dark:bg-amber-950/40 p-3 mb-3">
+              <AlertCircle className="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+              <div className="text-sm">
+                <p className="font-medium text-amber-700 dark:text-amber-300">
+                  У этого проекта нет Core Loop
+                </p>
+                <p className="text-xs text-amber-700/80 dark:text-amber-300/80 mt-0.5">
+                  Сначала создайте Core Loop в Блоке 2 — иначе прототип будет
+                  содержать только дефолтные шаги «Собрать / Преобразовать / Использовать»
+                  и не отражать вашу игру.
+                </p>
+                <a
+                  href="/blocks/2"
+                  className="inline-flex items-center gap-1 mt-1.5 text-xs font-medium text-amber-700 dark:text-amber-300 underline-offset-2 hover:underline"
+                >
+                  Перейти в Блок 2 →
+                </a>
+              </div>
+            </div>
+          )}
 
           {/* Mode toggle 2D / 3D */}
           <div className="flex items-center gap-2 flex-wrap">

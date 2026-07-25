@@ -34,7 +34,7 @@ import {
   VALIDATION_ERROR,
 } from "@/lib/api-helpers";
 import { enrichConcept } from "@/lib/ai-service";
-import { buildMechanicSetForGenre, type Mechanic } from "@/lib/mechanics-db";
+import { buildMechanicSetForGenre, MECHANICS_DB, type Mechanic } from "@/lib/mechanics-db";
 
 // ============================================================
 // Constants — valid enum values & static lookup tables
@@ -304,6 +304,81 @@ function buildMechanicSet(
   };
 }
 
+/**
+ * Build a mechanic set from user-selected mechanic names.
+ * Looks up each name in the MechanicsDB to get its group + description,
+ * then categorizes into the 5 concept categories using the same group→category
+ * mapping as buildMechanicSet. Filters out forbidden mechanics.
+ */
+function buildMechanicSetFromSelection(
+  selected: string[],
+  forbiddenMechanics: string[]
+) {
+  const forbidden = new Set(
+    forbiddenMechanics.map((m) => m.toLowerCase())
+  );
+  const selectedLower = new Set(selected.map((m) => m.toLowerCase()));
+
+  // Find each selected mechanic in the DB
+  const found = MECHANICS_DB.filter((m) =>
+    selectedLower.has(m.name.toLowerCase())
+  ).filter((m) => !forbidden.has(m.name.toLowerCase()));
+
+  const groupMap: Record<string, string> = {
+    Базовые: "base",
+    Боевые: "combat",
+    Прогрессия: "progression",
+    Пространство: "spatial",
+    Экономика: "social",
+    Движение: "spatial",
+    Социальные: "social",
+    Выживание: "base",
+    Стелс: "combat",
+    Навыки: "progression",
+    Время: "base",
+    Территория: "spatial",
+    Сюжет: "social",
+    Информация: "base",
+    Мета: "progression",
+  };
+
+  const categories: Record<string, Array<{ name: string; group: string; desc?: string }>> = {
+    base: [],
+    combat: [],
+    progression: [],
+    spatial: [],
+    social: [],
+  };
+
+  for (const m of found) {
+    const category = groupMap[m.group] || "base";
+    categories[category].push({ name: m.name, group: m.group, desc: m.desc });
+  }
+
+  // If a category is empty, leave it empty (user chose not to include any).
+  const total = Object.values(categories).reduce(
+    (sum, arr) => sum + arr.length,
+    0
+  );
+
+  const conflicts = forbiddenMechanics.length > 0
+    ? [`Removed ${forbiddenMechanics.length} forbidden mechanic(s): ${forbiddenMechanics.join(", ")}`]
+    : [];
+
+  return {
+    base: categories.base,
+    combat: categories.combat,
+    progression: categories.progression,
+    spatial: categories.spatial,
+    social: categories.social,
+    total_count: total,
+    conflicts_resolved: conflicts,
+    synergies_detected: [],
+    compatibility_score: 1.0,
+    mechanics_db_source: "user-selection",
+  };
+}
+
 function buildCoreLoopCandidates(genre: string, mechanicSet: {
   base: Array<{ name: string }>;
   combat: Array<{ name: string }>;
@@ -543,6 +618,9 @@ export async function POST(request: NextRequest) {
     const forbiddenMechanics = Array.isArray(body?.forbidden_mechanics)
       ? body.forbidden_mechanics
       : [];
+    const selectedMechanics = Array.isArray(body?.selected_mechanics)
+      ? body.selected_mechanics.filter((m: unknown) => typeof m === "string").map((m: string) => m.trim()).filter(Boolean)
+      : [];
     const useAi = body?.use_ai === true || body?.use_ai === "true";
 
     // --- Stage 1: Genre inference ---
@@ -571,7 +649,12 @@ export async function POST(request: NextRequest) {
     const dynamicsProfile = deriveDynamics(aestheticProfile);
 
     // --- Stage 4: Mechanic set ---
-    const mechanicSet = buildMechanicSet(genre, forbiddenMechanics);
+    // If the user hand-picked mechanics, use those; otherwise auto-select
+    // from the 128-mechanic MechanicsDB based on genre.
+    const mechanicSet =
+      selectedMechanics.length > 0
+        ? buildMechanicSetFromSelection(selectedMechanics, forbiddenMechanics)
+        : buildMechanicSet(genre, forbiddenMechanics);
 
     // --- Stage 5: Core loop + USP candidates ---
     const coreLoopCandidates = buildCoreLoopCandidates(genre, mechanicSet);
@@ -674,6 +757,7 @@ export async function POST(request: NextRequest) {
       constraints,
       reference_games: referenceGames,
       forbidden_mechanics: forbiddenMechanics,
+      selected_mechanics: selectedMechanics,
     });
 
     const onePagerData = JSON.stringify({

@@ -63,6 +63,7 @@ export default function Block1Page() {
     forbiddenMechanics: [],
     forbiddenInput: "",
     useAi: false,
+    selectedMechanics: [],
   });
 
   // --- Состояние генерации ---
@@ -164,6 +165,7 @@ export default function Block1Page() {
         },
         reference_games: form.referenceGames ? form.referenceGames.split(",").map((g) => g.trim()).filter(Boolean) : null,
         forbidden_mechanics: form.forbiddenMechanics.length > 0 ? form.forbiddenMechanics : null,
+        selected_mechanics: form.selectedMechanics.length > 0 ? form.selectedMechanics : null,
         use_ai: form.useAi,
       };
 

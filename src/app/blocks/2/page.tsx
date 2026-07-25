@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -40,6 +40,8 @@ import type { CoreLoopFormState, CoreLoopDesignResult } from "@/types/coreloop";
 import {
   StructuralTypeCard,
   CoreLoopDiagram,
+  CoreLoopStepEditor,
+  type CoreLoopEditableStep,
   LoopHierarchyTree,
   PathologyPanel,
   ValidationPanel,
@@ -72,6 +74,7 @@ export default function Block2Page() {
   // --- Generation state ---
   const [isDesigning, setIsDesigning] = useState(false);
   const [result, setResult] = useState<CoreLoopDesignResult | null>(null);
+  const [editedSteps, setEditedSteps] = useState<CoreLoopEditableStep[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // --- Pipeline auto-fill handler ---
@@ -82,17 +85,47 @@ export default function Block2Page() {
     }
     setIsLoadingPipeline(true);
     try {
-      const data = await pipeline.prepareInput(2) as Record<string, unknown> | null;
+      const data = (await pipeline.prepareInput(2)) as Record<string, unknown> | null;
       if (!data) {
         toast({ title: "Нет данных", description: "Не удалось загрузить данные из пайплайна. Убедитесь, что Блок 1 заполнен.", variant: "destructive" });
         return;
       }
+
+      // Реальная форма ответа /pipeline/prepare-input:
+      //   { project_id, block_id, block_name, prepared_input: {
+      //       upstream: { concept: { genre, primary_aesthetic, usp, ... },
+      //                    core_loop: { steps, ... } },
+      //       suggested: { genre, ... } }, context, ready }
+      const prepared = (data.prepared_input as Record<string, unknown> | undefined) || data;
+      const upstream = (prepared.upstream as Record<string, unknown> | undefined) || {};
+      const concept = (upstream.concept as Record<string, unknown> | undefined) || {};
+      const suggested = (prepared.suggested as Record<string, unknown> | undefined) || {};
+
       const updates: Partial<CoreLoopFormState> = {};
-      if (data.concept_id) updates.conceptId = data.concept_id as string;
-      if (data.genre) updates.genre = data.genre as string;
-      if (Array.isArray(data.mechanics) && data.mechanics.length > 0) {
-        updates.mechanics = (data.mechanics as string[]).join(", ");
+      // concept_id хранится в project_id (он же concept.projectId), но в
+      // prepared_input его нет — берём из верхнего уровня.
+      if (typeof data.project_id === "string") {
+        updates.conceptId = data.project_id;
       }
+      const genre = (concept.genre as string | undefined) || (suggested.genre as string | undefined);
+      if (genre) updates.genre = genre;
+
+      // Механики — из concept.mechanic_set (массив объектов MechanicsDB)
+      const mechanicSet = concept.mechanic_set;
+      if (Array.isArray(mechanicSet) && mechanicSet.length > 0) {
+        const names = mechanicSet
+          .map((m: unknown) => {
+            if (typeof m === "string") return m;
+            if (m && typeof m === "object") {
+              const obj = m as Record<string, unknown>;
+              return (obj.name as string | undefined) || (obj.id as string | undefined) || "";
+            }
+            return "";
+          })
+          .filter(Boolean);
+        if (names.length > 0) updates.mechanics = names.join(", ");
+      }
+
       if (Object.keys(updates).length > 0) {
         setForm((prev) => ({ ...prev, ...updates }));
         setPipelineLoaded(true);
@@ -112,6 +145,13 @@ export default function Block2Page() {
       setIsLoadingPipeline(false);
     }
   }, [projectId, pipeline, toast]);
+
+  // Авто-загрузка данных из пайплайна при первом монтировании (если проект выбран).
+  useEffect(() => {
+    if (projectId && !pipelineLoaded && !isLoadingPipeline) {
+      handleLoadFromPipeline();
+    }
+  }, [projectId, pipelineLoaded, isLoadingPipeline, handleLoadFromPipeline]);
 
   // --- Validation ---
   const mechanicsLength = form.mechanics.trim().length;
@@ -148,6 +188,11 @@ export default function Block2Page() {
         mechanics: mechanicsList,
         genre: form.genre,
       };
+      // Отправляем project_id, чтобы сервер записал результат в правильный проект,
+      // а не в auto-selected "most-recent".
+      if (projectId) {
+        body.project_id = projectId;
+      }
 
       if (form.desiredLoopType) {
         body.desired_loop_type = form.desiredLoopType;
@@ -426,12 +471,21 @@ export default function Block2Page() {
               </CardHeader>
               <CardContent>
                 <CoreLoopDiagram
-                  steps={result.steps}
+                  steps={(editedSteps || result.steps) as Array<Record<string, unknown>>}
                   structuralType={result.structural_type?.type as string | undefined}
                   pathologies={result.pathologies?.pathologies as Array<{ name: string; type: string; severity: string }> | undefined}
                 />
               </CardContent>
             </Card>
+          )}
+
+          {/* 1.6. Step Editor — позволяет править шаги после генерации */}
+          {result.steps && result.steps.length > 0 && (
+            <CoreLoopStepEditor
+              steps={(editedSteps || result.steps) as CoreLoopEditableStep[]}
+              projectId={projectId}
+              onSaved={(updated) => setEditedSteps(updated)}
+            />
           )}
 
           {/* 3. Loop Hierarchy */}

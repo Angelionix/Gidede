@@ -52,37 +52,75 @@ const RESOURCE_PRESETS: Record<string, { name: string; icon: string }> = {
 
 /**
  * Извлечь человекочитаемые имена шагов из разных форматов данных кор-лупа.
+ *
+ * Источники шагов (в порядке приоритета):
+ *  1. data.steps / data.stepsData — JSON-строка (или массив) с шагами.
+ *     Это каноничная форма, в которой Block 2 persist'ит CoreStep[] в
+ *     колонку ProjectCoreLoop.stepsData.
+ *  2. data.inputData.steps — запасной источник: в inputData Block 2 хранит
+ *     `{ concept_id, mechanics, genre, custom_steps }`. custom_steps — массив
+ *     строк, заданный пользователем перед генерацией.
+ *  3. data.inputData.custom_steps — те же строки по другому ключу.
+ *  4. data.inputData.mechanics — если ничего больше нет, используем механики
+ *     как основу для прототипа (лучше, чем дефолтные «Собрать/Преобразовать»).
  */
 function extractSteps(data: CoreLoopData): string[] {
   const raw = data.steps || data.stepsData;
-  if (!raw) return [];
+  if (raw) {
+    let parsed: unknown = raw;
+    if (typeof raw === "string") {
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        return raw
+          .split("\n")
+          .map((s) => s.trim())
+          .filter((s) => s.length > 0);
+      }
+    }
 
-  let parsed: unknown = raw;
-  if (typeof raw === "string") {
-    try {
-      parsed = JSON.parse(raw);
-    } catch {
-      return raw
-        .split("\n")
-        .map((s) => s.trim())
+    if (Array.isArray(parsed) && parsed.length > 0) {
+      const out = parsed
+        .map((s) =>
+          typeof s === "string"
+            ? s
+            : (s as CoreLoopStep)?.name ||
+              (s as CoreLoopStep)?.action ||
+              (s as CoreLoopStep)?.description ||
+              ""
+        )
         .filter((s) => s.length > 0);
+      if (out.length > 0) return out;
     }
   }
 
-  if (Array.isArray(parsed)) {
-    return parsed.map((s) =>
-      typeof s === "string" ? s : (s as CoreLoopStep)?.name || (s as CoreLoopStep)?.description || "Шаг"
-    );
-  }
-
+  // Fallback: inputData.custom_steps / steps / mechanics.
   if (data.inputData) {
     try {
-      const inp = JSON.parse(data.inputData);
-      if (Array.isArray(inp?.steps)) {
-        return inp.steps.map((s: unknown) =>
-          typeof s === "string" ? s : (s as CoreLoopStep)?.name || "Шаг"
-        );
-      }
+      const inp =
+        typeof data.inputData === "string"
+          ? JSON.parse(data.inputData)
+          : data.inputData;
+      const tryArray = (arr: unknown): string[] | null => {
+        if (!Array.isArray(arr) || arr.length === 0) return null;
+        const mapped = arr
+          .map((s) =>
+            typeof s === "string"
+              ? s
+              : (s as CoreLoopStep)?.name ||
+                (s as CoreLoopStep)?.action ||
+                (s as CoreLoopStep)?.description ||
+                ""
+          )
+          .filter((s) => s.length > 0);
+        return mapped.length > 0 ? mapped : null;
+      };
+      const fromSteps = tryArray(inp?.steps);
+      if (fromSteps) return fromSteps;
+      const fromCustomSteps = tryArray(inp?.custom_steps);
+      if (fromCustomSteps) return fromCustomSteps;
+      const fromMechanics = tryArray(inp?.mechanics);
+      if (fromMechanics) return fromMechanics;
     } catch {
       /* ignore */
     }

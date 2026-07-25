@@ -21,6 +21,7 @@ const PROTECTED_PREFIXES = [
   "/knowledge",
   "/pipeline",
   "/prototype-editor",
+  "/help",
 ];
 
 function isProtectedRoute(pathname: string): boolean {

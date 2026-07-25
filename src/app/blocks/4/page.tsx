@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -33,11 +33,12 @@ import {
   BarChart3,
   GitBranch,
   Wrench,
+  ArrowDownToLine,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { useToast } from "@/hooks/use-toast";
 import { usePipeline } from "@/hooks/use-pipeline";
-import { API_BASE_URL, apiRoutes } from "@/config/api";
+import { apiRoutes } from "@/config/api";
 import { GENRES } from "@/config/genres";
 
 // Types & Constants
@@ -66,6 +67,8 @@ export default function Block4Page() {
       ? localStorage.getItem("gidede_active_project")
       : null;
   const pipeline = usePipeline(projectId);
+  const [pipelineLoaded, setPipelineLoaded] = useState(false);
+  const [isLoadingPipeline, setIsLoadingPipeline] = useState(false);
 
   // --- Form State ---
   const [objects, setObjects] = useState<BalanceObject[]>(DEFAULT_OBJECTS);
@@ -88,6 +91,113 @@ export default function Block4Page() {
 
   // --- Validation ---
   const isValid = objects.every((o) => o.name.trim() !== "") && objects.length >= 2;
+
+  // --- Pipeline auto-load handler ---
+  // Загружает mechanics из concept + core_loop и превращает их в balance objects.
+  const handleLoadFromPipeline = useCallback(async () => {
+    if (!projectId) {
+      toast({
+        title: "Нет активного проекта",
+        description: "Выберите проект для загрузки данных из пайплайна",
+        variant: "destructive",
+      });
+      return;
+    }
+    setIsLoadingPipeline(true);
+    try {
+      const data = (await pipeline.prepareInput(4)) as Record<string, unknown> | null;
+      if (!data) {
+        toast({
+          title: "Нет данных",
+          description: "Не удалось загрузить данные из пайплайна. Убедитесь, что предыдущие блоки заполнены.",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      // Реальная форма ответа /pipeline/prepare-input:
+      //   { project_id, block_id, block_name, prepared_input: {
+      //       upstream: { concept: { genre, mechanic_set, aesthetic_profile, ... },
+      //                    core_loop: { steps: [...], structural_type, ... } },
+      //       suggested: { genre, ... } }, context, ready }
+      const prepared = (data.prepared_input as Record<string, unknown> | undefined) || data;
+      const upstream = (prepared.upstream as Record<string, unknown> | undefined) || {};
+      const concept = (upstream.concept as Record<string, unknown> | undefined) || {};
+      const coreLoop = (upstream.core_loop as Record<string, unknown> | undefined) || {};
+      const suggested = (prepared.suggested as Record<string, unknown> | undefined) || {};
+
+      // Жанр проекта.
+      const projGenre = (concept.genre as string | undefined) || (suggested.genre as string | undefined);
+      if (projGenre) setGenre(projGenre);
+
+      // Собираем уникальные механики из concept.mechanic_set и core_loop.steps.
+      const mechanicNames = new Set<string>();
+      const conceptMechanicSet = concept.mechanic_set;
+      if (Array.isArray(conceptMechanicSet)) {
+        for (const m of conceptMechanicSet) {
+          if (typeof m === "string") mechanicNames.add(m);
+          else if (m && typeof m === "object") {
+            const obj = m as Record<string, unknown>;
+            const name = (obj.name as string | undefined) || (obj.id as string | undefined);
+            if (name) mechanicNames.add(name);
+          }
+        }
+      }
+      const coreSteps = coreLoop.steps;
+      if (Array.isArray(coreSteps)) {
+        for (const step of coreSteps) {
+          if (step && typeof step === "object") {
+            const mechs = (step as Record<string, unknown>).mechanics;
+            if (Array.isArray(mechs)) {
+              for (const m of mechs) {
+                if (typeof m === "string") mechanicNames.add(m);
+              }
+            }
+          }
+        }
+      }
+
+      // Превращаем механики в balance objects.
+      if (mechanicNames.size > 0) {
+        const newObjects: BalanceObject[] = Array.from(mechanicNames).map((name, idx) => ({
+          id: `mech-${idx + 1}`,
+          name: name.charAt(0).toUpperCase() + name.slice(1),
+          type: "mechanic",
+          attributes: { HP: 100, damage: 10, speed: 5, armor: 5 },
+          cost: 100 + idx * 20,
+          tier: 1,
+          tags: ["from_pipeline"],
+        }));
+        setObjects(newObjects);
+        setPipelineLoaded(true);
+        toast({
+          title: "Данные загружены из пайплайна",
+          description: `Загружено ${newObjects.length} объектов баланса из механик концепции и Core Loop.`,
+        });
+      } else {
+        setPipelineLoaded(true);
+        toast({
+          title: "Нет механик в пайплайне",
+          description: "Блок 1 (Концепция) и Блок 2 (Core Loop) не содержат механик. Используем объекты по умолчанию.",
+        });
+      }
+    } catch {
+      toast({
+        title: "Ошибка загрузки",
+        description: "Не удалось загрузить данные из пайплайна",
+        variant: "destructive",
+      });
+    } finally {
+      setIsLoadingPipeline(false);
+    }
+  }, [projectId, pipeline, toast]);
+
+  // Авто-загрузка данных из пайплайна при первом монтировании.
+  useEffect(() => {
+    if (projectId && !pipelineLoaded && !isLoadingPipeline) {
+      handleLoadFromPipeline();
+    }
+  }, [projectId, pipelineLoaded, isLoadingPipeline, handleLoadFromPipeline]);
 
   // --- Run Analysis ---
   const handleRunAnalysis = useCallback(async () => {
@@ -123,11 +233,17 @@ export default function Block4Page() {
         run_monte_carlo: runMonteCarlo,
         run_machinations: runMachinations,
       };
+      // Отправляем project_id, чтобы сервер записал результат в правильный проект,
+      // а не в auto-selected "most-recent". Это поле сервер читает из тела,
+      // оно не входит в тип FullBalanceRequest, но безопасно добавляется через spread.
+      const payloadWithProject: FullBalanceRequest & { project_id?: string } = projectId
+        ? { ...payload, project_id: projectId }
+        : payload;
 
       const data = await apiFetch<FullBalanceResponse>("/balance/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payloadWithProject),
       });
 
       setResult(data);
@@ -189,6 +305,45 @@ export default function Block4Page() {
           </Badge>
         )}
       </div>
+
+      {/* Pipeline Data Flow Indicator */}
+      {projectId && (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/40 border">
+          <GitBranch className="h-4 w-4 text-muted-foreground" />
+          <span className="text-xs text-muted-foreground">Пайплайн:</span>
+          <div className="flex items-center gap-1">
+            <Badge variant="outline" className="text-[10px]">Блок 1</Badge>
+            <span className="text-[10px] text-muted-foreground">→</span>
+            <Badge variant="outline" className="text-[10px]">Блок 2</Badge>
+            <span className="text-[10px] text-muted-foreground">→</span>
+            <Badge variant="outline" className="text-[10px]">Блок 3</Badge>
+            <span className="text-[10px] text-muted-foreground">→</span>
+            <Badge variant="secondary" className="text-[10px] font-bold">Блок 4 ←</Badge>
+          </div>
+          <div className="ml-auto flex items-center gap-2">
+            {pipelineLoaded && (
+              <Badge variant="outline" className="text-[10px] border-green-400 text-green-700 dark:text-green-400">
+                <CheckCircle2 className="h-3 w-3 mr-1" />
+                Данные из пайплайна
+              </Badge>
+            )}
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLoadFromPipeline}
+              disabled={isLoadingPipeline}
+              className="text-xs h-7"
+            >
+              {isLoadingPipeline ? (
+                <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+              ) : (
+                <ArrowDownToLine className="h-3 w-3 mr-1" />
+              )}
+              Загрузить из пайплайна
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Configuration Card */}
       <Card>

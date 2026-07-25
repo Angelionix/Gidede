@@ -28,6 +28,7 @@ import {
   ChevronUp,
   X,
   Wand2,
+  Check,
 } from "lucide-react";
 import { GENRES } from "@/config/genres";
 import { YEE_MOTIVATIONS } from "@/config/aesthetics";
@@ -37,6 +38,7 @@ import {
   BUDGET_OPTIONS,
   EXPERIENCE_LEVELS,
 } from "@/constants/concept";
+import { MECHANICS_DB, getMechanicGroups } from "@/lib/mechanics-db";
 
 interface ConceptFormProps {
   form: ConceptFormState;
@@ -101,6 +103,27 @@ export function ConceptForm({
   };
 
   const [showAdvanced, setShowAdvanced] = React.useState(false);
+  const [showMechanicPicker, setShowMechanicPicker] = React.useState(false);
+  const [mechanicGroupFilter, setMechanicGroupFilter] = React.useState("Все");
+
+  const toggleMechanic = (mechanicName: string) => {
+    setForm((prev) => {
+      const current = prev.selectedMechanics;
+      if (current.includes(mechanicName)) {
+        return {
+          ...prev,
+          selectedMechanics: current.filter((m) => m !== mechanicName),
+        };
+      }
+      return { ...prev, selectedMechanics: [...current, mechanicName] };
+    });
+  };
+
+  const mechanicGroups = ["Все", ...getMechanicGroups()];
+  const filteredMechanics =
+    mechanicGroupFilter === "Все"
+      ? MECHANICS_DB
+      : MECHANICS_DB.filter((m) => m.group === mechanicGroupFilter);
 
   return (
     <Card>
@@ -159,6 +182,113 @@ export function ConceptForm({
                 ))}
               </SelectContent>
             </Select>
+          )}
+        </div>
+
+        {/* Механики — ручной выбор (опционально) */}
+        <div>
+          <Label>Базовые механики (опционально)</Label>
+          <p className="text-xs text-muted-foreground mt-1 mb-2">
+            Если оставить пусто — AI подберёт механики автоматически из 128
+            механик SW.BAND. Или выберите нужные вручную — система будет
+            использовать только их.
+          </p>
+          {form.selectedMechanics.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-2">
+              {form.selectedMechanics.map((m) => (
+                <Badge
+                  key={m}
+                  variant="default"
+                  className="cursor-pointer gap-1"
+                  onClick={() => toggleMechanic(m)}
+                >
+                  {m}
+                  <X className="h-3 w-3" />
+                </Badge>
+              ))}
+            </div>
+          )}
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowMechanicPicker(!showMechanicPicker)}
+            className="gap-1.5"
+          >
+            <Sparkles className="h-3.5 w-3.5" />
+            {showMechanicPicker ? "Скрыть список" : "Выбрать механики"}
+            {form.selectedMechanics.length > 0 && (
+              <Badge variant="secondary" className="ml-1">
+                {form.selectedMechanics.length}
+              </Badge>
+            )}
+          </Button>
+          {showMechanicPicker && (
+            <div className="mt-3 rounded-lg border border-border p-3 space-y-3 max-h-80 overflow-y-auto">
+              {/* Group filter */}
+              <div className="flex flex-wrap gap-1 sticky top-0 bg-background pb-2 border-b border-border">
+                {mechanicGroups.map((g) => (
+                  <button
+                    key={g}
+                    type="button"
+                    onClick={() => setMechanicGroupFilter(g)}
+                    className={`rounded-full px-2.5 py-0.5 text-xs transition-colors ${
+                      mechanicGroupFilter === g
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}
+                  >
+                    {g}
+                  </button>
+                ))}
+              </div>
+              {/* Mechanics list */}
+              <div className="space-y-1">
+                {filteredMechanics.map((m) => {
+                  const selected = form.selectedMechanics.includes(m.name);
+                  return (
+                    <button
+                      key={`${m.group}-${m.name}`}
+                      type="button"
+                      onClick={() => toggleMechanic(m.name)}
+                      className={`w-full text-left rounded-md border p-2 transition-colors ${
+                        selected
+                          ? "border-primary bg-primary/5"
+                          : "border-border hover:border-primary/40 hover:bg-muted/50"
+                      }`}
+                    >
+                      <div className="flex items-start gap-2">
+                        <div
+                          className={`mt-0.5 flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                            selected
+                              ? "border-primary bg-primary text-primary-foreground"
+                              : "border-input"
+                          }`}
+                        >
+                          {selected && <Check className="h-3 w-3" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-medium">
+                              {m.name}
+                            </span>
+                            <Badge
+                              variant="outline"
+                              className="text-[9px] px-1 py-0"
+                            >
+                              {m.group}
+                            </Badge>
+                          </div>
+                          <p className="text-xs text-muted-foreground line-clamp-2 mt-0.5">
+                            {m.desc}
+                          </p>
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           )}
         </div>
 
@@ -291,23 +421,29 @@ export function ConceptForm({
 
         {/* AI enrichment toggle */}
         <div className="flex items-start gap-3 rounded-lg border border-primary/20 bg-primary/5 p-3">
-          <button
-            type="button"
+          <div
             role="checkbox"
             aria-checked={form.useAi}
+            tabIndex={0}
             onClick={() => updateField("useAi", !form.useAi)}
-            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors ${
+            onKeyDown={(e) => {
+              if (e.key === " " || e.key === "Enter") {
+                e.preventDefault();
+                updateField("useAi", !form.useAi);
+              }
+            }}
+            className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border-2 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               form.useAi
                 ? "border-primary bg-primary text-primary-foreground"
                 : "border-input bg-background"
             }`}
           >
-            {form.useAi && <Checkbox checked className="h-3 w-3 border-0" />}
-          </button>
+            {form.useAi && <Check className="h-3 w-3" />}
+          </div>
           <div className="flex-1">
             <div className="flex items-center gap-1.5">
               <Wand2 className="h-3.5 w-3.5 text-primary" />
-              <label className="text-sm font-medium cursor-pointer" onClick={() => updateField("useAi", !form.useAi)}>
+              <label className="text-sm font-medium cursor-pointer select-none" onClick={() => updateField("useAi", !form.useAi)}>
                 AI-обогащение концепции
               </label>
             </div>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/lib/auth";
+import { useActiveProject } from "@/hooks/useActiveProject";
 import { useRouter } from "next/navigation";
 import {
   Card,
@@ -375,6 +376,7 @@ function CreateProjectDialog({
 
 export default function ProjectsPage() {
   const { apiFetch, isAuthenticated, isLoading: authLoading } = useAuth();
+  const { setActiveProjectId } = useActiveProject();
   const router = useRouter();
 
   const [projects, setProjects] = useState<ProjectData[]>([]);
@@ -418,10 +420,14 @@ export default function ProjectsPage() {
     if (description) body.description = description;
     if (genre) body.genre = genre;
 
-    await apiFetch("/projects/", {
+    const created = await apiFetch<{ id: string }>("/projects", {
       method: "POST",
       body: JSON.stringify(body),
     });
+    // Set the newly-created project as active so block pages pick it up
+    if (created?.id) {
+      setActiveProjectId(created.id);
+    }
     fetchProjects(1, search);
   };
 
@@ -436,9 +442,10 @@ export default function ProjectsPage() {
     }
   };
 
-  // Open project
+  // Open project — set as active and navigate to the project detail card
   const handleOpen = (projectId: string) => {
-    router.push(`/?project=${projectId}`);
+    setActiveProjectId(projectId);
+    router.push(`/projects/${projectId}`);
   };
 
   // Search handler

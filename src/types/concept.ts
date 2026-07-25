@@ -21,6 +21,8 @@ export interface ConceptFormState {
   forbiddenMechanics: string[];
   forbiddenInput: string;
   useAi: boolean;
+  /** Optional user-selected mechanics. If empty, AI/auto-selection runs. */
+  selectedMechanics: string[];
 }
 
 export interface ConceptGenerationResult {

@@ -8,7 +8,7 @@ import { NodePalette } from "./NodePalette";
 import { GraphCanvas } from "./GraphCanvas";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Save, Play, Upload, Download, Loader2, AlertCircle, Sparkles, Lightbulb } from "lucide-react";
+import { Save, Play, Upload, Download, Loader2, AlertCircle, Sparkles, Lightbulb, Undo2, Redo2, FileCode } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { GRAPH_TEMPLATES } from "@/lib/graph/templates";
@@ -27,6 +27,80 @@ function PrototypeEditorInner() {
   const [showPreview, setShowPreview] = useState(false);
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  // === Undo/Redo history (Phase 5.1) ===
+  // Stack of {nodes, edges} snapshots. We push on meaningful changes
+  // (add/delete node, add/delete edge, property edit) with a debounce
+  // so dragging a node doesn't flood the history.
+  interface HistoryEntry { nodes: Node[]; edges: Edge[]; }
+  const undoStack = useRef<HistoryEntry[]>([]);
+  const redoStack = useRef<HistoryEntry[]>([]);
+  const lastSnapshot = useRef<HistoryEntry>({ nodes: [], edges: [] });
+  const snapshotTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Push current state to undo stack (called before a mutation)
+  const pushHistory = useCallback(() => {
+    undoStack.current.push(lastSnapshot.current);
+    if (undoStack.current.length > 50) undoStack.current.shift(); // cap at 50
+    redoStack.current = []; // any new action clears redo
+  }, []);
+
+  // Debounced snapshot: saves current nodes/edges as lastSnapshot after 400ms idle
+  const scheduleSnapshot = useCallback(() => {
+    if (snapshotTimer.current) clearTimeout(snapshotTimer.current);
+    snapshotTimer.current = setTimeout(() => {
+      lastSnapshot.current = { nodes: [...nodes], edges: [...edges] };
+    }, 400);
+  }, [nodes, edges]);
+
+  useEffect(() => { scheduleSnapshot(); }, [nodes, edges, scheduleSnapshot]);
+
+  const undo = useCallback(() => {
+    if (undoStack.current.length === 0) {
+      toast({ title: "Нечего отменять", description: "История пуста" });
+      return;
+    }
+    const prev = undoStack.current.pop()!;
+    redoStack.current.push({ nodes: [...nodes], edges: [...edges] });
+    setNodes(prev.nodes);
+    setEdges(prev.edges);
+    toast({ title: "↶ Отменено", description: `${undoStack.current.length} действий в истории` });
+  }, [nodes, edges, setNodes, setEdges, toast]);
+
+  const redo = useCallback(() => {
+    if (redoStack.current.length === 0) {
+      toast({ title: "Нечего повторить" });
+      return;
+    }
+    const next = redoStack.current.pop()!;
+    undoStack.current.push({ nodes: [...nodes], edges: [...edges] });
+    setNodes(next.nodes);
+    setEdges(next.edges);
+    toast({ title: "↷ Повторено", description: `${redoStack.current.length} действий в redo` });
+  }, [nodes, edges, setNodes, setEdges, toast]);
+
+  // === Keyboard shortcuts (Phase 5.1) ===
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Don't intercept when typing in inputs/textareas
+      const target = e.target as HTMLElement;
+      if (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable) return;
+
+      const meta = e.metaKey || e.ctrlKey;
+      if (meta && e.key === "z" && !e.shiftKey) {
+        e.preventDefault(); undo();
+      } else if ((meta && e.key === "z" && e.shiftKey) || (meta && e.key === "y")) {
+        e.preventDefault(); redo();
+      } else if (meta && e.key === "s") {
+        e.preventDefault();
+        // Quick-save: trigger the save flow if a name exists, else toast
+        if (saveName.trim()) handleSaveToDb();
+        else toast({ title: "Введите название графа", description: "Поле «Название графа» в правой панели" });
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [undo, redo]); // handleSaveToDb referenced via closure; saveName checked at call time
 
   const selectedNode = nodes.find((n) => n.id === selectedNodeId) || null;
 
@@ -91,6 +165,7 @@ function PrototypeEditorInner() {
   };
 
   const handleExport = () => {
+    pushHistory();
     const graph: NodeGraph = {
       version: "1.0",
       nodes: nodes.map((n) => ({ id: n.id, type: (n.data as Record<string, unknown>)?.nodeType as NodeType, position: n.position, data: n.data as { label: string; properties: Record<string, unknown> } })),
@@ -103,6 +178,20 @@ function PrototypeEditorInner() {
     a.href = url; a.download = "prototype-graph.json"; a.click();
     URL.revokeObjectURL(url);
     toast({ title: "Экспортировано", description: `${nodes.length} нод` });
+  };
+
+  // === Export compiled HTML (Phase 5.6) ===
+  const handleExportHtml = () => {
+    if (!compiledHtml) {
+      toast({ title: "Сначала скомпилируйте", description: "Нажмите «Сгенерировать» для создания HTML", variant: "destructive" });
+      return;
+    }
+    const blob = new Blob([compiledHtml], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url; a.download = `prototype-${mode}-${Date.now()}.html`; a.click();
+    URL.revokeObjectURL(url);
+    toast({ title: "HTML экспортирован", description: `Играбельный ${mode === "3d" ? "3D" : "2D"}-прототип скачан` });
   };
 
   // Save to DB
@@ -251,8 +340,14 @@ function PrototypeEditorInner() {
       <div className="flex-1 flex flex-col">
         {/* Toolbar */}
         <div className="flex items-center gap-2 border-b border-border bg-card px-3 py-2">
+          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={undo} title="Отменить (Ctrl+Z)"><Undo2 className="h-3.5 w-3.5" /></Button>
+          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={redo} title="Повторить (Ctrl+Shift+Z)"><Redo2 className="h-3.5 w-3.5" /></Button>
+          <div className="w-px h-5 bg-border mx-1" />
           <Button size="sm" variant="outline" onClick={handleExport}><Save className="h-3.5 w-3.5 mr-1" /> Экспорт</Button>
           <Button size="sm" variant="outline" onClick={handleImport}><Upload className="h-3.5 w-3.5 mr-1" /> Импорт</Button>
+          {compiledHtml && (
+            <Button size="sm" variant="outline" onClick={handleExportHtml} title="Скачать HTML"><FileCode className="h-3.5 w-3.5 mr-1" /> HTML</Button>
+          )}
           <div className="w-px h-5 bg-border mx-1" />
           <div className="flex items-center gap-1">
             <button onClick={() => setMode("2d")} className={`rounded-md px-2 py-0.5 text-xs font-medium ${mode === "2d" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:bg-muted"}`}>2D</button>

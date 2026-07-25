@@ -20,6 +20,15 @@ import { NODE_CATEGORIES, NODE_DEFINITIONS, type NodeType } from "@/lib/graph/ty
 
 const nodeTypes = { gameNode: GameNode };
 
+/** Snap-to-grid: round position to nearest GRID_SIZE px. */
+const GRID_SIZE = 16;
+function snapToGrid(pos: { x: number; y: number }): { x: number; y: number } {
+  return {
+    x: Math.round(pos.x / GRID_SIZE) * GRID_SIZE,
+    y: Math.round(pos.y / GRID_SIZE) * GRID_SIZE,
+  };
+}
+
 interface GraphCanvasProps {
   initialNodes?: Node[];
   initialEdges?: Edge[];
@@ -69,10 +78,12 @@ export function GraphCanvas({
 
       const def = NODE_DEFINITIONS[nodeType];
       const bounds = e.currentTarget.getBoundingClientRect();
-      const position = {
+      const rawPosition = {
         x: e.clientX - bounds.left - 70,
         y: e.clientY - bounds.top - 20,
       };
+      // Snap dropped node to grid
+      const position = snapToGrid(rawPosition);
 
       const newNode: Node = {
         id: `${nodeType}-${Date.now()}`,
@@ -109,13 +120,17 @@ export function GraphCanvas({
         onPaneClick={() => onNodeClick?.(null)}
         nodeTypes={nodeTypes}
         fitView
+        snapToGrid
+        snapGrid={[GRID_SIZE, GRID_SIZE]}
         className="bg-background"
         defaultEdgeOptions={{
           animated: true,
           style: { strokeWidth: 2 },
         }}
+        deleteKeyCode={["Delete", "Backspace"]}
+        multiSelectionKeyCode={["Meta", "Control"]}
       >
-        <Background variant={BackgroundVariant.Dots} gap={16} size={1} color="#334155" />
+        <Background variant={BackgroundVariant.Dots} gap={GRID_SIZE} size={1} color="#334155" />
         <Controls className="bg-card border-border" />
         <MiniMap
           className="bg-card border-border rounded-lg"

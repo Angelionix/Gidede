@@ -21,7 +21,7 @@ export async function GET(
   const { id } = await params;
 
   const project = await db.project.findFirst({
-    where: { id, userId: user.id },
+    where: { id, userId: user.id, deletedAt: null },
     include: {
       concept: true,
       coreLoop: true,
@@ -62,7 +62,7 @@ export async function PUT(
   const { id } = await params;
 
   const existing = await db.project.findFirst({
-    where: { id, userId: user.id },
+    where: { id, userId: user.id, deletedAt: null },
     select: { id: true },
   });
   if (!existing) return NextResponse.json({ detail: "Проект не найден" }, { status: 404 });
@@ -121,7 +121,13 @@ export async function DELETE(
     );
   }
 
-  await db.project.delete({ where: { id } });
+  // Soft-delete: set deletedAt instead of removing the row. This preserves
+  // referential integrity for PlaytestResult/SavedMechanic/PrototypeGraph
+  // and allows potential restore. The list endpoint filters deletedAt: null.
+  await db.project.update({
+    where: { id },
+    data: { deletedAt: new Date(), status: "archived" },
+  });
 
   return NextResponse.json({ ok: true });
 }

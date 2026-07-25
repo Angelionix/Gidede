@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
     // Verify ownership
     const project = await db.project.findFirst({
-      where: { id: projectId, userId: user.id },
+      where: { id: projectId, userId: user.id, deletedAt: null },
       select: { id: true },
     });
     if (!project) return NOT_FOUND();

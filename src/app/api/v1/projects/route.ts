@@ -67,6 +67,7 @@ export async function GET(request: NextRequest) {
 
   const where = {
     userId: user.id,
+    deletedAt: null, // exclude soft-deleted projects
     ...(search
       ? {
           OR: [

@@ -1,6 +1,7 @@
 // Gidede — Prisma Schema
-// Фаза 4.A.4: Обновлённая схема данных (совместима с SQLAlchemy)
-// Используется Next.js для server-side рендеринга и SSR данных
+// Phase 4: Data-model hygiene — индексы на userId, FK-каскады для
+// PlaytestResult/SavedMechanic/PrototypeGraph → Project, soft-delete для Project.
+// Совместима с SQLAlchemy (оригинальный Python-бэкенд).
 
 generator client {
   provider = "prisma-client-js"
@@ -19,7 +20,7 @@ model User {
   id              String   @id @default(cuid())
   email           String   @unique
   name            String?
-  hashedPassword  String                   // bcrypt-хеш пароля
+  hashedPassword  String                   // scrypt-хеш пароля (scrypt$salt$hash)
   plan            String   @default("free") // free | pro
   aiCallsCount    Int      @default(0)      // Счётчик AI-вызовов за день
   aiCallsLimit    Int      @default(50)     // Лимит AI-вызовов (free: 50, pro: 500)
@@ -73,22 +74,28 @@ model Project {
   completionPercent Int      @default(0)
   version           Int      @default(1)
   lastAlgorithmRun  String?
+  deletedAt         DateTime?                    // soft-delete: null = active, date = archived
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt
 
-  user          User              @relation(fields: [userId], references: [id], onDelete: Cascade)
-  concept       ProjectConcept?
-  coreLoop      ProjectCoreLoop?
-  mdaProfile    ProjectMDAProfile?
-  balanceResult ProjectBalanceResult?
-  progression   ProjectProgression?
-  economy       ProjectEconomy?
-  gdd           ProjectGDD?
-  checklist     ProjectChecklist?
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  concept        ProjectConcept?
+  coreLoop       ProjectCoreLoop?
+  mdaProfile     ProjectMDAProfile?
+  balanceResult  ProjectBalanceResult?
+  progression    ProjectProgression?
+  economy        ProjectEconomy?
+  gdd            ProjectGDD?
+  checklist      ProjectChecklist?
+  playtestResults PlaytestResult[]
+  savedMechanics  SavedMechanic[]
+  prototypeGraphs PrototypeGraph[]
 
+  @@index([userId])
   @@index([genre])
   @@index([status])
   @@index([projectStage])
+  @@index([deletedAt])
   @@map("projects")
 }
 
@@ -340,6 +347,7 @@ model ChatMessage {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@index([userId, projectId])
   @@index([createdAt])
   @@map("chat_messages")
@@ -363,6 +371,7 @@ model GbeSyncHistory {
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@index([userId, projectId])
   @@index([createdAt])
   @@map("gbe_sync_history")
@@ -385,8 +394,10 @@ model PlaytestResult {
   aiGenerated   Boolean  @default(false)                   // был ли код сгенерирован AI
   createdAt     DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  @@index([userId])
   @@index([userId, projectId])
   @@index([createdAt])
   @@index([prototypeType])
@@ -411,7 +422,8 @@ model SavedMechanic {
   rating          Int      @default(0)                       // рейтинг (лайки)
   createdAt       DateTime @default(now())
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([isPublic])
@@ -436,7 +448,8 @@ model PrototypeGraph {
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  project Project? @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
   @@index([userId])
   @@index([isPublic])

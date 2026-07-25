@@ -78,7 +78,7 @@ export async function loadProjectPipelineSnapshot(
   projectId: string
 ): Promise<ProjectPipelineSnapshot | null> {
   const project = await db.project.findFirst({
-    where: { id: projectId, userId },
+    where: { id: projectId, userId, deletedAt: null },
     include: {
       concept: { select: { id: true, updatedAt: true } },
       coreLoop: { select: { id: true, updatedAt: true } },
@@ -299,7 +299,7 @@ export async function buildPreparedInput(
   blockId: number
 ): Promise<Record<string, unknown> | null> {
   const project = await db.project.findFirst({
-    where: { id: projectId, userId },
+    where: { id: projectId, userId, deletedAt: null },
     include: {
       concept: true,
       coreLoop: true,

@@ -44,7 +44,7 @@ export async function getOwnedProject(
   let project;
   if (projectId) {
     project = await db.project.findFirst({
-      where: { id: projectId, userId: user.id },
+      where: { id: projectId, userId: user.id, deletedAt: null },
       include: {
         concept: true,
         coreLoop: true,
@@ -60,7 +60,7 @@ export async function getOwnedProject(
   } else {
     // Auto-select most recently updated project owned by the user
     project = await db.project.findFirst({
-      where: { userId: user.id },
+      where: { userId: user.id, deletedAt: null },
       orderBy: { updatedAt: "desc" },
       include: {
         concept: true,

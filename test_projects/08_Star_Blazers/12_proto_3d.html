@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1"/>
+<title>Прототип 3D: engine</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:#0f172a;color:#e2e8f0;font-family:system-ui,sans-serif;display:flex;flex-direction:column;align-items:center;padding:8px;min-height:100vh;overflow:hidden}
+  h1{font-size:16px;margin-bottom:2px}
+  .goal{color:#94a3b8;font-size:12px;margin-bottom:4px}
+  #gameContainer{position:relative;width:100%;max-width:400px;height:300px;border-radius:8px;overflow:hidden;border:1px solid #334155}
+  canvas{display:block;width:100%;height:100%}
+  #hud{position:absolute;top:8px;left:8px;color:#fbbf24;font-size:20px;font-weight:bold;text-shadow:0 2px 4px rgba(0,0,0,0.8)}
+  #timer{position:absolute;top:8px;right:8px;color:#94a3b8;font-size:14px;font-weight:bold;text-shadow:0 1px 2px rgba(0,0,0,0.8)}
+  #hpWrap{position:absolute;bottom:8px;left:8px;width:140px;height:10px;background:rgba(15,23,42,0.7);border-radius:5px;overflow:hidden;display:none}
+  #hpbar{height:100%;width:100%;background:#10b981;transition:width 0.2s}
+  .overlay{position:absolute;inset:0;background:rgba(0,0,0,0.88);display:none;flex-direction:column;align-items:center;justify-content:center;color:#fff;gap:10px}
+  .overlay.show{display:flex}
+  .overlay h2{font-size:22px}
+  .overlay button{padding:8px 20px;background:#10b981;color:#000;border:none;border-radius:6px;font-weight:700;cursor:pointer}
+  .steps{font-size:10px;color:#64748b;margin-top:4px;text-align:center}
+  .hint{font-size:10px;color:#475569;margin-top:2px;text-align:center}
+</style>
+</head>
+<body>
+  <h1>🎮 Прототип кор-лупа (3D • engine)</h1>
+  <p class="goal">🎯 Накопите 50 энергии, кликая по 3D-кристаллам</p>
+  <div id="gameContainer">
+    <div id="hud">⚡ 0</div>
+    <div id="timer">⏱ 30с</div>
+    <div id="hpWrap"><div id="hpbar"></div></div>
+    <div id="joystick" style="display:none;position:absolute;bottom:15px;left:15px;width:80px;height:80px;background:rgba(15,23,42,0.5);border:2px solid rgba(148,163,184,0.4);border-radius:50%;touch-action:none;z-index:10">
+      <div id="joystickKnob" style="position:absolute;top:50%;left:50%;width:30px;height:30px;margin:-15px 0 0 -15px;background:rgba(16,185,129,0.6);border:2px solid #10b981;border-radius:50%;transition:transform 0.05s"></div>
+    </div>
+    <div class="overlay" id="overlay">
+      <h2 id="resultText"></h2>
+      <button onclick="location.reload()">Заново</button>
+    </div>
+  </div>
+  <p class="steps">Шаги: Шаг → Шаг → Шаг → Шаг → Шаг</p>
+  <p class="hint">Powered by Three.js • ЛКМ по объектам</p>
+  <script src="/three.min.js"></script>
+  <script>
+    
+  const AC = window.AudioContext || window.webkitAudioContext;
+  let actx = null;
+  function sfx(freq, dur, type='sine', vol=0.15) {
+    try {
+      if (!actx) actx = new AC();
+      const o = actx.createOscillator();
+      const g = actx.createGain();
+      o.type = type; o.frequency.value = freq;
+      g.gain.value = vol;
+      o.connect(g); g.connect(actx.destination);
+      o.start();
+      g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + dur);
+      o.stop(actx.currentTime + dur);
+    } catch(e) {}
+  }
+  function sfxCollect() { sfx(880, 0.12, 'square'); setTimeout(()=>sfx(1320, 0.1, 'square'), 60); }
+  function sfxConvert() { sfx(523, 0.08, 'triangle'); setTimeout(()=>sfx(784, 0.12, 'triangle'), 70); }
+  function sfxHit() { sfx(120, 0.25, 'sawtooth', 0.2); }
+  function sfxWin() { sfx(523,0.15); setTimeout(()=>sfx(659,0.15),150); setTimeout(()=>sfx(784,0.3),300); }
+  function sfxLose() { sfx(220,0.2,'sawtooth'); setTimeout(()=>sfx(110,0.4,'sawtooth'),200); }
+
+    
+    const THREE = window.THREE;
+    const container = document.getElementById('gameContainer');
+    const overlay = document.getElementById('overlay');
+    const resultText = document.getElementById('resultText');
+    const timerEl = document.getElementById('timer');
+
+    // Helper: create emoji texture for 3D sprites
+    function emojiTexture(emoji, size) {
+      size = size || 128;
+      const c = document.createElement('canvas');
+      c.width = size; c.height = size;
+      const ctx = c.getContext('2d');
+      ctx.font = (size*0.8) + 'px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(emoji, size/2, size/2);
+      const tex = new THREE.CanvasTexture(c);
+      tex.needsUpdate = true;
+      return tex;
+    }
+    function emojiMaterial(emoji, color, size) {
+      const m = new THREE.MeshStandardMaterial({ color: color || 0xffffff, transparent: true });
+      m.map = emojiTexture(emoji, size);
+      return m;
+    }
+
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0f172a);
+    scene.fog = new THREE.Fog(0x0f172a, 10, 30);
+
+    const camera = new THREE.PerspectiveCamera(60, 400/300, 0.1, 100);
+    camera.position.set(0, 4, 8);
+    camera.lookAt(0, 1, 0);
+
+    const renderer = new THREE.WebGLRenderer({antialias:true});
+    renderer.setSize(400, 300);
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.shadowMap.enabled = true;
+    container.appendChild(renderer.domElement);
+
+    // Lights
+    scene.add(new THREE.AmbientLight(0x404060, 0.6));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(5, 10, 5);
+    scene.add(dirLight);
+
+    // Ground / arena
+    const groundGeo = new THREE.PlaneGeometry(20, 20);
+    const groundMat = new THREE.MeshStandardMaterial({color:0x1e293b, metalness:0.1, roughness:0.9});
+    const ground = new THREE.Mesh(groundGeo, groundMat);
+    ground.rotation.x = -Math.PI/2;
+    scene.add(ground);
+
+    // Grid helper for spatial reference
+    const grid = new THREE.GridHelper(20, 20, 0x334155, 0x1e293b);
+    grid.position.y = 0.01;
+    scene.add(grid);
+
+    let timeLeft = 30;
+    let running = true;
+    function notifyParent(outcome, score, duration) {
+      try { window.parent.postMessage({ type: 'gidede-playtest', outcome: outcome, score: score||null, duration: duration||30, prototypeType: 'engine', mode: '3d' }, '*'); } catch(e) {}
+    }
+    function win(score) { running=false; resultText.textContent='🎉 Победа!'; overlay.classList.add('show'); notifyParent('win', score, Math.max(0, 30-timeLeft)); }
+    function lose(score) { running=false; resultText.textContent='💀 Поражение'; overlay.classList.add('show'); notifyParent('lose', score, Math.max(0, 30-timeLeft)); }
+
+    
+      // 3D crystals to click for energy
+      let resource = 0;
+      const crystals = [];
+      const crystalGeo = new THREE.OctahedronGeometry(0.5, 0);
+      for (let i=0; i<5; i++) {
+        const m = new THREE.MeshStandardMaterial({color:0xfbbf24, emissive:0xfbbf24, emissiveIntensity:0.3, metalness:0.6, roughness:0.2});
+        const mesh = new THREE.Mesh(crystalGeo, m);
+        mesh.position.set(-4+i*2, 1, -2);
+        mesh.userData = {clicked:false, pulse:Math.random()*Math.PI*2};
+        scene.add(mesh);
+        crystals.push(mesh);
+      }
+      const raycaster = new THREE.Raycaster();
+      const mouseV = new THREE.Vector2();
+      window.addEventListener('click', (e) => {
+        const r = renderer.domElement.getBoundingClientRect();
+        mouseV.x = ((e.clientX-r.left)/r.width)*2-1;
+        mouseV.y = -((e.clientY-r.top)/r.height)*2+1;
+        raycaster.setFromCamera(mouseV, camera);
+        const hits = raycaster.intersectObjects(crystals);
+        if (hits.length>0) {
+          resource += 3;
+          sfxCollect();
+          const h = hits[0].object;
+          h.position.y += 0.3;
+          setTimeout(()=>{h.position.y=1;}, 150);
+          if (resource >= 50) { sfxWin(); win(); }
+        }
+      });
+      function tick(dt) {
+        crystals.forEach(c => {
+          c.rotation.y += dt*1.5;
+          c.userData.pulse += dt*2;
+          c.position.y = 1 + Math.sin(c.userData.pulse)*0.15;
+        });
+      }
+      function render3d() {
+        document.getElementById('hud').innerHTML = '⚡ ' + Math.floor(resource) + ' / 50';
+      }
+    
+
+    let last = performance.now();
+    function animate(now) {
+      const dt = Math.min(0.05, (now-last)/1000);
+      last = now;
+      if (running) {
+        tick(dt);
+        timeLeft -= dt;
+        timerEl.textContent = '⏱ ' + Math.max(0,Math.ceil(timeLeft)) + 'с';
+        if (timeLeft <= 0) {
+          running = false;
+          sfxLose(); resultText.textContent='⏰ Время вышло';
+          overlay.classList.add('show');
+        }
+      }
+      // Camera orbit for non-ecology
+      camera.position.x = Math.sin(now*0.0002)*3; camera.lookAt(0,1,0);
+      render3d && render3d();
+      renderer.render(scene, camera);
+      requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+  </script>
+</body>
+</html>

@@ -1,8 +1,8 @@
 # Gidede — Game Design AI System
 
-**Версия**: v0.51.0 (Next.js port)
+**Версия**: v0.51.0 (Next.js port, Phases 1-6 completed)
 
-AI-powered система для проектирования игр. 8 функциональных блоков покрывают полный пайплайн геймдизайна — от идеи до GDD.
+AI-powered система для проектирования игр. 8 функциональных блоков покрывают полный пайплайн геймдизайна — от идеи до GDD. Включает node-based редактор прототипов с компиляцией в LittleJS (2D) и Three.js (3D).
 
 ## Технологии
 
@@ -48,6 +48,15 @@ docker compose up -d --build
 7. **AI-ассистент** — SSE streaming, контекст проекта, RAG по 12 разделам Библии
 8. **GBE Bridge** — Mock API для интеграции с GDCombine
 
+### Node-based редактор прототипов
+
+Визуальный редактор игровой логики (как Blueprints в Unreal Engine): дизайнер собираёт механику из 20 типов нод, система компилирует граф в играбельный HTML-прототип.
+- **20 нод**: 5 events + 5 entities + 4 flow + 4 data + 2 output
+- **2D/3D**: LittleJS (2D) + Three.js (3D) с edge-traversal компилятором
+- **5 шаблонов**: Collector, Survival, Tower Defense, Rhythm, Puzzle
+- **AI**: генерация графа из текста, валидация, подсказки
+- **UX**: undo/redo (Ctrl+Z), snap-to-grid (16px), экспорт HTML, save/load в БД
+
 ## Дополнительно
 
 - **Прототипы**: 6 типов (engine/economy/ecology/tower_defense/rhythm/puzzle), 2D+3D, mobile touch, auto-save
@@ -56,23 +65,28 @@ docker compose up -d --build
 
 ## Документация
 
+- [Обзор проекта](docs/PROJECT_OVERVIEW.md) — архитектура, стек, 8 блоков, поток данных
+- [Node-редактор](docs/NODE_EDITOR.md) — руководство пользователя
+- [Справочник нод](docs/NODE_TYPES.md) — все 20 типов нод
 - [Деплой](docs/DEPLOYMENT.md) — Docker, bare server, Nginx, PM2
 - [Тестирование](docs/TESTING.md) — test cases, E2E, performance, security
 - [Библия геймдизайна](docs/bible/) — 12 разделов
+- [Architecture Decision Records](docs/adr/) — JSON-blob, scrypt, SSE, SQLite
 
 ## API
 
-59 эндпоинтов под `/api/v1/*`:
+64 эндпоинта под `/api/v1/*`:
 - Auth (register, login, refresh, me, logout, change-password)
-- Projects (CRUD, pipeline state)
+- Projects (CRUD с soft-delete, pipeline state)
 - 8 Blocks (concept, coreloop, mda, balance, progression, economy, gdd, checklist)
-- AI Assistant (chat, streaming, suggestions, alerts, history, status)
-- Prototypes (generate 2D/3D, 6 types)
+- AI Assistant (chat, SSE streaming, suggestions, alerts, history, status)
+- Prototypes (generate 2D/3D, 6 типов)
+- Prototype Graph (save, list, load, compile, ai-generate, ai-suggest)
 - Playtests (save, history, export CSV/JSON, import)
 - Mechanics (MechanicsDB stats, save, list)
 - RAG (search, stats)
 - GBE (sync-to, sync-from, webhook, status, history)
-- Pipeline (state, prepare-input, run-full-pipeline)
+- Pipeline (state, prepare-input, run-full-pipeline — **реальный серверный пайплайн**, run-pipeline partial)
 
 ## License
 

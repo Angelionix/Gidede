@@ -1,16 +1,31 @@
 # Gidede — Методология тестирования
 
+## 0. Статус тестирования (после Фаз 1-6)
+
+После завершения Фаз 1-6 роадмапа проект готов к автоматизированному тестированию:
+
+- ✅ `typescript.ignoreBuildErrors` убран (Фаза 1.5) — `tsc --noEmit` проходит с 0 ошибок
+- ✅ `bun run lint` — 0 ошибок
+- ✅ Серверный пайплайн реальный (Фаза 1.7) — 8/8 стадий, 100% completion за ~1.2с
+- ✅ Компилятор графа (Фаза 2) — все 20 нод, edge-traversal, 2D+3D
+- ✅ Data-model hygiene (Фаза 4) — индексы, FK-каскады, soft-delete
+- ✅ Node-редактор UX (Фаза 5) — undo/redo, snap-to-grid, HTML export
+
+**Текущее покрытие**: ручное E2E через Agent Browser + curl. Автоматизированные unit/integration тесты (Vitest) — следующий шаг (Фаза 3 роадмапа).
+
 ## 1. Стратегия тестирования
 
 ### Уровни тестирования
 
 | Уровень | Что проверяется | Инструмент | Покрытие |
 |---------|----------------|------------|----------|
-| Unit | Изолированные функции (api-helpers, mechanics-db, bible-rag) | Vitest | ≥60% |
-| Integration | API endpoints (auth, concept, coreloop, prototypes) | Vitest + supertest | ≥50% |
-| E2E | Критические пользовательские сценарии | Agent Browser | 100% golden path |
+| Unit | Изолированные функции (api-helpers, mechanics-db, bible-rag, graph/compiler, graph/validator) | Vitest (планируется) | цель ≥60% |
+| Integration | API endpoints (auth, concept, coreloop, prototypes, pipeline) | Vitest + supertest (планируется) | цель ≥50% |
+| E2E | Критические пользовательские сценарии | Agent Browser | 100% golden path ✅ |
+| Type-check | TypeScript-типы | `bunx tsc --noEmit` | 0 ошибок ✅ |
+| Lint | Качество кода | `bun run lint` | 0 ошибок ✅ |
 | Performance | Время ответа API, AI latency | curl + time | <2s API, <30s AI |
-| Security | Auth, JWT, SQL injection | curl + ручные тесты | 100% auth flows |
+| Security | Auth, JWT, SQL injection, XSS | curl + ручные тесты | 100% auth flows |
 
 ---
 
@@ -165,17 +180,36 @@ Body: {"project_id":"<id>","prototype_type":"engine","mode":"2d","outcome":"win"
 Expected: 200, {id, saved:true}
 ```
 
-### TC-20: Сквозной пайплайн (E2E)
-1. Создать проект
-2. POST /concept/generate
-3. POST /coreloop/design
-4. POST /mda/analyze
-5. POST /balance/analyze
-6. POST /progression/design
-7. POST /economy/design
-8. POST /gdd/generate
-9. POST /gdd/checklist
-Expected: все 200, checklist readiness_level >= "draft"
+### TC-20: Сквозной пайплайн — серверный (E2E, Фаза 1.7)
+```http
+POST /api/v1/pipeline/run-full-pipeline/<project_id>
+Headers: Authorization: Bearer <token>
+Body: {"idea":"A dark fantasy roguelike","format":"one_sheet","total_levels":30}
+Expected: 200, {ok:true, stages_completed:8, stages_total:8, completion_percent:100}
+```
+Проверяет: все 8 блоков выполняются последовательно на сервере, данные персистятся в БД,
+completion 0%→100% за ~1.2с.
+
+### TC-21: Компиляция node-графа (2D + 3D, Фаза 2)
+```http
+POST /api/v1/prototype-graph/compile
+Headers: Authorization: Bearer <token>
+Body: {"graph":{"version":"1.0","settings":{"mode":"2d",...},"nodes":[...],"edges":[...]}}
+Expected: 200, {valid:true, html:"<!doctype html>...", errors:[]}
+```
+Повторить с `mode:"3d"` — HTML должен содержать `three.min.js` и `THREE.`.
+
+### TC-22: Soft-delete проекта (Фаза 4.7)
+```http
+DELETE /api/v1/projects/<id>
+Expected: 200, {ok:true}
+GET /api/v1/projects/<id>
+Expected: 404, {detail:"Проект не найден"}
+GET /api/v1/projects/?per_page=50
+Expected: 200, total не включает удалённый
+POST /api/v1/pipeline/run-full-pipeline/<id>
+Expected: 404 (soft-deleted проект скрыт)
+```
 
 ---
 

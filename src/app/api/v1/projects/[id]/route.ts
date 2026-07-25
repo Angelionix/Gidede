@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/server-auth";
+import { UNAUTH, SERVER_ERROR } from "@/lib/api-helpers";
 import { serializeProject } from "../route";
 
 export async function GET(

@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
         // Real DOCX via the 'docx' npm package (Packer.toBuffer → base64)
         try {
           const { Document, Packer, Paragraph, HeadingLevel, TextRun } = await import("docx");
-          const blocks: Paragraph[] = [];
+          const blocks: InstanceType<typeof Paragraph>[] = [];
           // Title
           blocks.push(new Paragraph({
             heading: HeadingLevel.TITLE,
@@ -265,7 +265,7 @@ export async function POST(request: NextRequest) {
               blocks.push(new Paragraph({ children: [new TextRun({ text: trimmed.slice(2), italics: true })] }));
             } else {
               // Parse bold/italic markdown inline
-              const runs: TextRun[] = [];
+              const runs: InstanceType<typeof TextRun>[] = [];
               const parts = trimmed.split(/(\*\*[^*]+\*\*|\*[^*]+\*)/);
               for (const part of parts) {
                 if (part.startsWith("**") && part.endsWith("**")) {

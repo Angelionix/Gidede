@@ -196,13 +196,14 @@ export default function Block6Page() {
       // Optimistic update — update local state immediately
       setGddProfile((prev) => {
         if (!prev?.assembled_document) return prev;
+        const currentDoc = prev.assembled_document;
         const updated = { ...prev };
         updated.assembled_document = {
-          ...updated.assembled_document,
+          ...currentDoc,
           sections: {
-            ...updated.assembled_document.sections,
+            ...currentDoc.sections,
             [sectionName]: {
-              ...updated.assembled_document.sections[sectionName],
+              ...currentDoc.sections[sectionName],
               content,
               source: "manual",
               requires_review: false,

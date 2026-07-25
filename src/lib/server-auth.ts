@@ -15,10 +15,42 @@ import { db } from "@/lib/db";
 // Config
 // ============================================================
 
-const JWT_SECRET =
-  process.env.JWT_SECRET_KEY ||
-  process.env.NEXTAUTH_SECRET ||
-  "gidede-dev-secret-change-me-in-production-please-32chars";
+/**
+ * Resolve the JWT signing secret.
+ *
+ * In production the app REFUSES TO START without an explicit
+ * JWT_SECRET_KEY (or legacy NEXTAUTH_SECRET). This prevents accidental
+ * deployment with a public/well-known signing key.
+ *
+ * In development (NODE_ENV !== "production") a deterministic fallback is
+ * allowed for convenience, but it is intentionally distinct from any key
+ * that could ever be used in production.
+ */
+function resolveJwtSecret(): string {
+  const explicit = process.env.JWT_SECRET_KEY || process.env.NEXTAUTH_SECRET;
+  if (explicit) {
+    if (explicit.length < 32) {
+      throw new Error(
+        "JWT_SECRET_KEY must be at least 32 characters long for HMAC-SHA256 security."
+      );
+    }
+    return explicit;
+  }
+  if (process.env.NODE_ENV === "production") {
+    throw new Error(
+      "JWT_SECRET_KEY environment variable is required in production. " +
+        "Generate one with `openssl rand -hex 32` and set it in your environment."
+    );
+  }
+  // Development-only fallback. NOT secure — never use in production.
+  console.warn(
+    "[server-auth] WARNING: JWT_SECRET_KEY not set. Using insecure development-only fallback. " +
+      "Set JWT_SECRET_KEY in .env for local testing that mirrors production."
+  );
+  return "gidede-dev-only-insecure-fallback-do-not-use-in-production-32chars";
+}
+
+const JWT_SECRET = resolveJwtSecret();
 
 const ACCESS_TOKEN_TTL_SEC = 30 * 60; // 30 minutes
 const REFRESH_TOKEN_TTL_SEC = 30 * 24 * 60 * 60; // 30 days
@@ -38,19 +70,25 @@ export function hashPassword(password: string): string {
 
 export function verifyPassword(password: string, stored: string): boolean {
   try {
-    if (stored.startsWith("scrypt$")) {
-      const parts = stored.split("$");
-      if (parts.length !== 3) return false;
-      const salt = parts[1];
-      const expectedHash = parts[2];
-      const hash = scryptSync(password, salt, 64).toString("hex");
-      const a = Buffer.from(hash, "hex");
-      const b = Buffer.from(expectedHash, "hex");
-      if (a.length !== b.length) return false;
-      return timingSafeEqual(a, b);
+    // Only scrypt-hashed passwords are accepted. Plaintext fallback was
+    // removed for security (timing-unsafe comparison + plaintext-at-rest
+    // risk). Seeded/migrated users must have scrypt hashes.
+    if (!stored.startsWith("scrypt$")) {
+      console.error(
+        "[server-auth] Rejecting password: stored hash is not in scrypt$ format. " +
+          "Legacy plaintext hashes are no longer supported — re-hash via password reset."
+      );
+      return false;
     }
-    // Fallback: plain text compare (for seeded users) — not recommended
-    return password === stored;
+    const parts = stored.split("$");
+    if (parts.length !== 3) return false;
+    const salt = parts[1];
+    const expectedHash = parts[2];
+    const hash = scryptSync(password, salt, 64).toString("hex");
+    const a = Buffer.from(hash, "hex");
+    const b = Buffer.from(expectedHash, "hex");
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
   } catch {
     return false;
   }

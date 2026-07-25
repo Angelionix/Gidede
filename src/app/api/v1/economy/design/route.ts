@@ -143,6 +143,7 @@ function classifySystemType(
   interaction_type: string;
   pricing_type: string;
   risk_level: string;
+  openness: string;
 } {
   const hasConverter = resources.some(
     (r) => r.resource_class === "currency" || r.is_catalytic
@@ -716,7 +717,7 @@ export async function POST(request: NextRequest) {
     const stagesCompleted = [1, 2, 3, 4, 5];
     const latencyMs = Date.now() - startedAt;
 
-    const result = {
+    const result: Record<string, unknown> = {
       id: proj.id,
       inventory,
       classification,
@@ -808,7 +809,7 @@ export async function POST(request: NextRequest) {
       });
       if (aiInsights) {
         result.ai_insights = aiInsights;
-        result.models_used.push("glm-4.6 (ai-enrichment)");
+        (result.models_used as string[]).push("glm-4.6 (ai-enrichment)");
       }
     }
 

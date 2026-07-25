@@ -66,9 +66,9 @@ RUN mkdir -p /app/db
 # Expose port
 EXPOSE 3000
 
-# Health check
+# Health check — uses node's built-in http module (no curl needed on node:20-slim)
 HEALTHCHECK --interval=30s --timeout=10s --start-period=15s --retries=3 \
-  CMD curl -f http://localhost:3000/api/v1/health || exit 1
+  CMD node -e "const http=require('http');const r=http.get({host:'localhost',port:3000,path:'/api/v1/health',timeout:5000},res=>{process.exit(res.statusCode===200?0:1)});r.on('error',()=>process.exit(1));r.on('timeout',()=>{r.destroy();process.exit(1)})"
 
 # Start
 CMD ["bun", "run", "start"]

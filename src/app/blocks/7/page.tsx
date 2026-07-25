@@ -106,7 +106,7 @@ function ChatMessage({ msg }: { msg: ChatMsg }) {
             <span className="inline-block w-1.5 h-4 bg-primary/60 animate-pulse ml-0.5 align-text-bottom" />
           )}
         </div>
-        {msg.metadata?.model_used && !isUser && !msg.isStreaming && (
+        {!!msg.metadata?.model_used && !isUser && !msg.isStreaming && (
           <div className="mt-1 text-[10px] opacity-60">
             {(msg.metadata.model_used as string) || ""} • {(msg.metadata.provider as string) || ""} • {((msg.metadata.latency_ms as number) || 0)}ms
           </div>
@@ -372,7 +372,8 @@ function ChatHistoryList({
 // ============================================================
 
 export default function Block7Page() {
-  const { apiFetch, token } = useAuth();
+  const { apiFetch } = useAuth();
+  const token = typeof window !== "undefined" ? localStorage.getItem("gidede_access_token") : null;
   const { toast } = useToast();
 
   // --- Pipeline ---
@@ -730,11 +731,11 @@ export default function Block7Page() {
             Блок 7 • Спецификация 3.9 • SSE Streaming
           </p>
         </div>
-        {pipeline.pipelineState && (
+        {pipeline.state && (
           <Badge variant="outline" className="ml-auto text-xs">
             <Clock className="h-3 w-3 mr-1" />
-            {pipeline.pipelineState.current_block
-              ? `Блок ${pipeline.pipelineState.current_block}`
+            {pipeline.state.current_block
+              ? `Блок ${pipeline.state.current_block}`
               : "Пайплайн готов"}
           </Badge>
         )}

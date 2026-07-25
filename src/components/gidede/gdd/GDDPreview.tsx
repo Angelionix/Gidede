@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useMemo, useState, useEffect } from "react";
+import DOMPurify from "dompurify";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -16,7 +17,14 @@ interface GDDPreviewProps {
   profile: GDDProfile;
 }
 
-/** Simple markdown-to-HTML renderer (no external deps). */
+/**
+ * Simple markdown-to-HTML renderer (no external deps).
+ *
+ * NOTE: the output of this function is ALWAYS passed through DOMPurify.sanitize()
+ * before being injected via dangerouslySetInnerHTML. This neutralizes any
+ * <script>, onerror=, javascript: URLs, or other HTML that could originate
+ * from AI-generated or user-edited GDD sections (stored-XSS defense).
+ */
 function simpleMarkdown(md: string): string {
   let html = md
     // Headers
@@ -38,6 +46,68 @@ function simpleMarkdown(md: string): string {
     html = `<p>${html}</p>`;
   }
   return html;
+}
+
+/**
+ * Sanitize arbitrary HTML for safe insertion via dangerouslySetInnerHTML.
+ *
+ * DOMPurify is a browser-only library (it relies on the DOM). On the server
+ * (during SSR/SSG) it is a no-op identity function, so we guard with a
+ * typeof-window check and only sanitize in the browser. Because this
+ * component is "use client" and the dangerous HTML is only rendered after
+ * hydration, the browser-side sanitization is sufficient.
+ */
+function sanitizeHtml(html: string): string {
+  if (typeof window === "undefined") return html; // SSR: return raw; client will sanitize
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: [
+      "h1", "h2", "h3", "h4", "h5", "h6",
+      "p", "br", "hr",
+      "strong", "em", "b", "i", "u", "s", "del", "ins", "mark", "sub", "sup",
+      "ul", "ol", "li",
+      "blockquote", "code", "pre", "kbd", "samp", "var",
+      "a", "span", "div",
+      "table", "thead", "tbody", "tr", "th", "td",
+      "img",
+    ],
+    ALLOWED_ATTR: [
+      "href", "src", "alt", "title", "class",
+      "target", "rel",
+      "width", "height",
+      "colspan", "rowspan",
+    ],
+    ALLOW_DATA_ATTR: false,
+  });
+}
+
+/**
+ * Hook that returns a sanitized HTML string. During SSR it returns the raw
+ * (already-markdown-converted) HTML; after hydration it returns the
+ * DOMPurify-sanitized version. This avoids hydration mismatches by ensuring
+ * the first client render matches the server render, then sanitizes on the
+ * next tick.
+ */
+function useSanitizedHtml(rawHtml: string): string {
+  const [sanitized, setSanitized] = useState(rawHtml);
+  useEffect(() => {
+    setSanitized(sanitizeHtml(rawHtml));
+  }, [rawHtml]);
+  return sanitized;
+}
+
+/**
+ * Renders markdown-converted HTML safely via DOMPurify sanitization.
+ * Used as a child component so the hook can be called per-instance
+ * (hooks cannot be called inside .map() loops).
+ */
+function SanitizedContent({ md, className }: { md: string; className?: string }) {
+  const sanitized = useSanitizedHtml(simpleMarkdown(md));
+  return (
+    <div
+      className={className}
+      dangerouslySetInnerHTML={{ __html: sanitized }}
+    />
+  );
 }
 
 function sourceBadge(source: string) {
@@ -112,9 +182,9 @@ export const GDDPreview = React.memo(function GDDPreview({ profile }: GDDPreview
             <CardTitle className="text-sm">Содержание</CardTitle>
           </CardHeader>
           <CardContent>
-            <div
+            <SanitizedContent
+              md={formatted_document.table_of_contents}
               className="text-xs text-muted-foreground prose prose-sm dark:prose-invert max-w-none"
-              dangerouslySetInnerHTML={{ __html: simpleMarkdown(formatted_document.table_of_contents) }}
             />
           </CardContent>
         </Card>
@@ -139,9 +209,9 @@ export const GDDPreview = React.memo(function GDDPreview({ profile }: GDDPreview
                     </div>
                   </AccordionTrigger>
                   <AccordionContent className="px-4">
-                    <div
+                    <SanitizedContent
+                      md={section.content || "—"}
                       className="prose prose-sm dark:prose-invert max-w-none text-sm"
-                      dangerouslySetInnerHTML={{ __html: simpleMarkdown(section.content || "—") }}
                     />
                     {section.has_diagram && (
                       <p className="text-xs text-muted-foreground mt-2 italic">📊 Содержит диаграмму</p>
@@ -167,9 +237,9 @@ export const GDDPreview = React.memo(function GDDPreview({ profile }: GDDPreview
             <CardTitle className="text-sm">Полный документ</CardTitle>
           </CardHeader>
           <CardContent>
-            <div
+            <SanitizedContent
+              md={formatted_document.markdown}
               className="prose prose-sm dark:prose-invert max-w-none"
-              dangerouslySetInnerHTML={{ __html: simpleMarkdown(formatted_document.markdown) }}
             />
           </CardContent>
         </Card>

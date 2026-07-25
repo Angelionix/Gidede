@@ -758,10 +758,14 @@ function buildStability(
   },
   transitiveResult: { overpowered: string[]; underpowered: string[] }
 ) {
-  const positiveLoops = machinationsResult.feedback_loops.filter(
+  // Defensive: feedback_loops may be undefined when runMachinations is false
+  // (buildMachinationsResult omits the field in that case). Guard against
+  // TypeError so Block 4 does not crash the whole pipeline.
+  const feedbackLoops = machinationsResult.feedback_loops || [];
+  const positiveLoops = feedbackLoops.filter(
     (l) => l.type === "positive"
   ).length;
-  const negativeLoops = machinationsResult.feedback_loops.filter(
+  const negativeLoops = feedbackLoops.filter(
     (l) => l.type === "negative"
   ).length;
 
@@ -924,7 +928,7 @@ export async function POST(request: NextRequest) {
       return true;
     });
 
-    const result = {
+    const result: Record<string, unknown> = {
       id: proj.id,
       balance_map: balanceMap,
       transitive_result: transitiveResult,
@@ -1047,7 +1051,7 @@ export async function POST(request: NextRequest) {
       });
       if (aiInsights) {
         result.ai_insights = aiInsights;
-        result.models_used.push("glm-4.6 (ai-enrichment)");
+        (result.models_used as string[]).push("glm-4.6 (ai-enrichment)");
       }
     }
 

@@ -53,10 +53,10 @@ export async function getSyncHistory(
   const history: SyncHistoryEntry[] = rows.map((r) => {
     const detail = r.detail ? safeJsonParse(r.detail) : null;
     return {
-      sync_id: detail?.sync_id ?? r.id,
+      sync_id: (detail?.sync_id as string | undefined) ?? r.id,
       direction:
         r.syncDirection === "to" ? ("to_gbe" as const) : ("from_gbe" as const),
-      components_synced: detail?.components_synced ?? [],
+      components_synced: (detail?.components_synced as string[] | undefined) ?? [],
       timestamp: r.createdAt.toISOString(),
       status: r.status,
     };

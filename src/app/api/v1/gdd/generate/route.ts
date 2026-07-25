@@ -853,9 +853,11 @@ export async function POST(request: NextRequest) {
     const optionalSections: string[] = [];
     for (const sectionName of manualSections) {
       const priority: "critical" | "important" | "optional" =
-        sectionName === "narrative" || sectionName === "art_style"
-          ? "important"
-          : "optional";
+        sectionName === "core_loop" || sectionName === "mechanics"
+          ? "critical"
+          : sectionName === "narrative" || sectionName === "art_style"
+            ? "important"
+            : "optional";
       skeletons[sectionName] = {
         section_name: sectionName,
         priority,
@@ -967,7 +969,7 @@ export async function POST(request: NextRequest) {
       export_formats: exportFormats,
     };
 
-    const profile = {
+    const profile: Record<string, unknown> = {
       format_spec: formatSpec,
       data_mapping: dataMapping,
       auto_filled_sections: autoFilledSections,
@@ -1051,7 +1053,7 @@ export async function POST(request: NextRequest) {
       });
       if (aiInsights) {
         profile.ai_insights = aiInsights;
-        profile.models_used.push("glm-4.6 (ai-enrichment)");
+        (profile.models_used as string[]).push("glm-4.6 (ai-enrichment)");
       }
     }
 

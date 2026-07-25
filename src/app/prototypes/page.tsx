@@ -655,7 +655,7 @@ export default function PrototypesPage() {
                             const text = await file.text();
                             const data = JSON.parse(text);
                             const results = data.results || data;
-                            const res = await apiFetch("/playtests/import", {
+                            const res = await apiFetch<{ imported: number; skipped: number }>("/playtests/import", {
                               method: "POST",
                               headers: { "Content-Type": "application/json" },
                               body: JSON.stringify({ results }),

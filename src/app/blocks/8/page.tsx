@@ -501,9 +501,9 @@ export default function Block8Page() {
         >
           MOCK-режим
         </Badge>
-        {pipeline.pipelineState && (
+        {pipeline.state && (
           <Badge variant="outline" className="text-xs">
-            Пайплайн: блок {pipeline.pipelineState.current_block || "—"}
+            Пайплайн: блок {pipeline.state.current_block || "—"}
           </Badge>
         )}
       </div>

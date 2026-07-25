@@ -64,7 +64,7 @@ function PrototypeEditorInner() {
           position: n.position,
           data: { label: String((n.data as Record<string, unknown>)?.label || ""), properties: (n.data as Record<string, unknown>)?.properties as Record<string, unknown> || {} },
         })),
-        edges: edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle })),
+        edges: edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle ?? null, target: e.target, targetHandle: e.targetHandle ?? null })),
         settings: { mode, canvasSize: { width: 400, height: 300 }, targetFps: 60, backgroundColor: "#0f172a" },
       };
 
@@ -94,7 +94,7 @@ function PrototypeEditorInner() {
     const graph: NodeGraph = {
       version: "1.0",
       nodes: nodes.map((n) => ({ id: n.id, type: (n.data as Record<string, unknown>)?.nodeType as NodeType, position: n.position, data: n.data as { label: string; properties: Record<string, unknown> } })),
-      edges: edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle })),
+      edges: edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle ?? null, target: e.target, targetHandle: e.targetHandle ?? null })),
       settings: { mode, canvasSize: { width: 400, height: 300 }, targetFps: 60, backgroundColor: "#0f172a" },
     };
     const blob = new Blob([JSON.stringify(graph, null, 2)], { type: "application/json" });
@@ -116,7 +116,7 @@ function PrototypeEditorInner() {
       const graph: NodeGraph = {
         version: "1.0",
         nodes: nodes.map((n) => ({ id: n.id, type: (n.data as Record<string, unknown>)?.nodeType as NodeType, position: n.position, data: n.data as { label: string; properties: Record<string, unknown> } })),
-        edges: edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle })),
+        edges: edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle ?? null, target: e.target, targetHandle: e.targetHandle ?? null })),
         settings: { mode, canvasSize: { width: 400, height: 300 }, targetFps: 60, backgroundColor: "#0f172a" },
       };
       await apiFetch("/prototype-graph/save", {

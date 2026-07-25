@@ -38,6 +38,7 @@ export interface PipelineState {
   current_stage: string;
   can_proceed_to: number | null;
   next_block: number | null;
+  current_block?: number | null;
   notifications: PipelineNotification[];
 }
 

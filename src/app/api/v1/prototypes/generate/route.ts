@@ -60,7 +60,11 @@ export async function POST(request: NextRequest) {
     const config = buildPrototypeConfig(
       {
         structuralType: typeOverride || cl?.structuralType || "engine",
-        steps: cl?.steps ? (cl.steps as unknown) : (cl?.stepsData as unknown),
+        steps: cl?.steps
+          ? (JSON.parse(cl.steps) as string[] | { name?: string; description?: string; action?: string }[])
+          : cl?.stepsData
+            ? (JSON.parse(cl.stepsData) as string[] | { name?: string; description?: string; action?: string }[])
+            : undefined,
         inputData: cl?.inputData || undefined,
       },
       mode

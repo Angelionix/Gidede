@@ -427,8 +427,8 @@ export default function Block2Page() {
               <CardContent>
                 <CoreLoopDiagram
                   steps={result.steps}
-                  structuralType={result.structural_type?.type}
-                  pathologies={result.pathologies?.pathologies}
+                  structuralType={result.structural_type?.type as string | undefined}
+                  pathologies={result.pathologies?.pathologies as Array<{ name: string; type: string; severity: string }> | undefined}
                 />
               </CardContent>
             </Card>

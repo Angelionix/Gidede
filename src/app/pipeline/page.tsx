@@ -81,50 +81,58 @@ export default function PipelinePage() {
   const runFullPipeline = async () => {
     if (!selectedProject) return;
     setRunning(true);
-    setRunProgress(0);
+    setRunProgress(5);
+    setCurrentStep("Запуск серверного пайплайна...");
 
-    const steps = [
-      { name: "Концепция", endpoint: "/concept/generate", body: { idea: "Generate concept from project data" } },
-      { name: "Core Loop", endpoint: "/coreloop/design", body: { mechanics: ["explore", "combat", "reward"] } },
-      { name: "MDA Lab", endpoint: "/mda/analyze", body: { target_aesthetics: ["challenge"] } },
-      { name: "Баланс", endpoint: "/balance/analyze", body: { elements: [] } },
-      { name: "Прогрессия", endpoint: "/progression/design", body: { total_levels: 50 } },
-      { name: "Экономика", endpoint: "/economy/design", body: {} },
-      { name: "GDD", endpoint: "/gdd/generate", body: { format: "one_sheet" } },
-      { name: "Чек-лист", endpoint: "/gdd/checklist", body: {} },
-    ];
+    try {
+      // Single server-side call runs all 8 blocks sequentially with persistence.
+      const result = await apiFetch<{
+        stages_completed: number;
+        stages_total: number;
+        stages: Array<{ stage: string; block_name: string; status: string; message: string }>;
+        completion_percent: number;
+        note?: string;
+      }>(`/pipeline/run-full-pipeline/${selectedProject}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          idea: "Сгенерировать концепцию из данных проекта",
+          format: "one_sheet",
+          total_levels: 50,
+        }),
+      });
 
-    for (let i = 0; i < steps.length; i++) {
-      const step = steps[i];
-      setCurrentStep(`${i + 1}/8: ${step.name}...`);
-      setRunProgress(Math.round((i / steps.length) * 100));
+      setRunProgress(100);
+      setCurrentStep(`Готово: ${result.stages_completed}/${result.stages_total} стадий`);
 
-      try {
-        await apiFetch(step.endpoint, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ project_id: selectedProject, ...step.body }),
-        });
-        toast({ title: `✅ ${step.name}`, description: `Шаг ${i + 1}/8 завершён` });
-      } catch (err) {
+      // Report per-stage results.
+      for (const stage of result.stages) {
+        const ok = stage.status === "completed";
         toast({
-          title: `⚠️ ${step.name}`,
-          description: `Ошибка на шаге ${i + 1} — продолжаем`,
-          variant: "destructive",
+          title: `${ok ? "✅" : stage.status === "skipped" ? "⏭️" : "⚠️"} ${stage.block_name} — ${stage.stage}`,
+          description: stage.message,
+          variant: ok ? "default" : "destructive",
         });
       }
 
-      await new Promise((r) => setTimeout(r, 500));
+      toast({
+        title: result.stages_completed === result.stages_total
+          ? "🎉 Пайплайн завершён"
+          : "⚠️ Пайплайн завершён с ошибками",
+        description: result.note || `Выполнено ${result.stages_completed}/${result.stages_total} стадий. Завершённость: ${result.completion_percent}%`,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "Неизвестная ошибка";
+      setCurrentStep("Ошибка");
+      toast({
+        title: "❌ Ошибка пайплайна",
+        description: msg,
+        variant: "destructive",
+      });
+    } finally {
+      setRunning(false);
+      loadPipeline(selectedProject);
     }
-
-    setRunProgress(100);
-    setCurrentStep("Готово!");
-    setRunning(false);
-    toast({
-      title: "🎉 Пайплайн завершён",
-      description: "Все 8 блоков обработаны. Проверьте результат!",
-    });
-    loadPipeline(selectedProject);
   };
 
   if (authLoading) {

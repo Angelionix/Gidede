@@ -85,13 +85,13 @@ export async function getOwnedProject(
 /** Safe JSON.parse for stored Prisma string columns. Returns {} on failure. */
 export function safeJsonParse<T = Record<string, unknown>>(
   raw: string | null | undefined,
-  fallback: T
+  fallback?: T
 ): T {
-  if (!raw) return fallback;
+  if (!raw) return (fallback ?? ({} as T));
   try {
     return JSON.parse(raw) as T;
   } catch {
-    return fallback;
+    return (fallback ?? ({} as T));
   }
 }
 

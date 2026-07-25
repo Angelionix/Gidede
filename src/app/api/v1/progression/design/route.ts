@@ -390,7 +390,12 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const perceivedDifficultyTable = [];
+    const perceivedDifficultyTable: Array<{
+      level: number;
+      target_perceived_difficulty: number;
+      recommended_enemy_power: number;
+      is_tier_boundary: boolean;
+    }> = [];
     for (let lvl = 1; lvl <= targetLevels; lvl++) {
       const isTierBoundary = tiers.some((t) => t.level_range[1] === lvl);
       // Difficulty target (0..1)
@@ -539,7 +544,7 @@ export async function POST(request: NextRequest) {
     const stagesCompleted = [1, 2, 3, 4, 5];
     const latencyMs = Date.now() - startedAt;
 
-    const result = {
+    const result: Record<string, unknown> = {
       id: proj.id,
       macro_model: macroModel,
       tier_model: tierModel,
@@ -626,7 +631,7 @@ export async function POST(request: NextRequest) {
       });
       if (aiInsights) {
         result.ai_insights = aiInsights;
-        result.models_used.push("glm-4.6 (ai-enrichment)");
+        (result.models_used as string[]).push("glm-4.6 (ai-enrichment)");
       }
     }
 

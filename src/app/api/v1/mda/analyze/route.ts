@@ -772,7 +772,7 @@ export async function POST(request: NextRequest) {
       : [1, 2, 3];
     const iterationsDone = classicMdaResult?.iterations || 0;
 
-    const result = {
+    const result: Record<string, unknown> = {
       aesthetic_profile: aestheticProfile,
       dynamics_target: dynamicsTarget,
       mechanic_candidate_set: mechanicCandidateSet,
@@ -863,7 +863,7 @@ export async function POST(request: NextRequest) {
       });
       if (aiInsights) {
         result.ai_insights = aiInsights;
-        result.models_used.push("glm-4.6 (ai-enrichment)");
+        (result.models_used as string[]).push("glm-4.6 (ai-enrichment)");
       }
     }
 

@@ -877,7 +877,7 @@ export async function POST(request: NextRequest) {
       });
       if (aiInsights) {
         result.ai_insights = aiInsights;
-        result.models_used.push("glm-4.6 (ai-enrichment)");
+        (result.models_used as string[]).push("glm-4.6 (ai-enrichment)");
       }
     }
 

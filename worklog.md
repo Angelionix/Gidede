@@ -650,3 +650,59 @@ Stage Summary:
 - src/app/blocks/4/page.tsx (load saved balance on mount)
 - src/app/blocks/5/page.tsx (load saved progression + economy on mount)
 - src/app/blocks/6/page.tsx (load saved GDD on mount)
+
+---
+Task ID: 15
+Agent: full-stack-developer (mechanics glossary)
+Task: Create /mechanics page with browsable 128-mechanic library + glossary
+
+Work Log:
+- Read src/lib/mechanics-db.ts: confirmed 128 mechanics, 15 groups (Базовые, Прогрессия, Пространство, Боевые, Движение, Экономика, Социальные, Стелс, Навыки, Время, Территория, Сюжет, Выживание, Информация, Мета), 8 aesthetics (sensation, fantasy, narrative, challenge, fellowship, discovery, expression, submission). Used exported getMechanicsDBStats() helper for the stats bar.
+- Inspected src/app/knowledge/page.tsx and src/components/gidede/sidebar.tsx for style consistency (header chip, stats card, badge styling, SidebarMenuItem pattern).
+- Inspected src/components/gidede/layout-shell.tsx PUBLIC_ROUTES/PROTECTED_PREFIXES.
+- Created src/app/mechanics/page.tsx as "use client": header with Layers icon + subtitle, stats bar (128 / 15 / 8 + SW.BAND Книга 15 source note), collapsible Accordion glossary with 8 game-design terms (MDA, Механика, Динамика, Эстетика, Core Loop, Engine/Economy/Ecology, Triangle of Weirdness, Линзы Шелла), search input (ё→е normalized, case-insensitive, matches name/desc/group/aesthetics/genres), group filter chips (Все + 15 with counts), collapsible aesthetic filter (Все эстетики + 8), responsive grid 1/2/3 cols, mechanic cards with group badge + aesthetics + genres, click opens Dialog with full description + "Использовать в Концепции" button linking to /blocks/1, empty state with Library icon + reset button. No new API endpoint — data is static, imported directly from @/lib/mechanics-db. Group colour map uses 15 distinct Tailwind palettes (no indigo/blue per project rule): amber, emerald, lime, red, orange, yellow, pink, slate, violet, teal, green, rose, stone, purple, fuchsia.
+- Modified src/components/gidede/sidebar.tsx: added Layers import + new "Механики" SidebarMenuItem between "База знаний" and "Помощь", with a 128-count primary-tinted badge. isActive highlights on /mechanics.
+- Modified src/components/gidede/layout-shell.tsx: added "/mechanics" to PROTECTED_PREFIXES (kept out of PUBLIC_ROUTES so the page requires auth; LayoutShell handles redirect to /login).
+- Ran bun run lint → exit 0, no warnings.
+- Checked dev.log tail: only routine Prisma queries + 200 responses for /api/v1/pipeline/state; no compile errors related to /mechanics.
+- Wrote work record to /home/z/my-project/agent-ctx/15-mechanics-glossary.md.
+
+Stage Summary:
+- Created: src/app/mechanics/page.tsx (~480 lines, client component)
+- Modified: src/components/gidede/sidebar.tsx (+11 lines: Layers import + Механики menu item)
+- Modified: src/components/gidede/layout-shell.tsx (+1 line: /mechanics in PROTECTED_PREFIXES)
+- Created: agent-ctx/15-mechanics-glossary.md (work record)
+- Lint: clean (bun run lint exit 0)
+- Dev server: unchanged, port 3000, no restart, no compile errors observed in dev.log
+
+---
+Task ID: 16
+Agent: full-stack-developer (genre-aware prototypes)
+Task: Add genre-specific prototype templates (platformer, shooter, RPG, racing, puzzle, TD)
+
+Work Log:
+- Read existing src/lib/prototype-generator.ts (1170 lines): understood the engine/economy/ecology + rhythm/puzzle/tower_defense LittleJS+Three.js templates and the public `buildPrototypeConfig(coreLoopData, mode)` / `generatePrototypeHtml(config)` dispatch.
+- Read src/app/api/v1/prototypes/generate/route.ts: confirmed the route has `project.genre` available but didn't pass it through.
+- Extended `PrototypeConfig` with `genre?: string` field.
+- Updated `buildPrototypeConfig` signature to accept optional 3rd `genre` param and propagate it to the returned config.
+- Updated route to pass `project.genre || undefined` as the 3rd argument.
+- Added 6 new self-contained genre template generators on pure Canvas (no LittleJS/Three.js dependency):
+  * `generatePlatformerHtml` — gravity/jump, 8 platforms, 8 coins, 3 patrolling enemies, fall/contact = lose, 60s timer, A/D + Space/W/↑.
+  * `generateShooterHtml` — top-down, WASD move, mouse aim+click to shoot, enemies spawn from edges & chase, HP=100, 20 kills or 30s survive = win.
+  * `generateRpgHtml` — dungeon room, 5 enemies with HP bars, WASD move, click/Space melee arc attack, XP/level (+10 dmg per level), HP/Mana bars, clear all enemies.
+  * `generateRacingHtml` — 3-lane scrolling road, ←/→ switch lane, obstacles spawn at top, accelerating speed, distance 1000 = win, crash = lose.
+  * `generatePuzzleHtml` — 6x6 match-3 grid, click-swap adjacent cells, 3+ in row/col clears, gravity refills, 100 pts in 60s.
+  * `generateTowerDefenseHtml` — snake path, 5 waves, 10 build spots, click to place tower (50💰), auto-aim nearest enemy, +10💰/kill, 10 lives, survive 5 waves.
+- Each template includes: doctype + viewport meta, responsive 800x600 canvas, requestAnimationFrame loop, keyboard listeners (preventDefault on arrows/Space), touch buttons (◀▶▲⚡) for mobile, WebAudio sfx, start overlay with Russian instructions, end overlay with restart, postMessage to parent with `{type:'gidede-playtest', outcome, score, duration, mode:'2d', prototypeType:'<genre>'}`.
+- Added shared `genreShell(title, goal, instructions, genreType)` + `genreFooter()` helpers to factor out common HTML/CSS/JS plumbing.
+- Added `GENRE_TEMPLATES` dispatch map + `normalizeGenre()` helper (handles synonyms: action→shooter, fps→shooter, action_rpg/arpg/roguelike/roguelite/dungeon→rpg, race/driv*→racing, match3/match-3→puzzle, td/strategy/rts→tower_defense; plus substring fallback). Falls through to existing LittleJS/Three.js templates if no genre match.
+- Updated `generatePrototypeHtml(config)` to first check `normalizeGenre(config.genre)` and dispatch to genre template if matched.
+- Ran `bun run lint` — passes clean.
+- Checked dev.log — no runtime errors after edits.
+
+Stage Summary:
+- Files modified:
+  * src/lib/prototype-generator.ts (+~1480 lines: PrototypeConfig.genre field, buildPrototypeConfig 3rd param, 6 genre template generators, genreShell/genreFooter helpers, GENRE_TEMPLATES dispatch + normalizeGenre, updated generatePrototypeHtml dispatch).
+  * src/app/api/v1/prototypes/generate/route.ts (1 line: pass `project.genre || undefined` as 3rd arg).
+- Genres added (each playable on pure Canvas with real genre mechanics): platformer, shooter (+action, fps), rpg (+action_rpg, arpg, roguelike, roguelite, dungeon), racing (+race), puzzle (+match3, match-3), tower_defense (+td, strategy, rts).
+- Existing engine/economy/ecology (LittleJS 2D + Three.js 3D) templates preserved as fallback — projects without a recognized genre still get the original clicker/survival/etc. prototype.

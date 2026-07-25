@@ -33,7 +33,7 @@ import {
   SERVER_ERROR,
   VALIDATION_ERROR,
 } from "@/lib/api-helpers";
-import { enrichConcept } from "@/lib/ai-service";
+import { enrichConcept, generateAestheticProfileViaAI } from "@/lib/ai-service";
 import { buildMechanicSetForGenre, MECHANICS_DB, type Mechanic } from "@/lib/mechanics-db";
 
 // ============================================================
@@ -185,18 +185,67 @@ function inferGenre(idea: string): string {
 
 function pickAesthetics(genre: string, idea: string) {
   const base = GENRE_AESTHETICS[genre] || GENRE_AESTHETICS.default;
-  // Slight customization based on idea keywords
   const lower = idea.toLowerCase();
+
+  // Analyze the idea text for aesthetic cues. Each aesthetic has EN + RU
+  // keywords. Score each aesthetic; the highest scorer becomes primary.
+  const aestheticKeywords: Record<string, string[]> = {
+    challenge: ["challenge", "difficult", "hard", "skill", "competitive", "mastery", "boss", "elite",
+      "вызов", "сложн", "мастер", "навык", "конкурент", "босс", "элит", "хардкор", "скилл"],
+    sensation: ["action", "fast", "speed", "visual", "sound", "music", "rhythm", "visceral",
+      "экшн", "действие", "быстр", "скорост", "визуал", "звук", "музык", "ритм"],
+    fantasy: ["role", "character", "hero", "epic", "adventure", "quest", "power",
+      "роль", "персонаж", "герой", "эп", "приключ", "квест", "сила", "фэнтези"],
+    narrative: ["story", "narrative", "plot", "character arc", "lore", "dialogue", "cinematic",
+      "истори", "сюжет", "наррати", "диалог", "лор", "кино"],
+    fellowship: ["team", "friends", "multiplayer", "coop", "co-op", "social", "guild", "raid",
+      "команд", "друзь", "кооп", "социальн", "гильд", "рейд", "совмест"],
+    discovery: ["explore", "discover", "world", "map", "secret", "mystery", "open world",
+      "исслед", "открыв", "мир", "карта", "секрет", "тайн", "открыт"],
+    expression: ["build", "create", "craft", "customize", "design", "sandbox", "construct",
+      "строй", "создав", "крафт", "кастомиз", "дизайн", "конструир"],
+    submission: ["relax", "calm", "zen", "idle", "routine", "flow", "meditative",
+      "релакс", "спокой", "дзен", "айдл", "рутина", "поток", "медитат"],
+  };
+
+  const scores: Record<string, number> = {};
+  for (const [aesthetic, keywords] of Object.entries(aestheticKeywords)) {
+    let score = 0;
+    for (const kw of keywords) {
+      if (lower.includes(kw)) score += 1;
+    }
+    if (score > 0) scores[aesthetic] = score;
+  }
+
+  // Start from the genre-based defaults
   let primary = base.primary;
-  if (lower.includes("story") || lower.includes("narrative")) primary = "narrative";
-  if (lower.includes("explore") || lower.includes("discover")) primary = "discovery";
-  if (lower.includes("build") || lower.includes("create")) primary = "expression";
-  if (lower.includes("team") || lower.includes("friends")) primary = "fellowship";
+  let secondary = base.secondary;
+  let tertiary = base.tertiary;
+
+  // If idea-text analysis found a stronger aesthetic than the genre default,
+  // promote it to primary and push the old primary down.
+  const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+  if (sorted.length > 0 && sorted[0][1] >= 1) {
+    const topAesthetic = sorted[0][0];
+    if (topAesthetic !== primary) {
+      // Demote: old primary → secondary, old secondary → tertiary
+      tertiary = secondary;
+      secondary = primary;
+      primary = topAesthetic;
+    }
+    // If there's a second-strongest, use it as secondary (if different)
+    if (sorted.length > 1 && sorted[1][1] >= 1 && sorted[1][0] !== primary && sorted[1][0] !== secondary) {
+      tertiary = secondary;
+      secondary = sorted[1][0];
+    }
+  }
 
   return {
     primary,
-    secondary: base.secondary,
-    tertiary: base.tertiary,
+    secondary,
+    tertiary,
+    // Include scores for debugging / transparency
+    detected_signals: sorted.map(([a, s]) => `${a}(${s})`).join(", ") || "none — using genre defaults",
   };
 }
 
@@ -637,13 +686,24 @@ export async function POST(request: NextRequest) {
     };
 
     // --- Stage 2: Aesthetic profile ---
+    // Deterministic baseline from genre + idea keyword analysis.
     const aestheticSelection = pickAesthetics(genre, idea);
-    const aestheticProfile = {
+    let aestheticProfile = {
       primary: aestheticSelection.primary,
       secondary: aestheticSelection.secondary,
       tertiary: aestheticSelection.tertiary,
-      rationale: `Primary aesthetic "${aestheticSelection.primary}" matches genre "${genre}" and idea emphasis. Secondary/tertiary chosen to broaden the player experience.`,
+      rationale: `Primary aesthetic "${aestheticSelection.primary}" derived from idea-text analysis (signals: ${aestheticSelection.detected_signals}). Genre "${genre}" provides the baseline; idea keywords override when they indicate a stronger aesthetic direction.`,
     };
+
+    // When use_ai is enabled, ask the LLM to produce a richer aesthetic
+    // profile based on the actual content of the idea. Falls back to the
+    // deterministic version if AI is unavailable or returns invalid data.
+    if (useAi) {
+      const aiProfile = await generateAestheticProfileViaAI(idea, genre);
+      if (aiProfile) {
+        aestheticProfile = aiProfile;
+      }
+    }
 
     // --- Stage 3: Dynamics profile ---
     const dynamicsProfile = deriveDynamics(aestheticProfile);

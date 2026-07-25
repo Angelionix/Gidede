@@ -69,7 +69,8 @@ export async function POST(request: NextRequest) {
           : undefined,
         inputData: cl?.inputData || undefined,
       },
-      mode
+      mode,
+      project.genre || undefined
     );
 
     const html = generatePrototypeHtml(config);

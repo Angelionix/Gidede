@@ -34,6 +34,7 @@ import {
   Rocket,
   Workflow,
   HelpCircle,
+  Layers,
 } from "lucide-react";
 import { useAuth } from "@/lib/auth";
 import { ProgressSidebar } from "@/components/gidede/progress-sidebar";
@@ -181,6 +182,17 @@ export function GidedeSidebar() {
                     <span>База знаний</span>
                     <Badge variant="outline" className="text-[10px] ml-auto px-1.5 py-0 bg-amber-100 text-amber-700 dark:bg-amber-950/60 dark:text-amber-300 border-amber-200 dark:border-amber-900">
                       12
+                    </Badge>
+                  </Link>
+                </SidebarMenuButton>
+              </SidebarMenuItem>
+              <SidebarMenuItem>
+                <SidebarMenuButton asChild isActive={pathname === "/mechanics"}>
+                  <Link href="/mechanics">
+                    <Layers className="h-4 w-4" />
+                    <span>Механики</span>
+                    <Badge variant="outline" className="text-[10px] ml-auto px-1.5 py-0 bg-primary/10 text-primary border-primary/20">
+                      128
                     </Badge>
                   </Link>
                 </SidebarMenuButton>

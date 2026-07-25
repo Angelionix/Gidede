@@ -39,6 +39,14 @@ interface PrototypeConfig {
   resourceIcon: string;
   goalText: string;
   mode: PrototypeMode;
+  /**
+   * Жанр проекта (например "platformer", "shooter", "rpg", "racing", "puzzle",
+   * "tower_defense", "strategy", "action", "action_rpg", "roguelike", "rts").
+   * Если задан и соответствует одному из genre-шаблонов, прототип генерируется
+   * по жанру (реальные механики жанра на чистом Canvas). Иначе — fallback на
+   * engine/economy/ecology (LittleJS/Three.js).
+   */
+  genre?: string;
 }
 
 const RESOURCE_PRESETS: Record<string, { name: string; icon: string }> = {
@@ -132,10 +140,15 @@ function extractSteps(data: CoreLoopData): string[] {
 /**
  * Сгенерировать конфиг прототипа из данных кор-лупа проекта.
  * mode — "2d" (LittleJS) или "3d" (Three.js).
+ * genre — жанр проекта (project.genre). Если задан и соответствует одному
+ *         из genre-шаблонов (platformer/shooter/rpg/racing/puzzle/tower_defense),
+ *         генератор выдаст жанровый прототип на чистом Canvas с реальными
+ *         механиками жанра. Иначе — fallback на engine/economy/ecology.
  */
 export function buildPrototypeConfig(
   coreLoopData: CoreLoopData,
-  mode: PrototypeMode = "2d"
+  mode: PrototypeMode = "2d",
+  genre?: string
 ): PrototypeConfig {
   const validTypes = ["engine", "economy", "ecology", "tower_defense", "rhythm", "puzzle"];
   const rawType = (coreLoopData.structuralType || "engine").toLowerCase();
@@ -171,6 +184,7 @@ export function buildPrototypeConfig(
     resourceIcon: preset.icon,
     goalText: goals[type] || goals.engine,
     mode,
+    genre: genre || undefined,
   };
 }
 
@@ -1154,15 +1168,1498 @@ function generate3dHtml(config: PrototypeConfig): string {
 }
 
 // ============================================================
+// Жанровые прототипы на чистом Canvas (без LittleJS/Three.js)
+// ============================================================
+//
+// Каждый жанр — самодостаточный HTML с настоящими механиками:
+// платформер (гравитация/прыжки/платформы), шутер (полёт пуль/спавн врагов),
+// RPG (ближний бой/XP/уровни), гонки (скроллинг/полосы), puzzle (match-3),
+// Tower Defense (волны/башни/золото). Весь UI на русском.
+//
+// Общая структура каждого жанрового HTML:
+//   - <head> с viewport meta
+//   - canvas 800x600 (адаптивный)
+//   - requestAnimationFrame game loop
+//   - keyboard + touch listeners
+//   - win/lose → window.parent.postMessage({type:'gidede-playtest',...})
+//   - кнопка «Заново», оверлей с инструкцией в начале
+
+/** Общая шапка для жанровых прототипов (стили + пост-мессадж + sfx). */
+function genreShell(title: string, goalText: string, instructions: string, genreType: string): string {
+  return `<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
+<title>${title}</title>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  body{background:#0f172a;color:#e2e8f0;font-family:system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;align-items:center;padding:6px;min-height:100vh;overflow:hidden;-webkit-user-select:none;user-select:none}
+  h1{font-size:14px;margin-bottom:2px;color:#fbbf24}
+  .goal{color:#94a3b8;font-size:11px;margin-bottom:4px;text-align:center}
+  #wrap{position:relative;width:100%;max-width:800px;aspect-ratio:4/3;border-radius:10px;overflow:hidden;border:1px solid #334155;box-shadow:0 4px 20px rgba(0,0,0,0.5)}
+  canvas{display:block;width:100%;height:100%;background:#1e293b;touch-action:none}
+  #hud{position:absolute;top:8px;left:8px;display:flex;gap:12px;align-items:center;color:#fbbf24;font-size:14px;font-weight:bold;text-shadow:0 1px 3px rgba(0,0,0,0.9);z-index:5;pointer-events:none}
+  #timer{position:absolute;top:8px;right:8px;color:#94a3b8;font-size:14px;font-weight:bold;text-shadow:0 1px 3px rgba(0,0,0,0.9);z-index:5}
+  .overlay{position:absolute;inset:0;background:rgba(2,6,23,0.92);display:flex;flex-direction:column;align-items:center;justify-content:center;color:#fff;gap:14px;padding:18px;z-index:10;text-align:center}
+  .overlay.hidden{display:none}
+  .overlay h2{font-size:22px;color:#fbbf24}
+  .overlay p{font-size:13px;color:#cbd5e1;max-width:520px;line-height:1.5;white-space:pre-line}
+  .overlay button{padding:10px 28px;background:#10b981;color:#042f1e;border:none;border-radius:8px;font-weight:700;font-size:15px;cursor:pointer;transition:transform .15s}
+  .overlay button:hover{transform:scale(1.05)}
+  .overlay button.secondary{background:#475569;color:#fff;margin-left:8px}
+  .hint{font-size:10px;color:#64748b;margin-top:4px;text-align:center}
+  .controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+  .btn{padding:8px 16px;background:#1e293b;color:#e2e8f0;border:1px solid #475569;border-radius:6px;font-size:12px;cursor:pointer;font-weight:600}
+  .btn:active{background:#334155}
+</style>
+</head>
+<body>
+  <h1>${title}</h1>
+  <p class="goal">🎯 ${goalText}</p>
+  <div id="wrap">
+    <div id="hud"></div>
+    <div id="timer"></div>
+    <canvas id="game" width="800" height="600"></canvas>
+    <div class="overlay" id="startOverlay">
+      <h2>${title}</h2>
+      <p>${instructions}</p>
+      <div class="controls">
+        <button class="btn" id="startBtn">▶ Играть</button>
+      </div>
+    </div>
+    <div class="overlay hidden" id="endOverlay">
+      <h2 id="endTitle"></h2>
+      <p id="endStats"></p>
+      <button class="btn" id="restartBtn">↻ Заново</button>
+    </div>
+  </div>
+  <p class="hint">${title} • чистый Canvas • клавиатура + тач</p>
+<script>
+"use strict";
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const hudEl = document.getElementById('hud');
+const timerEl = document.getElementById('timer');
+const startOverlay = document.getElementById('startOverlay');
+const endOverlay = document.getElementById('endOverlay');
+const endTitle = document.getElementById('endTitle');
+const endStats = document.getElementById('endStats');
+
+// WebAudio sfx (без файлов)
+let actx = null;
+function sfx(freq, dur, type='sine', vol=0.12) {
+  try {
+    if (!actx) actx = new (window.AudioContext||window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain();
+    o.type = type; o.frequency.value = freq; g.gain.value = vol;
+    o.connect(g); g.connect(actx.destination);
+    o.start();
+    g.gain.exponentialRampToValueAtTime(0.001, actx.currentTime + dur);
+    o.stop(actx.currentTime + dur);
+  } catch(e) {}
+}
+function sfxCollect(){ sfx(880,0.1,'square'); setTimeout(()=>sfx(1320,0.1,'square'),50); }
+function sfxHit(){ sfx(120,0.2,'sawtooth',0.18); }
+function sfxShoot(){ sfx(660,0.06,'square',0.08); }
+function sfxKill(){ sfx(440,0.08,'triangle'); setTimeout(()=>sfx(660,0.1,'triangle'),60); }
+function sfxWin(){ sfx(523,0.15); setTimeout(()=>sfx(659,0.15),150); setTimeout(()=>sfx(784,0.3),300); }
+function sfxLose(){ sfx(220,0.2,'sawtooth'); setTimeout(()=>sfx(110,0.4,'sawtooth'),200); }
+
+// --- состояние ---
+let running = false;
+let startTime = 0;
+let elapsed = 0;
+const keys = {};
+window.addEventListener('keydown', (e) => {
+  keys[e.code] = true;
+  if (['Space','ArrowUp','ArrowDown','ArrowLeft','ArrowRight'].includes(e.code)) e.preventDefault();
+});
+window.addEventListener('keyup', (e) => { keys[e.code] = false; });
+
+// Тач-управление: кнопки на экране (рисуются canvas'ом, обрабатываются здесь)
+const touchState = { left:false, right:false, up:false, down:false, fire:false };
+function setupTouchButtons() {
+  // Простые невидимые зоны: левая половина — D-pad-стиль, правая — action
+  const btns = [
+    {x:0, y:H*0.7, w:W*0.25, h:H*0.3, key:'left', label:'◀'},
+    {x:W*0.25, y:H*0.7, w:W*0.25, h:H*0.3, key:'right', label:'▶'},
+    {x:W*0.5, y:H*0.7, w:W*0.25, h:H*0.3, key:'up', label:'▲'},
+    {x:W*0.75, y:H*0.7, w:W*0.25, h:H*0.3, key:'fire', label:'⚡'},
+  ];
+  return btns;
+}
+const touchBtns = setupTouchButtons();
+canvas.addEventListener('touchstart', (e) => {
+  e.preventDefault();
+  for (const t of e.touches) {
+    const r = canvas.getBoundingClientRect();
+    const x = (t.clientX - r.left) * (W / r.width);
+    const y = (t.clientY - r.top) * (H / r.height);
+    for (const b of touchBtns) {
+      if (x >= b.x && x < b.x+b.w && y >= b.y && y < b.y+b.h) {
+        touchState[b.key] = true;
+      }
+    }
+  }
+}, { passive: false });
+canvas.addEventListener('touchend', (e) => {
+  e.preventDefault();
+  // снимаем все, что не нажато
+  const stillPressed = new Set();
+  for (const t of e.touches) {
+    const r = canvas.getBoundingClientRect();
+    const x = (t.clientX - r.left) * (W / r.width);
+    const y = (t.clientY - r.top) * (H / r.height);
+    for (const b of touchBtns) {
+      if (x >= b.x && x < b.x+b.w && y >= b.y && y < b.y+b.h) stillPressed.add(b.key);
+    }
+  }
+  for (const b of touchBtns) touchState[b.key] = stillPressed.has(b.key);
+}, { passive: false });
+
+function notifyParent(outcome, score, duration) {
+  try {
+    window.parent.postMessage({
+      type: 'gidede-playtest',
+      outcome: outcome,
+      score: score != null ? score : null,
+      duration: duration || Math.round(elapsed),
+      mode: '2d',
+      prototypeType: '${genreType}'
+    }, '*');
+  } catch(e) {}
+}
+function endGame(outcome, score, msg) {
+  if (!running) return;
+  running = false;
+  elapsed = (performance.now() - startTime) / 1000;
+  if (outcome === 'win') { sfxWin(); endTitle.textContent = '🎉 Победа!'; }
+  else { sfxLose(); endTitle.textContent = '💀 Поражение'; }
+  endStats.textContent = (msg || '') + (score != null ? '  •  Счёт: ' + score : '') + '  •  Время: ' + Math.round(elapsed) + 'с';
+  endOverlay.classList.remove('hidden');
+  notifyParent(outcome, score, Math.round(elapsed));
+}
+
+function drawTouchButtons() {
+  // Подсказки тач-кнопок (полупрозрачные)
+  ctx.save();
+  ctx.globalAlpha = 0.25;
+  for (const b of touchBtns) {
+    ctx.fillStyle = '#475569';
+    ctx.fillRect(b.x, b.y, b.w, b.h);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 28px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(b.label, b.x + b.w/2, b.y + b.h/2);
+  }
+  ctx.restore();
+}
+
+document.getElementById('startBtn').addEventListener('click', () => {
+  startOverlay.classList.add('hidden');
+  if (actx && actx.state === 'suspended') actx.resume();
+  startGame();
+});
+document.getElementById('restartBtn').addEventListener('click', () => {
+  endOverlay.classList.add('hidden');
+  startGame();
+});
+`;
+}
+
+/** Общий хвост жанровых прототипов: пустой game-loop + автостарт-ожидание. */
+function genreFooter(): string {
+  return `
+let lastFrame = 0;
+function frame(now) {
+  if (!running) { requestAnimationFrame(frame); return; }
+  const dt = Math.min(0.05, (now - lastFrame) / 1000 || 0.016);
+  lastFrame = now;
+  update(dt);
+  draw();
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+</script>
+</body>
+</html>`;
+}
+
+// ----------------------------------------------------------------
+// ПЛАТФОРМЕР
+// ----------------------------------------------------------------
+
+function generatePlatformerHtml(config: PrototypeConfig): string {
+  return genreShell(
+    "🎮 Платформер",
+    "Соберите все монеты за 60 секунд. Прыгайте по платформам, остерегайтесь врагов.",
+    "Управление:\n• A/D или ←/→ — движение\n• Space/W/↑ — прыжок\n• Цель: собрать все монеты\n• Поражение: падение вниз или касание врага\n\nНа мобильных: тач-кнопки внизу экрана",
+    "platformer"
+  )
+  + `
+let player, platforms, coins, enemies, coinsTotal, coinsCollected, timeLeft;
+const GRAVITY = 1400;
+const MOVE = 260;
+const JUMP = 540;
+
+function reset() {
+  player = { x: 60, y: 400, w: 26, h: 30, vx: 0, vy: 0, onGround: false };
+  platforms = [
+    { x: 0,   y: 560, w: 800, h: 40 },   // земля
+    { x: 80,  y: 460, w: 140, h: 16 },
+    { x: 280, y: 400, w: 120, h: 16 },
+    { x: 460, y: 340, w: 140, h: 16 },
+    { x: 640, y: 420, w: 140, h: 16 },
+    { x: 380, y: 250, w: 120, h: 16 },
+    { x: 160, y: 200, w: 100, h: 16 },
+    { x: 540, y: 180, w: 100, h: 16 },
+  ];
+  coins = [
+    { x: 130, y: 430 }, { x: 330, y: 370 }, { x: 520, y: 310 },
+    { x: 700, y: 390 }, { x: 430, y: 220 }, { x: 200, y: 170 },
+    { x: 580, y: 150 }, { x: 380, y: 470 }
+  ];
+  coinsTotal = coins.length;
+  coinsCollected = 0;
+  enemies = [
+    { x: 290, y: 380, w: 26, h: 24, dir: 1, minX: 280, maxX: 390 },
+    { x: 660, y: 400, w: 26, h: 24, dir: 1, minX: 640, maxX: 770 },
+    { x: 170, y: 180, w: 26, h: 24, dir: -1, minX: 160, maxX: 250 }
+  ];
+  timeLeft = 60;
+}
+reset();
+
+function startGame() {
+  reset();
+  running = true;
+  startTime = performance.now();
+  lastFrame = startTime;
+}
+
+function rectOverlap(a, b) {
+  return a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
+}
+
+function update(dt) {
+  timeLeft -= dt;
+  if (timeLeft <= 0) { endGame('lose', coinsCollected, 'Время вышло!'); return; }
+
+  // Горизонталь
+  let dx = 0;
+  if (keys['KeyA'] || keys['ArrowLeft'] || touchState.left) dx -= 1;
+  if (keys['KeyD'] || keys['ArrowRight'] || touchState.right) dx += 1;
+  player.vx = dx * MOVE;
+  player.x += player.vx * dt;
+  if (player.x < 0) player.x = 0;
+  if (player.x + player.w > W) player.x = W - player.w;
+
+  // Гравитация
+  player.vy += GRAVITY * dt;
+  player.y += player.vy * dt;
+  player.onGround = false;
+  for (const p of platforms) {
+    if (rectOverlap(player, p)) {
+      // приоритет — посадка сверху
+      if (player.vy > 0 && player.y + player.h - player.vy * dt <= p.y + 4) {
+        player.y = p.y - player.h;
+        player.vy = 0;
+        player.onGround = true;
+      } else if (player.vy < 0 && player.y >= p.y + p.h - 4) {
+        player.y = p.y + p.h;
+        player.vy = 0;
+      }
+    }
+  }
+
+  // Прыжок
+  if ((keys['Space'] || keys['KeyW'] || keys['ArrowUp'] || touchState.up) && player.onGround) {
+    player.vy = -JUMP;
+    player.onGround = false;
+    sfxShoot();
+  }
+
+  // Падение в пропасть
+  if (player.y > H + 50) { endGame('lose', coinsCollected, 'Упали вниз!'); return; }
+
+  // Монеты
+  for (let i = coins.length - 1; i >= 0; i--) {
+    const c = coins[i];
+    const cr = { x: c.x - 10, y: c.y - 10, w: 20, h: 20 };
+    if (rectOverlap(player, cr)) {
+      coins.splice(i, 1);
+      coinsCollected++;
+      sfxCollect();
+    }
+  }
+  if (coins.length === 0) { endGame('win', coinsCollected, 'Все монеты собраны!'); return; }
+
+  // Враги (патрулируют по платформе)
+  for (const e of enemies) {
+    e.x += e.dir * 70 * dt;
+    if (e.x < e.minX) { e.x = e.minX; e.dir = 1; }
+    if (e.x + e.w > e.maxX) { e.x = e.maxX - e.w; e.dir = -1; }
+    if (rectOverlap(player, e)) { endGame('lose', coinsCollected, 'Касание врага!'); return; }
+  }
+}
+
+function draw() {
+  // фон
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(0, 0, W, H);
+  // небо градиент
+  const grad = ctx.createLinearGradient(0, 0, 0, H);
+  grad.addColorStop(0, '#0f172a');
+  grad.addColorStop(1, '#1e3a5f');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+
+  // платформы
+  ctx.fillStyle = '#475569';
+  ctx.strokeStyle = '#64748b';
+  ctx.lineWidth = 2;
+  for (const p of platforms) {
+    ctx.fillRect(p.x, p.y, p.w, p.h);
+    ctx.strokeRect(p.x, p.y, p.w, p.h);
+    // верхняя «трава»
+    ctx.fillStyle = '#10b981';
+    ctx.fillRect(p.x, p.y, p.w, 4);
+    ctx.fillStyle = '#475569';
+  }
+
+  // монеты (золотые круги)
+  for (const c of coins) {
+    ctx.beginPath();
+    ctx.fillStyle = '#fbbf24';
+    ctx.arc(c.x, c.y, 8, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#f59e0b';
+    ctx.stroke();
+    ctx.fillStyle = '#fde68a';
+    ctx.font = 'bold 10px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('$', c.x, c.y);
+  }
+
+  // враги (красные квадраты с глазами)
+  for (const e of enemies) {
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(e.x, e.y, e.w, e.h);
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(e.x + 5, e.y + 6, 5, 5);
+    ctx.fillRect(e.x + 15, e.y + 6, 5, 5);
+    ctx.fillStyle = '#000';
+    const eyeOffX = e.dir > 0 ? 2 : 0;
+    ctx.fillRect(e.x + 6 + eyeOffX, e.y + 8, 2, 2);
+    ctx.fillRect(e.x + 16 + eyeOffX, e.y + 8, 2, 2);
+  }
+
+  // игрок (синий квадрат)
+  ctx.fillStyle = '#3b82f6';
+  ctx.fillRect(player.x, player.y, player.w, player.h);
+  ctx.fillStyle = '#93c5fd';
+  ctx.fillRect(player.x + 4, player.y + 6, 6, 6);
+  ctx.fillRect(player.x + 16, player.y + 6, 6, 6);
+
+  // HUD
+  hudEl.innerHTML = '🪙 ' + coinsCollected + ' / ' + coinsTotal;
+  timerEl.textContent = '⏱ ' + Math.max(0, Math.ceil(timeLeft)) + 'с';
+
+  drawTouchButtons();
+}
+` + genreFooter();
+}
+
+// ----------------------------------------------------------------
+// ШУТЕР (top-down)
+// ----------------------------------------------------------------
+
+function generateShooterHtml(config: PrototypeConfig): string {
+  return genreShell(
+    "🎮 Шутер (top-down)",
+    "Выживите 30 секунд или убейте 20 врагов. Стреляйте по врагам мышью.",
+    "Управление:\n• WASD — движение\n• Мышь — прицел\n• ЛКМ — выстрел\n• Цель: 20 убийств или выживание 30с\n• HP: 100, −10 за касание врага\n\nНа мобильных: D-pad + кнопка ⚡",
+    "shooter"
+  )
+  + `
+let player, enemies, bullets, mouseX, mouseY, mouseDown, hp, kills, timeLeft, spawnT, fireT;
+const MOVE = 220;
+const BULLET_SPEED = 480;
+const FIRE_RATE = 0.18;
+
+function reset() {
+  player = { x: W/2, y: H/2, r: 14 };
+  enemies = [];
+  bullets = [];
+  mouseX = W/2; mouseY = 0;
+  mouseDown = false;
+  hp = 100;
+  kills = 0;
+  timeLeft = 30;
+  spawnT = 0;
+  fireT = 0;
+}
+reset();
+canvas.addEventListener('mousemove', (e) => {
+  const r = canvas.getBoundingClientRect();
+  mouseX = (e.clientX - r.left) * (W / r.width);
+  mouseY = (e.clientY - r.top) * (H / r.height);
+});
+canvas.addEventListener('mousedown', (e) => { mouseDown = true; if (actx && actx.state==='suspended') actx.resume(); });
+canvas.addEventListener('mouseup', () => { mouseDown = false; });
+canvas.addEventListener('mouseleave', () => { mouseDown = false; });
+
+function startGame() {
+  reset();
+  running = true;
+  startTime = performance.now();
+  lastFrame = startTime;
+}
+
+function spawnEnemy() {
+  const side = Math.floor(Math.random() * 4);
+  let x, y;
+  if (side === 0) { x = Math.random() * W; y = -20; }
+  else if (side === 1) { x = W + 20; y = Math.random() * H; }
+  else if (side === 2) { x = Math.random() * W; y = H + 20; }
+  else { x = -20; y = Math.random() * H; }
+  enemies.push({ x, y, r: 12, speed: 60 + Math.random() * 40, hp: 1 });
+}
+
+function update(dt) {
+  timeLeft -= dt;
+  if (timeLeft <= 0) { endGame('win', kills, 'Выживали 30 секунд!'); return; }
+  if (kills >= 20) { endGame('win', kills, '20 убийств!'); return; }
+
+  // движение игрока
+  let dx = 0, dy = 0;
+  if (keys['KeyA'] || touchState.left) dx -= 1;
+  if (keys['KeyD'] || touchState.right) dx += 1;
+  if (keys['KeyW'] || touchState.up) dy -= 1;
+  if (keys['KeyS'] || touchState.down) dy += 1;
+  if (dx || dy) {
+    const len = Math.hypot(dx, dy);
+    dx /= len; dy /= len;
+    player.x += dx * MOVE * dt;
+    player.y += dy * MOVE * dt;
+  }
+  player.x = Math.max(player.r, Math.min(W - player.r, player.x));
+  player.y = Math.max(player.r, Math.min(H - player.r, player.y));
+
+  // стрельба
+  fireT -= dt;
+  if ((mouseDown || touchState.fire) && fireT <= 0) {
+    fireT = FIRE_RATE;
+    const ang = Math.atan2(mouseY - player.y, mouseX - player.x);
+    // если тач-fire и нет мыши — стреляем вверх
+    const targetAng = touchState.fire && !mouseDown ? -Math.PI/2 : ang;
+    bullets.push({ x: player.x, y: player.y, vx: Math.cos(targetAng) * BULLET_SPEED, vy: Math.sin(targetAng) * BULLET_SPEED, life: 1.5 });
+    sfxShoot();
+  }
+
+  // обновление пуль
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+    if (b.life <= 0 || b.x < 0 || b.x > W || b.y < 0 || b.y > H) bullets.splice(i, 1);
+  }
+
+  // спавн врагов
+  spawnT -= dt;
+  if (spawnT <= 0) {
+    spawnT = Math.max(0.4, 1.2 - (30 - timeLeft) * 0.025);
+    spawnEnemy();
+  }
+
+  // движение врагов к игроку
+  for (const e of enemies) {
+    const ang = Math.atan2(player.y - e.y, player.x - e.x);
+    e.x += Math.cos(ang) * e.speed * dt;
+    e.y += Math.sin(ang) * e.speed * dt;
+  }
+
+  // пули vs враги
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    for (let j = bullets.length - 1; j >= 0; j--) {
+      const b = bullets[j];
+      if (Math.hypot(e.x - b.x, e.y - b.y) < e.r + 4) {
+        enemies.splice(i, 1);
+        bullets.splice(j, 1);
+        kills++;
+        sfxKill();
+        break;
+      }
+    }
+  }
+
+  // враги vs игрок
+  for (const e of enemies) {
+    if (Math.hypot(e.x - player.x, e.y - player.y) < e.r + player.r) {
+      hp -= 25 * dt;
+      sfxHit();
+      if (hp <= 0) { hp = 0; endGame('lose', kills, 'HP закончилось!'); return; }
+    }
+  }
+}
+
+function draw() {
+  // фон
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, W, H);
+  // сетка
+  ctx.strokeStyle = '#1e3a5f';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 40) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y < H; y += 40) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+
+  // пули (жёлтые)
+  ctx.fillStyle = '#fbbf24';
+  for (const b of bullets) {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 3, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // враги (красные круги)
+  for (const e of enemies) {
+    ctx.beginPath();
+    ctx.fillStyle = '#ef4444';
+    ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fca5a5';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+
+  // игрок (треугольник-указатель)
+  const ang = Math.atan2(mouseY - player.y, mouseX - player.x);
+  ctx.save();
+  ctx.translate(player.x, player.y);
+  ctx.rotate(ang);
+  ctx.fillStyle = '#10b981';
+  ctx.beginPath();
+  ctx.moveTo(18, 0);
+  ctx.lineTo(-12, -12);
+  ctx.lineTo(-6, 0);
+  ctx.lineTo(-12, 12);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#6ee7b7';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+
+  // HP бар над игроком
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(player.x - 25, player.y - 26, 50, 6);
+  ctx.fillStyle = hp > 30 ? '#10b981' : '#ef4444';
+  ctx.fillRect(player.x - 25, player.y - 26, 50 * (hp / 100), 6);
+
+  // HUD
+  hudEl.innerHTML = '❤️ ' + Math.ceil(hp) + '  •  💀 ' + kills + '/20';
+  timerEl.textContent = '⏱ ' + Math.max(0, Math.ceil(timeLeft)) + 'с';
+
+  drawTouchButtons();
+}
+` + genreFooter();
+}
+
+// ----------------------------------------------------------------
+// RPG / DUNGEON CRAWLER
+// ----------------------------------------------------------------
+
+function generateRpgHtml(config: PrototypeConfig): string {
+  return genreShell(
+    "🎮 RPG (подземелье)",
+    "Зачистите комнату от 5 врагов. Качайтесь: убийство даёт XP, уровень — +урон.",
+    "Управление:\n• WASD — движение\n• ЛКМ или Space — атака (ближний бой)\n• Цель: убить всех врагов\n• Атака бьёт по врагам в радиусе перед героем\n• Каждый уровень: +10 к урону\n\nНа мобильных: D-pad + кнопка ⚡",
+    "rpg"
+  )
+  + `
+let player, enemies, hp, maxHp, mana, maxMana, xp, level, dmg, attackT, attackAnim, timeLeft;
+const MOVE = 180;
+const ATTACK_RANGE = 60;
+const ATTACK_ARC = Math.PI / 2;
+
+function reset() {
+  player = { x: W/2, y: H/2, r: 16, facing: 0 };
+  enemies = [
+    { x: 100, y: 100, r: 14, hp: 30, maxHp: 30, speed: 50, dmg: 8, alive: true },
+    { x: 700, y: 120, r: 14, hp: 30, maxHp: 30, speed: 50, dmg: 8, alive: true },
+    { x: 150, y: 500, r: 14, hp: 40, maxHp: 40, speed: 60, dmg: 10, alive: true },
+    { x: 680, y: 480, r: 14, hp: 40, maxHp: 40, speed: 60, dmg: 10, alive: true },
+    { x: 400, y: 80,  r: 18, hp: 60, maxHp: 60, speed: 70, dmg: 14, alive: true }
+  ];
+  hp = 100; maxHp = 100;
+  mana = 50; maxMana = 50;
+  xp = 0; level = 1; dmg = 20;
+  attackT = 0; attackAnim = 0;
+  timeLeft = 90;
+}
+reset();
+
+canvas.addEventListener('mousemove', (e) => {
+  const r = canvas.getBoundingClientRect();
+  const mx = (e.clientX - r.left) * (W / r.width);
+  const my = (e.clientY - r.top) * (H / r.height);
+  player.facing = Math.atan2(my - player.y, mx - player.x);
+});
+canvas.addEventListener('mousedown', () => { tryAttack(); if (actx && actx.state==='suspended') actx.resume(); });
+
+function startGame() {
+  reset();
+  running = true;
+  startTime = performance.now();
+  lastFrame = startTime;
+}
+
+function tryAttack() {
+  if (attackT > 0) return;
+  attackT = 0.4;
+  attackAnim = 0.2;
+  sfxShoot();
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const d = Math.hypot(e.x - player.x, e.y - player.y);
+    if (d > ATTACK_RANGE + e.r) continue;
+    const ang = Math.atan2(e.y - player.y, e.x - player.x);
+    let diff = Math.abs(ang - player.facing);
+    if (diff > Math.PI) diff = 2 * Math.PI - diff;
+    if (diff < ATTACK_ARC / 2) {
+      e.hp -= dmg;
+      if (e.hp <= 0) {
+        e.alive = false;
+        xp += 30;
+        sfxKill();
+        // уровень
+        if (xp >= level * 100) {
+          xp -= level * 100;
+          level++;
+          dmg += 10;
+          hp = Math.min(maxHp, hp + 30);
+          sfxWin();
+        }
+      }
+    }
+  }
+}
+
+function update(dt) {
+  timeLeft -= dt;
+  if (timeLeft <= 0) { endGame('lose', 5 - enemies.filter(e=>e.alive).length, 'Время вышло!'); return; }
+  if (enemies.every(e => !e.alive)) { endGame('win', 5, 'Все враги повержены!'); return; }
+
+  attackT = Math.max(0, attackT - dt);
+  attackAnim = Math.max(0, attackAnim - dt);
+  mana = Math.min(maxMana, mana + 5 * dt);
+
+  // движение
+  let dx = 0, dy = 0;
+  if (keys['KeyA'] || touchState.left) dx -= 1;
+  if (keys['KeyD'] || touchState.right) dx += 1;
+  if (keys['KeyW'] || touchState.up) dy -= 1;
+  if (keys['KeyS'] || touchState.down) dy += 1;
+  if (dx || dy) {
+    const len = Math.hypot(dx, dy);
+    dx /= len; dy /= len;
+    player.x += dx * MOVE * dt;
+    player.y += dy * MOVE * dt;
+    player.facing = Math.atan2(dy, dx);
+  }
+  player.x = Math.max(player.r, Math.min(W - player.r, player.x));
+  player.y = Math.max(player.r, Math.min(H - player.r, player.y));
+
+  if (keys['Space'] || touchState.fire) tryAttack();
+
+  // враги: движутся к игроку, атакуют вблизи
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    const d = Math.hypot(player.x - e.x, player.y - e.y);
+    if (d > e.r + player.r + 4) {
+      const ang = Math.atan2(player.y - e.y, player.x - e.x);
+      e.x += Math.cos(ang) * e.speed * dt;
+      e.y += Math.sin(ang) * e.speed * dt;
+    } else {
+      hp -= e.dmg * dt;
+      sfxHit();
+      if (hp <= 0) { hp = 0; endGame('lose', 5 - enemies.filter(x=>x.alive).length, 'HP закончилось!'); return; }
+    }
+  }
+}
+
+function draw() {
+  // фон-пол
+  ctx.fillStyle = '#1c1917';
+  ctx.fillRect(0, 0, W, H);
+  ctx.strokeStyle = '#292524';
+  ctx.lineWidth = 1;
+  for (let x = 0; x < W; x += 50) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, H); ctx.stroke();
+  }
+  for (let y = 0; y < H; y += 50) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(W, y); ctx.stroke();
+  }
+  // стены-рамка
+  ctx.strokeStyle = '#57534e';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(2, 2, W - 4, H - 4);
+
+  // враги (тёмно-красные с HP-баром)
+  for (const e of enemies) {
+    if (!e.alive) continue;
+    ctx.beginPath();
+    ctx.fillStyle = '#dc2626';
+    ctx.arc(e.x, e.y, e.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fca5a5';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // HP бар
+    ctx.fillStyle = 'rgba(0,0,0,0.6)';
+    ctx.fillRect(e.x - 18, e.y - e.r - 10, 36, 5);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(e.x - 18, e.y - e.r - 10, 36 * (e.hp / e.maxHp), 5);
+  }
+
+  // игрок (зелёный круг с «оружием»)
+  ctx.beginPath();
+  ctx.fillStyle = '#10b981';
+  ctx.arc(player.x, player.y, player.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = '#6ee7b7';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  // оружие
+  ctx.save();
+  ctx.translate(player.x, player.y);
+  ctx.rotate(player.facing);
+  ctx.fillStyle = '#fbbf24';
+  if (attackAnim > 0) {
+    ctx.fillRect(0, -8, 30, 16);
+  } else {
+    ctx.fillRect(0, -3, 22, 6);
+  }
+  ctx.restore();
+  // дуга атаки
+  if (attackAnim > 0) {
+    ctx.save();
+    ctx.translate(player.x, player.y);
+    ctx.rotate(player.facing);
+    ctx.beginPath();
+    ctx.fillStyle = 'rgba(251, 191, 36, 0.3)';
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, ATTACK_RANGE, -ATTACK_ARC/2, ATTACK_ARC/2);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // HUD: HP/Mana/XP/Level
+  hudEl.innerHTML =
+    '❤️ ' + Math.ceil(hp) + '/' + maxHp +
+    '  •  🔷 ' + Math.ceil(mana) +
+    '  •  Ур.' + level +
+    '  •  XP ' + Math.floor(xp) + '/' + (level * 100) +
+    '  •  💀 ' + (5 - enemies.filter(e=>e.alive).length) + '/5';
+  timerEl.textContent = '⏱ ' + Math.max(0, Math.ceil(timeLeft)) + 'с';
+
+  // полоска HP над игроком
+  ctx.fillStyle = 'rgba(0,0,0,0.5)';
+  ctx.fillRect(player.x - 20, player.y - player.r - 12, 40, 5);
+  ctx.fillStyle = '#10b981';
+  ctx.fillRect(player.x - 20, player.y - player.r - 12, 40 * (hp / maxHp), 5);
+
+  drawTouchButtons();
+}
+` + genreFooter();
+}
+
+// ----------------------------------------------------------------
+// ГОНКИ (скроллящийся road, 3 полосы)
+// ----------------------------------------------------------------
+
+function generateRacingHtml(config: PrototypeConfig): string {
+  return genreShell(
+    "🎮 Гонки",
+    "Достигните дистанции 1000. Уклоняйтесь от препятствий, меняя полосу.",
+    "Управление:\n• ←/→ или A/D — сменить полосу\n• Цель: проехать 1000 м\n• Поражение: столкновение с препятствием\n• Скорость растёт со временем\n\nНа мобильных: кнопки ◀ ▶ внизу",
+    "racing"
+  )
+  + `
+let player, obstacles, distance, speed, laneSwitchT, roadOffset, timeLeft;
+const LANES = [W/2 - 130, W/2, W/2 + 130];
+const LANE_W = 110;
+
+function reset() {
+  player = { lane: 1, y: H - 100, w: 50, h: 80, targetX: LANES[1] };
+  obstacles = [];
+  distance = 0;
+  speed = 220;
+  laneSwitchT = 0;
+  roadOffset = 0;
+  timeLeft = 90;
+}
+reset();
+
+function startGame() {
+  reset();
+  running = true;
+  startTime = performance.now();
+  lastFrame = startTime;
+}
+
+function spawnObstacle() {
+  const lane = Math.floor(Math.random() * 3);
+  obstacles.push({ lane, y: -80, w: 50, h: 80 });
+}
+
+function update(dt) {
+  timeLeft -= dt;
+  if (timeLeft <= 0) { endGame('lose', Math.floor(distance), 'Время вышло!'); return; }
+  if (distance >= 1000) { endGame('win', Math.floor(distance), 'Дистанция 1000 пройдена!'); return; }
+
+  // ускорение со временем
+  speed = 220 + Math.min(280, distance * 0.25);
+  distance += speed * dt * 0.06;
+  roadOffset = (roadOffset + speed * dt) % 80;
+
+  // смена полосы
+  laneSwitchT = Math.max(0, laneSwitchT - dt);
+  if (laneSwitchT === 0) {
+    if (keys['ArrowLeft'] || keys['KeyA'] || touchState.left) {
+      if (player.lane > 0) { player.lane--; laneSwitchT = 0.15; sfxShoot(); }
+    } else if (keys['ArrowRight'] || keys['KeyD'] || touchState.right) {
+      if (player.lane < 2) { player.lane++; laneSwitchT = 0.15; sfxShoot(); }
+    }
+  }
+  player.targetX = LANES[player.lane];
+  player.x = player.targetX - player.w / 2;
+
+  // спавн препятствий
+  if (Math.random() < 0.018 + distance * 0.00001) spawnObstacle();
+  // обновление препятствий
+  for (let i = obstacles.length - 1; i >= 0; i--) {
+    const o = obstacles[i];
+    o.y += speed * dt;
+    if (o.y > H + 50) { obstacles.splice(i, 1); continue; }
+    // столкновение
+    const ox = LANES[o.lane] - o.w / 2;
+    if (o.lane === player.lane &&
+        o.y + o.h > player.y &&
+        o.y < player.y + player.h) {
+      sfxHit();
+      endGame('lose', Math.floor(distance), 'Столкновение!');
+      return;
+    }
+  }
+}
+
+function draw() {
+  // фон
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, W, H);
+  // трава по бокам
+  ctx.fillStyle = '#14532d';
+  ctx.fillRect(0, 0, W * 0.15, H);
+  ctx.fillRect(W * 0.85, 0, W * 0.15, H);
+  // дорога
+  ctx.fillStyle = '#334155';
+  ctx.fillRect(W * 0.15, 0, W * 0.7, H);
+  // полосы разметки
+  ctx.fillStyle = '#fbbf24';
+  // боковые сплошные
+  ctx.fillRect(W * 0.15 - 4, 0, 4, H);
+  ctx.fillRect(W * 0.85, 0, 4, H);
+  // пунктирные между полосами
+  for (let i = -1; i < H / 80 + 1; i++) {
+    const y = i * 80 + roadOffset;
+    ctx.fillRect(W/2 - 130 - 2, y, 4, 40);
+    ctx.fillRect(W/2 + 130 - 2, y, 4, 40);
+  }
+
+  // препятствия (другие машины — красные)
+  for (const o of obstacles) {
+    const ox = LANES[o.lane] - o.w / 2;
+    ctx.fillStyle = '#dc2626';
+    ctx.fillRect(ox, o.y, o.w, o.h);
+    ctx.fillStyle = '#7f1d1d';
+    ctx.fillRect(ox + 6, o.y + 10, o.w - 12, 20);
+    ctx.fillRect(ox + 6, o.y + 50, o.w - 12, 20);
+  }
+
+  // игрок (синяя машина)
+  ctx.fillStyle = '#3b82f6';
+  ctx.fillRect(player.x, player.y, player.w, player.h);
+  ctx.fillStyle = '#1e3a8a';
+  ctx.fillRect(player.x + 6, player.y + 10, player.w - 12, 20);
+  ctx.fillRect(player.x + 6, player.y + 50, player.w - 12, 20);
+  ctx.fillStyle = '#fbbf24';
+  ctx.fillRect(player.x + 4, player.y + player.h - 6, 8, 4);
+  ctx.fillRect(player.x + player.w - 12, player.y + player.h - 6, 8, 4);
+
+  // HUD
+  hudEl.innerHTML = '🏁 ' + Math.floor(distance) + ' / 1000 м';
+  timerEl.textContent = '⏱ ' + Math.max(0, Math.ceil(timeLeft)) + 'с';
+
+  drawTouchButtons();
+}
+` + genreFooter();
+}
+
+// ----------------------------------------------------------------
+// PUZZLE (match-3)
+// ----------------------------------------------------------------
+
+function generatePuzzleHtml(config: PrototypeConfig): string {
+  return genreShell(
+    "🎮 Головоломка (match-3)",
+    "Наберите 100 очков за 60 секунд. Составляйте ряды из 3+ одинаковых.",
+    "Управление:\n• Кликните клетку, затем соседнюю — поменять местами\n• Ряд/столбец из 3+ одинаковых цветов исчезает\n• Новые клетки падают сверху\n• Очки: 3 в ряд = 10, 4 = 25, 5+ = 50\n\nЦель: 100 очков за 60 секунд",
+    "puzzle"
+  )
+  + `
+const COLS = 6, ROWS = 6, CELL = 60;
+const COLORS = ['#ef4444','#f59e0b','#10b981','#3b82f6','#a855f7'];
+let grid, selected, score, timeLeft, swapBack, animTime;
+
+function randCell() { return Math.floor(Math.random() * COLORS.length); }
+
+function newGrid() {
+  const g = [];
+  for (let r = 0; r < ROWS; r++) {
+    g.push([]);
+    for (let c = 0; c < COLS; c++) g[r].push(randCell());
+  }
+  // избегаем готовых матчей в стартовой раскладке
+  let tries = 0;
+  while (findMatches(g).length > 0 && tries < 50) {
+    for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) g[r][c] = randCell();
+    tries++;
+  }
+  return g;
+}
+
+function reset() {
+  grid = newGrid();
+  selected = null;
+  score = 0;
+  timeLeft = 60;
+  swapBack = null;
+  animTime = 0;
+}
+reset();
+
+function startGame() {
+  reset();
+  running = true;
+  startTime = performance.now();
+  lastFrame = startTime;
+}
+
+function findMatches(g) {
+  const matches = new Set();
+  // горизонтали
+  for (let r = 0; r < ROWS; r++) {
+    let cnt = 1;
+    for (let c = 1; c < COLS; c++) {
+      if (g[r][c] !== -1 && g[r][c] === g[r][c-1]) cnt++;
+      else {
+        if (cnt >= 3) for (let k = 0; k < cnt; k++) matches.add(r + ',' + (c-1-k));
+        cnt = 1;
+      }
+    }
+    if (cnt >= 3) for (let k = 0; k < cnt; k++) matches.add(r + ',' + (COLS-1-k));
+  }
+  // вертикали
+  for (let c = 0; c < COLS; c++) {
+    let cnt = 1;
+    for (let r = 1; r < ROWS; r++) {
+      if (g[r][c] !== -1 && g[r][c] === g[r-1][c]) cnt++;
+      else {
+        if (cnt >= 3) for (let k = 0; k < cnt; k++) matches.add((r-1-k) + ',' + c);
+        cnt = 1;
+      }
+    }
+    if (cnt >= 3) for (let k = 0; k < cnt; k++) matches.add((ROWS-1-k) + ',' + c);
+  }
+  return Array.from(matches).map(s => s.split(',').map(Number));
+}
+
+function applyGravity(g) {
+  for (let c = 0; c < COLS; c++) {
+    let writeRow = ROWS - 1;
+    for (let r = ROWS - 1; r >= 0; r--) {
+      if (g[r][c] !== -1) {
+        if (writeRow !== r) { g[writeRow][c] = g[r][c]; g[r][c] = -1; }
+        writeRow--;
+      }
+    }
+    // заполнение сверху
+    for (let r = writeRow; r >= 0; r--) g[r][c] = randCell();
+  }
+}
+
+function gridOffsetX() { return (W - COLS * CELL) / 2; }
+function gridOffsetY() { return (H - ROWS * CELL) / 2; }
+
+canvas.addEventListener('click', (e) => {
+  if (animTime > 0) return;
+  if (actx && actx.state === 'suspended') actx.resume();
+  const r = canvas.getBoundingClientRect();
+  const x = (e.clientX - r.left) * (W / r.width);
+  const y = (e.clientY - r.top) * (H / r.height);
+  const ox = gridOffsetX(), oy = gridOffsetY();
+  const c = Math.floor((x - ox) / CELL);
+  const rr = Math.floor((y - oy) / CELL);
+  if (c < 0 || c >= COLS || rr < 0 || rr >= ROWS) return;
+  if (!selected) {
+    selected = { r: rr, c: c };
+  } else {
+    const dr = Math.abs(selected.r - rr), dc = Math.abs(selected.c - c);
+    if (dr + dc === 1) {
+      // swap
+      const tmp = grid[selected.r][selected.c];
+      grid[selected.r][selected.c] = grid[rr][c];
+      grid[rr][c] = tmp;
+      const matches = findMatches(grid);
+      if (matches.length === 0) {
+        // вернуть назад
+        swapBack = { a: { r: selected.r, c: selected.c }, b: { r: rr, c: c } };
+        animTime = 0.25;
+      } else {
+        animTime = 0.2;
+      }
+      selected = null;
+    } else {
+      selected = { r: rr, c: c };
+    }
+  }
+});
+
+function update(dt) {
+  timeLeft -= dt;
+  if (timeLeft <= 0) {
+    if (score >= 100) endGame('win', score, 'Набрали ' + score + ' очков!');
+    else endGame('lose', score, 'Время вышло, очков: ' + score);
+    return;
+  }
+  if (score >= 100) { endGame('win', score, '100 очков!'); return; }
+
+  if (animTime > 0) {
+    animTime -= dt;
+    if (animTime <= 0) {
+      // завершение анимации
+      if (swapBack) {
+        const tmp = grid[swapBack.a.r][swapBack.a.c];
+        grid[swapBack.a.r][swapBack.a.c] = grid[swapBack.b.r][swapBack.b.c];
+        grid[swapBack.b.r][swapBack.b.c] = tmp;
+        swapBack = null;
+      }
+      // обработка матчей
+      const matches = findMatches(grid);
+      if (matches.length > 0) {
+        // очки
+        if (matches.length >= 5) score += 50;
+        else if (matches.length === 4) score += 25;
+        else score += 10;
+        for (const [r, c] of matches) grid[r][c] = -1;
+        sfxCollect();
+        applyGravity(grid);
+        animTime = 0.15;
+      }
+    }
+  }
+}
+
+function draw() {
+  // фон
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(0, 0, W, H);
+
+  const ox = gridOffsetX(), oy = gridOffsetY();
+  // подложка сетки
+  ctx.fillStyle = '#1e293b';
+  ctx.fillRect(ox - 6, oy - 6, COLS * CELL + 12, ROWS * CELL + 12);
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const x = ox + c * CELL, y = oy + r * CELL;
+      ctx.fillStyle = '#0f172a';
+      ctx.fillRect(x + 1, y + 1, CELL - 2, CELL - 2);
+      const v = grid[r][c];
+      if (v >= 0) {
+        ctx.fillStyle = COLORS[v];
+        ctx.fillRect(x + 6, y + 6, CELL - 12, CELL - 12);
+        ctx.strokeStyle = '#fff';
+        ctx.globalAlpha = 0.3;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x + 6, y + 6, CELL - 12, CELL - 12);
+        ctx.globalAlpha = 1;
+      }
+      // выделение выбранной
+      if (selected && selected.r === r && selected.c === c) {
+        ctx.strokeStyle = '#fbbf24';
+        ctx.lineWidth = 3;
+        ctx.strokeRect(x + 2, y + 2, CELL - 4, CELL - 4);
+      }
+    }
+  }
+
+  // HUD
+  hudEl.innerHTML = '⭐ ' + score + ' / 100';
+  timerEl.textContent = '⏱ ' + Math.max(0, Math.ceil(timeLeft)) + 'с';
+}
+` + genreFooter();
+}
+
+// ----------------------------------------------------------------
+// TOWER DEFENSE
+// ----------------------------------------------------------------
+
+function generateTowerDefenseHtml(config: PrototypeConfig): string {
+  return genreShell(
+    "🎮 Tower Defense",
+    "Выживите 5 волн. Стройте башни, чтобы остановить врагов на пути.",
+    "Управление:\n• Кликните по строительной площадке (□), чтобы поставить башню (50💰)\n• Башни сами стреляют по ближайшему врагу\n• Волны: 5, в каждой всё больше врагов\n• Жизни: 10 (−1 за врага, дошедшего до конца)\n• Золото: 100 старт, +10 за убийство\n\nЦель: пережить 5 волн",
+    "tower_defense"
+  )
+  + `
+// путь: змейка слева направо
+const PATH = [
+  {x: 0,   y: 120},
+  {x: 200, y: 120},
+  {x: 200, y: 320},
+  {x: 500, y: 320},
+  {x: 500, y: 120},
+  {x: 700, y: 120},
+  {x: 700, y: 500},
+  {x: 800, y: 500}
+];
+// строительные площадки рядом с путём
+const SPOTS = [
+  {x: 130, y: 220}, {x: 280, y: 220},
+  {x: 130, y: 420}, {x: 280, y: 420},
+  {x: 400, y: 220}, {x: 560, y: 220},
+  {x: 400, y: 420}, {x: 560, y: 420},
+  {x: 760, y: 220}, {x: 760, y: 420}
+];
+let enemies, towers, bullets, gold, lives, wave, waveT, spawnT, enemiesInWave, totalWaves, timeLeft;
+
+function reset() {
+  enemies = []; towers = []; bullets = [];
+  gold = 100; lives = 10;
+  wave = 1; totalWaves = 5;
+  waveT = 2; spawnT = 0; enemiesInWave = 0;
+  timeLeft = 180;
+}
+reset();
+
+function startGame() {
+  reset();
+  running = true;
+  startTime = performance.now();
+  lastFrame = startTime;
+}
+
+canvas.addEventListener('click', (e) => {
+  if (actx && actx.state === 'suspended') actx.resume();
+  const r = canvas.getBoundingClientRect();
+  const x = (e.clientX - r.left) * (W / r.width);
+  const y = (e.clientY - r.top) * (H / r.height);
+  for (const s of SPOTS) {
+    if (towers.find(t => t.spot === s)) continue;
+    if (Math.hypot(x - s.x, y - s.y) < 22) {
+      if (gold >= 50) {
+        gold -= 50;
+        towers.push({ spot: s, x: s.x, y: s.y, range: 130, fireT: 0, dmg: 12 });
+        sfxConvert();
+      } else {
+        sfxHit();
+      }
+      return;
+    }
+  }
+});
+
+function spawnEnemy() {
+  enemies.push({ pi: 0, t: 0, hp: 30 + wave * 15, maxHp: 30 + wave * 15, speed: 60 + wave * 8, x: PATH[0].x, y: PATH[0].y });
+}
+
+function update(dt) {
+  timeLeft -= dt;
+  if (timeLeft <= 0) { endGame('lose', 5 - wave + 1, 'Время вышло!'); return; }
+
+  // волны
+  if (wave <= totalWaves) {
+    waveT -= dt;
+    if (waveT <= 0) {
+      spawnT -= dt;
+      const targetCount = 3 + wave * 2;
+      if (enemiesInWave < targetCount) {
+        if (spawnT <= 0) {
+          spawnT = Math.max(0.5, 1.5 - wave * 0.1);
+          spawnEnemy();
+          enemiesInWave++;
+        }
+      } else if (enemies.length === 0) {
+        wave++;
+        waveT = 2.5;
+        enemiesInWave = 0;
+        spawnT = 0;
+        gold += 30; // бонус за волну
+      }
+    }
+  } else if (lives > 0) {
+    endGame('win', totalWaves, 'Все ' + totalWaves + ' волн отражены!');
+    return;
+  }
+
+  if (lives <= 0) { endGame('lose', wave - 1, 'База разрушена!'); return; }
+
+  // движение врагов по пути
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    e.t += e.speed * dt;
+    // пройти до следующей точки
+    while (e.pi < PATH.length - 1) {
+      const a = PATH[e.pi], b = PATH[e.pi + 1];
+      const segLen = Math.hypot(b.x - a.x, b.y - a.y);
+      if (e.t >= segLen) {
+        e.t -= segLen;
+        e.pi++;
+      } else {
+        const f = e.t / segLen;
+        e.x = a.x + (b.x - a.x) * f;
+        e.y = a.y + (b.y - a.y) * f;
+        break;
+      }
+    }
+    if (e.pi >= PATH.length - 1) {
+      // дошёл до конца
+      lives--;
+      sfxHit();
+      enemies.splice(i, 1);
+    }
+  }
+
+  // башни стреляют
+  for (const t of towers) {
+    t.fireT -= dt;
+    // ближайший к базе враг в радиусе
+    let best = null, bestPi = -1;
+    for (const e of enemies) {
+      const d = Math.hypot(e.x - t.x, e.y - t.y);
+      if (d <= t.range && e.pi > bestPi) { best = e; bestPi = e.pi; }
+    }
+    if (best && t.fireT <= 0) {
+      t.fireT = 0.6;
+      bullets.push({ x: t.x, y: t.y, tx: best.x, ty: best.y, target: best, speed: 400, life: 1.5, dmg: t.dmg });
+      sfxShoot();
+    }
+  }
+
+  // пули
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    b.life -= dt;
+    if (!b.target || enemies.indexOf(b.target) === -1) {
+      // летим к последней точке
+      const dx = b.tx - b.x, dy = b.ty - b.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 5 || b.life <= 0) { bullets.splice(i, 1); continue; }
+      b.x += dx / d * b.speed * dt;
+      b.y += dy / d * b.speed * dt;
+    } else {
+      const dx = b.target.x - b.x, dy = b.target.y - b.y;
+      const d = Math.hypot(dx, dy);
+      if (d < 8 || b.life <= 0) {
+        b.target.hp -= b.dmg;
+        sfxKill();
+        if (b.target.hp <= 0) {
+          const idx = enemies.indexOf(b.target);
+          if (idx >= 0) enemies.splice(idx, 1);
+          gold += 10;
+        }
+        bullets.splice(i, 1);
+        continue;
+      }
+      b.x += dx / d * b.speed * dt;
+      b.y += dy / d * b.speed * dt;
+    }
+  }
+}
+
+function draw() {
+  // фон — трава
+  ctx.fillStyle = '#14532d';
+  ctx.fillRect(0, 0, W, H);
+  // текстура травы (точки)
+  ctx.fillStyle = '#166534';
+  for (let i = 0; i < 60; i++) {
+    const x = (i * 137) % W, y = (i * 211) % H;
+    ctx.fillRect(x, y, 3, 3);
+  }
+
+  // путь
+  ctx.strokeStyle = '#78716c';
+  ctx.lineWidth = 36;
+  ctx.lineJoin = 'round';
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(PATH[0].x, PATH[0].y);
+  for (let i = 1; i < PATH.length; i++) ctx.lineTo(PATH[i].x, PATH[i].y);
+  ctx.stroke();
+  // внутренняя часть пути
+  ctx.strokeStyle = '#a8a29e';
+  ctx.lineWidth = 30;
+  ctx.beginPath();
+  ctx.moveTo(PATH[0].x, PATH[0].y);
+  for (let i = 1; i < PATH.length; i++) ctx.lineTo(PATH[i].x, PATH[i].y);
+  ctx.stroke();
+  // старт/финиш
+  ctx.fillStyle = '#10b981';
+  ctx.beginPath(); ctx.arc(PATH[0].x + 10, PATH[0].y, 12, 0, Math.PI*2); ctx.fill();
+  ctx.fillStyle = '#dc2626';
+  ctx.beginPath(); ctx.arc(PATH[PATH.length-1].x - 10, PATH[PATH.length-1].y, 12, 0, Math.PI*2); ctx.fill();
+
+  // площадки для строительства
+  for (const s of SPOTS) {
+    const taken = towers.find(t => t.spot === s);
+    if (taken) continue;
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.4)';
+    ctx.fillRect(s.x - 16, s.y - 16, 32, 32);
+    ctx.strokeStyle = '#fbbf24';
+    ctx.lineWidth = 2;
+    ctx.setLineDash([4, 3]);
+    ctx.strokeRect(s.x - 16, s.y - 16, 32, 32);
+    ctx.setLineDash([]);
+  }
+
+  // башни
+  for (const t of towers) {
+    ctx.fillStyle = '#3b82f6';
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, 14, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#93c5fd';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // радиус (полупрозрачный)
+    ctx.strokeStyle = 'rgba(59, 130, 246, 0.2)';
+    ctx.beginPath();
+    ctx.arc(t.x, t.y, t.range, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  // враги
+  for (const e of enemies) {
+    ctx.fillStyle = '#dc2626';
+    ctx.beginPath();
+    ctx.arc(e.x, e.y, 12, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = '#fca5a5';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // HP бар
+    ctx.fillStyle = 'rgba(0,0,0,0.5)';
+    ctx.fillRect(e.x - 14, e.y - 20, 28, 4);
+    ctx.fillStyle = '#ef4444';
+    ctx.fillRect(e.x - 14, e.y - 20, 28 * (e.hp / e.maxHp), 4);
+  }
+
+  // пули
+  ctx.fillStyle = '#fde047';
+  for (const b of bullets) {
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // HUD
+  hudEl.innerHTML = '💰 ' + gold + '  •  ❤️ ' + lives + '  •  Волна ' + Math.min(wave, totalWaves) + '/' + totalWaves;
+  timerEl.textContent = '⏱ ' + Math.max(0, Math.ceil(timeLeft)) + 'с';
+}
+` + genreFooter();
+}
+
+// ============================================================
 // Public dispatch
 // ============================================================
 
 /**
+ * Карта жанр → генератор. Если у проекта задан жанр, соответствующий одному
+ * из ключей, прототип строится по жанровому шаблону (реальные механики на
+ * чистом Canvas). Иначе — fallback на engine/economy/ecology (LittleJS/3D).
+ *
+ * Жанр нормализуется: lower-case, trim, синонимы (action→shooter,
+ * roguelike→rpg, strategy/rts→tower_defense, action_rpg→rpg).
+ */
+const GENRE_TEMPLATES: Record<string, (config: PrototypeConfig) => string> = {
+  platformer: generatePlatformerHtml,
+  shooter: generateShooterHtml,
+  action: generateShooterHtml,
+  fps: generateShooterHtml,
+  rpg: generateRpgHtml,
+  action_rpg: generateRpgHtml,
+  arpg: generateRpgHtml,
+  roguelike: generateRpgHtml,
+  roguelite: generateRpgHtml,
+  dungeon: generateRpgHtml,
+  racing: generateRacingHtml,
+  race: generateRacingHtml,
+  puzzle: generatePuzzleHtml,
+  match3: generatePuzzleHtml,
+  "match-3": generatePuzzleHtml,
+  tower_defense: generateTowerDefenseHtml,
+  td: generateTowerDefenseHtml,
+  strategy: generateTowerDefenseHtml,
+  rts: generateTowerDefenseHtml,
+};
+
+/** Нормализовать жанр проекта (свободный текст) в ключ GENRE_TEMPLATES. */
+function normalizeGenre(raw: string | undefined): string | null {
+  if (!raw) return null;
+  let g = raw.toLowerCase().trim();
+  // удаляем пробелы/дефисы для основной нормализации
+  const compact = g.replace(/[\s-]+/g, "_");
+  if (GENRE_TEMPLATES[compact]) return compact;
+  if (GENRE_TEMPLATES[g]) return g;
+  // эвристика по подстрокам
+  if (g.includes("platform")) return "platformer";
+  if (g.includes("shoot") || g.includes("fps") || g.includes("action")) return "shooter";
+  if (g.includes("rpg") || g.includes("rogue") || g.includes("dungeon")) return "rpg";
+  if (g.includes("rac") || g.includes("driv")) return "racing";
+  if (g.includes("puzzle") || g.includes("match") || g.includes("match3")) return "puzzle";
+  if (g.includes("tower") || g.includes("defense") || g.includes("defence") ||
+      g.includes("strateg") || g.includes("rts")) return "tower_defense";
+  return null;
+}
+
+/**
  * Сгенерировать self-contained HTML прототипа кор-лупа.
- * mode="2d" → LittleJS, mode="3d" → Three.js.
+ *
+ * Порядок выбора шаблона:
+ *  1. Если config.genre задан и соответствует жанровому шаблону —> жанровый
+ *     прототип на чистом Canvas (platformer/shooter/rpg/racing/puzzle/TD).
+ *  2. Иначе — fallback на engine/economy/ecology (LittleJS для 2D, Three.js для 3D).
+ *
  * Встраивается в <iframe srcDoc={html}> на странице /prototypes.
  */
 export function generatePrototypeHtml(config: PrototypeConfig): string {
+  const genreKey = normalizeGenre(config.genre);
+  if (genreKey && GENRE_TEMPLATES[genreKey]) {
+    return GENRE_TEMPLATES[genreKey](config);
+  }
   return config.mode === "3d"
     ? generate3dHtml(config)
     : generate2dHtml(config);

@@ -19,6 +19,7 @@ const PROTECTED_PREFIXES = [
   "/prototypes",
   "/settings",
   "/knowledge",
+  "/mechanics",
   "/pipeline",
   "/prototype-editor",
   "/help",

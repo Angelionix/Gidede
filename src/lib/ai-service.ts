@@ -199,6 +199,101 @@ export async function isAiAvailable(): Promise<boolean> {
 }
 
 // ============================================================
+// AI-driven aesthetic profile (replaces hardcoded genre lookup)
+// ============================================================
+
+export interface AiAestheticProfile {
+  primary: string;
+  secondary: string;
+  tertiary: string;
+  rationale: string;
+}
+
+/**
+ * Ask the LLM to analyze the game idea and produce a YEE aesthetic profile
+ * (primary/secondary/tertiary) based on the actual content of the idea text,
+ * rather than a hardcoded genre→aesthetic lookup table.
+ *
+ * Returns null if AI is unavailable — caller falls back to the deterministic
+ * pickAesthetics() function.
+ */
+export async function generateAestheticProfileViaAI(
+  idea: string,
+  genre: string
+): Promise<AiAestheticProfile | null> {
+  const zai = await getZai();
+  if (!zai) return null;
+
+  try {
+    const prompt = `Ты — эксперт по геймдизайну. Проанализируй идею игры и определи её эстетический профиль по модели Hunicke/LeBlanc/Zubek (MDA Aesthetics).
+
+8 эстетик (YEE):
+- sensation — сенсорное удовольствие (графика, звук, ритм)
+- fantasy — фантазия/роль (быть кем-то, рост персонажа)
+- narrative — нарратив (сюжет, персонажи, лор)
+- challenge — вызов (сложность, мастерство, конкуренция)
+- fellowship — товарищество (команда, соц взаимодействие)
+- discovery — открытие (исследование, тайны, мир)
+- expression — самовыражение (крафт, кастомизация, созидание)
+- submission — подчинение (релакс, рутина, поток, медитация)
+
+Идея игры: "${idea}"
+Жанр: ${genre}
+
+Определи primary (главная), secondary (вторичная), tertiary (третья) эстетики на основе КОНКРЕТНОГО содержания идеи, а не только жанра.
+
+Ответ — только валидный JSON:
+{
+  "primary": "одна из 8 эстетик",
+  "secondary": "одна из 8 эстетик (отличная от primary)",
+  "tertiary": "одна из 8 эстетик (отличная от primary и secondary)",
+  "rationale": "1-2 предложения на русском: почему именно эти эстетики"
+}`;
+
+    const response = await zai.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content: "Ты — AI-ассистент по геймдизайну. Отвечай только валидным JSON.",
+        },
+        { role: "user", content: prompt },
+      ],
+      stream: false,
+      thinking: { type: "disabled" },
+    });
+
+    const raw = response.choices?.[0]?.message?.content?.trim() || "";
+    let cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
+    const jsonStart = cleaned.indexOf("{");
+    const jsonEnd = cleaned.lastIndexOf("}");
+    if (jsonStart >= 0 && jsonEnd > jsonStart) {
+      cleaned = cleaned.slice(jsonStart, jsonEnd + 1);
+    }
+
+    const parsed = JSON.parse(cleaned) as Partial<AiAestheticProfile>;
+    const validAesthetics = [
+      "sensation", "fantasy", "narrative", "challenge",
+      "fellowship", "discovery", "expression", "submission",
+    ];
+
+    if (!parsed.primary || !validAesthetics.includes(parsed.primary)) return null;
+    if (!parsed.secondary || !validAesthetics.includes(parsed.secondary)) return null;
+    if (!parsed.tertiary || !validAesthetics.includes(parsed.tertiary)) return null;
+    if (parsed.primary === parsed.secondary || parsed.primary === parsed.tertiary || parsed.secondary === parsed.tertiary) return null;
+
+    return {
+      primary: parsed.primary,
+      secondary: parsed.secondary,
+      tertiary: parsed.tertiary,
+      rationale: String(parsed.rationale || `AI-анализ идеи определил ${parsed.primary} как главную эстетику.`),
+    };
+  } catch (e) {
+    console.error("[ai-service] generateAestheticProfileViaAI failed:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
+// ============================================================
 // Concept enrichment (use_ai flag for block 1)
 // ============================================================
 

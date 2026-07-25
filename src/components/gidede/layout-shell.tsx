@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { GidedeSidebar } from "@/components/gidede/sidebar";
 import { PipelineNotifications } from "@/components/gidede/pipeline-notifications";
 import { usePipeline } from "@/hooks/use-pipeline";
@@ -53,10 +53,16 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
     }
   }, [isProtected, isAuthenticated, isLoading, pathname, router]);
 
-  // Pipeline-уведомления для активного проекта
-  const projectId = typeof window !== "undefined"
-    ? localStorage.getItem("gidede_active_project") || null
-    : null;
+  // Pipeline-уведомления для активного проекта.
+  // Use state + useEffect to avoid hydration mismatch: server renders null,
+  // client's first render also renders null (matching server), then the
+  // effect populates the value from localStorage. This prevents the
+  // "server rendered HTML didn't match the client" hydration error.
+  const [projectId, setProjectId] = useState<string | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional one-time hydration from localStorage on mount
+    setProjectId(localStorage.getItem("gidede_active_project") || null);
+  }, []);
   const { notifications, clearStale } = usePipeline(projectId);
 
   // Auth pages (login/register) get a bare layout — no sidebar.
@@ -88,7 +94,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
     <SidebarProvider>
       <GidedeSidebar />
       <SidebarInset>
-        <main className="flex-1 overflow-auto">
+        <div className="flex-1 overflow-auto">
           {/* Pipeline-уведомления о stale-данных */}
           {notifications.length > 0 && (
             <div className="px-4 pt-4">
@@ -99,7 +105,7 @@ export function LayoutShell({ children }: { children: React.ReactNode }) {
             </div>
           )}
           {children}
-        </main>
+        </div>
       </SidebarInset>
     </SidebarProvider>
   );

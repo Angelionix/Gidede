@@ -2,8 +2,6 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Toaster } from "@/components/ui/toaster";
-import { GidedeSidebar } from "@/components/gidede/sidebar";
-import { SidebarProvider, SidebarInset } from "@/components/ui/sidebar";
 import { AuthProvider } from "@/lib/auth";
 import { LayoutShell } from "@/components/gidede/layout-shell";
 import { ThemeProvider } from "@/components/theme-provider";

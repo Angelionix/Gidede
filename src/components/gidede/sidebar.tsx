@@ -1,5 +1,6 @@
 "use client";
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -103,11 +104,15 @@ export function GidedeSidebar() {
   const pathname = usePathname();
   const { user, isAuthenticated, isLoading, logout } = useAuth();
 
-  // Pipeline-состояние — используем projectId из URL или localStorage
-  // Для простоты берём последний активный проект из localStorage
-  const projectId = typeof window !== "undefined"
-    ? localStorage.getItem("gidede_active_project") || null
-    : null;
+  // Pipeline-состояние — используем projectId из localStorage.
+  // State + useEffect pattern to avoid hydration mismatch: server renders
+  // null, client's first render also renders null, then effect populates
+  // from localStorage. This prevents SSR/client HTML mismatch.
+  const [projectId, setProjectId] = useState<string | null>(null);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional one-time hydration from localStorage on mount
+    setProjectId(localStorage.getItem("gidede_active_project") || null);
+  }, []);
 
   const { state: pipelineState } = usePipeline(projectId);
 

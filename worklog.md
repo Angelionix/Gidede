@@ -560,3 +560,50 @@ Stage Summary:
   8. ✅ Can start with Core Loop — documented in FAQ (non-linear workflow)
   9. ✅ Insufficient localization — all new UI text in Russian, AI system prompt already Russian
   10. ✅ Push to git — branch pushed, PR URL provided
+
+---
+Task ID: 12
+Agent: general-purpose (AI help tooltips + Help expansion)
+Task: Add help tooltips in Concept Generator + expand Help page with prototype step + block functions
+
+Work Log:
+- Read worklog.md + /agent-ctx/10-onboarding-help-page.md for prior context (Gidede Next.js 16, port 3000, 8 functional blocks, Help page already has 4 tabs).
+- Read src/components/gidede/concept/ConceptForm.tsx (472 lines) — concept generator form with 8 fields.
+- Read src/config/aesthetics.ts — confirmed YEE_MOTIVATIONS has 12 под-мотиваций в 3 кластерах (Действие-Социальность / Мастерство-Достижение / Погружение-Творчество); the user's specifically-mentioned вызов/стратегия/завершение/мощь map exactly to cluster 2.
+- Read src/constants/concept.ts (PLATFORMS=5, BUDGET_OPTIONS=4, EXPERIENCE_LEVELS=3), src/components/ui/popover.tsx, src/app/prototypes/page.tsx (lines 1-100), src/config/blocks.ts (8 block names/icons/descriptions), src/app/help/page.tsx (934 lines, 4-tab structure).
+- Verified dev.log tail: server running on port 3000, recent requests returning 200.
+
+### Task 12A: ConceptForm.tsx (9 atomic MultiEdit operations)
+- Added Popover/PopoverContent/PopoverTrigger imports + HelpCircle from lucide-react.
+- Created reusable `HelpHint` component (Popover with click-to-open trigger, aria-label, type="button", focus-visible ring).
+- Created `YEE_MOTIVATIONS_HELP` constant — 3 clusters × 4 motivations each, mirroring actual config (12 total, not the task description's hypothetical 8 — keeps help accurate to UI).
+- Added 8 HelpHint instances next to each Label using `<div className="flex items-center gap-1.5">` wrapper (avoids button-in-label nesting):
+  1. Идея игры — example + 1-5 sentences explanation.
+  2. Жанр — auto vs explicit mode.
+  3. Базовые механики (w-96) — auto-pick from 128, 14 mechanic groups list.
+  4. Мотивации по модели Йи (w-[440px]) — full structured 12-motivation list grouped by cluster.
+  5. Уровень опыта — casual/midcore/hardcore.
+  6. Платформы — PC/Mobile/Console/VR/Web with control schemes.
+  7. Бюджет команды (advanced) — solo/small/medium/large.
+  8. AI-обогащение — GLM-4.6, ~10 sec, 50 req/day free.
+
+### Task 12B: Help page (6 atomic MultiEdit operations)
+- Added Bot, Puzzle to lucide-react imports.
+- Added Step 7 to EXAMPLE_STEPS (Прототип → /prototypes, tower_defense, 2D, LittleJS, 6 result bullets, mention of /prototype-editor alternative).
+- Added BlockFunction interface + BLOCK_FUNCTIONS array (8 entries, each with inputs[]/outputs[]/howToUse[]).
+- Updated outcome grid: grid-cols-4 → grid-cols-5, added 5th stat "1 играбельный прототип".
+- Added BlockFunctionCard component (3-column card: Входные данные / Результат / Как пользоваться with distinct colors).
+- Added new "Функции блоков" tab (Layers icon, 5th trigger in TabsList):
+  - Intro Alert.
+  - 8 BlockFunctionCards rendered from BLOCK_FUNCTIONS.
+  - Node-Editor section (Workflow icon, 6 features + 5-step usage, /prototype-editor link button).
+
+### Verification
+- bun run lint → exit 0, 0 errors, 0 warnings (after both tasks).
+- dev.log shows "✓ Compiled in 1325ms", "✓ Compiled in 929ms" — no errors after edits.
+- Verified 8 HelpHint instances in ConceptForm.tsx (1 per field) and 5 TabsTriggers + 5 TabsContent in help/page.tsx.
+
+Stage Summary:
+- src/components/gidede/concept/ConceptForm.tsx (+200 lines): HelpHint component, YEE_MOTIVATIONS_HELP constant, 8 inline HelpHint popovers.
+- src/app/help/page.tsx (+464 lines): Step 7 (Прототип) in EXAMPLE_STEPS, BLOCK_FUNCTIONS array (8 blocks), BlockFunctionCard component, new "Функции блоков" tab with 8 cards + Node Editor section, 5th stat in outcome grid.
+- /agent-ctx/12-ai-help-tooltips.md (this work record).

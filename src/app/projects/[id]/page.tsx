@@ -129,7 +129,7 @@ export default function ProjectDetailPage({
   params: Promise<{ id: string }>;
 }) {
   const { apiFetch, isAuthenticated, isLoading: authLoading } = useAuth();
-  const { setActiveProjectId } = useActiveProject();
+  const { setActiveProject } = useActiveProject();
   const router = useRouter();
   const [projectId, setProjectId] = useState<string | null>(null);
   const [project, setProject] = useState<ProjectDetail | null>(null);
@@ -143,9 +143,9 @@ export default function ProjectDetailPage({
   // Set this project as active whenever the page loads
   useEffect(() => {
     if (projectId) {
-      setActiveProjectId(projectId);
+      setActiveProject(projectId);
     }
-  }, [projectId, setActiveProjectId]);
+  }, [projectId, setActiveProject]);
 
   const fetchProject = useCallback(async () => {
     if (!projectId) return;

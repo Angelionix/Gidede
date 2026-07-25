@@ -37,6 +37,8 @@ import {
   Gamepad2,
   ArrowLeftRight,
   AlertTriangle,
+  Bot,
+  Puzzle,
 } from "lucide-react";
 
 // ============================================================
@@ -289,6 +291,262 @@ const EXAMPLE_STEPS: ExampleStep[] = [
       "Содержит: название, жанр, аудитория, синопсис, USP, Core Loop, конкуренты",
       "Чек-лист валидации: 5 вопросов Schell, 8 фильтров, triangle of weirdness — все пройдены",
       "Экспорт в DOCX: 1 файл, готов к отправке",
+    ],
+  },
+  {
+    block: "Шаг 7 • Прототип",
+    blockHref: "/prototypes",
+    icon: Gamepad2,
+    action: "Создаём играбельный прототип",
+    input:
+      "Заходим на страницу «Прототипы» (/prototypes), выбираем проект «Shadow Depths», тип прототипа — tower_defense (ближе всего к рогалик-боям с защитой), режим — 2D. Нажимаем «Сгенерировать прототип».",
+    result:
+      "В iframe загружается играбельный HTML-прототип на LittleJS (2D, ~50 КБ). Шаги Core Loop (explore → combat → reward → progress → return) реализованы как игровые механики: спавн врагов, стрельба, подбор душ (ресурс), улучшения между волнами. Можно играть прямо в браузере — WASD + мышь.",
+    resultBullets: [
+      "Тип: tower_defense с элементами roguelike-боя",
+      "Режим: 2D (LittleJS-движок, ~50 КБ)",
+      "Ресурс: души павших врагов → прокачка между волнами",
+      "Цель: выжить N волн, набрать максимум очков",
+      "AI-инсайты: рекомендации по балансу волн и темпу",
+      "Также можно собрать кастомный прототип через Node-редактор /prototype-editor",
+    ],
+  },
+];
+
+// ============================================================
+// Block Functions — детальный справочник по 8 блокам
+// ============================================================
+
+interface BlockFunction {
+  id: number;
+  name: string;
+  href: string;
+  icon: typeof Lightbulb;
+  status: string;
+  description: string;
+  inputs: string[];
+  outputs: string[];
+  howToUse: string[];
+}
+
+const BLOCK_FUNCTIONS: BlockFunction[] = [
+  {
+    id: 1,
+    name: "Генератор концепции",
+    href: "/blocks/1",
+    icon: Lightbulb,
+    status: "active",
+    description:
+      "Превращает идею в структурированную концепцию: жанр, эстетики, механики, Core Loop, USP.",
+    inputs: [
+      "Идея игры (1–5 предложений)",
+      "Жанр (авто или ручной выбор)",
+      "Мотивации аудитории (1–3 из 12 по модели Йи)",
+      "Базовые механики (опционально, иначе AI подберёт)",
+      "Уровень опыта, платформы, бюджет",
+      "Референтные игры, запрещённые механики",
+    ],
+    outputs: [
+      "OnePager — название, жанр, синопсис",
+      "AestheticProfile — 8 эстетик Hunicke с ранжированием",
+      "DynamicsProfile — игровые динамики",
+      "MechanicSet — 8–12 механик из MechanicsDB (128)",
+      "3 кандидата Core Loop",
+      "3 USP-кандидата + Triangle of Weirdness",
+      "ValidationReport — отчёт о корректности концепции",
+    ],
+    howToUse: [
+      "Введите идею → выберите мотивации → (опционально) механики",
+      "Нажмите «Сгенерировать концепцию» (7 стадий, ~5 сек)",
+      "Результат сохраняется в БД и подхватывается Блоками 2–6 автоматически",
+      "Чек-бокс «AI-обогащение» добавит креативные подсказки от LLM",
+    ],
+  },
+  {
+    id: 2,
+    name: "Core Loop Designer",
+    href: "/blocks/2",
+    icon: RefreshCw,
+    status: "active",
+    description:
+      "Визуальный конструктор основного игрового цикла. Иерархия петель, диагностика патологий, валидация.",
+    inputs: [
+      "Механики (автоматически из Блока 1)",
+      "Жанр (из концепции)",
+      "Тип цикла: auto / engine / economy / ecology / hybrid",
+    ],
+    outputs: [
+      "LoopHierarchy — 5-step core loop с длительностями",
+      "PathologyReport — Stall / Oscillation / Brittleness",
+      "Recommendations — рекомендации по улучшению",
+      "Steps — редактируемые шаги с feedback-типом",
+      "Структурный тип: Engine / Economy / Ecology / Hybrid",
+    ],
+    howToUse: [
+      "Данные подтягиваются из концепции автоматически",
+      "Нажмите «Сгенерировать» — получите 5-шаговый цикл",
+      "Редактируйте шаги в редакторе (переименовать, добавить, удалить)",
+      "Нажмите «Сохранить» — изменения запишутся без перегенерации",
+    ],
+  },
+  {
+    id: 3,
+    name: "MDA Lab",
+    href: "/blocks/3",
+    icon: FlaskConical,
+    status: "active",
+    description:
+      "Reverse MDA, Classic MDA, Bond Matrix и аудит 8 линз Шелла. Связывает механики с эмоциями игрока.",
+    inputs: [
+      "Эстетики (автоматически из Блока 1)",
+      "Механики (из концепции или Core Loop)",
+    ],
+    outputs: [
+      "MatchScores — насколько механики создают нужные эстетики",
+      "LensValidation — аудит 8 линз Шелла (pass/fail)",
+      "BondValidation — связи механика ↔ динамика ↔ эстетика",
+      "Reverse MDA — от механик к эстетикам",
+      "Classic MDA — от эстетик к механикам",
+    ],
+    howToUse: [
+      "Эстетики подтягиваются из концепции автоматически",
+      "Нажмите «Анализ» — получите отчёт по MDA",
+      "Видите, насколько ваши механики создают нужные эстетики",
+      "Bond Matrix показывает, какие механики порождают какие эмоции",
+    ],
+  },
+  {
+    id: 4,
+    name: "Баланс и симуляция",
+    href: "/blocks/4",
+    icon: Scale,
+    status: "active",
+    description:
+      "Transitive/intransitive анализ, Monte Carlo симуляция, Machinations-визуализация экономики.",
+    inputs: [
+      "Объекты (оружие, броня, предметы) — вручную или из пайплайна",
+      "Cost и Power каждого объекта",
+      "Tier (0–3) для transitive-анализа",
+      "Тип баланса: transitive / intransitive",
+    ],
+    outputs: [
+      "CostPowerCurves — кривые power/cost ratio",
+      "PayoffMatrix — матрица rock-paper-scissors",
+      "MonteCarloResults — win-rate после 1000+ боёв",
+      "Machinations-граф — визуализация экономики",
+      "BalanceScore + рекомендации по корректировке",
+    ],
+    howToUse: [
+      "Добавьте объекты вручную через ObjectForm или загрузите из пайплайна",
+      "Укажите cost, power, tier для каждого",
+      "Нажмите «Анализ» — получите balance-score и рекомендации",
+      "Monte Carlo прогоняет 1000 симуляций боёв автоматически",
+    ],
+  },
+  {
+    id: 5,
+    name: "Экономика и прогрессия",
+    href: "/blocks/5",
+    icon: TrendingUp,
+    status: "active",
+    description:
+      "Конструктор внутренней экономики (Machinations). Кривые прогрессии, контент-план по уровням.",
+    inputs: [
+      "Total levels — количество уровней (5–100)",
+      "Тип кривой: linear / exponential / logistic",
+      "Factor (множитель роста для exponential)",
+      "Макро-параметры (источники, стоки, темп)",
+    ],
+    outputs: [
+      "ProgressionCurves — кривые XP и времени по уровням",
+      "ContentPlan — распределение контента (биомы, враги, боссы)",
+      "ResourceModel — экономическая модель (Machinations)",
+      "Tiers — tier-gating предметов по уровням",
+      "Validation — проверка пиков нагрузки и контент-дефицита",
+    ],
+    howToUse: [
+      "Укажите количество уровней и тип кривой",
+      "Нажмите «Сгенерировать» — получите кривые XP, контент-план, экономику",
+      "Проверьте Validation на пиковые нагрузки",
+      "Механики для экономики подгружаются из Core Loop (Блок 2)",
+    ],
+  },
+  {
+    id: 6,
+    name: "GDD Generator",
+    href: "/blocks/6",
+    icon: FileText,
+    status: "active",
+    description:
+      "Генерация дизайн-документов по шаблонам (38 секций Роджерса). 5 типов чек-листов валидации.",
+    inputs: [
+      "Формат: one_sheet / pitch / mini_gdd / full_gdd / mega_gdd",
+      "Все данные из Блоков 1–5 (подтягиваются автоматически)",
+      "Тип чек-листа: полный / UX / технический / маркетинговый / бюджетный",
+    ],
+    outputs: [
+      "GDDSection[] — массив секций с заголовком и содержимым",
+      "ConsistencyIssue[] — найденные несоответствия",
+      "Checklist — валидационный чек-лист (5 вопросов Schell, 8 фильтров, triangle of weirdness)",
+      "DOCX-экспорт — готовый документ для отправки",
+    ],
+    howToUse: [
+      "Выберите формат документа (от one_sheet до mega_gdd)",
+      "Нажмите «Сгенерировать GDD» — система соберёт секции из всех блоков",
+      "Редактируйте секции в GDD Section Editor (авто-сохранение)",
+      "Нажмите «Экспорт в DOCX» — скачаете готовый файл",
+    ],
+  },
+  {
+    id: 7,
+    name: "AI-ассистент",
+    href: "/blocks/7",
+    icon: Bot,
+    status: "active",
+    description:
+      "Контекстно-осведомлённый чат-бот. Знает ваш проект, цитирует книги, предлагает рекомендации.",
+    inputs: [
+      "Контекст активного проекта (Concept / Core Loop / MDA / ...)",
+      "История чата (для многошаговых диалогов)",
+      "Вопрос пользователя на естественном языке",
+    ],
+    outputs: [
+      "Ответ с учётом вашего проекта (RAG по 17 книгам Библии геймдизайна)",
+      "Рекомендации по следующему шагу",
+      "Алёрты — если найдены проблемы в текущих данных",
+      "Streaming-ответ через SSE",
+    ],
+    howToUse: [
+      "Откройте Блок 7 — увидите чат с историей",
+      "Задавайте вопросы: «Как улучшить баланс?», «Какой жанр лучше?»",
+      "AI отвечает с учётом вашего активного проекта",
+      "Бесплатный лимит: 50 запросов/день (виден в сайдбаре)",
+    ],
+  },
+  {
+    id: 8,
+    name: "Интеграция GBE",
+    href: "/blocks/8",
+    icon: Puzzle,
+    status: "active",
+    description:
+      "API Bridge для GDCombine. Blueprint-синхронизация, Linter-правила, шаблоны документов.",
+    inputs: [
+      "Project ID — активный проект",
+      "Компоненты для синхронизации (concept, core_loop, mda, ...)",
+      "Blueprint-правила (validation rules)",
+    ],
+    outputs: [
+      "Синхронизированные компоненты во внешнем GDCombine (mock)",
+      "Linter-отчёт — найденные нарушения правил",
+      "Sync history — история синхронизаций",
+      "Webhook-уведомления об изменениях",
+    ],
+    howToUse: [
+      "Выберите проект → нажмите «Sync to GBE»",
+      "Bridge передаёт компоненты во внешний GDCombine (mock-режим)",
+      "«Sync from GBE» — получить обратные правки из GDCombine",
+      "Вебхук принимает уведомления об изменениях автоматически",
     ],
   },
 ];
@@ -556,6 +814,99 @@ function ExampleStepCard({ step }: { step: ExampleStep }) {
 }
 
 // ============================================================
+// Block Function Card component
+// ============================================================
+
+function BlockFunctionCard({ block }: { block: BlockFunction }) {
+  const Icon = block.icon;
+  return (
+    <Card>
+      <CardHeader className="border-b border-border bg-muted/30">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary/10 text-primary shrink-0">
+            <Icon className="h-5 w-5" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 flex-wrap">
+              <CardTitle className="text-base">
+                Блок {block.id} • {block.name}
+              </CardTitle>
+              <Badge variant="outline" className="text-[10px] uppercase">
+                {block.status}
+              </Badge>
+            </div>
+            <CardDescription className="text-sm">
+              {block.description}
+            </CardDescription>
+          </div>
+          <Button asChild variant="ghost" size="sm" className="shrink-0">
+            <Link href={block.href}>
+              <ExternalLink className="h-3.5 w-3.5 mr-1" />
+              Открыть
+            </Link>
+          </Button>
+        </div>
+      </CardHeader>
+      <CardContent className="pt-4 grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* Входные данные */}
+        <div>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <ArrowRight className="h-3.5 w-3.5 text-primary" />
+            <span className="text-xs font-semibold uppercase tracking-wide text-primary">
+              Входные данные
+            </span>
+          </div>
+          <ul className="space-y-1">
+            {block.inputs.map((input, i) => (
+              <li key={i} className="text-xs text-foreground/85 flex items-start gap-1.5">
+                <span className="text-primary mt-0.5 shrink-0">→</span>
+                <span>{input}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        {/* Результат */}
+        <div>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
+            <span className="text-xs font-semibold uppercase tracking-wide text-emerald-600 dark:text-emerald-400">
+              Результат
+            </span>
+          </div>
+          <ul className="space-y-1">
+            {block.outputs.map((output, i) => (
+              <li key={i} className="text-xs text-foreground/85 flex items-start gap-1.5">
+                <span className="text-emerald-500 mt-0.5 shrink-0">✓</span>
+                <span>{output}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
+        {/* Как пользоваться */}
+        <div>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+            <span className="text-xs font-semibold uppercase tracking-wide text-amber-600 dark:text-amber-400">
+              Как пользоваться
+            </span>
+          </div>
+          <ol className="space-y-1">
+            {block.howToUse.map((step, i) => (
+              <li key={i} className="text-xs text-foreground/85 flex items-start gap-1.5">
+                <span className="text-amber-500 mt-0.5 shrink-0 font-medium">
+                  {i + 1}.
+                </span>
+                <span>{step}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      </CardContent>
+    </Card>
+  );
+}
+
+// ============================================================
 // Concept card component
 // ============================================================
 
@@ -617,7 +968,7 @@ export default function HelpPage() {
 
         {/* Tabs */}
         <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-          <TabsList className="grid w-full grid-cols-2 md:grid-cols-4 h-auto">
+          <TabsList className="grid w-full grid-cols-2 md:grid-cols-5 h-auto">
             <TabsTrigger value="quickstart" className="flex flex-col gap-1 py-2 h-auto">
               <Rocket className="h-4 w-4" />
               <span className="text-xs">Быстрый старт</span>
@@ -625,6 +976,10 @@ export default function HelpPage() {
             <TabsTrigger value="example" className="flex flex-col gap-1 py-2 h-auto">
               <Gamepad2 className="h-4 w-4" />
               <span className="text-xs">Пример проекта</span>
+            </TabsTrigger>
+            <TabsTrigger value="functions" className="flex flex-col gap-1 py-2 h-auto">
+              <Layers className="h-4 w-4" />
+              <span className="text-xs">Функции блоков</span>
             </TabsTrigger>
             <TabsTrigger value="basics" className="flex flex-col gap-1 py-2 h-auto">
               <BookOpen className="h-4 w-4" />
@@ -754,7 +1109,7 @@ export default function HelpPage() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
                   <div className="text-center">
                     <div className="text-2xl font-bold text-emerald-600">6</div>
                     <div className="text-xs text-muted-foreground">блоков пройдено</div>
@@ -771,6 +1126,10 @@ export default function HelpPage() {
                     <div className="text-2xl font-bold text-emerald-600">1</div>
                     <div className="text-xs text-muted-foreground">GDD в DOCX</div>
                   </div>
+                  <div className="text-center">
+                    <div className="text-2xl font-bold text-emerald-600">1</div>
+                    <div className="text-xs text-muted-foreground">играбельный прототип</div>
+                  </div>
                 </div>
                 <p className="text-sm text-muted-foreground mt-4 leading-relaxed">
                   Тот же самый проект «Shadow Depths» есть в папке{" "}
@@ -780,6 +1139,110 @@ export default function HelpPage() {
                   — это реальный вывод алгоритмов Gidede. Вы можете сравнить
                   свои результаты с эталонными.
                 </p>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          {/* ============================================================ */}
+          {/* TAB: BLOCK FUNCTIONS */}
+          {/* ============================================================ */}
+          <TabsContent value="functions" className="mt-6">
+            <Alert className="mb-6">
+              <Layers className="h-4 w-4" />
+              <AlertTitle>8 блоков Gidede — детальный справочник</AlertTitle>
+              <AlertDescription>
+                Для каждого блока: входные данные, результат, как пользоваться.
+                Блоки связаны между собой — данные автоматически подтягиваются
+                из предыдущих шагов через pipeline API.
+              </AlertDescription>
+            </Alert>
+
+            <div className="space-y-4">
+              {BLOCK_FUNCTIONS.map((block) => (
+                <BlockFunctionCard key={block.id} block={block} />
+              ))}
+            </div>
+
+            {/* Node Editor section */}
+            <Card className="mt-6 border-primary/30 bg-primary/5">
+              <CardHeader>
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Workflow className="h-5 w-5 text-primary" />
+                  Node-редактор прототипов (/prototype-editor)
+                </CardTitle>
+                <CardDescription>
+                  Продвинутый визуальный граф-редактор игровой логики —
+                  альтернатива автоматической генерации прототипа на странице
+                  /prototypes.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-1.5">
+                      Возможности
+                    </p>
+                    <ul className="space-y-1 text-sm text-foreground/85">
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-primary mt-0.5 shrink-0">→</span>
+                        <span>20 типов нод: GameStart, GameLoop, Event, Condition, Action, Spawn, Destroy, Variable, ...</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-primary mt-0.5 shrink-0">→</span>
+                        <span>5 готовых шаблонов (platformer, shooter, puzzle, ...)</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-primary mt-0.5 shrink-0">→</span>
+                        <span>Компиляция в LittleJS (2D) или Three.js (3D)</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-primary mt-0.5 shrink-0">→</span>
+                        <span>AI-генерация графа из текстового описания</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-primary mt-0.5 shrink-0">→</span>
+                        <span>Undo/Redo (история до 50 шагов)</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-primary mt-0.5 shrink-0">→</span>
+                        <span>Auto-layout нод (Dagre-алгоритм)</span>
+                      </li>
+                    </ul>
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-primary mb-1.5">
+                      Как использовать
+                    </p>
+                    <ol className="space-y-1 text-sm text-foreground/85">
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-primary mt-0.5 shrink-0 font-medium">1.</span>
+                        <span>Перетащите ноды из палитры на холст</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-primary mt-0.5 shrink-0 font-medium">2.</span>
+                        <span>Соедините ноды связями (drag from port to port)</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-primary mt-0.5 shrink-0 font-medium">3.</span>
+                        <span>Настройте параметры каждой ноды</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-primary mt-0.5 shrink-0 font-medium">4.</span>
+                        <span>Нажмите «Compile» — получите HTML-прототип</span>
+                      </li>
+                      <li className="flex items-start gap-1.5">
+                        <span className="text-primary mt-0.5 shrink-0 font-medium">5.</span>
+                        <span>Запустите в браузере, итерируйте</span>
+                      </li>
+                    </ol>
+                  </div>
+                </div>
+                <Button asChild variant="outline" size="sm" className="mt-2">
+                  <Link href="/prototype-editor">
+                    <ExternalLink className="h-3.5 w-3.5 mr-1" />
+                    Открыть Node-редактор
+                  </Link>
+                </Button>
               </CardContent>
             </Card>
           </TabsContent>

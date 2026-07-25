@@ -69,6 +69,7 @@ model Project {
   name              String
   description       String?
   genre             String?
+  subgenres         String?                     // JSON array of sub-genre strings (e.g. ["roguelike","dark_fantasy"])
   status            String   @default("draft") // draft | active | completed | archived
   projectStage      String?                      // concept | core_loop | mda | balance | progression | economy | gdd | validation
   completionPercent Int      @default(0)

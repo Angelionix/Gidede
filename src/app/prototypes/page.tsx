@@ -13,7 +13,30 @@ interface Project {
   id: string;
   name: string;
   genre: string | null;
+  subgenres?: string[];
   has_core_loop: boolean;
+  has_concept: boolean;
+  has_mda: boolean;
+}
+
+interface ProjectDetail {
+  id: string;
+  name: string;
+  description: string | null;
+  genre: string | null;
+  subgenres: string[];
+  has_concept: boolean;
+  has_core_loop: boolean;
+  has_mda: boolean;
+  concept?: {
+    genre: string | null;
+    primaryAesthetic: string | null;
+    mechanicSet: string | null;
+  } | null;
+  coreLoop?: {
+    structuralType: string | null;
+    stepsData: string | null;
+  } | null;
 }
 
 interface PrototypeResponse {
@@ -58,6 +81,7 @@ export default function PrototypesPage() {
 
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProject, setSelectedProject] = useState<string>("");
+  const [projectDetail, setProjectDetail] = useState<ProjectDetail | null>(null);
   const [mode, setMode] = useState<"2d" | "3d">("2d");
   const [useAi, setUseAi] = useState(false);
   const [typeOverride, setTypeOverride] = useState<string>("auto");
@@ -88,6 +112,53 @@ export default function PrototypesPage() {
         .catch(() => {});
     }
   }, [authLoading, isAuthenticated, apiFetch]);
+
+  // Fetch full project detail (with concept + coreLoop) when a project is selected,
+  // so we can display the mechanics + core loop type that will feed the prototype.
+  useEffect(() => {
+    if (!selectedProject) {
+      setProjectDetail(null);
+      return;
+    }
+    apiFetch<ProjectDetail>(`/projects/${selectedProject}`)
+      .then((data) => setProjectDetail(data))
+      .catch(() => setProjectDetail(null));
+  }, [selectedProject, apiFetch]);
+
+  // Parse the concept's mechanicSet JSON to extract mechanic names for display.
+  const projectMechanics: string[] = (() => {
+    if (!projectDetail?.concept?.mechanicSet) return [];
+    try {
+      const parsed = JSON.parse(projectDetail.concept.mechanicSet);
+      const result: string[] = [];
+      for (const cat of ["base", "combat", "progression", "spatial", "social"]) {
+        const arr = parsed[cat];
+        if (Array.isArray(arr)) {
+          for (const m of arr) {
+            if (m && typeof m.name === "string") result.push(m.name);
+          }
+        }
+      }
+      return result;
+    } catch {
+      return [];
+    }
+  })();
+
+  // Parse core loop steps for display.
+  const coreLoopSteps: Array<{ name?: string; action?: string }> = (() => {
+    if (!projectDetail?.coreLoop?.stepsData) return [];
+    try {
+      const parsed = JSON.parse(projectDetail.coreLoop.stepsData);
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
+  })();
+
+  // Get a display label for a step (steps use 'action' or 'name' field).
+  const stepLabel = (s: { name?: string; action?: string }, i: number): string =>
+    s.name || s.action || `Шаг ${i + 1}`;
 
   // Auto-save playtest result from iframe postMessage
   useEffect(() => {
@@ -320,6 +391,89 @@ export default function PrototypesPage() {
                   Перейти в Блок 2 →
                 </a>
               </div>
+            </div>
+          )}
+
+          {/* Project info panel — shows mechanics + core loop type so the user
+              understands what data will feed the prototype. */}
+          {projectDetail && hasCoreLoop && (
+            <div className="rounded-lg border border-border bg-muted/30 p-4 mb-3 space-y-3">
+              <div className="flex items-center gap-2">
+                <Lightbulb className="h-4 w-4 text-primary" />
+                <h4 className="text-sm font-medium">Данные проекта для прототипа</h4>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                {/* Core Loop type */}
+                <div className="space-y-1">
+                  <p className="text-muted-foreground font-medium">Тип Core Loop</p>
+                  {projectDetail.coreLoop?.structuralType ? (
+                    <Badge variant="outline" className="text-xs">
+                      {projectDetail.coreLoop.structuralType}
+                    </Badge>
+                  ) : (
+                    <span className="text-muted-foreground italic">не указан</span>
+                  )}
+                </div>
+                {/* Genre */}
+                <div className="space-y-1">
+                  <p className="text-muted-foreground font-medium">Жанр</p>
+                  <div className="flex flex-wrap gap-1">
+                    {projectDetail.genre && (
+                      <Badge variant="secondary" className="text-xs">
+                        {projectDetail.genre}
+                      </Badge>
+                    )}
+                    {projectDetail.subgenres?.map((sg) => (
+                      <Badge key={sg} variant="outline" className="text-xs">
+                        {sg}
+                      </Badge>
+                    ))}
+                    {!projectDetail.genre && (!projectDetail.subgenres || projectDetail.subgenres.length === 0) && (
+                      <span className="text-muted-foreground italic">не указан</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+              {/* Mechanics */}
+              {projectMechanics.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-muted-foreground font-medium text-xs">
+                    Механики ({projectMechanics.length})
+                  </p>
+                  <div className="flex flex-wrap gap-1">
+                    {projectMechanics.map((m) => (
+                      <Badge key={m} variant="outline" className="text-[10px] px-1.5 py-0">
+                        {m}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {/* Core Loop steps */}
+              {coreLoopSteps.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-muted-foreground font-medium text-xs">
+                    Шаги Core Loop ({coreLoopSteps.length})
+                  </p>
+                  <ol className="text-xs space-y-0.5">
+                    {coreLoopSteps.slice(0, 6).map((s, i) => (
+                      <li key={i} className="text-muted-foreground">
+                        <span className="font-medium text-foreground">{i + 1}.</span>{" "}
+                        {stepLabel(s, i)}
+                      </li>
+                    ))}
+                    {coreLoopSteps.length > 6 && (
+                      <li className="text-muted-foreground italic">
+                        ...и ещё {coreLoopSteps.length - 6}
+                      </li>
+                    )}
+                  </ol>
+                </div>
+              )}
+              <p className="text-[10px] text-muted-foreground italic">
+                Эти данные подтягиваются из Концепции (Блок 1) и Core Loop (Блок 2).
+                Прототип будет построен на их основе.
+              </p>
             </div>
           )}
 

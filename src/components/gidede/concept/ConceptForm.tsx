@@ -22,6 +22,11 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import {
   Loader2,
   Sparkles,
   ChevronDown,
@@ -29,6 +34,7 @@ import {
   X,
   Wand2,
   Check,
+  HelpCircle,
 } from "lucide-react";
 import { GENRES } from "@/config/genres";
 import { YEE_MOTIVATIONS } from "@/config/aesthetics";
@@ -39,6 +45,83 @@ import {
   EXPERIENCE_LEVELS,
 } from "@/constants/concept";
 import { MECHANICS_DB, getMechanicGroups } from "@/lib/mechanics-db";
+
+// ============================================================
+// Reusable Help Hint — Popover with explanatory text
+// (click-to-open, better than tooltip for longer content)
+// ============================================================
+
+function HelpHint({
+  label,
+  children,
+  width = "w-80",
+}: {
+  label: string;
+  children: React.ReactNode;
+  width?: string;
+}) {
+  return (
+    <Popover>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          aria-label={`Подсказка: ${label}`}
+          className="inline-flex items-center justify-center text-muted-foreground/70 hover:text-primary transition-colors align-middle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-full"
+        >
+          <HelpCircle className="h-3.5 w-3.5" />
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className={`${width} text-sm`} align="start">
+        <div className="space-y-1.5">
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+            {label}
+          </p>
+          <div className="text-muted-foreground leading-relaxed text-xs">
+            {children}
+          </div>
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
+// ============================================================
+// YEE Motivations — detailed help content (12 под-мотиваций в 3 кластерах)
+// Source: src/config/aesthetics.ts (YEE_MOTIVATIONS)
+// ============================================================
+
+const YEE_MOTIVATIONS_HELP: {
+  cluster: string;
+  items: { value: string; label: string; desc: string }[];
+}[] = [
+  {
+    cluster: "Действие-Социальность",
+    items: [
+      { value: "destruction", label: "Разрушение", desc: "Игрокам нравится крушить, взрывать, разрушать объекты и окружение." },
+      { value: "excitement", label: "Возбуждение", desc: "Игрокам нравится быстрый темп, адреналин, резкие движения и экшн." },
+      { value: "competition", label: "Соревнование", desc: "Игрокам нравится соревноваться с другими, доказывать своё мастерство." },
+      { value: "community", label: "Сообщество", desc: "Игрокам нравится общаться, играть в команде, помогать друг другу." },
+    ],
+  },
+  {
+    cluster: "Мастерство-Достижение",
+    items: [
+      { value: "challenge", label: "Вызов", desc: "Игрокам нравится сложность, преодоление препятствий, проверка навыков." },
+      { value: "strategy", label: "Стратегия", desc: "Игрокам нравится планировать, тактически мыслить, принимать решения." },
+      { value: "completion", label: "Завершение", desc: "Игрокам нравится завершать все квесты, собирать достижения, проходить на 100%." },
+      { value: "power", label: "Мощь (мастерство)", desc: "Игрокам нравится оптимизировать билды, достигать максимальной мощности, понимать механики глубоко." },
+    ],
+  },
+  {
+    cluster: "Погружение-Творчество",
+    items: [
+      { value: "fantasy_yee", label: "Фантазия", desc: "Игрокам нравится быть кем-то другим, отождествление с персонажем, роль." },
+      { value: "story", label: "Сюжет", desc: "Игрокам нравится история, лор, развитие персонажей, нарратив." },
+      { value: "design", label: "Дизайн (творчество)", desc: "Игрокам нравится строить, крафтить, выражать себя через игру." },
+      { value: "discovery_yee", label: "Открытие", desc: "Игрокам нравится исследовать, находить секреты, узнавать новое о мире." },
+    ],
+  },
+];
 
 interface ConceptFormProps {
   form: ConceptFormState;
@@ -137,10 +220,18 @@ export function ConceptForm({
       <CardContent className="space-y-6">
         {/* Идея */}
         <div>
-          <Label htmlFor="idea">
-            Опишите идею игры (1–5 предложений){" "}
-            <span className="text-red-500">*</span>
-          </Label>
+          <div className="flex items-center gap-1.5">
+            <Label htmlFor="idea">
+              Опишите идею игры (1–5 предложений){" "}
+              <span className="text-red-500">*</span>
+            </Label>
+            <HelpHint label="Идея игры">
+              Опишите основную идею в 1–5 предложениях. Чем подробнее — тем
+              точнее результат. Укажите жанр, сеттинг, ключевую механику.
+              Например: <em>«Тёмный фэнтези-рогалик, где алхимик варит зелья и
+              сражается с монстрами в процедурных подземельях»</em>.
+            </HelpHint>
+          </div>
           <Textarea
             id="idea"
             value={form.idea}
@@ -160,7 +251,20 @@ export function ConceptForm({
 
         {/* Жанр */}
         <div>
-          <Label>Жанр</Label>
+          <div className="flex items-center gap-1.5">
+            <Label>Жанр</Label>
+            <HelpHint label="Жанр">
+              Жанр определяет набор механик по умолчанию.
+              <div className="mt-1.5">
+                <strong>«Определить автоматически»</strong> — AI выведет жанр
+                из текста идеи.
+              </div>
+              <div className="mt-1">
+                <strong>«Указать вручную»</strong> — выберите из списка. Можно
+                указать уточняющие под-жанры в описании идеи.
+              </div>
+            </HelpHint>
+          </div>
           <div className="flex items-center gap-4 mt-1.5">
             <label className="flex items-center gap-2 cursor-pointer">
               <input type="radio" name="genreMode" checked={form.genreMode === "auto"} onChange={() => updateField("genreMode", "auto")} className="accent-primary" />
@@ -187,7 +291,23 @@ export function ConceptForm({
 
         {/* Механики — ручной выбор (опционально) */}
         <div>
-          <Label>Базовые механики (опционально)</Label>
+          <div className="flex items-center gap-1.5">
+            <Label>Базовые механики (опционально)</Label>
+            <HelpHint label="Базовые механики" width="w-96">
+              Если оставить пусто — AI подберёт механики автоматически из 128
+              механик SW.BAND на основе жанра. Или выберите вручную — система
+              будет использовать только выбранные.
+              <div className="mt-2 pt-2 border-t border-border">
+                <p className="font-medium text-foreground mb-1">Группы механик:</p>
+                <ul className="space-y-0.5">
+                  <li>• Базовые, Боевые, Прогрессия</li>
+                  <li>• Пространство, Экономика, Социальные</li>
+                  <li>• Стелс, Навыки, Время, Территория</li>
+                  <li>• Сюжет, Выживание, Информация, Мета</li>
+                </ul>
+              </div>
+            </HelpHint>
+          </div>
           <p className="text-xs text-muted-foreground mt-1 mb-2">
             Если оставить пусто — AI подберёт механики автоматически из 128
             механик SW.BAND. Или выберите нужные вручную — система будет
@@ -294,10 +414,40 @@ export function ConceptForm({
 
         {/* Целевая аудитория — мотивации по модели Йи */}
         <div>
-          <Label>
-            Целевая аудитория — мотивации (модель Йи){" "}
-            <span className="text-red-500">*</span>
-          </Label>
+          <div className="flex items-center gap-1.5">
+            <Label>
+              Целевая аудитория — мотивации (модель Йи){" "}
+              <span className="text-red-500">*</span>
+            </Label>
+            <HelpHint label="Мотивации по модели Йи" width="w-[440px]">
+              <p>
+                Модель мотивации игрока Nick Yee — 12 под-мотиваций в 3
+                кластерах. Определяет, <em>зачем</em> игрок играет в вашу игру,
+                и через какие эстетические ценности (MDA) это выражается.
+                Выберите 1–3 основные мотивации.
+              </p>
+              <div className="mt-2 space-y-2">
+                {YEE_MOTIVATIONS_HELP.map((cluster) => (
+                  <div key={cluster.cluster}>
+                    <p className="font-semibold text-foreground text-[11px] uppercase tracking-wide">
+                      {cluster.cluster}
+                    </p>
+                    <ul className="space-y-0.5 mt-1">
+                      {cluster.items.map((item) => (
+                        <li key={item.value} className="leading-relaxed">
+                          <span className="font-medium text-foreground">
+                            {item.label}
+                          </span>
+                          {" — "}
+                          {item.desc}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </HelpHint>
+          </div>
           <p className="text-xs text-muted-foreground mt-1">
             Выберите 1–3 мотивации. Они определят эстетические ценности игры.
           </p>
@@ -332,7 +482,25 @@ export function ConceptForm({
 
         {/* Уровень опыта */}
         <div>
-          <Label>Уровень опыта аудитории</Label>
+          <div className="flex items-center gap-1.5">
+            <Label>Уровень опыта аудитории</Label>
+            <HelpHint label="Уровень опыта">
+              <ul className="space-y-1">
+                <li>
+                  <strong>casual</strong> — начинающие игроки, упрощённые
+                  механики, короткие сессии.
+                </li>
+                <li>
+                  <strong>midcore</strong> — опытные игроки, баланс
+                  доступности и глубины.
+                </li>
+                <li>
+                  <strong>hardcore</strong> — ветераны, глубокие системы,
+                  высокий skill ceiling.
+                </li>
+              </ul>
+            </HelpHint>
+          </div>
           <Select value={form.experienceLevel} onValueChange={(v) => updateField("experienceLevel", v)}>
             <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
             <SelectContent>
@@ -345,7 +513,19 @@ export function ConceptForm({
 
         {/* Платформа */}
         <div>
-          <Label>Платформа</Label>
+          <div className="flex items-center gap-1.5">
+            <Label>Платформа</Label>
+            <HelpHint label="Платформы">
+              <ul className="space-y-1">
+                <li><strong>PC</strong> — клавиатура + мышь, сложное управление.</li>
+                <li><strong>Mobile</strong> — тач-управление, короткие сессии.</li>
+                <li><strong>Console</strong> — геймпад, игра на ТВ.</li>
+                <li><strong>VR</strong> — контроллеры движения, иммерсивность.</li>
+                <li><strong>Web</strong> — браузер, мгновенный доступ.</li>
+              </ul>
+              <p className="mt-1.5 italic">Влияет на рекомендуемое управление и UI.</p>
+            </HelpHint>
+          </div>
           <div className="flex flex-wrap gap-3 mt-2">
             {PLATFORMS.map((platform) => (
               <label key={platform.value} className="flex items-center gap-2 cursor-pointer">
@@ -380,7 +560,21 @@ export function ConceptForm({
           {showAdvanced && (
             <div className="space-y-4 mt-3 pl-2 border-l-2 border-muted">
               <div>
-                <Label>Бюджет / Размер команды</Label>
+                <div className="flex items-center gap-1.5">
+                  <Label>Бюджет / Размер команды</Label>
+                  <HelpHint label="Бюджет команды">
+                    <ul className="space-y-1">
+                      <li><strong>solo</strong> — один разработчик.</li>
+                      <li><strong>small</strong> — команда 2–5 человек.</li>
+                      <li><strong>medium</strong> — команда 6–15 человек.</li>
+                      <li><strong>large</strong> — 16+ человек, AA/AAA студия.</li>
+                    </ul>
+                    <p className="mt-1.5 italic">
+                      Влияет на рекомендуемый масштаб проекта и сложность
+                      механик.
+                    </p>
+                  </HelpHint>
+                </div>
                 <Select value={form.budget} onValueChange={(v) => updateField("budget", v)}>
                   <SelectTrigger className="mt-1.5"><SelectValue /></SelectTrigger>
                   <SelectContent>
@@ -446,6 +640,11 @@ export function ConceptForm({
               <label className="text-sm font-medium cursor-pointer select-none" onClick={() => updateField("useAi", !form.useAi)}>
                 AI-обогащение концепции
               </label>
+              <HelpHint label="AI-обогащение">
+                Использовать LLM (glm-4.6) для генерации более креативных
+                синопсиса, описания геймплея и уникальных фич. Медленнее (~10
+                сек), но результат богаче. Бесплатный лимит: 50 запросов/день.
+              </HelpHint>
             </div>
             <p className="text-xs text-muted-foreground mt-0.5">
               Использовать LLM для генерации более креативных синопсиса, описания

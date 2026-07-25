@@ -43,6 +43,7 @@ import {
 } from "lucide-react";
 import { generateRandomProject } from "@/lib/project-generator";
 import { PROJECT_TEMPLATES, TEMPLATE_CATEGORIES, type ProjectTemplate } from "@/lib/project-templates";
+import { GENRES } from "@/config/genres";
 
 // ============================================================
 // Types
@@ -193,11 +194,12 @@ function CreateProjectDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreate: (name: string, description: string, genre: string) => Promise<void>;
+  onCreate: (name: string, description: string, genre: string, subgenres: string[]) => Promise<void>;
 }) {
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [genre, setGenre] = useState("");
+  const [subgenres, setSubgenres] = useState<string[]>([]);
   const [isCreating, setIsCreating] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [templateCategory, setTemplateCategory] = useState("All");
@@ -206,10 +208,11 @@ function CreateProjectDialog({
     if (!name.trim()) return;
     setIsCreating(true);
     try {
-      await onCreate(name.trim(), description.trim(), genre.trim());
+      await onCreate(name.trim(), description.trim(), genre.trim(), subgenres);
       setName("");
       setDescription("");
       setGenre("");
+      setSubgenres([]);
       onOpenChange(false);
     } finally {
       setIsCreating(false);
@@ -228,6 +231,12 @@ function CreateProjectDialog({
     setDescription(t.description);
     setGenre(t.genre);
     setShowTemplates(false);
+  };
+
+  const toggleSubgenre = (g: string) => {
+    setSubgenres((prev) =>
+      prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g]
+    );
   };
 
   const filteredTemplates = templateCategory === "All"
@@ -331,7 +340,7 @@ function CreateProjectDialog({
           </div>
           <div className="grid gap-2">
             <label htmlFor="genre" className="text-sm font-medium">
-              Жанр
+              Основной жанр
             </label>
             <Input
               id="genre"
@@ -340,6 +349,39 @@ function CreateProjectDialog({
               onChange={(e) => setGenre(e.target.value)}
             />
           </div>
+          <div className="grid gap-2">
+            <label className="text-sm font-medium">
+              Уточняющие под-жанры (опционально)
+            </label>
+            <p className="text-xs text-muted-foreground">
+              Выберите один или несколько под-жанров. Например: основной — RPG,
+              под-жанры — Roguelike, Dark Fantasy. Это поможет AI точнее подобрать механики.
+            </p>
+            <div className="flex flex-wrap gap-1.5 max-h-32 overflow-y-auto rounded-md border border-border p-2">
+              {GENRES.map((g) => {
+                const selected = subgenres.includes(g.value);
+                return (
+                  <button
+                    key={g.value}
+                    type="button"
+                    onClick={() => toggleSubgenre(g.value)}
+                    className={`rounded-full px-2.5 py-0.5 text-xs transition-colors ${
+                      selected
+                        ? "bg-primary text-primary-foreground"
+                        : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}
+                  >
+                    {g.label}
+                  </button>
+                );
+              })}
+            </div>
+            {subgenres.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Выбрано: {subgenres.length}
+              </p>
+            )}
+          </div>
           {(name || description || genre) && (
             <div className="flex items-start gap-2 rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs">
               <Sparkles className="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
@@ -347,7 +389,8 @@ function CreateProjectDialog({
                 {description ? (
                   <span>
                     Концепт: <strong className="text-foreground">{name || "—"}</strong>
-                    {genre && <span> • {genre}</span>}. Нажмите «Создать проект»
+                    {genre && <span> • {genre}</span>}
+                    {subgenres.length > 0 && <span> • {subgenres.join(", ")}</span>}. Нажмите «Создать проект»
                     или «Создать случайно» ещё раз для другого варианта.
                   </span>
                 ) : (
@@ -376,7 +419,7 @@ function CreateProjectDialog({
 
 export default function ProjectsPage() {
   const { apiFetch, isAuthenticated, isLoading: authLoading } = useAuth();
-  const { setActiveProjectId } = useActiveProject();
+  const { setActiveProject } = useActiveProject();
   const router = useRouter();
 
   const [projects, setProjects] = useState<ProjectData[]>([]);
@@ -415,10 +458,11 @@ export default function ProjectsPage() {
   }, [authLoading, isAuthenticated]);
 
   // Create project
-  const handleCreate = async (name: string, description: string, genre: string) => {
-    const body: Record<string, string> = { name };
+  const handleCreate = async (name: string, description: string, genre: string, subgenres: string[]) => {
+    const body: Record<string, unknown> = { name };
     if (description) body.description = description;
     if (genre) body.genre = genre;
+    if (subgenres.length > 0) body.subgenres = subgenres;
 
     const created = await apiFetch<{ id: string }>("/projects", {
       method: "POST",
@@ -426,7 +470,7 @@ export default function ProjectsPage() {
     });
     // Set the newly-created project as active so block pages pick it up
     if (created?.id) {
-      setActiveProjectId(created.id);
+      setActiveProject(created.id);
     }
     fetchProjects(1, search);
   };
@@ -444,7 +488,7 @@ export default function ProjectsPage() {
 
   // Open project — set as active and navigate to the project detail card
   const handleOpen = (projectId: string) => {
-    setActiveProjectId(projectId);
+    setActiveProject(projectId);
     router.push(`/projects/${projectId}`);
   };
 

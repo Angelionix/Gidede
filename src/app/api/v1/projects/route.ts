@@ -27,12 +27,25 @@ function serializeProject(p: ProjectRow & {
   economy?: { id: string } | null;
   gdd?: { id: string } | null;
   checklist?: { id: string } | null;
+  subgenres?: string | null;
 }) {
+  let subgenres: string[] = [];
+  if (p.subgenres) {
+    try {
+      const parsed = JSON.parse(p.subgenres);
+      if (Array.isArray(parsed)) {
+        subgenres = parsed.filter((s) => typeof s === "string");
+      }
+    } catch {
+      subgenres = [];
+    }
+  }
   return {
     id: p.id,
     name: p.name,
     description: p.description,
     genre: p.genre,
+    subgenres,
     status: p.status,
     completion_percent: p.completionPercent,
     created_at: p.createdAt.toISOString(),
@@ -120,6 +133,11 @@ export async function POST(request: NextRequest) {
     const name = body?.name?.toString().trim();
     const description = body?.description?.toString().trim() || null;
     const genre = body?.genre?.toString().trim() || null;
+    // Accept subgenres as an array of strings; persist as JSON.
+    const subgenresRaw = Array.isArray(body?.subgenres)
+      ? body.subgenres.filter((s: unknown) => typeof s === "string").map((s: string) => s.trim()).filter(Boolean)
+      : [];
+    const subgenres = subgenresRaw.length > 0 ? JSON.stringify(subgenresRaw) : null;
 
     if (!name) {
       return NextResponse.json(
@@ -134,6 +152,7 @@ export async function POST(request: NextRequest) {
         name,
         description,
         genre,
+        subgenres,
         status: "draft",
         projectStage: null,
         completionPercent: 0,

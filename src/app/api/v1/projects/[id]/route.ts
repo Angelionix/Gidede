@@ -46,6 +46,27 @@ export async function GET(
     project_stage: project.projectStage,
     version: project.version,
     last_algorithm_run: project.lastAlgorithmRun,
+    // Include full concept + coreLoop data so frontend pages (prototypes,
+    // project card) can display mechanics + core loop type without an extra
+    // round-trip.
+    concept: project.concept
+      ? {
+          genre: project.concept.genre,
+          subgenre: project.concept.subgenre,
+          primaryAesthetic: project.concept.primaryAesthetic,
+          usp: project.concept.usp,
+          mechanicSet: project.concept.mechanicSet,
+          onePagerData: project.concept.onePagerData,
+        }
+      : null,
+    coreLoop: project.coreLoop
+      ? {
+          structuralType: project.coreLoop.structuralType,
+          structuralSubtype: project.coreLoop.structuralSubtype,
+          stepCount: project.coreLoop.stepCount,
+          stepsData: project.coreLoop.stepsData,
+        }
+      : null,
   });
 }
 
@@ -75,6 +96,14 @@ export async function PUT(
     if (body?.genre !== undefined) data.genre = String(body.genre).trim() || null;
     if (body?.status) data.status = String(body.status).trim();
     if (body?.project_stage) data.projectStage = String(body.project_stage).trim();
+    // Support subgenres update (array of strings → JSON)
+    if (Array.isArray(body?.subgenres)) {
+      const subs = body.subgenres
+        .filter((s: unknown) => typeof s === "string")
+        .map((s: string) => s.trim())
+        .filter(Boolean);
+      data.subgenres = subs.length > 0 ? JSON.stringify(subs) : null;
+    }
 
     const project = await db.project.update({
       where: { id },

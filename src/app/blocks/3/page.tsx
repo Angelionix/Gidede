@@ -34,6 +34,8 @@ import {
   LensAuditPanel,
   BondMatrixPanel,
 } from "@/components/gidede/mda";
+import { LoadedFromDbBadge } from "@/components/gidede/shared";
+import { useProjectBlockData, safeJsonParse } from "@/hooks/use-project-block-data";
 
 // ============================================================
 // Main Page Component
@@ -71,6 +73,71 @@ export default function Block3Page() {
   const [result, setResult] = useState<MDAAnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState("reverse");
+
+  // --- Загрузка сохранённого MDA из БД (Task 14) ---
+  const { data: projectData, isLoading: isLoadingExisting } = useProjectBlockData(projectId);
+  const [isLoadedFromDb, setIsLoadedFromDb] = useState(false);
+
+  useEffect(() => {
+    if (!projectData) return;
+    if (result) return;
+    if (!projectData.has_mda || !projectData.mdaProfile) return;
+
+    const m = projectData.mdaProfile;
+    const full = safeJsonParse<Record<string, unknown>>(m.fullProfile) || {};
+
+    // Reconstruct the MDAAnalysisResult shape from stored JSON.
+    const restored: MDAAnalysisResult = {
+      aesthetic_profile:
+        (full.aesthetic_profile as MDAAnalysisResult["aesthetic_profile"]) || null,
+      dynamics_target:
+        (full.dynamics_target as MDAAnalysisResult["dynamics_target"]) || null,
+      mechanic_candidate_set:
+        (full.mechanic_candidate_set as MDAAnalysisResult["mechanic_candidate_set"]) ||
+        null,
+      mechanic_set:
+        safeJsonParse<Record<string, unknown>>(m.mechanicSet) ||
+        (full.mechanic_set as MDAAnalysisResult["mechanic_set"]) ||
+        null,
+      classic_mda_result:
+        (full.classic_mda_result as MDAAnalysisResult["classic_mda_result"]) || null,
+      lens_validation:
+        safeJsonParse<Record<string, unknown>>(m.lensValidation) ||
+        (full.lens_validation as MDAAnalysisResult["lens_validation"]) ||
+        null,
+      bond_validation:
+        safeJsonParse<Record<string, unknown>>(m.bondValidation) ||
+        (full.bond_validation as MDAAnalysisResult["bond_validation"]) ||
+        null,
+      genre:
+        (full.genre as string | undefined) || projectData.genre || "",
+      concept_id:
+        (full.concept_id as string | undefined) || projectData.id,
+      iterations_done: m.iterationCount,
+      stages_completed:
+        (full.stages_completed as number[] | undefined) || [1, 2, 3, 4, 5, 6],
+      latency_ms: (full.latency_ms as number | undefined) || 0,
+      models_used:
+        (full.models_used as string[] | undefined) || ["loaded-from-db"],
+    };
+    setResult(restored);
+    setIsLoadedFromDb(true);
+
+    // Pre-fill form fields from stored data.
+    if (m.primaryAesthetic) {
+      setForm((prev) =>
+        prev.primaryAesthetic ? prev : { ...prev, primaryAesthetic: m.primaryAesthetic! }
+      );
+    }
+    if (m.secondaryAesthetic) {
+      setForm((prev) =>
+        prev.secondaryAesthetic ? prev : { ...prev, secondaryAesthetic: m.secondaryAesthetic! }
+      );
+    }
+
+    toast({ title: "Загружен сохранённый MDA-анализ" });
+     
+  }, [projectData]);
 
   // --- Pipeline auto-fill handler ---
   const handleLoadFromPipeline = useCallback(async () => {
@@ -196,6 +263,7 @@ export default function Block3Page() {
     setIsAnalyzing(true);
     setError(null);
     setResult(null);
+    setIsLoadedFromDb(false);
 
     try {
       const mechanicsList = form.existingMechanics.split(",").map((m) => m.trim()).filter(Boolean);
@@ -319,7 +387,13 @@ export default function Block3Page() {
 
       {/* Results — Tabs */}
       {result && (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="animate-fade-in" aria-label="MDA результаты">
+        <div className="space-y-4 animate-fade-in">
+          {isLoadedFromDb && (
+            <div className="flex justify-end">
+              <LoadedFromDbBadge />
+            </div>
+          )}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="animate-fade-in" aria-label="MDA результаты">
           <TabsList className="grid grid-cols-2 sm:grid-cols-4 w-full">
             <TabsTrigger value="reverse" className="text-xs"><Target className="h-3.5 w-3.5 mr-1.5" />Reverse MDA</TabsTrigger>
             <TabsTrigger value="classic" className="text-xs"><Eye className="h-3.5 w-3.5 mr-1.5" />Classic MDA</TabsTrigger>
@@ -331,6 +405,17 @@ export default function Block3Page() {
           <TabsContent value="lenses" className="mt-4"><LensAuditPanel result={result} /></TabsContent>
           <TabsContent value="bond" className="mt-4"><BondMatrixPanel result={result} /></TabsContent>
         </Tabs>
+        </div>
+      )}
+
+      {/* Loading saved state */}
+      {!result && !isAnalyzing && !error && isLoadingExisting && (
+        <Card>
+          <CardContent className="py-10 flex items-center justify-center gap-3 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-sm">Загрузка сохранённого MDA-анализа…</span>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

@@ -47,6 +47,8 @@ import {
   ValidationPanel,
   RecommendationsPanel,
 } from "@/components/gidede/coreloop";
+import { LoadedFromDbBadge } from "@/components/gidede/shared";
+import { useProjectBlockData, safeJsonParse } from "@/hooks/use-project-block-data";
 
 // ============================================================
 // Main Page Component
@@ -76,6 +78,76 @@ export default function Block2Page() {
   const [result, setResult] = useState<CoreLoopDesignResult | null>(null);
   const [editedSteps, setEditedSteps] = useState<CoreLoopEditableStep[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // --- Загрузка сохранённого Core Loop из БД (Task 14) ---
+  const { data: projectData, isLoading: isLoadingExisting } = useProjectBlockData(projectId);
+  const [isLoadedFromDb, setIsLoadedFromDb] = useState(false);
+
+  useEffect(() => {
+    if (!projectData) return;
+    // Don't overwrite if the user has already generated a fresh result.
+    if (result) return;
+    if (!projectData.has_core_loop || !projectData.coreLoop) return;
+
+    const cl = projectData.coreLoop;
+    const steps = safeJsonParse<Record<string, unknown>[]>(cl.stepsData) || [];
+    const structuralType = safeJsonParse<Record<string, unknown>>(cl.fullProfile)?.structural_type as
+      | Record<string, unknown>
+      | undefined;
+    const full = safeJsonParse<Record<string, unknown>>(cl.fullProfile) || {};
+
+    const restored: CoreLoopDesignResult = {
+      id: projectData.id,
+      structural_type: structuralType || {
+        type: cl.structuralType || "engine",
+        sub_type: cl.structuralSubtype || "",
+        has_braking: false,
+        risk_assessment: { likely_pathologies: [] },
+      },
+      steps,
+      inner_loops: safeJsonParse<Record<string, unknown>[]>(cl.innerLoops) || [],
+      outer_loops: safeJsonParse<Record<string, unknown>[]>(cl.outerLoops) || [],
+      meta_loop: safeJsonParse<Record<string, unknown>>(cl.metaLoop),
+      pathologies: safeJsonParse<Record<string, unknown>>(cl.pathologies) || {},
+      recommendations: safeJsonParse<Record<string, unknown>[]>(cl.recommendations) || [],
+      validation: safeJsonParse<Record<string, unknown>>(cl.validationData),
+      loop_hierarchy: safeJsonParse<Record<string, unknown>>(cl.loopHierarchy),
+      stages_completed:
+        (full.stages_completed as number[] | undefined) || [1, 2, 3, 4, 5],
+      latency_ms: (full.latency_ms as number | undefined) || 0,
+      models_used:
+        (full.models_used as string[] | undefined) || ["loaded-from-db"],
+    };
+    setResult(restored);
+    setIsLoadedFromDb(true);
+
+    // Pre-fill mechanics from concept.mechanicSet (if present).
+    if (projectData.concept?.mechanicSet) {
+      const mechanicSet = safeJsonParse<unknown[]>(projectData.concept.mechanicSet);
+      if (Array.isArray(mechanicSet) && mechanicSet.length > 0) {
+        const names = mechanicSet
+          .map((m) => {
+            if (typeof m === "string") return m;
+            if (m && typeof m === "object") {
+              const obj = m as Record<string, unknown>;
+              return (obj.name as string | undefined) || (obj.id as string | undefined) || "";
+            }
+            return "";
+          })
+          .filter(Boolean);
+        if (names.length > 0) {
+          setForm((prev) =>
+            prev.mechanics.trim().length === 0
+              ? { ...prev, mechanics: names.join(", ") }
+              : prev
+          );
+        }
+      }
+    }
+
+    toast({ title: "Загружен сохранённый Core Loop" });
+     
+  }, [projectData]);
 
   // --- Pipeline auto-fill handler ---
   const handleLoadFromPipeline = useCallback(async () => {
@@ -171,6 +243,7 @@ export default function Block2Page() {
     setIsDesigning(true);
     setError(null);
     setResult(null);
+    setIsLoadedFromDb(false);
 
     try {
       const mechanicsList = form.mechanics
@@ -433,9 +506,24 @@ export default function Block2Page() {
         </Card>
       )}
 
+      {/* Loading saved state */}
+      {!result && !isDesigning && !error && isLoadingExisting && (
+        <Card>
+          <CardContent className="py-10 flex items-center justify-center gap-3 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-sm">Загрузка сохранённого Core Loop…</span>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Result */}
       {result && (
         <div className="space-y-6 animate-fade-in" aria-live="polite">
+          {isLoadedFromDb && (
+            <div className="flex justify-end">
+              <LoadedFromDbBadge />
+            </div>
+          )}
           {/* Meta info */}
           <Card>
             <CardContent className="py-3">

@@ -467,10 +467,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     init();
 
+    // ----------------------------------------------------------
+    // Proactive token refresh on page focus / visibility change.
+    // When the user returns to the tab after being away, the access
+    // token may have expired (30-min TTL). Try to refresh BEFORE any
+    // API call gets a 401 — this prevents the jarring "Сессия истекла"
+    // redirect to /login.
+    // ----------------------------------------------------------
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        const at = getAccessToken();
+        const rt = getRefreshToken();
+        // If we have a refresh token but no valid access token, try to refresh.
+        if (rt && !at) {
+          refreshToken();
+        }
+        // Also refresh if the access token might be close to expiry.
+        // We can't decode the JWT here easily (it's HMAC-signed, not base64),
+        // so we just try fetchMe — if it fails, refreshToken kicks in.
+        if (at) {
+          fetchMe(at).then((user) => {
+            if (!user && rt) {
+              refreshToken();
+            }
+          });
+        }
+      }
+    };
+
+    const handleFocus = () => handleVisibilityChange();
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", handleFocus);
+
     return () => {
       if (refreshTimerRef.current) {
         clearTimeout(refreshTimerRef.current);
       }
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", handleFocus);
     };
   }, []);
 

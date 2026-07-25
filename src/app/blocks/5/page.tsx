@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -49,6 +49,8 @@ import type { EconomyDesignResponse } from "@/types/economy";
 
 import { MacroParamsTab, TiersTab, CurvesTab, ContentPlanTab, ValidationTab } from "@/components/gidede/progression";
 import { ResourcesTab, ClassificationTab, MachinationsEconomyTab, DiagnosticsTab, SimulationEconomyTab } from "@/components/gidede/economy";
+import { LoadedFromDbBadge } from "@/components/gidede/shared";
+import { useProjectBlockData, safeJsonParse } from "@/hooks/use-project-block-data";
 
 // ============================================================
 // Main Component
@@ -89,6 +91,46 @@ export default function Block5Page() {
   const [progError, setProgError] = useState<string | null>(null);
   const [ecoError, setEcoError] = useState<string | null>(null);
 
+  // --- Загрузка сохранённых progression/economy из БД (Task 14) ---
+  const { data: projectData, isLoading: isLoadingExisting } = useProjectBlockData(projectId);
+  const [progLoadedFromDb, setProgLoadedFromDb] = useState(false);
+  const [ecoLoadedFromDb, setEcoLoadedFromDb] = useState(false);
+
+  useEffect(() => {
+    if (!projectData) return;
+    // Progression
+    if (!progResult && projectData.has_progression && projectData.progression) {
+      const p = projectData.progression;
+      const restored = safeJsonParse<ProgressionDesignResponse>(p.fullProfile);
+      if (restored) {
+        setProgResult(restored);
+        setProgLoadedFromDb(true);
+        // Restore form params from stored model.
+        if (p.curveType) setProgType(p.curveType);
+        if (p.totalLevels) setProgLevels(p.totalLevels);
+        if (p.targetDurationHours) setProgDuration(p.targetDurationHours);
+        if (restored.macro_model?.monetization_model) {
+          setProgMonetization(restored.macro_model.monetization_model);
+        }
+        toast({ title: "Загружена сохранённая прогрессия" });
+      }
+    }
+    // Economy
+    if (!ecoResult && projectData.has_economy && projectData.economy) {
+      const e = projectData.economy;
+      const restored = safeJsonParse<EconomyDesignResponse>(e.fullProfile);
+      if (restored) {
+        setEcoResult(restored);
+        setEcoLoadedFromDb(true);
+        if (restored.classification?.openness) {
+          setEcoOpenness(restored.classification.openness);
+        }
+        toast({ title: "Загружена сохранённая экономика" });
+      }
+    }
+     
+  }, [projectData]);
+
   // --- Progression sub-tab ---
   const [progSubTab, setProgSubTab] = useState("macro");
   // --- Economy sub-tab ---
@@ -98,6 +140,7 @@ export default function Block5Page() {
   const handleRunProgression = useCallback(async () => {
     setIsProgLoading(true);
     setProgError(null);
+    setProgLoadedFromDb(false);
 
     try {
       const payload = {
@@ -147,6 +190,7 @@ export default function Block5Page() {
   const handleRunEconomy = useCallback(async () => {
     setIsEcoLoading(true);
     setEcoError(null);
+    setEcoLoadedFromDb(false);
 
     try {
       const payload = {
@@ -351,7 +395,13 @@ export default function Block5Page() {
 
           {/* Results */}
           {progResult && (
-            <Tabs value={progSubTab} onValueChange={setProgSubTab} className="animate-fade-in" aria-label="Результаты прогрессии">
+            <div className="space-y-4 animate-fade-in">
+              {progLoadedFromDb && (
+                <div className="flex justify-end">
+                  <LoadedFromDbBadge />
+                </div>
+              )}
+              <Tabs value={progSubTab} onValueChange={setProgSubTab} aria-label="Результаты прогрессии">
               <TabsList>
                 <TabsTrigger value="macro" className="text-xs sm:text-sm">Макро-параметры</TabsTrigger>
                 <TabsTrigger value="tiers" className="text-xs sm:text-sm">Этапы</TabsTrigger>
@@ -375,6 +425,17 @@ export default function Block5Page() {
                 <ValidationTab result={progResult} />
               </TabsContent>
             </Tabs>
+            </div>
+          )}
+
+          {/* Loading saved state */}
+          {!progResult && !isProgLoading && !progError && isLoadingExisting && (
+            <Card>
+              <CardContent className="py-10 flex items-center justify-center gap-3 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span className="text-sm">Загрузка сохранённой прогрессии…</span>
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
 
@@ -470,7 +531,13 @@ export default function Block5Page() {
 
           {/* Results */}
           {ecoResult && (
-            <Tabs value={ecoSubTab} onValueChange={setEcoSubTab} className="animate-fade-in" aria-label="Результаты экономики">
+            <div className="space-y-4 animate-fade-in">
+              {ecoLoadedFromDb && (
+                <div className="flex justify-end">
+                  <LoadedFromDbBadge />
+                </div>
+              )}
+              <Tabs value={ecoSubTab} onValueChange={setEcoSubTab} aria-label="Результаты экономики">
               <TabsList>
                 <TabsTrigger value="resources" className="text-xs sm:text-sm">Ресурсы</TabsTrigger>
                 <TabsTrigger value="classification" className="text-xs sm:text-sm">Классификация</TabsTrigger>
@@ -494,6 +561,17 @@ export default function Block5Page() {
                 <SimulationEconomyTab result={ecoResult} />
               </TabsContent>
             </Tabs>
+            </div>
+          )}
+
+          {/* Loading saved state */}
+          {!ecoResult && !isEcoLoading && !ecoError && isLoadingExisting && (
+            <Card>
+              <CardContent className="py-10 flex items-center justify-center gap-3 text-muted-foreground">
+                <Loader2 className="h-5 w-5 animate-spin" />
+                <span className="text-sm">Загрузка сохранённой экономики…</span>
+              </CardContent>
+            </Card>
           )}
         </TabsContent>
       </Tabs>

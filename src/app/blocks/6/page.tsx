@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
   Card,
   CardContent,
@@ -58,6 +58,8 @@ import {
   ExportPanel,
   ChecklistPanel,
 } from "@/components/gidede/gdd";
+import { LoadedFromDbBadge } from "@/components/gidede/shared";
+import { useProjectBlockData, safeJsonParse } from "@/hooks/use-project-block-data";
 
 // ============================================================
 // Main Component
@@ -94,10 +96,31 @@ export default function Block6Page() {
     useState<ChecklistValidationProfile | null>(null);
   const [isChecklistLoading, setIsChecklistLoading] = useState(false);
 
+  // --- Загрузка сохранённого GDD из БД (Task 14) ---
+  const { data: projectData, isLoading: isLoadingExisting } = useProjectBlockData(projectId);
+  const [isLoadedFromDb, setIsLoadedFromDb] = useState(false);
+
+  useEffect(() => {
+    if (!projectData) return;
+    if (gddProfile) return;
+    if (!projectData.has_gdd || !projectData.gdd) return;
+
+    // The fullProfile column stores the entire GDDProfile object —
+    // use it as the primary source so all sub-sections remain populated.
+    const restored = safeJsonParse<GDDProfile>(projectData.gdd.fullProfile);
+    if (restored) {
+      setGddProfile(restored);
+      setIsLoadedFromDb(true);
+      toast({ title: "Загружен сохранённый GDD" });
+    }
+     
+  }, [projectData]);
+
   // --- Run GDD Generation ---
   const handleGenerate = useCallback(async () => {
     setIsGenerating(true);
     setGddError(null);
+    setIsLoadedFromDb(false);
 
     try {
       const payload: GDDGenerationRequest = {
@@ -269,10 +292,11 @@ export default function Block6Page() {
         {gddProfile && (
           <Badge
             variant="outline"
-            className="ml-auto text-xs border-green-300 text-green-700 dark:text-green-400"
+            className="ml-auto text-xs border-green-300 text-green-700 dark:text-green-400 gap-2"
           >
-            <CheckCircle2 className="h-3 w-3 mr-1" />
+            <CheckCircle2 className="h-3 w-3" />
             Сгенерирован
+            {isLoadedFromDb && <LoadedFromDbBadge />}
           </Badge>
         )}
       </div>
@@ -529,6 +553,16 @@ export default function Block6Page() {
           />
         </TabsContent>
       </Tabs>
+
+      {/* Loading saved state */}
+      {!gddProfile && !isGenerating && !gddError && isLoadingExisting && (
+        <Card>
+          <CardContent className="py-10 flex items-center justify-center gap-3 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-sm">Загрузка сохранённого GDD…</span>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

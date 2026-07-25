@@ -52,6 +52,8 @@ import { PayoffMatrixTab } from "@/components/gidede/balance/PayoffMatrixTab";
 import { SimulationChartsTab } from "@/components/gidede/balance/SimulationChartsTab";
 import { MachinationsVisualizationTab } from "@/components/gidede/balance/MachinationsVisualizationTab";
 import { CorrectionsPanelTab } from "@/components/gidede/balance/CorrectionsPanelTab";
+import { LoadedFromDbBadge } from "@/components/gidede/shared";
+import { useProjectBlockData, safeJsonParse } from "@/hooks/use-project-block-data";
 
 // ============================================================
 // Main Component
@@ -88,6 +90,57 @@ export default function Block4Page() {
   const [isAnalyzing, setIsAnalyzing] = useState(false);
   const [result, setResult] = useState<FullBalanceResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // --- Загрузка сохранённого баланса из БД (Task 14) ---
+  const { data: projectData, isLoading: isLoadingExisting } = useProjectBlockData(projectId);
+  const [isLoadedFromDb, setIsLoadedFromDb] = useState(false);
+
+  useEffect(() => {
+    if (!projectData) return;
+    if (result) return;
+    if (!projectData.has_balance || !projectData.balanceResult) return;
+
+    const b = projectData.balanceResult;
+    // The fullResult column stores the entire FullBalanceResponse object —
+    // use it as the primary source.
+    const restored = safeJsonParse<FullBalanceResponse>(b.fullResult);
+    if (restored) {
+      // Ensure required fields have safe defaults if missing.
+      const fixed: FullBalanceResponse = {
+        id: restored.id || projectData.id,
+        balance_map: restored.balance_map || {
+          primary_model: b.balanceType || "mixed",
+          secondary_model: "",
+          anchor: "",
+          game_sum: "",
+          feedback: "",
+          applicable_balance_types: [],
+        },
+        transitive_result: restored.transitive_result,
+        intransitive_result: restored.intransitive_result,
+        situational_result: restored.situational_result || {},
+        q_factor_result: restored.q_factor_result || {},
+        stability: restored.stability,
+        monte_carlo_result: restored.monte_carlo_result,
+        machinations_result: restored.machinations_result,
+        stages_completed: restored.stages_completed || [1, 2, 3, 4, 5],
+        latency_ms: restored.latency_ms || 0,
+        models_used: restored.models_used || ["loaded-from-db"],
+        warnings: restored.warnings || [],
+        suggestions: restored.suggestions || [],
+      };
+      setResult(fixed);
+      setIsLoadedFromDb(true);
+
+      // Restore form state from saved balance_type if user hasn't changed it.
+      if (b.balanceType) {
+        setBalanceType(b.balanceType as typeof balanceType);
+      }
+
+      toast({ title: "Загружен сохранённый баланс" });
+    }
+     
+  }, [projectData]);
 
   // --- Validation ---
   const isValid = objects.every((o) => o.name.trim() !== "") && objects.length >= 2;
@@ -212,6 +265,7 @@ export default function Block4Page() {
 
     setIsAnalyzing(true);
     setError(null);
+    setIsLoadedFromDb(false);
 
     try {
       const payload: FullBalanceRequest = {
@@ -483,7 +537,13 @@ export default function Block4Page() {
 
       {/* Results Tabs */}
       {result && (
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="animate-fade-in" aria-label="Результаты анализа баланса">
+        <div className="space-y-4 animate-fade-in">
+          {isLoadedFromDb && (
+            <div className="flex justify-end">
+              <LoadedFromDbBadge />
+            </div>
+          )}
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="animate-fade-in" aria-label="Результаты анализа баланса">
           <TabsList className="grid w-full grid-cols-3 sm:grid-cols-5">
             <TabsTrigger value="transitive" className="text-xs sm:text-sm">
               <Target className="h-3.5 w-3.5 mr-1 hidden sm:inline" />
@@ -529,6 +589,17 @@ export default function Block4Page() {
             </TabsContent>
           </div>
         </Tabs>
+        </div>
+      )}
+
+      {/* Loading saved state */}
+      {!result && !isAnalyzing && !error && isLoadingExisting && (
+        <Card>
+          <CardContent className="py-10 flex items-center justify-center gap-3 text-muted-foreground">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <span className="text-sm">Загрузка сохранённого баланса…</span>
+          </CardContent>
+        </Card>
       )}
     </div>
   );

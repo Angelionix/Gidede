@@ -607,3 +607,46 @@ Stage Summary:
 - src/components/gidede/concept/ConceptForm.tsx (+200 lines): HelpHint component, YEE_MOTIVATIONS_HELP constant, 8 inline HelpHint popovers.
 - src/app/help/page.tsx (+464 lines): Step 7 (Прототип) in EXAMPLE_STEPS, BLOCK_FUNCTIONS array (8 blocks), BlockFunctionCard component, new "Функции блоков" tab with 8 cards + Node Editor section, 5th stat in outcome grid.
 - /agent-ctx/12-ai-help-tooltips.md (this work record).
+
+---
+Task ID: 14
+Agent: full-stack-developer (load existing block data)
+Task: Make all block pages load their previously-generated results from DB on mount
+
+Work Log:
+- Read existing worklog.md and prisma/schema.prisma for context.
+- Inspected src/app/api/v1/projects/[id]/route.ts — confirmed it returned only concept + coreLoop.
+- Inspected each block route's persist section (concept/generate, coreloop/design, mda/analyze, balance/analyze, progression/design, economy/design, gdd/generate) to learn what each model stores (inputData, onePagerData, fullProfile, fullResult, etc.).
+- Inspected all 6 block pages (src/app/blocks/1..6/page.tsx) and their corresponding types in src/types/{concept,coreloop,mda,balance,progression,economy,gdd}.ts.
+- Inspected the existing pipeline auto-fill hook pattern (usePipeline.prepareInput + handleLoadFromPipeline) — kept it intact; the new "load OWN block result" path is independent of pipeline.
+
+- Step 1 — Extended GET /api/v1/projects/[id]/route.ts:
+  - Added the full set of fields for `concept` (added inputData, aestheticProfile, dynamicsProfile, validationReport, uspCandidates, coreLoopCandidates), `coreLoop` (added innerLoops, outerLoops, metaLoop, loopHierarchy, pathologies, recommendations, validationData, fullProfile), and the new top-level keys: `mdaProfile`, `balanceResult`, `progression`, `economy`, `gdd`, `checklist`. Every block returns `null` when absent.
+
+- Step 1b — Created src/hooks/use-project-block-data.ts:
+  - Exports `ProjectBlockData` type matching the API response shape, `safeJsonParse<T>()` helper (returns null on failure / null / empty), and `useProjectBlockData(projectId)` hook (fetches `/projects/{id}` on mount, returns `{ data, isLoading, error, reload }`).
+  - Created src/components/gidede/shared/LoadedFromDbBadge.tsx (amber Database-icon badge) and exported from shared/index.ts.
+
+- Step 2 — Block 1 (Concept): added useEffect on projectData that reconstructs ConceptGenerationResult from onePagerData + aestheticProfile + dynamicsProfile + mechanicSet + validationReport + uspCandidates + coreLoopCandidates JSON strings; restores form.idea from inputData.idea; sets isLoadedFromDb + toast "Загружена сохранённая концепция"; clears isLoadedFromDb on fresh generate; shows LoadedFromDbBadge above the result panel; shows a loading Card while isLoadingExisting.
+- Step 3 — Block 2 (Core Loop): reconstructs CoreLoopDesignResult from fullProfile (preferring .structural_type, stages_completed, latency_ms, models_used) and individual JSON columns (stepsData, innerLoops, outerLoops, metaLoop, pathologies, recommendations, validationData, loopHierarchy); pre-fills form.mechanics from concept.mechanicSet; toast "Загружен сохранённый Core Loop".
+- Step 4 — Block 3 (MDA): reconstructs MDAAnalysisResult from fullProfile + individual columns (mechanicSet, lensValidation, bondValidation); pre-fills primary/secondary aesthetic; toast "Загружен сохранённый MDA-анализ".
+- Step 5 — Block 4 (Balance): reconstructs FullBalanceResponse from fullResult (with safe defaults for every required field); restores form.balanceType from stored value; toast "Загружен сохранённый баланс".
+- Step 6 — Block 5 (Progression + Economy): reconstructs both ProgressionDesignResponse (from fullProfile) and EconomyDesignResponse (from fullProfile); restores progType, progLevels, progDuration, progMonetization, ecoOpenness from stored values; toasts "Загружена сохранённая прогрессия" / "Загружена сохранённая экономика".
+- Step 7 — Block 6 (GDD): reconstructs GDDProfile from fullProfile (the entire profile is stored there, so all sub-sections — data_mapping, auto_filled_sections, ai_enriched_sections, manual_skeletons, assembled_document, formatted_document — remain populated); toast "Загружен сохранённый GDD".
+
+- For all blocks: guarded the loader with "don't overwrite if user already has a result or has filled the form"; reset isLoadedFromDb on fresh generation; added a "Загрузка сохранённого X…" Card placeholder while isLoadingExisting; LoadedFromDbBadge displayed above the result panel when applicable.
+- All UI text is Russian. Only existing shadcn/ui components used.
+- Ran `bun run lint` — first pass flagged 7 "Unused eslint-disable directive" warnings; `bun run lint --fix` removed them and the second pass returned 0 errors / 0 warnings.
+- Read dev.log — only standard Prisma query logs, no errors related to the changes.
+
+Stage Summary:
+- src/app/api/v1/projects/[id]/route.ts (extended GET response with mdaProfile, balanceResult, progression, economy, gdd, checklist + extra concept/coreLoop fields)
+- src/hooks/use-project-block-data.ts (NEW — typed hook + safeJsonParse helper)
+- src/components/gidede/shared/LoadedFromDbBadge.tsx (NEW)
+- src/components/gidede/shared/index.ts (export LoadedFromDbBadge)
+- src/app/blocks/1/page.tsx (load saved concept on mount)
+- src/app/blocks/2/page.tsx (load saved core loop on mount)
+- src/app/blocks/3/page.tsx (load saved MDA on mount)
+- src/app/blocks/4/page.tsx (load saved balance on mount)
+- src/app/blocks/5/page.tsx (load saved progression + economy on mount)
+- src/app/blocks/6/page.tsx (load saved GDD on mount)

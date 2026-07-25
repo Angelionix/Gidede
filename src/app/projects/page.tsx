@@ -40,6 +40,7 @@ import {
   Shuffle,
   Sparkles,
   LayoutGrid,
+  Loader2,
 } from "lucide-react";
 import { generateRandomProject } from "@/lib/project-generator";
 import { PROJECT_TEMPLATES, TEMPLATE_CATEGORIES, type ProjectTemplate } from "@/lib/project-templates";
@@ -219,11 +220,34 @@ function CreateProjectDialog({
     }
   };
 
-  const handleRandomize = () => {
-    const idea = generateRandomProject();
-    setName(idea.name);
-    setDescription(idea.description);
-    setGenre(idea.genre);
+  const [isRandomizing, setIsRandomizing] = useState(false);
+
+  const handleRandomize = async () => {
+    setIsRandomizing(true);
+    try {
+      // Try AI first for more creative variations
+      const idea = await apiFetch<{
+        name: string;
+        description: string;
+        genre: string;
+        subgenres: string[];
+        source: string;
+      }>("/projects/random-idea");
+      setName(idea.name);
+      setDescription(idea.description);
+      setGenre(idea.genre);
+      if (idea.subgenres && idea.subgenres.length > 0) {
+        setSubgenres(idea.subgenres);
+      }
+    } catch {
+      // Fallback to deterministic if AI endpoint fails
+      const idea = generateRandomProject();
+      setName(idea.name);
+      setDescription(idea.description);
+      setGenre(idea.genre);
+    } finally {
+      setIsRandomizing(false);
+    }
   };
 
   const applyTemplate = (t: ProjectTemplate) => {
@@ -270,10 +294,15 @@ function CreateProjectDialog({
               variant="outline"
               size="sm"
               onClick={handleRandomize}
+              disabled={isRandomizing}
               className="gap-1.5"
             >
-              <Shuffle className="h-5 w-5" />
-              Случайно
+              {isRandomizing ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <Shuffle className="h-5 w-5" />
+              )}
+              {isRandomizing ? "Генерация..." : "Случайно"}
             </Button>
           </div>
 

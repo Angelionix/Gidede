@@ -91,7 +91,8 @@ export function usePipeline(projectId: string | null) {
 
       try {
         const result = await apiFetch<unknown>(
-          apiRoutes.pipeline.prepare(projectId, blockId)
+          apiRoutes.pipeline.prepare(projectId, blockId),
+          { method: "POST", headers: { "Content-Type": "application/json" }, body: "{}" }
         );
         return result;
       } catch (err) {

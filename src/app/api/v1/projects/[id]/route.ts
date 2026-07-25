@@ -48,15 +48,22 @@ export async function GET(
     last_algorithm_run: project.lastAlgorithmRun,
     // Include full concept + coreLoop data so frontend pages (prototypes,
     // project card) can display mechanics + core loop type without an extra
-    // round-trip.
+    // round-trip. Also include every block's stored result so block pages can
+    // load previously-generated data on mount (Task 14).
     concept: project.concept
       ? {
           genre: project.concept.genre,
           subgenre: project.concept.subgenre,
           primaryAesthetic: project.concept.primaryAesthetic,
           usp: project.concept.usp,
-          mechanicSet: project.concept.mechanicSet,
+          inputData: project.concept.inputData,
           onePagerData: project.concept.onePagerData,
+          aestheticProfile: project.concept.aestheticProfile,
+          dynamicsProfile: project.concept.dynamicsProfile,
+          mechanicSet: project.concept.mechanicSet,
+          validationReport: project.concept.validationReport,
+          uspCandidates: project.concept.uspCandidates,
+          coreLoopCandidates: project.concept.coreLoopCandidates,
         }
       : null,
     coreLoop: project.coreLoop
@@ -65,6 +72,92 @@ export async function GET(
           structuralSubtype: project.coreLoop.structuralSubtype,
           stepCount: project.coreLoop.stepCount,
           stepsData: project.coreLoop.stepsData,
+          innerLoops: project.coreLoop.innerLoops,
+          outerLoops: project.coreLoop.outerLoops,
+          metaLoop: project.coreLoop.metaLoop,
+          loopHierarchy: project.coreLoop.loopHierarchy,
+          pathologies: project.coreLoop.pathologies,
+          recommendations: project.coreLoop.recommendations,
+          validationData: project.coreLoop.validationData,
+          fullProfile: project.coreLoop.fullProfile,
+        }
+      : null,
+    mdaProfile: project.mdaProfile
+      ? {
+          primaryAesthetic: project.mdaProfile.primaryAesthetic,
+          secondaryAesthetic: project.mdaProfile.secondaryAesthetic,
+          overallMatch: project.mdaProfile.overallMatch,
+          iterationCount: project.mdaProfile.iterationCount,
+          mechanicSet: project.mdaProfile.mechanicSet,
+          observedDynamics: project.mdaProfile.observedDynamics,
+          matchScores: project.mdaProfile.matchScores,
+          lensValidation: project.mdaProfile.lensValidation,
+          bondValidation: project.mdaProfile.bondValidation,
+          fullProfile: project.mdaProfile.fullProfile,
+        }
+      : null,
+    balanceResult: project.balanceResult
+      ? {
+          balanceType: project.balanceResult.balanceType,
+          overallBalanceScore: project.balanceResult.overallBalanceScore,
+          elementCount: project.balanceResult.elementCount,
+          elements: project.balanceResult.elements,
+          costPowerCurves: project.balanceResult.costPowerCurves,
+          pathologies: project.balanceResult.pathologies,
+          corrections: project.balanceResult.corrections,
+          fullResult: project.balanceResult.fullResult,
+        }
+      : null,
+    progression: project.progression
+      ? {
+          totalLevels: project.progression.totalLevels,
+          tierCount: project.progression.tierCount,
+          curveType: project.progression.curveType,
+          targetDurationHours: project.progression.targetDurationHours,
+          macroModel: project.progression.macroModel,
+          tierModel: project.progression.tierModel,
+          curves: project.progression.curves,
+          contentPlan: project.progression.contentPlan,
+          validation: project.progression.validation,
+          fullProfile: project.progression.fullProfile,
+        }
+      : null,
+    economy: project.economy
+      ? {
+          systemType: project.economy.systemType,
+          resourceCount: project.economy.resourceCount,
+          hasPathology: project.economy.hasPathology,
+          resourceModel: project.economy.resourceModel,
+          machinationsModel: project.economy.machinationsModel,
+          conversionChains: project.economy.conversionChains,
+          pathologies: project.economy.pathologies,
+          corrections: project.economy.corrections,
+          simulationResults: project.economy.simulationResults,
+          monetizationModel: project.economy.monetizationModel,
+          fullProfile: project.economy.fullProfile,
+        }
+      : null,
+    gdd: project.gdd
+      ? {
+          format: project.gdd.format,
+          sectionCount: project.gdd.sectionCount,
+          completenessPercent: project.gdd.completenessPercent,
+          sections: project.gdd.sections,
+          visualElements: project.gdd.visualElements,
+          consistencyIssues: project.gdd.consistencyIssues,
+          completenessReport: project.gdd.completenessReport,
+          fullProfile: project.gdd.fullProfile,
+        }
+      : null,
+    checklist: project.checklist
+      ? {
+          overallScore: project.checklist.overallScore,
+          readinessLevel: project.checklist.readinessLevel,
+          criticalIssueCount: project.checklist.criticalIssueCount,
+          totalIssueCount: project.checklist.totalIssueCount,
+          issues: project.checklist.issues,
+          remediationPlan: project.checklist.remediationPlan,
+          fullResults: project.checklist.fullResults,
         }
       : null,
   });

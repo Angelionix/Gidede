@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,7 +35,8 @@ import {
 } from "@/components/gidede/concept";
 
 // Shared components
-import { EmptyStateCard } from "@/components/gidede/shared";
+import { EmptyStateCard, LoadedFromDbBadge } from "@/components/gidede/shared";
+import { useProjectBlockData, safeJsonParse } from "@/hooks/use-project-block-data";
 
 // ============================================================
 // Компонент
@@ -75,6 +76,67 @@ export default function Block1Page() {
   // --- Состояние выбора ---
   const [selectedCoreLoopIndex, setSelectedCoreLoopIndex] = useState<number | null>(null);
   const [selectedUSPIndex, setSelectedUSPIndex] = useState<number | null>(null);
+
+  // --- Загрузка сохранённой концепции из БД (Task 14) ---
+  const { data: projectData, isLoading: isLoadingExisting } = useProjectBlockData(projectId);
+  const [isLoadedFromDb, setIsLoadedFromDb] = useState(false);
+
+  useEffect(() => {
+    if (!projectData) return;
+    // Don't overwrite if the user has already started filling the form.
+    if (form.idea.trim().length > 0 || result) {
+      return;
+    }
+    if (!projectData.has_concept || !projectData.concept) return;
+
+    const c = projectData.concept;
+    const onePager = safeJsonParse<Record<string, unknown>>(c.onePagerData);
+    const aesthetic = safeJsonParse<Record<string, unknown>>(c.aestheticProfile);
+    const dynamics = safeJsonParse<Record<string, unknown>>(c.dynamicsProfile);
+    const mechanicSet = safeJsonParse<Record<string, unknown>>(c.mechanicSet);
+    const validationReport = safeJsonParse<Record<string, unknown>>(c.validationReport);
+    const uspCandidates = safeJsonParse<Record<string, unknown>[]>(c.uspCandidates) || [];
+    const coreLoopCandidates = safeJsonParse<Record<string, unknown>[]>(c.coreLoopCandidates) || [];
+
+    // Reconstruct ConceptGenerationResult
+    const restored: ConceptGenerationResult = {
+      id: projectData.id,
+      title:
+        (onePager?.title as string | undefined) ||
+        `${projectData.name || "Untitled"} — ${(c.genre || "").toUpperCase()} Concept`,
+      genre: c.genre || "",
+      target_audience: (onePager?.target_audience as string | undefined) || "",
+      story_synopsis: (onePager?.story_synopsis as string | undefined) || "",
+      gameplay_description: (onePager?.gameplay_description as string | undefined) || "",
+      unique_features:
+        (onePager?.unique_features as string[] | undefined) || [],
+      competitors: (onePager?.competitors as string[] | undefined) || [],
+      rating: (onePager?.rating as string | undefined),
+      aesthetic_profile: aesthetic as ConceptGenerationResult["aesthetic_profile"],
+      dynamics_profile: dynamics as ConceptGenerationResult["dynamics_profile"],
+      mechanic_set: mechanicSet,
+      core_loop_candidates: coreLoopCandidates,
+      usp_candidates: uspCandidates,
+      validation_report: validationReport as ConceptGenerationResult["validation_report"],
+      status: "completed",
+      generation_metadata: {
+        stages_completed: [1, 2, 3, 4, 5, 6, 7],
+        latency_ms: 0,
+        models_used: ["loaded-from-db"],
+      },
+    };
+    setResult(restored);
+    setIsLoadedFromDb(true);
+
+    // Restore the form's idea field from inputData if present.
+    const inputData = safeJsonParse<{ idea?: string }>(c.inputData);
+    if (inputData?.idea && form.idea.trim().length === 0) {
+      setForm((prev) => ({ ...prev, idea: inputData.idea as string }));
+    }
+
+    toast({ title: "Загружена сохранённая концепция" });
+     
+  }, [projectData]);
 
   // --- Валидация ---
   const ideaLength = form.idea.trim().length;
@@ -147,6 +209,7 @@ export default function Block1Page() {
     setIsGenerating(true);
     setError(null);
     setResult(null);
+    setIsLoadedFromDb(false);
     setSelectedCoreLoopIndex(null);
     setSelectedUSPIndex(null);
     setCurrentStage("Этап 1: Анализ и определение жанра...");
@@ -273,6 +336,11 @@ export default function Block1Page() {
       {/* === РЕЗУЛЬТАТ ГЕНЕРАЦИИ === */}
       {result && (
         <div className="space-y-4 animate-fade-in" aria-live="polite">
+          {isLoadedFromDb && (
+            <div className="flex justify-end">
+              <LoadedFromDbBadge />
+            </div>
+          )}
           <OnePagerCard result={result} />
 
           {result.aesthetic_profile && <AestheticProfileView profile={result.aesthetic_profile} />}
@@ -295,11 +363,20 @@ export default function Block1Page() {
 
       {/* Пустое состояние */}
       {!result && !isGenerating && !error && (
-        <EmptyStateCard
-          icon={Lightbulb}
-          title="Заполните форму и нажмите «Сгенерировать концепцию»"
-          description="Backend-реализация: Этапы 1–3 (4.B.2) · Этапы 4–5 (4.B.3) · Этапы 6–7 (4.B.4) · UI (4.B.5)"
-        />
+        isLoadingExisting ? (
+          <Card>
+            <CardContent className="py-10 flex items-center justify-center gap-3 text-muted-foreground">
+              <Loader2 className="h-5 w-5 animate-spin" />
+              <span className="text-sm">Загрузка сохранённой концепции…</span>
+            </CardContent>
+          </Card>
+        ) : (
+          <EmptyStateCard
+            icon={Lightbulb}
+            title="Заполните форму и нажмите «Сгенерировать концепцию»"
+            description="Backend-реализация: Этапы 1–3 (4.B.2) · Этапы 4–5 (4.B.3) · Этапы 6–7 (4.B.4) · UI (4.B.5)"
+          />
+        )
       )}
     </div>
   );

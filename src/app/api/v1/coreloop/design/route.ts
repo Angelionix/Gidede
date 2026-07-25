@@ -207,7 +207,8 @@ function classifyStructuralType(
 function buildSteps(
   mechanics: string[],
   customSteps: string[] | undefined,
-  type: string
+  type: string,
+  idea?: string
 ): CoreStep[] {
   // If custom steps provided, use them
   if (customSteps && customSteps.length > 0) {
@@ -226,16 +227,58 @@ function buildSteps(
     });
   }
 
-  // Default 5-step loop
+  // Default 5-step loop — Russian steps, idea-aware when idea text is provided.
+  // Map the first 5 mechanics into meaningful Russian verbs derived from the
+  // mechanic name + (optionally) idea context.
   const m0 = mechanics[0] || "explore";
   const m1 = mechanics[1] || "combat";
   const m2 = mechanics[2] || "reward";
   const m3 = mechanics[3] || "progress";
   const m4 = mechanics[4] || "return";
 
+  // Map a mechanic name (English snake_case) to a Russian action label.
+  // If we can't recognise the mechanic, fall back to genre-aware defaults.
+  const mechLabel = (mech: string, fallback: string): string => {
+    const lower = mech.toLowerCase();
+    if (lower.includes("combat") || lower.includes("attack") || lower.includes("fight") || lower.includes("damage") || lower.includes("weapon") || lower.includes("hitscan") || lower.includes("projectile"))
+      return `Сразиться (${mech})`;
+    if (lower.includes("explore") || lower.includes("map") || lower.includes("navigate") || lower.includes("world") || lower.includes("movement") || lower.includes("traversal"))
+      return `Исследовать (${mech})`;
+    if (lower.includes("gather") || lower.includes("collect") || lower.includes("loot") || lower.includes("resource") || lower.includes("mining") || lower.includes("harvest"))
+      return `Собрать (${mech})`;
+    if (lower.includes("craft") || lower.includes("build") || lower.includes("forge") || lower.includes("construct") || lower.includes("create") || lower.includes("brew"))
+      return `Создать (${mech})`;
+    if (lower.includes("upgrade") || lower.includes("progress") || lower.includes("level") || lower.includes("skill") || lower.includes("xp") || lower.includes("perk") || lower.includes("tech"))
+      return `Прокачать (${mech})`;
+    if (lower.includes("defend") || lower.includes("protect") || lower.includes("guard") || lower.includes("fortif"))
+      return `Защитить (${mech})`;
+    if (lower.includes("trade") || lower.includes("merchant") || lower.includes("shop") || lower.includes("buy") || lower.includes("sell"))
+      return `Обменять (${mech})`;
+    if (lower.includes("stealth") || lower.includes("sneak") || lower.includes("hide") || lower.includes("evade"))
+      return `Скрыться (${mech})`;
+    if (lower.includes("dialogue") || lower.includes("quest") || lower.includes("npc"))
+      return `Взаимодействовать (${mech})`;
+    return `${fallback} (${mech})`;
+  };
+
+  // Idea-derived context word (first significant noun phrase from the idea).
+  // Used to make the first step more concrete.
+  const ideaCtx = (() => {
+    if (!idea) return null;
+    const trimmed = idea.trim();
+    if (trimmed.length < 5) return null;
+    // Take the first 3-5 words or until a comma/period
+    const m = trimmed.match(/^([^,.;:]{4,60})/);
+    return m ? m[1].trim() : null;
+  })();
+
+  const firstAction = ideaCtx
+    ? `Начать: ${ideaCtx} (${m0})`
+    : mechLabel(m0, "Найти цель");
+
   return [
     {
-      action: `Find target (${m0})`,
+      action: firstAction,
       mechanics: [m0],
       resources_consumed: [],
       resources_produced: ["signal"],
@@ -243,7 +286,7 @@ function buildSteps(
       duration_estimate: 6,
     },
     {
-      action: `Engage (${m1})`,
+      action: mechLabel(m1, "Вступить в бой"),
       mechanics: [m1],
       resources_consumed: ["energy", "ammo"],
       resources_produced: [],
@@ -251,7 +294,7 @@ function buildSteps(
       duration_estimate: 10,
     },
     {
-      action: `Collect rewards (${m2})`,
+      action: mechLabel(m2, "Собрать награды"),
       mechanics: [m2],
       resources_consumed: [],
       resources_produced: ["xp", "gold"],
@@ -259,7 +302,7 @@ function buildSteps(
       duration_estimate: 4,
     },
     {
-      action: `Upgrade (${m3})`,
+      action: mechLabel(m3, "Прокачать"),
       mechanics: [m3],
       resources_consumed: ["gold"],
       resources_produced: ["power", "ability"],
@@ -267,7 +310,7 @@ function buildSteps(
       duration_estimate: 8,
     },
     {
-      action: `Return to base (${m4})`,
+      action: mechLabel(m4, "Вернуться на базу"),
       mechanics: [m4],
       resources_consumed: [],
       resources_produced: ["rest", "save"],
@@ -293,25 +336,25 @@ function buildLoopHierarchy(steps: CoreStep[], type: string) {
     ],
     medium: [
       {
-        actions: ["Complete 3 core loops", "Trigger side activity"],
+        actions: ["Завершить 3 кор-лупа", "Запустить побочную активность"],
         parent_step: "small_loop",
       },
     ],
     large: [
       {
-        actions: ["Complete quest arc", "Unlock new area"],
+        actions: ["Завершить сюжетную арку", "Открыть новую локацию"],
         parent_step: "medium_loop",
       },
     ],
     macro: [
       {
-        actions: ["Reach level cap", "Beat final boss"],
+        actions: ["Достичь максимального уровня", "Победить финального босса"],
         parent_step: "large_loop",
       },
     ],
     meta: [
       {
-        actions: ["New Game+", "Daily challenges", "Seasonal events"],
+        actions: ["New Game+", "Ежедневные испытания", "Сезонные события"],
         parent_step: "macro_loop",
       },
     ],
@@ -320,7 +363,7 @@ function buildLoopHierarchy(steps: CoreStep[], type: string) {
   // For ecology/hybrid, add an extra micro loop
   if (type === "ecology" || type === "hybrid") {
     hierarchy.micro.push({
-      actions: ["Observe state", "Adjust strategy"],
+      actions: ["Оценить состояние", "Скорректировать стратегию"],
       parent_step: steps[2]?.action || "mid_step",
     });
   }
@@ -792,12 +835,30 @@ export async function POST(request: NextRequest) {
       concept?: { onePagerData?: string | null } | null;
     };
 
+    // Pull the original idea text from the stored concept one-pager, if present.
+    // Used to make the deterministic step builder idea-aware (instead of a
+    // generic "Find target → Engage → Collect rewards" template).
+    let ideaText: string | undefined;
+    if (proj.concept?.onePagerData) {
+      try {
+        const parsed = JSON.parse(proj.concept.onePagerData) as {
+          story_synopsis?: string;
+        };
+        if (parsed.story_synopsis) {
+          ideaText = parsed.story_synopsis;
+        }
+      } catch {
+        // ignore malformed JSON — ideaText stays undefined
+      }
+    }
+
     // --- Stage 1: Classify structural type ---
     // Build steps first (needed for classification)
     const steps = buildSteps(
       mechanics,
       customSteps,
-      desiredLoopType || GENRE_DEFAULT_LOOP_TYPE[genre] || "hybrid"
+      desiredLoopType || GENRE_DEFAULT_LOOP_TYPE[genre] || "hybrid",
+      ideaText
     );
 
     const structuralType = classifyStructuralType(
@@ -821,19 +882,19 @@ export async function POST(request: NextRequest) {
         type: structuralType.type,
       },
     ];
-    // Outer loops (medium/large timescale)
+    // Outer loops (medium/large timescale) — Russian labels
     const outerLoops = [
       {
         name: "session_loop",
-        actions: ["Complete 3 core loops", "Bank progress", "Trigger event"],
+        actions: ["Завершить 3 кор-лупа", "Зафиксировать прогресс", "Запустить событие"],
         duration_estimate: 300,
         type: "outer",
       },
     ];
-    // Meta loop (weeks/months)
+    // Meta loop (weeks/months) — Russian labels
     const metaLoop = {
       name: "meta_progression",
-      actions: ["New Game+", "Season pass", "Daily challenges"],
+      actions: ["New Game+", "Сезонный пропуск", "Ежедневные испытания"],
       duration_estimate: 604800, // 1 week in seconds
       type: "meta",
     };

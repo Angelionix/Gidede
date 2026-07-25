@@ -706,3 +706,55 @@ Stage Summary:
   * src/app/api/v1/prototypes/generate/route.ts (1 line: pass `project.genre || undefined` as 3rd arg).
 - Genres added (each playable on pure Canvas with real genre mechanics): platformer, shooter (+action, fps), rpg (+action_rpg, arpg, roguelike, roguelite, dungeon), racing (+race), puzzle (+match3, match-3), tower_defense (+td, strategy, rts).
 - Existing engine/economy/ecology (LittleJS 2D + Three.js 3D) templates preserved as fallback — projects without a recognized genre still get the original clicker/survival/etc. prototype.
+
+---
+Task ID: 17
+Agent: general-purpose (atomic mechanics)
+Task: Add atomic/base mechanics group to MechanicsDB
+
+Work Log:
+- Read worklog.md for context, then read full src/lib/mechanics-db.ts (1538 lines) to inventory all 128 existing mechanics across 15 groups and identify name-collision risks.
+- Grepped every 'name': field in mechanics-db.ts to build a complete list of existing mechanic names; cross-checked against the planned ~35 atomic candidates.
+- Identified three naming conflicts and resolved them by renaming atomic candidates:
+  • Existing "Прыжки" → skipped "Прыжок" entirely (per task instructions).
+  • Existing "Поворот" (game turn / round-based mechanic) → renamed atomic to "Поворот взгляда" (rotation of view).
+  • Existing "Обнаружение" (detection system in Информация group) → renamed atomic to "Засекание" (act of noticing).
+  • Existing "Сохранения" (save system) → renamed atomic to "Сохранение состояния" (the verb of saving) to disambiguate singular/plural in UI lists.
+- Added 36 new mechanics to the MECHANICS_DB array in src/lib/mechanics-db.ts under a new group "Атомарные", covering 8 sub-domains: Передвижение (6), Бой (7), Восприятие (4), Взаимодействие (6), Коммуникация (3), Время/Состояние (4), Экономика базовая (3), Прогрессия базовая (3). Each entry has a Russian name, 1-2 sentence description, 1-3 YEE aesthetics, and empty genres[] (universal).
+- Updated file header comment from "128 игровых механик из 15 групп" to "164 игровые механики из 16 групп" and noted the +36 atomic source.
+- Updated source string in buildMechanicSetForGenre() return from "MechanicsDB (SW.BAND, 128 механик)" to "MechanicsDB (SW.BAND, 164 механики)".
+- Added "Атомарные" entry to GROUP_COLORS map in src/app/mechanics/page.tsx using cyan palette (bg-cyan-100/text-cyan-700 + dark variants) — distinct from existing groups, avoids indigo/blue per project rules.
+- Ran `bun run lint` — 0 errors.
+- Verified via bun script: MECHANICS_DB.length = 164, getMechanicsDBStats().groups = 16, mechanicsPerGroup["Атомарные"] = 36, no duplicate names across the entire DB.
+
+Stage Summary:
+- Mechanics added: 36 (in new "Атомарные" group).
+- Total mechanics now: 164 (was 128).
+- Total groups now: 16 (was 15).
+- Naming conflicts avoided: 4 ("Прыжок" skipped; "Поворот" → "Поворот взгляда"; "Обнаружение" → "Засекание"; "Сохранение" → "Сохранение состояния").
+- Lint: clean. No existing mechanics were modified or removed.
+
+---
+Task ID: 18
+Agent: full-stack-developer (de-template block algorithms)
+Task: Make block algorithms produce varied, idea-specific outputs; AI shapes content not just flavor
+
+Work Log:
+- Read worklog.md + concept/generate/route.ts (873 lines) + ai-service.ts (1068 lines) + coreloop/design/route.ts (946 lines) + mda/analyze/route.ts (876 lines) + balance/analyze/route.ts (1064 lines).
+- Added `generateCoreLoopCandidatesViaAI` to ai-service.ts: LLM generates 3 distinct Russian loop candidates with idea-specific steps; JSON parser with markdown-fence stripping + smart-quote fixing.
+- Rewrote `buildCoreLoopCandidates` deterministic to parse idea text for action verbs (RU+EN, 10 categories) + key nouns (6 classes) using Unicode \p{L} word-boundary regex (prevents false positives like "орк" matching inside "морковки"). Extracts the user's exact noun words (e.g. «зелья», «монстрами») instead of normalising to generic class labels. Falls back to genre-based defaults when idea yields <3 verbs.
+- Rewrote `buildUSPCandidates` to split idea into fragments, score by avg word length, embed top 3 "signature phrases" into 3 distinct USP angles (mechanical/hybrid/ludonarrative) in Russian.
+- Wired AI core loop generation into concept/generate POST: when use_ai=true, LLM shapes actual loop step content; falls back to deterministic on failure. models_used metadata now distinguishes AI-shaped loops from AI-enriched text.
+- Rewrote deterministic storySynopsis + gameplayDescription to Russian + idea-specific (incorporates actual idea excerpt up to 180 chars, actual loop steps joined with →, dynamics profile).
+- coreloop/design: buildSteps now accepts idea param; default steps are Russian with mechanic-aware labels; pulls idea text from proj.concept.onePagerData. Loop hierarchy + outer/meta loop actions Russian-ified.
+- mda/analyze: buildClassicMDA now takes idea param; gameplay_sequence actions Russian + mechanic-aware; feedback_loops reference actual mechanic names; gameplayScript is a Russian paragraph that incorporates the actual idea text + mechanic names — every project produces a different script.
+- balance/analyze: all warnings/suggestions/recommendations in transitive, intransitive, situational, Q-factor, Monte-Carlo, machinations, stability results are now Russian. Machinations feedback loops reference actual first object name.
+- Verified with bun run lint — clean.
+- Verified with dev.log — no compile errors, server running normally.
+
+Stage Summary:
+- src/lib/ai-service.ts — added generateCoreLoopCandidatesViaAI (~150 lines, new export) + AiCoreLoopCandidate interface.
+- src/app/api/v1/concept/generate/route.ts — added IDEA_VERB_MAP (10 action categories × RU+EN stems), IDEA_NOUN_MAP (6 noun classes × RU+EN stems), NOUN_DEFAULTS (Russian case forms), parseIdeaForActions (Unicode word-boundary matching + user-word extraction), getEffectiveActions (idea parsing + genre fallback), buildStepFromAction, buildCoreLoopCandidates (3 idea-aware Russian loops), buildUSPCandidates (3 idea-fragment-derived Russian USPs); POST handler now calls AI core-loop shaper with graceful fallback; story_synopsis/gameplay_description now Russian + idea-specific; models_used + ai_enriched metadata updated.
+- src/app/api/v1/coreloop/design/route.ts — buildSteps accepts optional idea param, default steps Russian + mechanic-aware labels; route handler extracts idea text from proj.concept.onePagerData; buildLoopHierarchy medium/large/macro/meta actions Russian; outerLoops/metaLoop action labels Russian.
+- src/app/api/v1/mda/analyze/route.ts — buildClassicMDA accepts idea param, gameplay_sequence/feedback_loops/gameplay_script Russian + idea-specific + mechanic-referencing; route handler passes idea.
+- src/app/api/v1/balance/analyze/route.ts — all warnings/suggestions/recommendations/critical_issues/feedback_loops descriptions Russian; verdict label map added; machinations feedback loop description references actual first object name.

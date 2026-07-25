@@ -171,23 +171,23 @@ function buildTransitiveResult(objects: BalanceObject[], balanceType: string) {
   const warnings: string[] = [];
   const suggestions: string[] = [];
   if (overpowered.length > 0) {
-    warnings.push(`Overpowered: ${overpowered.join(", ")} — reduce power or increase cost`);
-    suggestions.push(`Increase cost of ${overpowered[0]} by 15-20%`);
+    warnings.push(`Слишком сильные объекты: ${overpowered.join(", ")} — снизить силу или повысить стоимость`);
+    suggestions.push(`Увеличьте стоимость «${overpowered[0]}» на 15–20%`);
   }
   if (underpowered.length > 0) {
-    warnings.push(`Underpowered: ${underpowered.join(", ")} — increase power or reduce cost`);
-    suggestions.push(`Boost ${underpowered[0]} power by 10-15% or cut cost`);
+    warnings.push(`Слишком слабые объекты: ${underpowered.join(", ")} — повысить силу или снизить стоимость`);
+    suggestions.push(`Увеличьте силу «${underpowered[0]}» на 10–15% или урежьте стоимость`);
   }
   if (transitiveObjects.length > 0) {
     const spread =
       Math.max(...transitiveObjects.map((o) => o.cp_ratio)) -
       Math.min(...transitiveObjects.map((o) => o.cp_ratio));
     if (spread > 0.5) {
-      warnings.push(`C/P spread is high (${spread.toFixed(2)}) — rebalancing needed`);
+      warnings.push(`Разброс C/P велик (${spread.toFixed(2)}) — требуется перебалансировка`);
     }
   }
   if (warnings.length === 0) {
-    suggestions.push("Transitive balance looks healthy — consider A/B testing in simulation");
+    suggestions.push("Транзитивный баланс выглядит здоровым — рассмотрите A/B тестирование в симуляции");
   }
 
   return {
@@ -314,15 +314,15 @@ function buildIntransitiveResult(objects: BalanceObject[], runIntransitive: bool
   const warnings: string[] = [];
   const suggestions: string[] = [];
   if (hasDominant) {
-    warnings.push(`Dominant strategy exists: ${dominatedStrategies.join(", ")} are dominated`);
-    suggestions.push("Rebalance dominated objects to break the dominant path");
+    warnings.push(`Существует доминантная стратегия: ${dominatedStrategies.join(", ")} доминируются`);
+    suggestions.push("Перебалансируйте доминируемые объекты, чтобы разорвать доминантный путь");
   }
   if (!is_intransitive && n >= 3) {
-    warnings.push("No clear RPS cycle detected — balance may feel transitive");
-    suggestions.push("Introduce cyclical asymmetry to enable intransitive dynamics");
+    warnings.push("Чёткий RPS-цикл не обнаружен — баланс может ощущаться транзитивным");
+    suggestions.push("Добавьте циклическую асимметрию, чтобы включить интранзитивную динамику");
   }
   if (maxShare > 0.5) {
-    warnings.push(`Strategy max share ${(maxShare * 100).toFixed(0)}% is too high — diversity suffers`);
+    warnings.push(`Максимальная доля стратегии ${(maxShare * 100).toFixed(0)}% слишком высока — страдает разнообразие`);
   }
 
   return {
@@ -368,7 +368,7 @@ function buildSituationalResult(objects: BalanceObject[], runSituational: boolea
     situations,
     situational_values: situationalValues,
     warnings: [],
-    suggestions: ["Use situational context to add depth to intransitive balance"],
+    suggestions: ["Используйте ситуативный контекст, чтобы добавить глубину интранзитивному балансу"],
   };
 }
 
@@ -377,7 +377,7 @@ function buildQFactorResult(objects: BalanceObject[], runQFactor: boolean) {
     return {
       skipped: true,
       q_factors: [],
-      warnings: ["Q-factor analysis skipped"],
+      warnings: ["Q-фактор анализ пропущен"],
     };
   }
   // Q-factor: combinatorial matchups
@@ -391,7 +391,7 @@ function buildQFactorResult(objects: BalanceObject[], runQFactor: boolean) {
     skipped: false,
     q_factors: qFactors,
     warnings: [],
-    suggestions: ["Optimize Q-factor for synergistic builds"],
+    suggestions: ["Оптимизируйте Q-фактор для синергетических билдов"],
   };
 }
 
@@ -409,7 +409,7 @@ function buildMonteCarloResult(
       win_rate_spread: 0,
       ranking_correlation: 0,
       balance_verdict: "N/A",
-      warnings: ["Monte Carlo simulation skipped"],
+      warnings: ["Симуляция Монте-Карло пропущена"],
       suggestions: [],
     };
   }
@@ -519,19 +519,28 @@ function buildMonteCarloResult(
   if (winRateSpread > 30 || rankingCorrelation < 0.5) verdict = "POOR";
   else if (winRateSpread > 15 || rankingCorrelation < 0.75) verdict = "MODERATE";
 
+  // Verdict → Russian label for display, kept alongside the canonical EN key
+  // so existing consumers don't break.
+  const verdictRuMap: Record<string, string> = {
+    GOOD: "ХОРОШИЙ",
+    MODERATE: "УМЕРЕННЫЙ",
+    POOR: "СЛАБЫЙ",
+  };
+  const verdictRu = verdictRuMap[verdict] || verdict;
+
   const warnings: string[] = [];
   const suggestions: string[] = [];
   if (verdict === "POOR") {
-    warnings.push(`Balance verdict POOR: spread ${winRateSpread}%`);
-    suggestions.push("Rebalance via transitive (cost/power) and intransitive (RPS) tuning");
+    warnings.push(`Вердикт баланса СЛАБЫЙ: разброс ${winRateSpread}%`);
+    suggestions.push("Перебалансируйте через транзитивную (стоимость/сила) и интранзитивную (RPS) настройку");
   } else if (verdict === "MODERATE") {
-    warnings.push(`Balance verdict MODERATE: spread ${winRateSpread}%`);
-    suggestions.push("Fine-tune the weakest object's power or situational values");
+    warnings.push(`Вердикт баланса УМЕРЕННЫЙ: разброс ${winRateSpread}%`);
+    suggestions.push("Тонко настройте слабейший объект: силу или ситуативные значения");
   } else {
-    suggestions.push("Balance is GOOD — proceed to playtest");
+    suggestions.push(`Баланс ${verdictRu.toLowerCase()} — переходите к плейтесту`);
   }
   if (rankingCorrelation < 0.5) {
-    warnings.push(`Low ranking correlation ${rankingCorrelation} — transitive order is unclear`);
+    warnings.push(`Низкая корреляция ранжирования ${rankingCorrelation} — транзитивный порядок неясен`);
   }
 
   return {
@@ -577,7 +586,7 @@ function buildMachinationsResult(
         build_gap_acceptable: false,
         economy_stable: false,
         overall_pass: false,
-        critical_issues: ["Machinations analysis skipped"],
+        critical_issues: ["Machinations-анализ пропущен"],
         warnings: [],
       },
       detected_pathologies: [],
@@ -629,18 +638,19 @@ function buildMachinationsResult(
     modifier: "+/-",
   }));
 
+  const firstObjName = objects[0]?.name || "объект";
   const feedbackLoops = [
     {
-      nodes: ["damage", objects[0]?.name || "obj", "hp"],
+      nodes: ["damage", firstObjName, "hp"],
       type: "positive",
       strength: 0.7,
-      description: "Combat escalation: more damage → faster kills → more rewards",
+      description: `Эскалация боя: больше урона → быстрее киллы → больше наград (через ${firstObjName})`,
     },
     {
       nodes: ["hp", "rest", "hp"],
       type: "negative",
       strength: 0.5,
-      description: "Balancing loop: HP drain forces healing",
+      description: "Балансирующий цикл: расход HP заставляет лечиться",
     },
   ];
 
@@ -699,23 +709,23 @@ function buildMachinationsResult(
   );
 
   const criticalIssues: string[] = [];
-  if (runawayFreq > 0.3) criticalIssues.push("Runaway frequency above 30%");
-  if (stallFreq > 0.3) criticalIssues.push("Stall frequency above 30%");
+  if (runawayFreq > 0.3) criticalIssues.push("Частота runaway выше 30%");
+  if (stallFreq > 0.3) criticalIssues.push("Частота stall выше 30%");
 
   const detectedPathologies: string[] = [];
-  if (runawayFreq > 0.3) detectedPathologies.push("Runaway accumulation");
-  if (stallFreq > 0.3) detectedPathologies.push("Stall / stagnation");
-  if (buildGap > 0.25) detectedPathologies.push("Build gap too large");
+  if (runawayFreq > 0.3) detectedPathologies.push("Накопление runaway");
+  if (stallFreq > 0.3) detectedPathologies.push("Stall / стагнация");
+  if (buildGap > 0.25) detectedPathologies.push("Слишком большой build gap");
 
   const recommendations: string[] = [];
   if (runawayFreq > 0.3)
-    recommendations.push("Add sinks to drain runaway resources");
+    recommendations.push("Добавьте стоки (sinks) для слива накапливающихся ресурсов");
   if (stallFreq > 0.3)
-    recommendations.push("Add faucets to refresh stalled resources");
+    recommendations.push("Добавьте источники (faucets) для обновления остановленных ресурсов");
   if (buildGap > 0.25)
-    recommendations.push("Reduce build gap by tuning min-maxer vs casual paths");
+    recommendations.push("Сократите build gap, перенастроив пути для minmaxer vs casual игроков");
   if (recommendations.length === 0)
-    recommendations.push("Machinations model is healthy — no critical pathologies detected");
+    recommendations.push("Machinations-модель здорова — критических патологий не обнаружено");
 
   const quality = {
     resources_in_bounds: runawayFreq < 0.3 && stallFreq < 0.3,
@@ -779,22 +789,22 @@ function buildStability(
   if (machinationsResult.aggregated.stall_frequency > 0.3)
     pathologyRisks.push("Stall");
   if (transitiveResult.overpowered.length > 0)
-    pathologyRisks.push("Power imbalance");
+    pathologyRisks.push("Дисбаланс силы");
   pathologyRisks.push(...machinationsResult.detected_pathologies);
 
   const recommendations: string[] = [];
   if (pathologyRisks.length > 0) {
     recommendations.push(
-      `Address top pathologies: ${pathologyRisks.slice(0, 3).join(", ")}`
+      `Устраните топ-патологии: ${pathologyRisks.slice(0, 3).join(", ")}`
     );
   } else {
-    recommendations.push("Stability looks good — proceed to playtest");
+    recommendations.push("Стабильность в норме — переходите к плейтесту");
   }
   if (positiveLoops > negativeLoops * 2) {
-    recommendations.push("Add more balancing (negative) loops to prevent runaway");
+    recommendations.push("Добавьте больше балансирующих (отрицательных) циклов, чтобы предотвратить runaway");
   }
 
-  const analysis = `Stability index ${overallStability.toFixed(2)} with ${positiveLoops} reinforcing and ${negativeLoops} balancing loops. ${pathologyRisks.length} pathology risk(s) detected.`;
+  const analysis = `Индекс стабильности ${overallStability.toFixed(2)}: ${positiveLoops} усиливающих и ${negativeLoops} балансирующих циклов. Обнаружено рисков патологий: ${pathologyRisks.length}.`;
 
   return {
     overall_stability: overallStability,

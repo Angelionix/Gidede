@@ -57,6 +57,7 @@ const GROUP_COLORS: Record<string, string> = {
   Выживание: "bg-stone-100 text-stone-700 dark:bg-stone-950/60 dark:text-stone-300 border-stone-200 dark:border-stone-800",
   Информация: "bg-purple-100 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300 border-purple-200 dark:border-purple-900",
   Мета: "bg-fuchsia-100 text-fuchsia-700 dark:bg-fuchsia-950/60 dark:text-fuchsia-300 border-fuchsia-200 dark:border-fuchsia-900",
+  Атомарные: "bg-cyan-100 text-cyan-700 dark:bg-cyan-950/60 dark:text-cyan-300 border-cyan-200 dark:border-cyan-900",
 };
 
 const AESTHETIC_COLORS: Record<string, string> = {

@@ -294,6 +294,157 @@ export async function generateAestheticProfileViaAI(
 }
 
 // ============================================================
+// AI-driven core loop candidates (replaces hardcoded templates)
+// ============================================================
+
+export interface AiCoreLoopCandidate {
+  name: string;
+  steps: string[];
+  loop_type: string;
+  fun_check_reasoning: string;
+  estimated_duration_seconds: number;
+}
+
+const VALID_LOOP_TYPES = ["engine", "economy", "ecology", "hybrid"];
+
+/**
+ * Ask the LLM to generate 3 distinct core loop candidates that are shaped
+ * BY THE IDEA. Steps must reference the actual mechanics/setting/nouns of
+ * the user's pitch (not generic "explore / combat / upgrade" templates).
+ *
+ * Returns null if AI unavailable or response invalid — caller falls back
+ * to the deterministic buildCoreLoopCandidates() function.
+ */
+export async function generateCoreLoopCandidatesViaAI(
+  idea: string,
+  genre: string,
+  mechanics: string[]
+): Promise<AiCoreLoopCandidate[] | null> {
+  const zai = await getZai();
+  if (!zai) return null;
+
+  try {
+    const mechanicsList = mechanics.length > 0
+      ? mechanics.slice(0, 10).join(", ")
+      : "(механики автоматически выведены из жанра)";
+
+    const prompt = `Ты — экспертный геймдизайнер. Сгенерируй 3 РАЗЛИЧНЫХ варианта основного игрового цикла (core loop) для конкретной игры — НЕ шаблонных, а привязанных к идее.
+
+Идея игры: "${idea}"
+Жанр: ${genre}
+Механики: ${mechanicsList}
+
+Требования:
+1. Три разных акцента: 1) "aggressive" — боевой/динамичный; 2) "methodical" — методичный/прогрессионный; 3) "creative" — гибридный/эмерджентный.
+2. Каждый цикл содержит 4-6 шагов на РУССКОМ языке.
+3. Шаги должны ссылаться на КОНКРЕТНЫЕ существительные и глаголы из идеи — например, для идеи про алхимика это «собрать травы», «сварить зелье», «сразиться с монстрами», а не «исследовать мир», «атаковать врага».
+4. loop_type: один из engine/economy/ecology/hybrid (разный для разных вариантов).
+5. fun_check_reasoning: 1 предложение на русском — почему цикл даёт «30 секунд веселья».
+6. estimated_duration_seconds: число от 20 до 90.
+
+Ответ — только валидный JSON:
+{
+  "candidates": [
+    {
+      "name": "название цикла (рус., 2-5 слов)",
+      "accent": "aggressive",
+      "steps": ["шаг 1", "шаг 2", "шаг 3", "шаг 4"],
+      "loop_type": "engine",
+      "fun_check_reasoning": "...",
+      "estimated_duration_seconds": 35
+    },
+    { "accent": "methodical", ... },
+    { "accent": "creative", ... }
+  ]
+}`;
+
+    const response = await zai.chat.completions.create({
+      messages: [
+        {
+          role: "system",
+          content:
+            "Ты — AI-ассистент по геймдизайну. Отвечай только валидным JSON.",
+        },
+        { role: "user", content: prompt },
+      ],
+      stream: false,
+      thinking: { type: "disabled" },
+    });
+
+    const raw = response.choices?.[0]?.message?.content?.trim() || "";
+    let cleaned = raw
+      .replace(/^```(?:json)?\s*/i, "")
+      .replace(/\s*```$/i, "")
+      .trim();
+    const jsonStart = cleaned.indexOf("{");
+    const jsonEnd = cleaned.lastIndexOf("}");
+    if (jsonStart >= 0 && jsonEnd > jsonStart) {
+      cleaned = cleaned.slice(jsonStart, jsonEnd + 1);
+    }
+
+    let parsed: Record<string, unknown>;
+    try {
+      parsed = JSON.parse(cleaned);
+    } catch {
+      const fixed = cleaned
+        .replace(/,\s*}/g, "}")
+        .replace(/,\s*]/g, "]")
+        .replace(/[\u201C\u201D]/g, '"')
+        .replace(/[\u2018\u2019]/g, "'");
+      parsed = JSON.parse(fixed);
+    }
+
+    const candidatesRaw = Array.isArray(parsed.candidates)
+      ? parsed.candidates
+      : Array.isArray(parsed)
+        ? parsed
+        : [];
+
+    if (candidatesRaw.length < 1) return null;
+
+    const valid: AiCoreLoopCandidate[] = [];
+    for (const c of candidatesRaw as Array<Record<string, unknown>>) {
+      const name = String(c.name || "").trim();
+      const stepsRaw = c.steps;
+      const loopType = String(c.loop_type || "hybrid").trim();
+      const reasoning = String(c.fun_check_reasoning || "").trim();
+      const duration = Number(c.estimated_duration_seconds) || 40;
+
+      if (!Array.isArray(stepsRaw) || stepsRaw.length < 3) continue;
+
+      const steps = (stepsRaw as unknown[])
+        .map((s) => String(s).trim())
+        .filter((s) => s.length > 0)
+        .slice(0, 8);
+
+      if (steps.length < 3) continue;
+
+      valid.push({
+        name: name || `Core Loop ${valid.length + 1}`,
+        steps,
+        loop_type: VALID_LOOP_TYPES.includes(loopType) ? loopType : "hybrid",
+        fun_check_reasoning:
+          reasoning ||
+          "Каждый шаг даёт немедленную обратную связь и видимый прогресс.",
+        estimated_duration_seconds: Math.max(
+          15,
+          Math.min(120, Math.round(duration))
+        ),
+      });
+    }
+
+    if (valid.length === 0) return null;
+    return valid.slice(0, 3);
+  } catch (e) {
+    console.error(
+      "[ai-service] generateCoreLoopCandidatesViaAI failed:",
+      e instanceof Error ? e.message : e
+    );
+    return null;
+  }
+}
+
+// ============================================================
 // Concept enrichment (use_ai flag for block 1)
 // ============================================================
 

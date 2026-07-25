@@ -351,28 +351,51 @@ function buildClassicMDA(
   },
   dynamicsTarget: { core_dynamics: string[]; supporting_dynamics: string[] },
   aesthetics: { primary: string; secondary: string; tertiary: string },
-  convergenceThreshold: number
+  convergenceThreshold: number,
+  idea: string
 ) {
   // Simulate forward: mechanics → gameplay sequence → observed dynamics → predicted aesthetics
   const baseMech = mechanicSet.base[0]?.mechanic_name || "explore";
   const combatMech = mechanicSet.combat[0]?.mechanic_name || "combat";
   const progMech = mechanicSet.progression[0]?.mechanic_name || "progress";
+  const spatialMech = mechanicSet.spatial[0]?.mechanic_name || "explore";
+  const socialMech = mechanicSet.social[0]?.mechanic_name || "social";
+
+  // Map a mechanic name to a Russian action label (same heuristic as coreloop/design)
+  const mechActionRu = (mech: string, fallback: string): string => {
+    const lower = mech.toLowerCase();
+    if (lower.includes("combat") || lower.includes("attack") || lower.includes("fight") || lower.includes("damage") || lower.includes("weapon") || lower.includes("hitscan") || lower.includes("projectile"))
+      return `Сразиться с врагами через ${mech}`;
+    if (lower.includes("explore") || lower.includes("map") || lower.includes("navigate") || lower.includes("world") || lower.includes("movement") || lower.includes("traversal"))
+      return `Исследовать мир через ${mech}`;
+    if (lower.includes("gather") || lower.includes("collect") || lower.includes("loot") || lower.includes("resource") || lower.includes("mining") || lower.includes("harvest"))
+      return `Собрать ресурсы через ${mech}`;
+    if (lower.includes("craft") || lower.includes("build") || lower.includes("forge") || lower.includes("construct") || lower.includes("create") || lower.includes("brew"))
+      return `Создать предметы через ${mech}`;
+    if (lower.includes("upgrade") || lower.includes("progress") || lower.includes("level") || lower.includes("skill") || lower.includes("xp") || lower.includes("perk") || lower.includes("tech"))
+      return `Прокачать навыки через ${mech}`;
+    if (lower.includes("defend") || lower.includes("protect") || lower.includes("guard") || lower.includes("fortif"))
+      return `Защитить базу через ${mech}`;
+    if (lower.includes("trade") || lower.includes("merchant") || lower.includes("shop") || lower.includes("buy") || lower.includes("sell"))
+      return `Обменять предметы через ${mech}`;
+    return `${fallback} (${mech})`;
+  };
 
   const gameplaySequence = [
     {
-      action: `Engage ${baseMech}`,
+      action: mechActionRu(baseMech, "Начать"),
       mechanics_used: [baseMech],
       resources_consumed: [],
       resources_produced: ["signal"],
     },
     {
-      action: `Execute ${combatMech}`,
+      action: mechActionRu(combatMech, "Вступить в бой"),
       mechanics_used: [combatMech],
       resources_consumed: ["energy"],
       resources_produced: [],
     },
     {
-      action: `Use ${progMech}`,
+      action: mechActionRu(progMech, "Прокачать"),
       mechanics_used: [progMech],
       resources_consumed: [],
       resources_produced: ["xp", "gold"],
@@ -381,15 +404,16 @@ function buildClassicMDA(
 
   const observedDynamics = dynamicsTarget.core_dynamics.slice(0, 3);
 
+  // Russian feedback loop descriptions that reference the actual mechanics
   const feedbackLoops = [
     {
       loop_type: "positive",
-      description: "Combat → reward → upgrade → stronger combat (reinforcing)",
+      description: `${combatMech} → награда → ${progMech} → усиленный ${combatMech} (усиливающий цикл)`,
       stability: "stable",
     },
     {
       loop_type: "negative",
-      description: "Energy drain from combat forces return to base (balancing)",
+      description: `Расход энергии от ${combatMech} заставляет возвращаться к ${spatialMech} или ${socialMech} (балансирующий цикл)`,
       stability: "stable",
     },
   ];
@@ -443,7 +467,13 @@ function buildClassicMDA(
     correction: "",
   };
 
-  const gameplayScript = `Player explores the world using ${baseMech}, encounters threats and engages them via ${combatMech}. Successful combat drops rewards that feed ${progMech}, creating a reinforcing progression loop. The cycle is bounded by energy depletion, ensuring the player periodically returns to base.`;
+  // Russian gameplay script — incorporates the idea text + actual mechanics.
+  // Falls back to a genre-generic script if the idea is unavailable.
+  const ideaExcerpt = idea && idea.trim().length > 5
+    ? (idea.trim().length > 160 ? idea.trim().slice(0, 160).trim() + "…" : idea.trim())
+    : "(идея не задана — общий сценарий)";
+
+  const gameplayScript = `Игрок начинает с механики «${baseMech}» и исследует контекст игры: ${ideaExcerpt}. По ходу действия возникают угрозы, требующие механики «${combatMech}» — успешное прохождение даёт ресурсы (опыт, золото), которые питают «${progMech}» и формируют усиливающий цикл прогрессии. Цикл ограничен расходом энергии, что заставляет игрока периодически возвращаться к «${spatialMech}» (или «${socialMech}») для восстановления. Ключевые динамики — ${observedDynamics.join(", ") || "эмерджентные взаимодействия"} — порождают эстетику «${aesthetics.primary}».`;
 
   return {
     gameplay_sequence: gameplaySequence,
@@ -457,12 +487,12 @@ function buildClassicMDA(
     iterations,
     gameplay_script: gameplayScript,
     suggestions: [
-      "Increase mechanic coverage for under-matched aesthetics",
-      "Add a context dynamic to strengthen emergence",
+      `Увеличьте покрытие механик для эстетики «${aesthetics.primary}» (текущий match: ${primaryMatch.toFixed(2)})`,
+      "Добавьте контекстную динамику для усиления эмерджентности",
     ],
     warnings: converged
       ? []
-      : [`Overall match ${overallMatch.toFixed(2)} below threshold ${convergenceThreshold} — consider adding mechanics for ${aesthetics.primary}`],
+      : [`Overall match ${overallMatch.toFixed(2)} ниже порога ${convergenceThreshold} — добавьте механики для «${aesthetics.primary}»`],
   };
 }
 
@@ -746,7 +776,8 @@ export async function POST(request: NextRequest) {
         mechanicSet,
         dynamicsTarget,
         aestheticProfile,
-        convergenceThreshold
+        convergenceThreshold,
+        idea
       );
     }
 

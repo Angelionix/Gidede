@@ -14,7 +14,7 @@ import type { NextRequest } from "next/server";
 const PUBLIC_ROUTES = ["/", "/login", "/register"];
 
 /** Маршруты, требующие авторизации */
-const PROTECTED_PREFIXES = ["/blocks", "/projects", "/prototypes", "/settings", "/knowledge", "/pipeline"];
+const PROTECTED_PREFIXES = ["/blocks", "/projects", "/prototypes", "/settings", "/knowledge", "/pipeline", "/prototype-editor"];
 
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;

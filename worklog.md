@@ -1952,3 +1952,60 @@ Task: use_ai флаг в Блоках 2-6 (Core Loop, MDA, Balance, Progression,
 - GDD AI: ✅ ai_insights=true, "Для RPG жанра наиболее критичными являются...".
 - models_used: ✅ includes "glm-4.6 (ai-enrichment)".
 - dev.log: ✅ без ошибок.
+
+---
+Task ID: 27 (Cleanup + Docker + Testing + Deployment)
+Agent: orchestrator (main)
+Task: Очистка мусора, Docker setup, методология тестирования, инструкции деплоя.
+
+## Completed Modifications
+
+### 1. Очистка от мусорных файлов ✅
+- Удалено 55 файлов: tool-results/ (17), *.png (31), agent-ctx/ (1), docs/mechanics_db_original.py, tests/python-*.sh (2), download/README.md, examples/ (2).
+- .gitignore обновлён: tool-results/, agent-ctx/, *.png, tests/python-*, download/, upload/, skills/.
+- Файлов в git: 334 → 279 (чистый код).
+
+### 2. Docker setup ✅
+- `Dockerfile` — 3-stage build (deps → builder → runner), Node.js 20-slim, healthcheck.
+- `docker-compose.yml` — single container, volume для db/, env variables, restart policy.
+- `.dockerignore` — исключает node_modules, .next, .git, screenshots, etc.
+- `.env.example` — DATABASE_URL, JWT_SECRET_KEY, NEXT_PUBLIC_API_URL.
+
+### 3. Инструкции деплоя ✅
+- `docs/DEPLOYMENT.md` — 4 варианта:
+  1. Локальный запуск (dev) — bun install, db:push, bun run dev.
+  2. Docker (production) — docker compose up -d --build.
+  3. Bare Server (VPS) — systemd + Nginx + SSL.
+  4. PM2 — альтернатива systemd.
+- Включает: health check, управление данными, обновление, устранение проблем.
+
+### 4. Методология тестирования ✅
+- `docs/TESTING.md` — 5 уровней тестирования:
+  - 20 API test cases (TC-01..TC-20) — golden path.
+  - 5 негативных тестов (TC-N01..TC-N05) — 401/422/404.
+  - 8 UI/E2E тестов (TC-UI01..TC-UI08) — Agent Browser.
+  - 3 performance теста (PERF-01..PERF-03).
+  - 4 security теста (SEC-01..SEC-04).
+  - Скрипт автоматизации (scripts/run_api_tests.sh pattern).
+
+### 5. README обновлён ✅
+- Полностью переписан: стек, быстрый старт (dev + Docker), 8 блоков, API, документация.
+
+### 6. Проверка порта Python→NextJS ✅
+- 59 Next.js routes vs 72 Python endpoints = 82% parity.
+- Все критические эндпоинты реализованы. Оставшиеся 13 — sub-steps внутри комбинированных endpoints.
+- MechanicsDB (128 механик) подключена к Блоку 1.
+- AI enrichment (use_ai) во всех блоках 1-6.
+
+## Branch rename (требует ручного действия на GitHub)
+PAT не имеет прав на переименование веток. Инструкция:
+1. На GitHub: Settings → Branches → Rename "main" → "python-original"
+2. Rename "nextjs-port" → "main"
+3. Set "main" as default branch
+4. Или: Settings → Branches → Default branch → "nextjs-port"
+
+## Verification Results
+- `bun run lint`: ✅ 0 ошибок.
+- Health endpoint: ✅ 200.
+- 55 junk files removed.
+- Docker + deployment + testing docs created.

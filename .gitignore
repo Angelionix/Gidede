@@ -65,3 +65,14 @@ download/
 
 # Skills (external)
 skills/
+
+# Junk / temp files
+tool-results/
+agent-ctx/
+*.png
+*.jpg
+*.jpeg
+tests/python-*
+download/
+upload/
+skills/

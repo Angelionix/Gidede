@@ -8,12 +8,13 @@ import { NodePalette } from "./NodePalette";
 import { GraphCanvas } from "./GraphCanvas";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Save, Play, Upload, Download, Loader2, AlertCircle, Sparkles, Lightbulb, Undo2, Redo2, FileCode } from "lucide-react";
+import { Save, Play, Upload, Download, Loader2, AlertCircle, Sparkles, Lightbulb, Undo2, Redo2, FileCode, LayoutGrid } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/lib/auth";
 import { GRAPH_TEMPLATES } from "@/lib/graph/templates";
 import type { NodeGraph, NodeType } from "@/lib/graph/types";
 import { NODE_DEFINITIONS } from "@/lib/graph/types";
+import { autoLayout } from "@/lib/graph/auto-layout";
 
 function PrototypeEditorInner() {
   const { toast } = useToast();
@@ -125,6 +126,22 @@ function PrototypeEditorInner() {
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
   }, [toast]);
+
+  // === Auto-layout (dagre) ===
+  // Computes a clean top-to-bottom hierarchical layout for the current
+  // nodes+edges. Pushes the pre-layout snapshot to the undo stack so the
+  // user can Ctrl+Z to revert. No-op when the canvas is empty.
+  const handleAutoLayout = useCallback(() => {
+    if (nodes.length === 0) {
+      toast({ title: "Нет нод для раскладки", description: "Добавьте ноды или загрузите шаблон" });
+      return;
+    }
+    // Snapshot for undo
+    pushHistory();
+    const laid = autoLayout(nodes, edges, { rankdir: "TB", ranksep: 80, nodesep: 40 });
+    setNodes(laid);
+    toast({ title: "Авто-раскладка применена", description: `${laid.length} нод упорядочено (dagre TB)` });
+  }, [nodes, edges, setNodes, pushHistory, toast]);
 
   const handleCompile = async () => {
     setCompiling(true);
@@ -342,6 +359,7 @@ function PrototypeEditorInner() {
         <div className="flex items-center gap-2 border-b border-border bg-card px-3 py-2">
           <Button size="sm" variant="ghost" className="h-7 px-2" onClick={undo} title="Отменить (Ctrl+Z)"><Undo2 className="h-3.5 w-3.5" /></Button>
           <Button size="sm" variant="ghost" className="h-7 px-2" onClick={redo} title="Повторить (Ctrl+Shift+Z)"><Redo2 className="h-3.5 w-3.5" /></Button>
+          <Button size="sm" variant="ghost" className="h-7 px-2" onClick={handleAutoLayout} title="Авто-раскладка (dagre)"><LayoutGrid className="h-3.5 w-3.5" /></Button>
           <div className="w-px h-5 bg-border mx-1" />
           <Button size="sm" variant="outline" onClick={handleExport}><Save className="h-3.5 w-3.5 mr-1" /> Экспорт</Button>
           <Button size="sm" variant="outline" onClick={handleImport}><Upload className="h-3.5 w-3.5 mr-1" /> Импорт</Button>

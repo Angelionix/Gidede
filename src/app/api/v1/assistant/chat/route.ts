@@ -35,6 +35,7 @@ import {
   loadProjectPipelineSnapshot,
   type ProjectPipelineSnapshot,
 } from "@/lib/pipeline-helpers";
+import { checkAiQuota, incrementAiUsage } from "@/lib/ai-quota";
 
 export async function POST(request: NextRequest) {
   const startedAt = Date.now();
@@ -83,31 +84,41 @@ export async function POST(request: NextRequest) {
       }))
       .filter((m) => m.role === "user" || m.role === "assistant");
 
+    // Pre-flight AI quota check. The quota is enforced only when the user
+    // actually requests AI; the deterministic rules-engine fallback remains
+    // free-of-charge so users can still chat when their daily AI budget is
+    // exhausted (we just skip the AI call entirely in that case).
+    const quota = await checkAiQuota(user);
+
     // Try real AI first; fall back to deterministic rules engine
     let responseText: string;
     let modelUsed: string;
     let provider: string;
+    let aiWasUsed = false;
 
-    const aiText = await generateAiResponse({
-      message,
-      projectName,
-      hasConcept: snap?.hasConcept,
-      hasCoreLoop: snap?.hasCoreLoop,
-      hasMda: snap?.hasMda,
-      hasBalance: snap?.hasBalance,
-      hasProgression: snap?.hasProgression,
-      hasEconomy: snap?.hasEconomy,
-      hasGdd: snap?.hasGdd,
-      hasChecklist: snap?.hasChecklist,
-      completionPercent: snap?.completionPercent,
-      currentStage: snap?.currentStage,
-      history: historyForAi,
-    });
+    const aiText = quota.allowed
+      ? await generateAiResponse({
+          message,
+          projectName,
+          hasConcept: snap?.hasConcept,
+          hasCoreLoop: snap?.hasCoreLoop,
+          hasMda: snap?.hasMda,
+          hasBalance: snap?.hasBalance,
+          hasProgression: snap?.hasProgression,
+          hasEconomy: snap?.hasEconomy,
+          hasGdd: snap?.hasGdd,
+          hasChecklist: snap?.hasChecklist,
+          completionPercent: snap?.completionPercent,
+          currentStage: snap?.currentStage,
+          history: historyForAi,
+        })
+      : null;
 
     if (aiText) {
       responseText = aiText;
       modelUsed = "glm-4.6";
       provider = "z-ai-web-dev-sdk";
+      aiWasUsed = true;
     } else {
       // Deterministic fallback
       const fallback = generateAssistantResponse({
@@ -132,6 +143,14 @@ export async function POST(request: NextRequest) {
     const assistantMsgId = `a-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
     const latencyMs = Date.now() - startedAt;
 
+    // Charge the AI call against the user's daily quota ONLY when the SDK
+    // actually produced a response. Failed / fallback calls are free.
+    if (aiWasUsed) {
+      await incrementAiUsage(user.id).catch((e) => {
+        console.error("[ai-quota] increment failed:", e);
+      });
+    }
+
     await appendMessage(user.id, projectId || null, {
       id: assistantMsgId,
       role: "assistant",
@@ -152,6 +171,12 @@ export async function POST(request: NextRequest) {
       model_used: modelUsed,
       provider,
       latency_ms: latencyMs,
+      ai_quota: {
+        used: quota.used + (aiWasUsed ? 1 : 0),
+        limit: quota.limit,
+        remaining: Math.max(0, quota.remaining - (aiWasUsed ? 1 : 0)),
+        reset_at: new Date(quota.resetAtMs).toISOString(),
+      },
     });
   } catch (error) {
     console.error("[assistant/chat] error:", error);

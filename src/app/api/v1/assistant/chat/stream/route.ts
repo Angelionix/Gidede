@@ -35,6 +35,7 @@ import {
   type ProjectPipelineSnapshot,
 } from "@/lib/pipeline-helpers";
 import { NextResponse } from "next/server";
+import { checkAiQuota, incrementAiUsage } from "@/lib/ai-quota";
 
 export async function POST(request: NextRequest) {
   const startedAt = Date.now();
@@ -53,6 +54,11 @@ export async function POST(request: NextRequest) {
   if (!message) {
     return VALIDATION_ERROR("Поле message обязательно");
   }
+
+  // Pre-flight AI quota check. If exhausted, we still stream the
+  // deterministic fallback (free-of-charge) so the user isn't left
+  // without a response — we just skip the real AI call.
+  const quota = await checkAiQuota(user);
 
   // Resolve project (optional)
   let projectName = "ваш проект";
@@ -110,8 +116,10 @@ export async function POST(request: NextRequest) {
         let modelUsed = "glm-4.6";
         let provider = "z-ai-web-dev-sdk";
 
-        // 2. Try real AI streaming first
-        const aiText = await streamAiResponse(
+        // 2. Try real AI streaming first (only if quota allows)
+        let aiText: string | null = null;
+        if (quota.allowed) {
+          aiText = await streamAiResponse(
           {
             message,
             projectName,
@@ -136,6 +144,7 @@ export async function POST(request: NextRequest) {
             });
           }
         );
+        }
 
         // 3. If AI streaming failed, fall back to deterministic response
         if (!aiText || fullText.length === 0) {
@@ -171,6 +180,11 @@ export async function POST(request: NextRequest) {
           }
         } else {
           fullText = aiText;
+          // Charge the AI call against the user's daily quota ONLY when
+          // the SDK actually produced a response.
+          await incrementAiUsage(user.id).catch((e) => {
+            console.error("[ai-quota] increment failed:", e);
+          });
         }
 
         const latencyMs = Date.now() - startedAt;
@@ -196,6 +210,12 @@ export async function POST(request: NextRequest) {
           model_used: modelUsed,
           provider,
           latency_ms: latencyMs,
+          ai_quota: {
+            used: quota.used + (modelUsed === "glm-4.6" ? 1 : 0),
+            limit: quota.limit,
+            remaining: Math.max(0, quota.remaining - (modelUsed === "glm-4.6" ? 1 : 0)),
+            reset_at: new Date(quota.resetAtMs).toISOString(),
+          },
         });
       } catch (err) {
         console.error("[assistant/chat/stream] stream error:", err);

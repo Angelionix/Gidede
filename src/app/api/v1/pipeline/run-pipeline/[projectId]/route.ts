@@ -19,12 +19,24 @@ import {
   VALIDATION_ERROR,
 } from "@/lib/api-helpers";
 import { loadProjectPipelineSnapshot, BLOCK_NAMES } from "@/lib/pipeline-helpers";
+import { db } from "@/lib/db";
 
 interface StageDef {
   stage: string;
   block_id: number;
   endpoint: string;
-  buildBody: () => Record<string, unknown>;
+  buildBody: (ctx: PartialPipelineCtx) => Record<string, unknown>;
+}
+
+interface PartialPipelineCtx {
+  /** Project name — used as the concept idea fallback. */
+  projectName: string;
+  /** Project description — preferred source for the concept idea. */
+  projectDescription: string | null;
+  /** Project genre — feeds Block 1 concept generation. */
+  projectGenre: string | null;
+  /** Pre-existing concept idea, if the project already ran Block 1. */
+  existingIdea: string | null;
 }
 
 const BLOCK_STAGES: Record<number, StageDef[]> = {
@@ -33,7 +45,16 @@ const BLOCK_STAGES: Record<number, StageDef[]> = {
       stage: "concept",
       block_id: 1,
       endpoint: "/api/v1/concept/generate",
-      buildBody: () => ({ idea: "Pipeline partial run — concept from project data" }),
+      // Use the project's real description/name as the concept idea instead
+      // of a meaningless literal string. If the project already has a concept
+      // (re-run), fall back to the stored onePagerData idea if available.
+      buildBody: (ctx) => ({
+        idea:
+          ctx.existingIdea ||
+          ctx.projectDescription ||
+          `${ctx.projectName} — игра в жанре ${ctx.projectGenre || "RPG"}`,
+        ...(ctx.projectGenre ? { genre: ctx.projectGenre } : {}),
+      }),
     },
   ],
   2: [
@@ -41,7 +62,11 @@ const BLOCK_STAGES: Record<number, StageDef[]> = {
       stage: "core_loop",
       block_id: 2,
       endpoint: "/api/v1/coreloop/design",
-      buildBody: () => ({ mechanics: ["explore", "combat", "reward"] }),
+      buildBody: (ctx) => ({
+        mechanics: deriveMechanicsFromIdea(
+          ctx.existingIdea || ctx.projectDescription || ctx.projectName || ""
+        ),
+      }),
     },
   ],
   3: [
@@ -57,7 +82,7 @@ const BLOCK_STAGES: Record<number, StageDef[]> = {
       stage: "balance",
       block_id: 4,
       endpoint: "/api/v1/balance/analyze",
-      buildBody: () => ({
+      buildBody: (ctx) => ({
         objects: [
           { id: "weapon_basic", name: "Базовое оружие", type: "weapon", attributes: { power: 30, range: 5, speed: 7 }, cost: 100, tier: 1 },
           { id: "weapon_advanced", name: "Продвинутое оружие", type: "weapon", attributes: { power: 60, range: 8, speed: 5 }, cost: 300, tier: 2 },
@@ -65,6 +90,7 @@ const BLOCK_STAGES: Record<number, StageDef[]> = {
           { id: "armor_heavy", name: "Тяжёлая броня", type: "armor", attributes: { defense: 50, mobility: 3 }, cost: 400, tier: 3 },
         ],
         game_mode: "pve",
+        ...(ctx.projectGenre ? { genre: ctx.projectGenre } : {}),
       }),
     },
   ],
@@ -97,6 +123,34 @@ const BLOCK_STAGES: Record<number, StageDef[]> = {
     },
   ],
 };
+
+/**
+ * Heuristic: pick 3–4 mechanics from the idea text for Block 2.
+ * Supports both English and Russian keywords so RU-language projects
+ * don't silently fall through to the hardcoded fallback.
+ */
+function deriveMechanicsFromIdea(idea: string): string[] {
+  const text = (idea || "").toLowerCase();
+  const candidates = [
+    { kw: ["combat", "fight", "shoot", "attack", "battle", "бой", "сраж", "стрелять", "атака", "битва", "сражение"], m: "combat" },
+    { kw: ["explore", "discover", "map", "world", "исслед", "открыв", "карта", "мир", "путешеств"], m: "explore" },
+    { kw: ["collect", "gather", "loot", "farm", "собирай", "собирать", "лут", "ферм", "ресурс"], m: "collect" },
+    { kw: ["build", "craft", "construct", "строй", "строить", "крафт", "конструир"], m: "build" },
+    { kw: ["puzzle", "solve", "logic", "головолом", "реша", "логика", "загадка"], m: "puzzle" },
+    { kw: ["race", "speed", "run", "гонк", "скорость", "бег", "гонщи"], m: "race" },
+    { kw: ["survive", "survival", "endure", "выжив", "пережить", "выжить"], m: "survive" },
+    { kw: ["trade", "economy", "market", "торг", "эконом", "рынок", "торговл"], m: "trade" },
+    { kw: ["upgrade", "progress", "level", "улучш", "прогресс", "уровен", "качаться", "прокач"], m: "upgrade" },
+  ];
+  const picked = candidates
+    .filter((c) => c.kw.some((k) => text.includes(k)))
+    .map((c) => c.m);
+  // Always return at least 3 mechanics so Block 2 has enough to design a loop.
+  const fallback = ["explore", "combat", "reward"];
+  const merged = [...new Set([...picked, ...fallback])];
+  return merged.slice(0, 4);
+}
+
 
 function internalBaseUrl(request: NextRequest): string {
   const xfHost = request.headers.get("x-forwarded-host");
@@ -137,6 +191,37 @@ export async function POST(
     const snap = await loadProjectPipelineSnapshot(user.id, projectId);
     if (!snap) return NOT_FOUND();
 
+    // Load the project row to build a context for stages that need real
+    // project data (Block 1 concept idea, Block 2 mechanics derivation).
+    // Also pull the existing concept's onePagerData to recover the original
+    // idea when re-running Block 1.
+    const projectRow = await db.project.findFirst({
+      where: { id: projectId, userId: user.id, deletedAt: null },
+      select: {
+        name: true,
+        description: true,
+        genre: true,
+        concept: { select: { inputData: true } },
+      },
+    });
+    let existingIdea: string | null = null;
+    if (projectRow?.concept?.inputData) {
+      try {
+        const parsed = JSON.parse(projectRow.concept.inputData) as { idea?: unknown };
+        if (typeof parsed.idea === "string" && parsed.idea.trim()) {
+          existingIdea = parsed.idea.trim();
+        }
+      } catch {
+        /* ignore malformed inputData */
+      }
+    }
+    const ctx: PartialPipelineCtx = {
+      projectName: projectRow?.name || snap.projectName,
+      projectDescription: projectRow?.description ?? null,
+      projectGenre: projectRow?.genre ?? null,
+      existingIdea,
+    };
+
     // Sign a short-lived internal access token for the block endpoints.
     const internalToken = signAccessToken(user.id, user.email);
     const authHeader = `Bearer ${internalToken}`;
@@ -164,7 +249,7 @@ export async function POST(
               "Content-Type": "application/json",
               Authorization: authHeader,
             },
-            body: JSON.stringify({ project_id: projectId, ...stage.buildBody() }),
+            body: JSON.stringify({ project_id: projectId, ...stage.buildBody(ctx) }),
             redirect: "manual",
           });
           const latencyMs = Date.now() - stageStart;

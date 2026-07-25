@@ -50,7 +50,7 @@ export function useActiveProject() {
   useEffect(() => {
     // Read from localStorage (primary client store)
     const stored = localStorage.getItem(STORAGE_KEY);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional one-time hydration from localStorage on mount
     setProjectId(stored);
     // Sync cookie with localStorage on mount (in case cookie was cleared)
     if (stored) {
@@ -58,7 +58,6 @@ export function useActiveProject() {
     } else {
       deleteCookie(COOKIE_KEY);
     }
-    // eslint-disable-next-line react-hooks/set-state-in-effect
     setIsLoaded(true);
 
     // Слушаем изменения из других вкладок

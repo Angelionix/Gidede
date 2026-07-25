@@ -73,7 +73,6 @@ export default function PipelinePage() {
 
   useEffect(() => {
     if (selectedProject) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       loadPipeline(selectedProject);
     }
   }, [selectedProject, loadPipeline]);

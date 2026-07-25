@@ -125,10 +125,19 @@ idea ──► [1 Концепция] ──► [2 Core Loop] ──► [3 MDA] 
 **Версия v0.51.0, ветка `nextjs-port`.**
 
 - **Фаза 1 (commit 1db9d70)** — security hardening + реальный серверный пайплайн: `.env.example`, обязательный JWT-секрет, DOMPurify в GDDPreview, Dockerfile healthcheck на `node http.get`, убран `ignoreBuildErrors`, удалён plaintext-fallback, переработан `run-full-pipeline` (8/8 стадий, 100% completion).
-- **Фаза 2 (commit bb98a2a)** — завершение node-редактора: edge-traversal компилятор (244→848 строк), все 20 типов нод, функциональный 3D-режим (Three.js с шимами LittleJS API).
+- **Фаза 2 (commit bb98a2a)** — завершение node-редактора: edge-traversal компилятор (244→975 строк), все 20 типов нод, функциональный 3D-режим (Three.js с шимами LittleJS API).
 - **Фаза 3 (тестирование)** — пропущена; автотестов нет (`*.test.ts`/`*.spec.ts` = 0, конфигов vitest/jest нет), `docs/TESTING.md` описывает только методологию.
 - **Фаза 4 (commit c612500)** — data-model hygiene: индексы, FK-каскады, soft-delete, environment-aware query logging, production-миграции в `package.json`.
 - **Фаза 5 (commit 3029c21)** — UX node-редактора: undo/redo (стек 50, дебаунс 400 мс), keyboard shortcuts (Ctrl+Z / Ctrl+Shift+Z / Ctrl+S), snap-to-grid (16px), экспорт скомпилированного HTML, cookie-synced активный проект.
+
+**Patch-фиксы (поверх Фазы 5):**
+
+- **PATCH-1**: `gdd/checklist` endpoint теперь вызывает `updateProjectStage(projectId, "validation")` — ранее `completionPercent` зависал на 90 % вместо 100 %, а `projectStage`/`lastAlgorithmRun` оставались `"gdd"` вместо `"validation"`.
+- **PATCH-2**: `pipeline/run-pipeline` (partial) теперь читает реальные данные проекта (name, description, genre, сохранённый concept.inputData.idea) вместо литеральной строки `"Pipeline partial run — concept from project data"`. Концепции больше не «мусорные» при partial-запуске Блока 1.
+- **PATCH-3**: `deriveMechanicsFromIdea` (в обоих пайплайнах) теперь поддерживает русскоязычные идеи — добавлены RU-ключевые слова для 9 категорий механик (бой, исследование, сбор, постройка, головоломка, гонка, выживание, торговля, прокачка). Раньше RU-идеи всегда падали в фолбэк `["explore","combat","reward"]`.
+- **PATCH-4**: Почищены `eslint-disable` директивы — убрана 1 неиспользуемая в `pipeline/page.tsx:76` и 1 неиспользуемая в `useActiveProject.ts:61`; оставшаяся директива в `useActiveProject.ts:53` снабжена поясняющим комментарием (она нужна — правило реально срабатывает на hydration из localStorage). `bun run lint` теперь 0 errors / 0 warnings.
+- **PATCH-5**: `compiler.ts` — обновлена устаревшая статистика в `PROJECT_OVERVIEW.md` (244→975 строк вместо заявленных 244→848).
+- **PATCH-6**: Создан отсутствующий `.env.example` (Phase 1.1 роадмапа) — ранее `.gitignore` паттерн `.env*` без `!.env.example` negation silently его скрывал.
 
 **Что осталось:**
 

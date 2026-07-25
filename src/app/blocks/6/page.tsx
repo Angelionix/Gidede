@@ -189,9 +189,20 @@ export default function Block6Page() {
   }, [projectId, apiFetch, toast]);
 
   // --- Section update handler ---
+  // Persists the edit to the server via POST /gdd/update-section so manual
+  // edits survive page refresh. Falls back to optimistic-only update if the
+  // network call fails (user still sees their edit locally + a warning toast).
   const handleSectionUpdate = useCallback(
     async (sectionName: string, content: string) => {
       if (!gddProfile?.assembled_document) return;
+      if (!projectId) {
+        toast({
+          title: "Не выбран проект",
+          description: "Выберите активный проект перед редактированием GDD",
+          variant: "destructive",
+        });
+        return;
+      }
 
       // Optimistic update — update local state immediately
       setGddProfile((prev) => {
@@ -213,12 +224,35 @@ export default function Block6Page() {
         return updated;
       });
 
-      toast({
-        title: "Секция обновлена",
-        description: sectionName,
-      });
+      // Persist to server
+      try {
+        await apiFetch<{ ok: boolean; updated_at: string }>(
+          "/gdd/update-section",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              project_id: projectId,
+              section_key: sectionName,
+              content,
+              requires_review: false,
+            }),
+          }
+        );
+        toast({
+          title: "Секция сохранена",
+          description: `${sectionName} — изменения persisted в БД`,
+        });
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : "Сетевая ошибка";
+        toast({
+          title: "Сохранено локально (ошибка сервера)",
+          description: `${sectionName} — ${msg}. Правки видны до рефреша.`,
+          variant: "destructive",
+        });
+      }
     },
-    [gddProfile, toast]
+    [gddProfile, projectId, apiFetch, toast]
   );
 
   return (

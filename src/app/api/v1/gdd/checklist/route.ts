@@ -6,7 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/server-auth";
 import { db } from "@/lib/db";
-import { UNAUTH, SERVER_ERROR, VALIDATION_ERROR, safeJsonParse } from "@/lib/api-helpers";
+import { UNAUTH, SERVER_ERROR, VALIDATION_ERROR, safeJsonParse, updateProjectStage } from "@/lib/api-helpers";
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser(request);
@@ -112,6 +112,12 @@ export async function POST(request: NextRequest) {
         fullResults: JSON.stringify(result),
       },
     });
+
+    // Update project stage / completion percent to reflect the final
+    // validation stage. Without this call the project's completionPercent
+    // stays at 90 (gdd stage) instead of 100 (validation stage) and
+    // projectStage/lastAlgorithmRun remain "gdd" instead of "validation".
+    await updateProjectStage(projectId, "validation");
 
     return NextResponse.json(result);
   } catch (error) {

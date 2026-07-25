@@ -168,19 +168,23 @@ const STAGES: StageDef[] = [
   },
 ];
 
-/** Heuristic: pick 3 mechanics from the idea text for Block 2. */
+/**
+ * Heuristic: pick 3–4 mechanics from the idea text for Block 2.
+ * Supports both English and Russian keywords so RU-language projects
+ * don't silently fall through to the hardcoded fallback.
+ */
 function deriveMechanicsFromIdea(idea: string): string[] {
-  const text = idea.toLowerCase();
+  const text = (idea || "").toLowerCase();
   const candidates = [
-    { kw: ["combat", "fight", "shoot", "attack", "battle"], m: "combat" },
-    { kw: ["explore", "discover", "map", "world"], m: "explore" },
-    { kw: ["collect", "gather", "loot", "farm"], m: "collect" },
-    { kw: ["build", "craft", "construct"], m: "build" },
-    { kw: ["puzzle", "solve", "logic"], m: "puzzle" },
-    { kw: ["race", "speed", "run"], m: "race" },
-    { kw: ["survive", "survival", "endure"], m: "survive" },
-    { kw: ["trade", "economy", "market"], m: "trade" },
-    { kw: ["upgrade", "progress", "level"], m: "upgrade" },
+    { kw: ["combat", "fight", "shoot", "attack", "battle", "бой", "сраж", "стрелять", "атака", "битва", "сражение"], m: "combat" },
+    { kw: ["explore", "discover", "map", "world", "исслед", "открыв", "карта", "мир", "путешеств"], m: "explore" },
+    { kw: ["collect", "gather", "loot", "farm", "собирай", "собирать", "лут", "ферм", "ресурс"], m: "collect" },
+    { kw: ["build", "craft", "construct", "строй", "строить", "крафт", "конструир"], m: "build" },
+    { kw: ["puzzle", "solve", "logic", "головолом", "реша", "логика", "загадка"], m: "puzzle" },
+    { kw: ["race", "speed", "run", "гонк", "скорость", "бег", "гонщи"], m: "race" },
+    { kw: ["survive", "survival", "endure", "выжив", "пережить", "выжить"], m: "survive" },
+    { kw: ["trade", "economy", "market", "торг", "эконом", "рынок", "торговл"], m: "trade" },
+    { kw: ["upgrade", "progress", "level", "улучш", "прогресс", "уровен", "качаться", "прокач"], m: "upgrade" },
   ];
   const picked = candidates
     .filter((c) => c.kw.some((k) => text.includes(k)))

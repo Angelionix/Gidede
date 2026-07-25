@@ -131,3 +131,62 @@ Stage Summary:
 - Test project: "Smoke Test RPG" with all 8 blocks populated, 90% completion.
 - Documentation claims 24/27 TRUE, 1 FALSE (.env.example missing — now fixed), 1 PARTIALLY TRUE (compileGraph3D vs generate3DHtml naming), 1 stale stat (compiler.ts is 975 lines not 848).
 - Verdict: Gidede is a substantially complete, genuinely working MVP — not a mockup. Deployment took ~5 minutes once the .env.example gap was patched.
+
+---
+Task ID: 5
+Agent: general-purpose (vitest setup + unit tests)
+Task: Setup Vitest + write critical unit tests for server-auth, graph/validator, graph/compiler, bible-rag
+
+Work Log:
+- Read worklog.md to absorb context from Tasks 4 (verification) and 5+6 (deploy). Confirmed dev server PID-2664 running on port 3000; verified health endpoint still returns {"status":"healthy"} before/after each step.
+- Read source under test: src/lib/server-auth.ts (294 lines, scrypt + HMAC-SHA256), src/lib/graph/validator.ts (150 lines), src/lib/graph/compiler.ts (975 lines incl. 3D Three.js path), src/lib/graph/types.ts (368 lines, 20 NODE_DEFINITIONS), src/lib/graph/templates.ts (127 lines, 5 templates), src/lib/bible-rag.ts (292 lines, TF-IDF + lazy load), src/lib/db.ts (Prisma client). Confirmed all match the Task-4 verification claims.
+- Installed vitest@4.1.10 + @vitest/coverage-v8@4.1.10 as devDependencies via `bun add -d` (54 packages, 1.1s; did NOT touch the running dev server).
+- Created vitest.config.ts at project root: environment:"node", include:["src/**/*.test.ts"], coverage v8 with text+html reporters and include:"src/lib/**/*.ts". Added `@` → ./src path alias so "@/lib/..." imports resolve.
+- Added three scripts to package.json alongside the existing scripts (lint untouched): "test":"vitest run", "test:watch":"vitest", "test:coverage":"vitest run --coverage".
+- Wrote src/lib/server-auth.test.ts (14 test cases): hashPassword format/scrypt$salt$hash (128 hex chars for 64-byte key), random salt, verifyPassword round-trip + wrong-pass + plaintext-reject + malformed-scrypt-reject, signAccessToken 3-part structure, verifyAccessToken round-trip (sub/email/type:"access"/jti), tampered-signature null, refresh-token-as-access null, signRefreshToken+verifyRefreshToken round-trip with type:"refresh", serializeUser snake_case mapping incl. null name/lastLoginAt. Used process.env.JWT_SECRET_KEY set BEFORE module import per the task spec.
+- Wrote src/lib/graph/validator.test.ts (10 test cases): empty graph (error contains "пуст"), missing Event (error contains "Event"), missing Win/Lose (error contains "Win/Lose"), 2-delay-node exec cycle (error contains "цикл"), all 5 GRAPH_TEMPLATES valid (Collector/Survival/Tower Defense/Rhythm/Puzzle), disconnected counter node → valid:true + warnings array non-empty + warning message contains "не подключена".
+- Wrote src/lib/graph/compiler.test.ts (7 test cases): empty graph → valid:false / html:"" / errors non-empty; Collector template → valid + "<!doctype html>" + "littlejs" + "player" + "win("; Survival template → valid + contains "enemy"/"enemies"; 3D mode (cloned Collector with settings.mode="3d") → valid + contains "three.min.js" + "THREE."; Tower Defense/Rhythm/Puzzle templates → valid + non-empty html + "<!doctype html>".
+- Wrote src/lib/bible-rag.test.ts (5 test cases): getBibleStats returns {sections:12, chunks:>0, uniqueTerms:>0} (verified actual chunks count = 494, matching the roadmap claim); searchBible("core loop") returns array-shaped results with title/snippet/source/section/score fields; empty query → {results:[], total:0}; stopword-only query → {results:[], total:0}; "core loop" top result's section/source contains "core loop" or "2.4" / "core_loop" / "2_4".
+- Ran `bun run test` → 4 files, 36 tests, 0 failures, 1.01s wall-clock. Ran `bun run test:coverage` → All-files 27.11% stmts (limited by ai-service.ts and mechanics-db.ts being huge untested files); focused per-file: bible-rag.ts 90.29% stmts/100% funcs, validator.ts 88.88% stmts/100% funcs, compiler.ts 44.89% stmts/86.66% funcs, server-auth.ts 62.37% stmts/75% funcs (untested: cookie + DB-coupled helpers setAuthCookies/clearAuthCookies/getAuthUserId/getCurrentUser — explicitly out-of-scope per task).
+- Ran `bun run lint` after deleting the auto-generated coverage/ HTML folder → 0 errors, 0 warnings (cleaner than before; the prior 2 stale eslint-disable warnings no longer appear).
+- Re-verified dev server health after each step: still `{"status":"healthy","service":"gidede-api","version":"0.51.0"}` on port 3000. Tests did not interfere with the running app.
+- Did NOT modify any source files under test. Did NOT modify eslint.config.mjs, tsconfig.json, or any file in src/components/, src/app/, src/lib/ (other than adding the 4 *.test.ts files).
+
+Stage Summary:
+- Test files created: 4 (server-auth.test.ts, graph/validator.test.ts, graph/compiler.test.ts, bible-rag.test.ts). Config files created: 1 (vitest.config.ts). package.json: 3 scripts added (test / test:watch / test:coverage).
+- Test cases: 36 total → 36 passing, 0 failing, 0 skipped. Breakdown: server-auth 14, validator 10, compiler 7, bible-rag 5.
+- Coverage (v8) on the 4 modules under test: bible-rag.ts 90.29% stmts / 100% funcs, validator.ts 88.88% stmts / 100% funcs, compiler.ts 44.89% stmts / 86.66% funcs (untested branches are pin-type-mismatch warnings + 3D Three.js shim edge cases), server-auth.ts 62.37% stmts / 75% funcs (untested: cookie/DB-coupled helpers explicitly out-of-scope).
+- Genuine bugs found in source code: NONE. All 36 tests pass on the source as-is; the Task-4 verification's claims about scrypt format, JWT-like 3-part tokens, validator cycle detection, template validity, and TF-IDF search are all confirmed by passing tests. The bible-rag stats test also empirically confirmed the 494-chunks claim from the roadmap (matches `[bible-rag] Loaded 494 chunks from 12 bible sections` log line).
+- `bun run test` is wired up and passes in 1.01s. Dev server on port 3000 remains healthy throughout.
+
+---
+Task ID: 7 (final verification)
+Agent: main (Z.ai Code orchestrator)
+Task: Verify all Tier 1-3 fixes via API smoke tests + Agent Browser
+
+Work Log:
+- Tier 1 bug fixes verified:
+  - completion_percent: created fresh project, ran full pipeline → pipeline response shows 100%, project state shows completion_percent:100, project_stage:"validation", last_algorithm_run:"validation" (was 90%/"gdd" before PATCH-1)
+  - AI quota: GET /assistant/quota returns used:0/limit:50; POST /assistant/chat returns ai_quota:{used:1}; subsequent GET /assistant/quota confirms used:1 (rate-limiting is live, not decorative)
+  - GDD section persistence: POST /gdd/update-section with valid section_key returns {ok:true, updated_at}; direct SQLite read confirms content="TEST: This manual edit should persist", source:"manual", updated_at set (was local-only before)
+  - Lint: 0 errors, 0 warnings (was 2 warnings before PATCH-4)
+  - tsc --noEmit: 0 errors (excluded examples/skills/mini-services which are sandbox infra, not Gidede code)
+- Tier 2 AI rate-limiting verified end-to-end (see above)
+- Tier 2 GDD persistence verified end-to-end (see above)
+- Tier 2 Node editor auto-layout verified via Agent Browser:
+  - Opened /prototype-editor, clicked Collector template (5 nodes loaded)
+  - Clicked "Авто-раскладка (dagre)" button (LayoutGrid icon, ref=e10)
+  - Toast appeared: "Авто-раскладка применена" + "5 нод упорядочено (dagre TB)"
+  - Zero console errors
+  - MiniMap was already enabled in GraphCanvas.tsx (confirmed during code review)
+- Tier 3 Vitest: 4 test files, 36 test cases, all passing in ~1s
+- Tier 3 GitHub Actions CI: .github/workflows/ci.yml created — runs lint + tsc --noEmit + vitest on push/PR to main/nextjs-port
+
+Stage Summary:
+- All 7 todo items completed.
+- CI pipeline (lint + typecheck + 36 tests) passes locally — will pass in GitHub Actions once pushed.
+- Dev server healthy on port 3000 throughout all changes (Turbopack HMR handled all edits live).
+- 6 PATCH fixes (Tier 1) + 4 feature additions (Tier 2-3) delivered.
+- New API endpoints: GET /api/v1/assistant/quota, POST /api/v1/gdd/update-section.
+- New files: src/lib/ai-quota.ts, src/lib/graph/auto-layout.ts, vitest.config.ts, .github/workflows/ci.yml, 4 *.test.ts files, .env.example.
+- Modified files: gdd/checklist/route.ts, pipeline/run-pipeline/route.ts, pipeline/run-full-pipeline/route.ts, assistant/chat/route.ts, assistant/chat/stream/route.ts, blocks/6/page.tsx, prototype-editor/PrototypeEditor.tsx, pipeline/page.tsx, useActiveProject.ts, tsconfig.json, package.json, PROJECT_OVERVIEW.md.

@@ -190,3 +190,36 @@ Stage Summary:
 - New API endpoints: GET /api/v1/assistant/quota, POST /api/v1/gdd/update-section.
 - New files: src/lib/ai-quota.ts, src/lib/graph/auto-layout.ts, vitest.config.ts, .github/workflows/ci.yml, 4 *.test.ts files, .env.example.
 - Modified files: gdd/checklist/route.ts, pipeline/run-pipeline/route.ts, pipeline/run-full-pipeline/route.ts, assistant/chat/route.ts, assistant/chat/stream/route.ts, blocks/6/page.tsx, prototype-editor/PrototypeEditor.tsx, pipeline/page.tsx, useActiveProject.ts, tsconfig.json, package.json, PROJECT_OVERVIEW.md.
+
+---
+Task ID: 8 (navigation fix)
+Agent: main (Z.ai Code orchestrator)
+Task: Fix "clicking any link in preview always stays on home page" bug
+
+Work Log:
+- Diagnosed root cause: split-brain auth architecture
+  - Middleware (server-side) checked httpOnly cookies for route protection
+  - AuthProvider (client-side) stored tokens in localStorage + used Bearer header
+  - When access_token cookie expired (30 min TTL), middleware redirected to /login
+  - Login page saw isAuthenticated=true (from localStorage) → redirected back to /
+  - Result: infinite /login → / → /login → / loop, user stuck on home page
+- Fixed by moving auth protection from server-side middleware to client-side LayoutShell:
+  - src/middleware.ts: removed redirect logic, now just passes through (kept for future server-side concerns)
+  - src/components/gidede/layout-shell.tsx: added client-side auth guard
+    - Checks isAuthenticated + isLoading from useAuth()
+    - Redirects to /login?callbackUrl=<path> if unauthenticated on protected route
+    - Shows spinner while auth state is loading (prevents flash of protected content)
+  - src/app/login/page.tsx: 
+    - Added useSearchParams to read callbackUrl
+    - Redirect respects callbackUrl (lands on original page after login, not always /)
+    - Added open-redirect protection (only allows relative URLs starting with /, not //)
+- Verified via Agent Browser:
+  - Fresh login → all 4 protected routes load correctly: /blocks/1 (200), /projects (200), /settings (200), /prototype-editor (200)
+  - Logout → access /blocks/1 → correctly redirects to /login?callbackUrl=%2Fblocks%2F1
+  - Zero console errors across all flows
+  - Dev log shows no more /login redirect loops — pages served directly (200)
+
+Stage Summary:
+- PATCH-7: Navigation fix — moved auth guard from middleware (cookie-based) to LayoutShell (localStorage-based), fixing the split-brain redirect loop that trapped users on the home page.
+- All CI checks pass: lint 0 errors, tsc 0 errors, 36/36 tests pass.
+- Dev server healthy on port 3000.

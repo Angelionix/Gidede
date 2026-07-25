@@ -1,63 +1,46 @@
 /**
- * Gidede — Next.js Middleware
+ * Gidede — Next.js Middleware (simplified)
  *
- * Обработка маршрутов:
- * - Защита /blocks/* и /projects/* маршрутов (требуется авторизация)
- * - Публичные маршруты: /, /login, /register
- * - Редирект неавторизованных на /login
+ * Previously this middleware redirected unauthenticated users from protected
+ * routes (/blocks/*, /projects/*, etc.) to /login based on a server-side
+ * httpOnly cookie check. However, the app's primary auth mechanism is
+ * client-side: tokens are stored in localStorage and sent via the
+ * `Authorization: Bearer` header. The httpOnly cookies are a secondary
+ * sync mechanism that expires after 30 minutes (access token TTL).
+ *
+ * This created a "split-brain" bug:
+ *   1. User logs in → cookies + localStorage both set → everything works
+ *   2. 30 min later → access_token cookie expires → middleware redirects to /login
+ *   3. Login page sees `isAuthenticated=true` (from localStorage) → redirects back to /
+ *   4. User can never reach protected pages despite being authenticated client-side
+ *
+ * Fix: the middleware no longer redirects. Auth protection is handled
+ * entirely client-side by the LayoutShell, which checks `useAuth()` and
+ * redirects to /login if the user is unauthenticated on a protected route.
+ *
+ * The middleware is kept (rather than deleted) so that future server-side
+ * concerns (e.g. locale routing, security headers) can be added here.
  */
 
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-/** Маршруты, доступные без авторизации */
-const PUBLIC_ROUTES = ["/", "/login", "/register"];
-
-/** Маршруты, требующие авторизации */
-const PROTECTED_PREFIXES = ["/blocks", "/projects", "/prototypes", "/settings", "/knowledge", "/pipeline", "/prototype-editor"];
-
-export function middleware(request: NextRequest) {
-  const { pathname } = request.nextUrl;
-
-  // Публичные маршруты — пропускаем
-  if (PUBLIC_ROUTES.some((route) => pathname === route || pathname.startsWith(`${route}/`))) {
-    return NextResponse.next();
-  }
-
-  // API-маршруты — пропускаем (у них своя авторизация)
-  if (pathname.startsWith("/api/")) {
-    return NextResponse.next();
-  }
-
-  // Статика — пропускаем
-  if (pathname.startsWith("/_next/") || pathname.includes(".")) {
-    return NextResponse.next();
-  }
-
-  // Проверяем наличие токена в cookies
-  const accessToken = request.cookies.get("access_token")?.value;
-  const refreshToken = request.cookies.get("refresh_token")?.value;
-
-  // Защищённые маршруты — редиректим на логин если нет токена
-  const isProtected = PROTECTED_PREFIXES.some((prefix) => pathname.startsWith(prefix));
-
-  if (isProtected && !accessToken && !refreshToken) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("callbackUrl", pathname);
-    return NextResponse.redirect(loginUrl);
-  }
-
+export function middleware(_request: NextRequest) {
+  // Pass through — auth protection is client-side (see LayoutShell).
+  // Add any future server-side middleware concerns (security headers,
+  // locale, etc.) here.
   return NextResponse.next();
 }
 
 export const config = {
   matcher: [
     /*
-     * Совпадает со всеми маршрутами кроме:
-     * - _next/static (статика)
-     * - _next/image (оптимизация изображений)
+     * Match all routes except:
+     * - _next/static (static assets)
+     * - _next/image (image optimization)
      * - favicon.ico
+     * - API routes (they have their own auth via Bearer header)
      */
-    "/((?!_next/static|_next/image|favicon.ico).*)",
+    "/((?!_next/static|_next/image|favicon.ico|api/).*)",
   ],
 };

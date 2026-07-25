@@ -2,7 +2,7 @@
 
 import { useState, useEffect, FormEvent } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@/lib/auth";
 import {
   Card,
@@ -20,18 +20,26 @@ import { Gamepad2, Loader2, AlertCircle } from "lucide-react";
 export default function LoginPage() {
   const { login, isAuthenticated } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Redirect if already authenticated
+  // Redirect if already authenticated — respect the callbackUrl param
+  // so that users who were redirected from /blocks/1 (for example) land
+  // back on that page after login, not on the home page.
   useEffect(() => {
     if (isAuthenticated) {
-      router.push("/");
+      const callbackUrl = searchParams.get("callbackUrl");
+      // Only allow relative URLs to prevent open-redirect attacks.
+      const safeUrl = callbackUrl && callbackUrl.startsWith("/") && !callbackUrl.startsWith("//")
+        ? callbackUrl
+        : "/";
+      router.push(safeUrl);
     }
-  }, [isAuthenticated, router]);
+  }, [isAuthenticated, router, searchParams]);
 
   if (isAuthenticated) {
     return null;
@@ -44,6 +52,14 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
+      // After successful login, redirect to callbackUrl or home.
+      // The useEffect above will handle this when isAuthenticated
+      // flips to true, but we also do it here for immediate feedback.
+      const callbackUrl = searchParams.get("callbackUrl");
+      const safeUrl = callbackUrl && callbackUrl.startsWith("/") && !callbackUrl.startsWith("//")
+        ? callbackUrl
+        : "/";
+      router.push(safeUrl);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Произошла ошибка");
     } finally {

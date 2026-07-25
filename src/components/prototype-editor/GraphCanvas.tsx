@@ -25,6 +25,7 @@ interface GraphCanvasProps {
   initialEdges?: Edge[];
   onNodesChange?: (nodes: Node[]) => void;
   onEdgesChange?: (edges: Edge[]) => void;
+  onNodeClick?: (nodeId: string | null) => void;
 }
 
 export function GraphCanvas({
@@ -32,6 +33,7 @@ export function GraphCanvas({
   initialEdges = [],
   onNodesChange,
   onEdgesChange,
+  onNodeClick,
 }: GraphCanvasProps) {
   const [nodes, setNodes, onNodesChangeInternal] = useNodesState(initialNodes);
   const [edges, setEdges, onEdgesChangeInternal] = useEdgesState(initialEdges);
@@ -103,6 +105,8 @@ export function GraphCanvas({
         onNodesChange={handleNodesChange}
         onEdgesChange={handleEdgesChange}
         onConnect={onConnect}
+        onNodeClick={(_, node) => onNodeClick?.(node.id)}
+        onPaneClick={() => onNodeClick?.(null)}
         nodeTypes={nodeTypes}
         fitView
         className="bg-background"

@@ -25,7 +25,21 @@ function PrototypeEditorInner() {
   const [compiling, setCompiling] = useState(false);
   const [errors, setErrors] = useState<string[]>([]);
   const [showPreview, setShowPreview] = useState(false);
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const selectedNode = nodes.find((n) => n.id === selectedNodeId) || null;
+
+  const updateNodeProperty = useCallback((nodeId: string, key: string, value: unknown) => {
+    setNodes((nds) =>
+      nds.map((n) => {
+        if (n.id !== nodeId) return n;
+        const props = { ...((n.data as Record<string, unknown>)?.properties as Record<string, unknown> || {}) };
+        props[key] = value;
+        return { ...n, data: { ...n.data, properties: props } };
+      })
+    );
+  }, [setNodes]);
 
   // Auto-save via postMessage
   useEffect(() => {
@@ -89,6 +103,58 @@ function PrototypeEditorInner() {
     a.href = url; a.download = "prototype-graph.json"; a.click();
     URL.revokeObjectURL(url);
     toast({ title: "Экспортировано", description: `${nodes.length} нод` });
+  };
+
+  // Save to DB
+  const [saveName, setSaveName] = useState("");
+  const [savedGraphs, setSavedGraphs] = useState<Array<{ id: string; name: string; updatedAt: string }>>([]);
+  const [showSavedList, setShowSavedList] = useState(false);
+
+  const handleSaveToDb = async () => {
+    if (!saveName.trim()) { toast({ title: "Введите название", variant: "destructive" }); return; }
+    try {
+      const graph: NodeGraph = {
+        version: "1.0",
+        nodes: nodes.map((n) => ({ id: n.id, type: (n.data as Record<string, unknown>)?.nodeType as NodeType, position: n.position, data: n.data as { label: string; properties: Record<string, unknown> } })),
+        edges: edges.map((e) => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle })),
+        settings: { mode, canvasSize: { width: 400, height: 300 }, targetFps: 60, backgroundColor: "#0f172a" },
+      };
+      await apiFetch("/prototype-graph/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: saveName.trim(), graph: JSON.stringify(graph), mode }),
+      });
+      toast({ title: "✅ Сохранено", description: saveName });
+      setSaveName("");
+      loadSavedGraphs();
+    } catch { toast({ title: "Ошибка сохранения", variant: "destructive" }); }
+  };
+
+  const loadSavedGraphs = async () => {
+    try {
+      const data = await apiFetch<{ results: Array<{ id: string; name: string; updatedAt: string }> }>("/prototype-graph/list?scope=mine");
+      setSavedGraphs(data.results || []);
+    } catch { /* ignore */ }
+  };
+
+  const handleLoadFromDb = async (graphId: string) => {
+    try {
+      const data = await apiFetch<{ graph: string; name: string; mode: string }>(`/prototype-graph/${graphId}`);
+      const graph = JSON.parse(data.graph);
+      const loadedNodes: Node[] = (graph.nodes || []).map((n: Record<string, unknown>) => ({
+        id: n.id as string, type: "gameNode", position: n.position as { x: number; y: number },
+        data: { ...(n.data as object), nodeType: n.type },
+      }));
+      const loadedEdges: Edge[] = (graph.edges || []).map((e: Record<string, unknown>, i: number) => ({
+        id: `e${i}-${Date.now()}`, source: e.source as string, sourceHandle: e.sourceHandle as string | null,
+        target: e.target as string, targetHandle: e.targetHandle as string | null, animated: true,
+      }));
+      setNodes(loadedNodes);
+      setEdges(loadedEdges);
+      setShowPreview(false);
+      setCompiledHtml(null);
+      toast({ title: "Загружено", description: data.name });
+    } catch { toast({ title: "Ошибка загрузки", variant: "destructive" }); }
   };
 
   const handleImport = () => {
@@ -227,16 +293,69 @@ function PrototypeEditorInner() {
               <iframe ref={iframeRef} srcDoc={compiledHtml} title="Node Graph Prototype" className="w-full flex-1 border-0" />
             </div>
           ) : (
-            <GraphCanvas initialNodes={nodes} initialEdges={edges} onNodesChange={(n) => setNodes(n)} onEdgesChange={(e) => setEdges(e)} />
+            <GraphCanvas initialNodes={nodes} initialEdges={edges} onNodesChange={(n) => setNodes(n)} onEdgesChange={(e) => setEdges(e)} onNodeClick={setSelectedNodeId} />
           )}
         </div>
       </div>
 
       {/* Right: Inspector + Templates */}
       <div className="w-56 shrink-0 border-l border-border bg-card overflow-y-auto">
+        {/* Node Inspector */}
         <div className="p-3">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Инспектор</h3>
-          <p className="text-xs text-muted-foreground">Выберите ноду для редактирования. Drag&drop из палитры слева.</p>
+          {selectedNode ? (
+            <div className="space-y-2">
+              <div className="text-sm font-medium">{(selectedNode.data as Record<string, unknown>)?.label as string}</div>
+              <div className="text-[10px] text-muted-foreground">ID: {selectedNode.id.slice(0, 12)}</div>
+              {/* Property editors */}
+              {Object.entries((selectedNode.data as Record<string, unknown>)?.properties as Record<string, unknown> || {}).map(([key, val]) => (
+                <div key={key} className="space-y-0.5">
+                  <label className="text-[10px] text-muted-foreground font-medium">{key}</label>
+                  {typeof val === "number" ? (
+                    <input
+                      type="number"
+                      value={val}
+                      onChange={(e) => updateNodeProperty(selectedNode.id, key, Number(e.target.value))}
+                      className="w-full h-7 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  ) : typeof val === "boolean" ? (
+                    <button
+                      onClick={() => updateNodeProperty(selectedNode.id, key, !val)}
+                      className={`rounded-md px-2 py-1 text-xs w-full text-left ${val ? "bg-primary/10 text-primary border border-primary/30" : "bg-muted text-muted-foreground border border-border"}`}
+                    >
+                      {val ? "✅ true" : "⬜ false"}
+                    </button>
+                  ) : (
+                    <input
+                      type="text"
+                      value={String(val)}
+                      onChange={(e) => updateNodeProperty(selectedNode.id, key, e.target.value)}
+                      className="w-full h-7 rounded-md border border-input bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring"
+                    />
+                  )}
+                </div>
+              ))}
+              {/* Position editor */}
+              <div className="pt-2 border-t border-border">
+                <div className="text-[10px] text-muted-foreground">Position: {Math.round(selectedNode.position.x)}, {Math.round(selectedNode.position.y)}</div>
+              </div>
+              {/* Delete button */}
+              <Button
+                size="sm"
+                variant="outline"
+                className="w-full text-destructive hover:bg-destructive/5"
+                onClick={() => {
+                  setNodes(nodes.filter((n) => n.id !== selectedNode.id));
+                  setEdges(edges.filter((e) => e.source !== selectedNode.id && e.target !== selectedNode.id));
+                  setSelectedNodeId(null);
+                }}
+              >
+                Удалить ноду
+              </Button>
+            </div>
+          ) : (
+            <p className="text-xs text-muted-foreground">Выберите ноду для редактирования свойств.</p>
+          )}
         </div>
         <div className="p-3 border-t border-border">
           <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Шаблоны</h3>
@@ -248,6 +367,33 @@ function PrototypeEditorInner() {
               </div>
             ))}
           </div>
+        </div>
+        {/* Save/Load from DB */}
+        <div className="p-3 border-t border-border">
+          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Сохранить в БД</h3>
+          <input
+            type="text"
+            placeholder="Название графа..."
+            value={saveName}
+            onChange={(e) => setSaveName(e.target.value)}
+            className="w-full h-7 rounded-md border border-input bg-background px-2 text-xs mb-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
+          />
+          <Button size="sm" className="w-full mb-1.5" onClick={handleSaveToDb} disabled={!saveName.trim() || nodes.length === 0}>
+            <Save className="h-3 w-3 mr-1" /> Сохранить
+          </Button>
+          <Button size="sm" variant="outline" className="w-full" onClick={() => { loadSavedGraphs(); setShowSavedList(!showSavedList); }}>
+            Мои графы {savedGraphs.length > 0 && `(${savedGraphs.length})`}
+          </Button>
+          {showSavedList && savedGraphs.length > 0 && (
+            <div className="mt-1.5 space-y-1 max-h-32 overflow-y-auto">
+              {savedGraphs.map((g) => (
+                <div key={g.id} onClick={() => handleLoadFromDb(g.id)} className="rounded-md border border-border bg-background px-2 py-1 text-xs cursor-pointer hover:border-primary/40 hover:bg-primary/5 transition-colors">
+                  <p className="font-medium truncate">{g.name}</p>
+                  <p className="text-[10px] text-muted-foreground">{new Date(g.updatedAt).toLocaleDateString("ru-RU")}</p>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         {/* AI Generate */}
         <div className="p-3 border-t border-border">

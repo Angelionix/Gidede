@@ -57,7 +57,6 @@ db/*.db
 db/*.db-journal
 
 # Dev artifacts
-.zscripts/dev.pid
 dev.log
 agent-ctx/
 upload/
@@ -72,7 +71,19 @@ agent-ctx/
 *.png
 *.jpg
 *.jpeg
+*.webm
 tests/python-*
 download/
 upload/
 skills/
+
+# === AI-ассистент / sandbox внутренние файлы (НЕ пушить) ===
+# Конфигурация sandbox-окружения и деплой-инфраструктура
+.zscripts/
+mini-services/
+examples/
+# Локальный рабочий журнал сессии (не путать с проектным worklog.md)
+worklog.local.md
+# Скриншоты и видеозаписи из agent-browser
+/tmp/
+*.screenshot.png

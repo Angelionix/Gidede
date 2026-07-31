@@ -3030,3 +3030,154 @@ registry с 7 кривыми, `solveNashEquilibrium` через Gaussian elimina
 - Фаза 8 (AI+persistence, 8-12ч): TASK-4.10, TASK-4.11, TASK-4.12
 - Фаза 9 (Advanced, 10-15ч): TASK-4.14
 - Фаза 10 (Tests, 10-15ч): TASK-4.18
+
+---
+Task ID: refactor-plan-block-5a
+Agent: refactor-plan-block-5a (sub-agent)
+Date: 2026-08-02
+Status: ✅ COMPLETED
+
+### Цель
+Глубокий аудит Блока 5a (Прогрессия — алгоритм 3.5) и детальный план
+рефакторинга.
+
+### Созданные файлы
+- `/home/z/my-project/repos/Gidede/docs/audit/REFACTOR_PLAN_block_5a.md`
+  (~3492 строки, ~156KB)
+
+### Полный отчёт
+Запись в основном worklog репозитория:
+`/home/z/my-project/repos/Gidede/worklog.md` (Task ID: refactor-plan-block-5a)
+
+### Краткое резюме находок
+- **10/10 test_projects производят ИДЕНТИЧНЫЙ progression output**
+  (отличаются только `id` и `ai_insights`). Все 10 имеют `genre: "rpg"`,
+  `progression_type: "exponential"`, `tier_count: 4`, `total_levels: 50`,
+  идентичный tier_model, unlock_tree, economy_link.
+- **Root cause #1**: `run-full-pipeline/route.ts:141-145` (StageDef для
+  progression) отправляет только `{total_levels: i.totalLevels, use_ai:
+  i.useAi}` — без genre, progression_type, monetization, pacing.
+  `run_pipeline_test.sh:122` — то же самое.
+- **Root cause #2**: route defaults всё к `genre="rpg"`,
+  `progression_type="exponential"`, `monetization_model="b2p"`,
+  `pacing="balanced"`, `target_duration=40`. Даже если body.genre передан,
+  route не использует `proj.concept?.genre` для override.
+- **20 root causes** идентифицировано (RC-1…RC-20):
+  - RC-1: только 5 кривых вместо 7 (нет identity, logarithmic, triangular,
+    obfuscation — Bible 6.7.3)
+  - RC-2: формула perceived difficulty `(Cv+Cs)−(Pv+Ps)` НЕ реализована —
+    только линейная `0.2 + (lvl/total)*0.7`
+  - RC-3: TIER_ARCHETYPES не зависят от genre — 5 фиксированных архетипов
+    для всех 10 test_projects
+  - RC-4: `economyLink.primary_resources: ["xp", "gold"]` hardcoded для
+    всех жанров (Card_Lords deck-builder получает xp/gold вместо
+    cards/deck_slots)
+  - RC-5: leading space `" elemental_attack"` + cap на 10 имён →
+    "prestige_reset" для всех unlocks > 10
+  - RC-6: AI enrichment вызывается ПОСЛЕ persist → `ai_insights` не
+    сохраняется в БД (подтверждено: 9/10 test_projects без ai_insights)
+  - RC-7: run-full-pipeline + run_pipeline_test.sh не передают genre →
+    все 10 test_projects идентичны
+  - RC-8: transition_map без terminal key для последнего tier →
+    `transition_trigger: "endgame_unlock"` dangling
+  - RC-9: `emergence_ratio = 0.3 + 0.1*(L/50) + 0.05*pacingFactor` —
+    intense pacing увеличивает emergence (wrong sign)
+  - RC-10: `lock_key_model` binary (soft_locks/key_gates) — нет
+    metroidvania, dynamic_locks (Bible 6.6.2)
+  - RC-11: macro_model lacks Bible 6.7.4 fields (transitions_count,
+    transitions_per_hour, content_stages, enemy_configs_min,
+    char_points_per_level). `content_requirements` — string, не object
+  - RC-12: `tier_plans` formula ad-hoc, не соответствует Bible 6.7.4
+    `3×(L/2)`
+  - RC-13: input validation gaps (target_duration без range check,
+    targetLevels capped at 500, use_ai не принимает `1`/`"1"`)
+  - RC-14: `enrichProgression` prompt generic — не передаёт actual
+    macro_model, tier_model, curves, validation. AI advice не actionnable
+    (рекомендует "5 тиров по 10 уровней", но реализация создала 4 тира)
+  - RC-15: `stages_completed` hardcoded `[1,2,3,4,5]` — не отражает
+    upstream state
+  - RC-16: GET/POST shape mismatch — разные поля, разные типы
+  - RC-17: `economy_link` сохраняется в БД, но НЕ возвращается в POST
+    response (только в GET)
+  - RC-18: `validation.checks.no_walls`, `no_empty_levels` всегда `true`
+    — нет реальной логики. `aesthetic_alignment` всегда `false` если нет
+    aestheticProfile
+  - RC-19: DB schema missing fields (`aiInsights`, `modelsUsed`).
+    `curveType` comment врёт ("7 типов" — реально 5-6)
+  - RC-20: `pipeline-helpers.ts:415-422` `suggested` defaults hardcoded
+    для всех проектов — не использует actual genre для derivation
+
+### План рефакторинга: 17 задач
+- 🔴 6 критичных:
+  - TASK-5a.1 (XL) — 7 кривых Шрайбера (Bible 6.7.3: identity, logarithmic,
+    triangular, obfuscation + существующие 5)
+  - TASK-5a.2 (L) — формула perceived difficulty `(Cv+Cs)−(Pv+Ps)` с
+    реальными компонентами
+  - TASK-5a.3 (L) — параметризовать TIER_ARCHETYPES по genre (12+ жанров)
+  - TASK-5a.5 (S) — починить unlock tree (leading space + cap + genre-aware
+    pool)
+  - TASK-5a.6 (S) — перенести AI enrichment ДО persist (как в Block 2)
+  - TASK-5a.7 (M) — run-full-pipeline derives progression params from
+    upstream (genre, pacing, monetization)
+- 🟡 9 средних:
+  - TASK-5a.4 (M) — динамический economyLink (genre-aware primary_resources)
+  - TASK-5a.8 (M) — дополнить macro_model RPG-формулой (Bible 6.7.4:
+    transitions_count, transitions_per_hour, content_stages,
+    enemy_configs_min, char_points_per_level)
+  - TASK-5a.9 (S) — починить transition_map (terminal key для last tier)
+  - TASK-5a.10 (S) — параметризовать lock_key_model по genre
+    (metroidvania, dynamic_locks, simple_key_lock)
+  - TASK-5a.11 (M) — унифицировать GET/POST shape + economy_link в response
+  - TASK-5a.12 (S) — расширить enrichProgression prompt с actual state
+  - TASK-5a.13 (M) — реально реализовать validation checks (no_walls,
+    no_empty_levels, aesthetic_alignment)
+  - TASK-5a.14 (S) — input validation + edge cases (totalLevels=1, 1000,
+    unknown curveType, p2w+relaxed conflict)
+  - TASK-5a.15 (M) — unify types (ProgressionDesignResponse) + DB schema
+    migration (aiInsights, modelsUsed fields)
+- 🟢 2 низких:
+  - TASK-5a.16 (S) — унифицировать stages_completed (reflect upstream state)
+  - TASK-5a.17 (L) — unit + integration тесты (build-curve,
+    perceived-difficulty, tier-archetypes, progression-design)
+
+### Структура плана
+Для каждой задачи — описание проблемы с цитатами кода (строки route.ts,
+конкретные значения из test_projects), решение с code-примерами (включая
+`VALID_CURVE_TYPES` registry с 9 кривыми, `buildPerceivedDifficultyTable`
+с 4 компонентами, `GENRE_TIER_ARCHETYPES` для 12+ жанров,
+`GENRE_ECONOMY_LINK` с primary/secondary resources, `GENRE_UNLOCK_POOLS`
+для 12+ жанров, `getLockKeyModel` с 5 типами), тест-кейсы, риски,
+dependencies.
+
+### Bible compliance gaps закрыты
+- 6.6.2 — 3 типа lock-key (simple, metroidvania, dynamic) + soft_locks
+  для F2P + key_gates default
+- 6.6.4 — genre-aware TIER_ARCHETYPES (D&D 4 этапа как reference, не
+  universal template)
+- 6.7.1 — формула perceived difficulty `(Cv+Cs)−(Pv+Ps)` с 4 компонентами
+- 6.7.3 — 7 кривых Шрайбера (identity, linear, exponential, logarithmic,
+  triangular, custom, obfuscation) + Sellers s_curve + intermittent
+- 6.7.4 — макро-модель RPG (transitions_count, transitions_per_hour,
+  content_stages, enemy_configs_min, char_points_per_level)
+- 6.13.4 — validation checklist (no_walls, no_empty_levels,
+  aesthetic_alignment, progression_defined, economic_phases_defined,
+  no_deadlock, no_stall, inflation_controlled)
+
+### Фазы реализации (35-55 часов без тестов, 45-65 с тестами)
+- Фаза 1 (unblock pipeline, 8-12ч): TASK-5a.5, TASK-5a.6, TASK-5a.1,
+  TASK-5a.7, TASK-5a.3
+- Фаза 2 (формула + macro, 8-12ч): TASK-5a.2, TASK-5a.8, TASK-5a.10,
+  TASK-5a.9
+- Фаза 3 (validation + persistence, 10-15ч): TASK-5a.4, TASK-5a.13,
+  TASK-5a.11, TASK-5a.12, TASK-5a.14
+- Фаза 4 (типы + metadata, 4-6ч): TASK-5a.15, TASK-5a.16
+- Фаза 5 (Tests, 6-8ч): TASK-5a.17
+
+### Связанные задачи из других блоков
+- TASK-1.11 (Block 1) — persist ai_insights + generation_metadata
+  (аналогичный паттерн)
+- TASK-3.6 (Block 3) — load concept.aestheticProfile (используется в
+  TASK-5a.13 для aesthetic_alignment check)
+- TASK-4.10 (Block 4) — persist ai_insights (аналогичный паттерн)
+- TASK-5b.1 (Block 5b) — создать `enrichEconomy` отдельно (сейчас Block 5b
+  переиспользует `enrichProgression` — cross-contamination)

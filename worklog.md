@@ -2587,3 +2587,198 @@ Stage Summary (ключевые находки глубокого аудита):
 Общая оценка: 30-50 часов (без TASK-1.14), 50-70 часов (с TASK-1.14).
 
 Файл плана: docs/audit/REFACTOR_PLAN_block_1.md (~950 строк).
+
+---
+Task ID: refactor-plan-block-2
+Agent: general-purpose
+Task: Глубокий аудит Блока 2 (Core Loop Designer) + детальный план рефакторинга
+
+Work Log:
+- Прочитал /home/z/my-project/repos/Gidede/worklog.md для контекста (Task
+  audit-blocks-1-4 уже выявил hardcoded buildSteps template, loop_closedness
+  всегда true, hasBraking логика запутана, || в pathology detection).
+- Прочитал /home/z/my-project/repos/Gidede/docs/audit/AUDIT_REPORT.md (586
+  строк, раздел 2) — подтверждены критические находки: default 5-step
+  template полностью захардкожен, type-параметр не используется внутри
+  buildSteps, 4 Bible патологии отсутствуют (Grind, Frustration Plateau,
+  Disconnected Loops, Loop Overload), тип классификации по жанру (не по
+  эстетике).
+- Прочитал /home/z/my-project/repos/Gidede/docs/audit/REFACTOR_PLAN_block_1.md
+  (1664 строки) для consistency в формате и стиле плана.
+- Полностью прочитал все файлы реализации Блока 2:
+  - src/app/api/v1/coreloop/design/route.ts (946 строк) — 5 функций:
+    buildSteps, classifyStructuralType, buildLoopHierarchy, detectPathologies,
+    buildValidation, buildRecommendations + POST handler.
+  - src/lib/ai-service.ts (строки 499-541) — enrichCoreLoop с generic
+    prompt, не использующий pathologies/dead_resources/gary_five_questions.
+  - src/types/coreloop.ts (28 строк) — CoreLoopFormState,
+    CoreLoopDesignResult (Record<string,unknown> — type bypass).
+  - src/constants/coreloop.ts (54 строки) — LOOP_TYPES, HIERARCHY_LEVELS
+    (6 уровней, но шкалы не полностью соответствуют Bible 4.3: medium=5-10min
+    ↔ Long-term Cognitive min-hr; large=15-30min ↔ Social hr-days).
+  - src/app/blocks/2/page.tsx (460 строк) — фронтенд, отправляет mechanics
+    как comma-separated string, не загружает существующий core loop при
+    монтировании.
+- Полностью прочитал спецификацию Библии:
+  - docs/bible/bible_2_4_core_loop.md (456 строк):
+    * 4.3 — шесть временных масштабов (Action/Feedback ms-sec, Short-term
+      Cognitive sec-min, Long-term Cognitive min-hr, Social hr-days,
+      Emotional hr-weeks, Cultural weeks-months).
+    * 4.4 — три структурных типа (Engine boosting/braking, Economy
+      unfolding complexity, Ecology metastability + 3 sub-types:
+      Inventory/Combat/Social).
+    * 4.6 — конверсионные цепи Зубека (source→sink, profitable/lossy
+      cycles, dynamic profitability tuning).
+    * 4.7 — 5 вопросов Гэри (cycle/conflict/resources 3 types/
+      interaction 5 types/goal 3 types).
+    * 4.10 — 7 патологий: Runaway, Deadlock, Stall, Grind, Frustration
+      Plateau, Disconnected Loops, Loop Overload.
+    * 4.11 — 7-шаговый метод: aesthetic→type, 5 questions Гэри, scale by
+      genre, conversion cycle, nested loops, pathology check, prototype.
+- Проверил все 10 test_projects/*/02_coreloop.json через Python script:
+  - Все 10 проектов: first_action="Find target (explore)" (identical
+    hardcoded template).
+  - Все 10 проектов: 9 currencies (signal, energy, ammo, xp, gold, power,
+    ability, rest, save — одинаковый набор).
+  - Все 10 проектов: dead_resources=["signal","xp","power","ability","rest",
+    "save"] (6 шт.) + unsourced_consumables=["energy","ammo"] (2 шт.).
+  - Все 10 проектов: loop_closedness.is_closed=true (всегда true).
+  - Все 10 проектов: Brittleness pathology помечена (default template
+    ставит 1 mechanic per step → steps.every(s => s.mechanics.length <= 1)
+    всегда true).
+  - 9/10 проектов: overall_passed=true (score=0.8, checklist=4/5). Только
+    04_Crystal_Cascade (puzzle) overall_passed=false из-за stuck_state
+    critical pathology.
+  - 3 проекта (tower_defense/rhythm/puzzle): sub_type="hybrid_engine"
+    (paradox: при mechanics.length=3 logic должна дать "hybrid_economy",
+    но JSON показывает "hybrid_engine" — расследование через git log
+    показало что commit 912b9fc "de-template block algorithms" на ветке
+    feature/ux-fixes-and-onboarding, НЕ слит в nextjs-port; возможно
+    расхождение между кодом и test outputs из-за stale dev server).
+- Проверил test_projects/01_Shadow_Depths/01_concept.json: Block 1
+  emitted mechanic_set с русскими именами (Изучение мира, Броня, Очки
+  опыта), но Block 2 test driver (scripts/run_pipeline_test.sh:98)
+  передаёт hardcoded mechanics:["explore","combat","reward"] (3
+  элемента, английские). Это вызывает fallback в buildSteps: m3="progress",
+  m4="return".
+- Проверил git log для route.ts: 7 коммитов affecting this file, последний
+  1db9d70 (25 июля, phase-1 security hardening). Commit 912b9fc "de-template
+  block algorithms" (25 июля, 17:44) на feature/ux-fixes-and-onboarding
+  branch, НЕ на nextjs-port — содержит частичное исправление bilingual
+  bug (русские mechLabel), но не слит.
+- Проверил prisma/schema.prisma (model ProjectCoreLoop, строки 135-160):
+  НЕТ полей aiInsights, modelsUsed, latencyMs — только fullProfile JSON.
+- Проверил src/lib/pipeline-helpers.ts (buildPreparedInput, строки
+  296-425): для blockId=2 возвращает upstream.concept.mechanic_set, но НЕ
+  извлекает mechanics: string[] для прямого использования. Frontend
+  (page.tsx:93-95) ожидает data.mechanics как array, но получает
+  data.upstream.concept.mechanic_set.base (другая структура).
+- Проверил LS src/app/api/v1/coreloop/: только design/route.ts — НЕТ
+  GET /coreloop/[projectId] route. Фронтенд не может загрузить
+  существующий core loop, только re-design через POST.
+- Составил детальный план рефакторинга: 20 задач с приоритетами (🔴🟡🟢),
+  сложностью (S/M/L/XL), конкретными решениями (с код-примерами для
+  каждого type-specific builder'а: Engine/Economy/Ecology/Hybrid/
+  Tower_defense/Rhythm/Puzzle), тест-кейсами, рисками и dependencies.
+- Сохранил план в docs/audit/REFACTOR_PLAN_block_2.md (~2497 строк).
+
+Stage Summary (ключевые находки глубокого аудита):
+
+КРИТИЧНЫЕ ДЕФЕКТЫ (подтверждены на всех 10 test_projects):
+- 🔴 buildSteps default template полностью захардкожен: 5 шагов
+  "Find target (m0) / Engage (m1) / Collect rewards (m2) / Upgrade (m3)
+  / Return to base (m4)" — type-параметр принимается, но игнорируется.
+  Механики лишь подставляются в строку action, не формируют структуру.
+  Все 10 test_projects имеют идентичный first_action="Find target
+  (explore)" независимо от жанра/типа.
+- 🔴 4 Bible патологии отсутствуют: Grind, Frustration Plateau,
+  Disconnected Loops, Loop Overload (Bible 4.10.4-4.10.7). Реализованы 4
+  НЕ библейских: Brittleness, Oscillation, Stagnation, Triviality.
+  Brittleness всегда срабатывает для default template (mechanics.length<=1
+  per step).
+- 🔴 loop_closedness.is_closed=true ВСЕГДА (строки 559-563). Никакой
+  реальной проверки замкнутости через resource flow.
+- 🔴 Default template гарантирует 6 dead_resources (signal, xp, power,
+  ability, rest, save) + 2 unsourced_consumables (energy, ammo) — для
+  всех 10 test_projects. Bible 4.11.4 нарушено.
+- 🔴 Тип классификации по жанру (GENRE_DEFAULT_LOOP_TYPE), не по эстетике
+  (Bible 4.11.1: Вызов→Engine, Открытие→Economy, Товарищество→Ecology,
+  Подчинение→Engine). concept.aestheticProfile не используется.
+- 🔴 customSteps mode ГАРАНТИРУЕТ утечки ресурсов: positive→produces
+  ["xp","score"] (dead), negative→consumes ["energy"] (unsourced).
+- 🔴 overallPassed threshold `>=4` из 5 позволяет пройти с 1 проваленной
+  проверкой. 9/10 test_projects проходят несмотря на 6 dead_resources.
+
+СРЕДНИЕ ДЕФЕКТЫ:
+- 🟡 sub_type для tower_defense/rhythm/puzzle = "hybrid_engine" или
+  "hybrid_economy" через meaningless `mechanics.length % 2` parity.
+- 🟡 resources.class_ fallback к "balance_state" для всех non-engine/
+  economy типов — tower_defense/rhythm/puzzle получают wrong class.
+- 🟡 hasBraking = `type !== "engine" || subType === "braked_engine"` —
+  все non-engine типы получают has_braking=true по умолчанию.
+- 🟡 `||` в pathology detection: `likely.includes(name) || <condition>`
+  — патология срабатывает даже если не "likely", но condition true.
+  Stall срабатывает для всех ecology (likely) несмотря на positiveCount>0.
+- 🟡 5 вопросов Гэри (Bible 4.7, 4.11.2) НЕ реализованы.
+- 🟡 Масштаб по жанру (Bible 4.11.3, таблица 4.8.3) НЕ реализован —
+  duration_estimate захардкожен 6/10/4/8/5 сек.
+- 🟡 Substring matching в pathology detection: m.includes("progress"),
+  m.includes("build") — не работает для русских имен MechanicsDB, нет
+  word boundaries.
+- 🟡 ai_insights, models_used, latency_ms НЕ персистятся в отдельные
+  колонки Prisma — только внутри fullProfile JSON. Schema не имеет
+  соответствующих полей.
+- 🟡 Нет GET /coreloop/[projectId] route — только POST /design. Фронтенд
+  не может загрузить существующий core loop без re-design.
+- 🟡 enrichCoreLoop prompt generic — не передаёт pathologies,
+  dead_resources, gary_five_questions. LLM даёт 3 общих совета.
+- 🟡 HIERARCHY_LEVELS scale mismatch с Bible 4.3: medium (5-10 min) ↔
+  Long-term Cognitive (min-hr), large (15-30 min) ↔ Social (hr-days),
+  macro (hours) ↔ Emotional (hr-weeks).
+- 🟡 inner_loops/outer_loops — массивы с 1 элементом каждый; meta_loop —
+  single object, не массив. Несоответствие типов. loops array в
+  structuralType содержит только 2 элемента (inner, outer), не 6 (Bible 4.3).
+- 🟡 GENRE_DEFAULT_LOOP_TYPE имеет ключ rhythm:"engine" (жанр rhythm →
+  engine), но rhythm также валидный desired_loop_type. Аналогично
+  tower_defense:"economy", puzzle:"hybrid". Конфликт имён.
+- 🟡 Test driver (scripts/run_pipeline_test.sh:98) передаёт hardcoded
+  mechanics:["explore","combat","reward"] — не использует реальные
+  mechanic_set из Block 1.
+
+СЛАБЫЕ ДЕФЕКТЫ / ДОЛГ:
+- 🟢 hierarchyDepth=6 хардкод в обоих Prisma create/update — хотя
+  Object.keys(loopHierarchy).length всегда 6.
+- 🟢 PATHOLOGY_TYPES константа объявлена (строки 71-80), но НИГДЕ не
+  используется.
+- 🟢 `void safeJsonParse;` (строка 938) — dead code, linter workaround.
+- 🟢 stagesCompleted = [1, 2, 3, 4, 5] — всегда одинаковый массив, не
+  отражает реальные стадии.
+- 🟢 models_used hardcoded strings ("deterministic-coreloop-v1",
+  "sellers-typology", "pathology-detector-v1") — не actual model
+  identifiers.
+- 🟢 Нет unit/integration тестов для Блока 2.
+- 🟢 riskLevel="low" для tower_defense/rhythm/puzzle — не отражает
+  реальные риски (tower_defense: wave imbalance, snowball; rhythm: tempo
+  drift; puzzle: stuck state). likelyPathologies=[] для этих типов.
+
+План рефакторинга: 20 задач
+- 🔴 6 критичных: TASK-2.1 (параметризовать buildSteps, XL), TASK-2.2
+  (тип по эстетике, M), TASK-2.3 (7 Bible патологий, L), TASK-2.4 (real
+  closedness, M), TASK-2.8 (убрать dead_resources, M), TASK-2.16
+  (overallPassed threshold, S).
+- 🟡 11 средних: TASK-2.5 (sub_types для TD/Rhythm/Puzzle, M), TASK-2.6
+  (5 вопросов Гэри, M), TASK-2.7 (масштаб по жанру, S), TASK-2.9 (customSteps
+  fix, M), TASK-2.10 (|| → && logic, S), TASK-2.11 (hasBraking, S),
+  TASK-2.12 (substring matching, M), TASK-2.13 (Prisma колонки, M),
+  TASK-2.14 (GET route, S), TASK-2.18 (enrichCoreLoop prompt, S).
+- 🟢 4 низких: TASK-2.15 (dead code, S), TASK-2.17 (riskLevel для
+  TD/Rhythm/Puzzle, S), TASK-2.19 (multi-entry loops, M), TASK-2.20
+  (unit-тесты, L).
+
+Структура плана: для каждой задачи — описание проблемы с цитатами кода,
+конкретное решение с код-примерами (включая 7 type-specific builder'ов
+для buildSteps: Engine/Economy/Ecology/Hybrid/Tower_defense/Rhythm/Puzzle),
+тест-кейсы, риски, dependencies. Общая оценка: 50-70 часов (без TASK-2.20),
+70-95 часов (с TASK-2.20).
+
+Файл плана: docs/audit/REFACTOR_PLAN_block_2.md (~2497 строк).

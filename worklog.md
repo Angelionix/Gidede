@@ -2009,3 +2009,442 @@ PAT не имеет прав на переименование веток. Ин�
 - Health endpoint: ✅ 200.
 - 55 junk files removed.
 - Docker + deployment + testing docs created.
+
+---
+Task ID: audit-blocks-1-4
+Agent: general-purpose
+Task: Аудит алгоритмов Блоков 1-4 пайплайна Gidede
+
+Work Log:
+- Прочитал /home/z/my-project/repos/Gidede/worklog.md для контекста (Task 2-a
+  реализовал 4 маршрута; Task 22 добавил MechanicsDB; Task 25/26 подключили
+  AI-enrichment флаг use_ai в Блоках 2-6).
+- Прочитал спецификации Библии: bible_2_2_elements.md (Concept/MechanicsDB),
+  bible_2_3_mda_framework.md, bible_2_4_core_loop.md, bible_2_5_balance.md.
+- Прочитал реализации: src/app/api/v1/{concept,coreloop,mda,balance}/...
+  route.ts (4 файла, ~3600 строк), src/lib/mechanics-db.ts (1538 строк),
+  src/lib/ai-service.ts (функции enrichConcept/CoreLoop/Mda/Balance),
+  src/types/{concept,coreloop,mda,balance}.ts, src/constants/..., src/config/
+  {genres,aesthetics}.ts, ValidationReportView.tsx, ReverseMDAPanel.tsx.
+- Инспектировал сохранённые outputs из 10 test_projects/*.json — обнаружил,
+  что ВСЕ 10 файлов 04_balance.json содержат 422-ошибку валидации (тестовый
+  скрипт передаёт неверное поле `elements` вместо `objects`).
+- Запустил mechanics-db.ts через bunx tsx — подтвердил что
+  compatibility_score для "rpg" = 0 (MechanicsDB genres:[] для всех 128
+  механик).
+- Написал детальный отчёт по 4 блокам (см. ниже в Stage Summary).
+
+Stage Summary (ключевые находки):
+
+БЛОК 1 (Concept, algorithm 3.1):
+- 🔴 MechanicsDB имеет genres:[] для ВСЕХ 128 механик → compatibility_score
+  ВСЕГДА 0 → флаг "credible" всегда false → warnings и низкий feasibility.
+  Подтверждено для всех 10 test_projects.
+- 🔴 "Матрица Механика → Жанр" из Bible 2.2.5 (127 механик × 6 жанров с
+  трёхуровневой оценкой) — полностью отсутствует в реализации.
+- 🟡 GENRE_AESTHETICS содержит невалидные эстетики "competition" и "strategy"
+  (это Yee motivations, не Hunicke 8) — используется `as unknown as string`
+  cast. Ломает downstream deriveDynamics (fallback to ["exploration"]).
+- 🟡 pickAesthetics: substring-поиск ("build" матчит "deck-building") +
+  дубликаты primary/secondary/tertiary (найдено в Card_Lords: expression/
+  discovery/expression).
+- 🟡 /concept/[id]/validate/route.ts — СТЫБ: не пересчитывает Triangle of
+  Weirdness / 5 questions / 8 filters. Считает только существование полей
+  (25+25+25+25=100). Возвращает другой schema (overall_score 0-100 vs 0-1 в
+  generate route, поля triangle_of_weirdness vs triangle_check).
+- 🟢 enrichConcept (LLM) — корректная реализация с JSON-parsing и fallback.
+
+БЛОК 2 (Core Loop, algorithm 3.2):
+- 🔴 buildSteps: ЖЁСТКО закодированный 5-шаговый шаблон ("Find target" →
+  "Engage" → "Collect rewards" → "Upgrade" → "Return to base"). Параметр
+  `type` передаётся, но не используется. Mechanics просто подставляются в
+  строку action.
+- 🟡 Bible 4.10 определяет 7 патологий: Runaway, Deadlock, Stall, Grind,
+  Frustration Plateau, Disconnected Loops, Loop Overload. Реализованы только
+  первые 3 + 4 НЕ БИБЛЕЙСКИХ: brittleness, oscillation, stagnation, triviality.
+  4 bible-патологии пропущены.
+- 🟡 Bible 4.11.1: structural type должен определяться aesthetic (Вызов→Engine,
+  Открытие→Economy, Товарищество→Ecology, Подчинение→Engine). Реализация
+  использует GENRE_DEFAULT_LOOP_TYPE (по жанру, не по эстетике).
+- 🟡 Bible 4.11.2: Шаг 2 (5 вопросов Гэри — formulation в одном предложении)
+  не реализован.
+- 🟡 Bible 4.11.3: Шаг 3 (масштаб по жанру: 10с шутер → 15мин стратегия) —
+  длительности хардкод (6/10/4/8/5сек для default 5-step template).
+- 🟢 Стадия 4 (resource sufficiency: dead_resources / unsourced_consumables)
+  — корректная реализация. Stage 6 (pathology recommendations) — хорошо.
+- 🟢 Type-specific pathologies для tower_defense/rhythm/puzzle — сильная
+  сторона (расширяет Bible), хотя и не упоминается в спецификации.
+
+БЛОК 3 (MDA, algorithm 3.3):
+- 🔴 buildClassicMDA: predicted_aesthetics[a] проверяет только ПЕРВУЮ
+  динамику эстетики (AESTHETIC_TO_DYNAMICS[a][0]), игнорируя остальные 2.
+  + genre-default mechanics никогда не overlap с DYNAMICS_TO_MECHANICS.
+  Результат: overall_match ВСЕГДА 0, converged ВСЕГДА false, iterations ВСЕГДА 3.
+  Подтверждено: Shadow_Depths — overall_match=0, converged=false.
+- 🟡 Bible 3.5.4: маппинг "Эстетика → Динамика → Механика" — реализован
+  частично. DYNAMICS_TO_MECHANICS использует вымышленные mechanic_id
+  ("difficulty_settings", "voice_acting"), не MechanicsDB-имена
+  ("Древо технологий", "Здоровье"). Поэтому совместимость с mechanic_set
+  из Block 1 = 0.
+- 🟡 EMERGENCE_BADGES (constants/mda.ts) не содержит "moderate" — это
+  значение по умолчанию в route. UI fallback на "nominal" — неверный badge.
+  "multiple" — определён, но никогда не производится.
+- 🟡 Lens #41 (Доминантная стратегия): issues_found="Possible dominant
+  strategy detected" добавляется ТОЛЬКО если score > 0.7 — backwards logic
+  (высокий score = плохо?). Должно быть < 0.5.
+- 🟡 buildBondValidation: ludonarrative.result всегда "Гармония" (hardcoded),
+  независимо от mechanic set. Матрица 4×3 содержит canned contents.
+- 🟡 compatibility_score формула: 50 + patterns*8 + aestheticCoverage*2.
+  patterns = 5 (4 всегда present), aestheticCoverage ≤ 8. Даёт 70-100 всегда.
+  Не отражает реальную совместимость.
+- 🟢 9 Shell lenses выбраны правильно (Тетрада #9, Единство #11, Резонанс #12,
+  Эмерджентность #30, Пространство действий #31, Треугольность #40,
+  Доминантная стратегия #41, Кривая интереса #69, Свобода #74) — соответствует
+  Bible 3.6.2.
+- 🟢 Bond matrix 4×3 с row/col consistency + ludonarrative pairs — структура
+  соответствует Bible 3.7.1.
+
+БЛОК 4 (Balance, algorithm 3.4):
+- 🔴 Pipeline test script (scripts/run_pipeline_test.sh:108-112) передаёт
+  `elements: [{name:"sword",cost:100,power:50}]` вместо `objects:
+  BalanceObject[]`. ВСЕ 10 test_projects/04_balance.json содержат 422-ошибку
+  "Поле 'objects' обязательно и должно содержать минимум 2 объекта". Block 4
+  НИКОГДА не тестировался end-to-end в pipeline runner.
+- 🟡 cost-power curve: `power = 0.6 * cost^0.8` — hardcoded константы, не
+  выведены из game data. Bible 5.4.1 требует реверс-инжиниринг из "ванильных"
+  карт. Bible 5.4.3: triangular `y=(x²−x)/2` рекомендована как первая попытка —
+  не используется.
+- 🟡 Bible 5.5.1: "Formula диапазона" `((Max−Min)×%)+Min` и fulcrum (5.5.2)
+  — не реализованы. Route использует O(n) попарное сравнение с кривой, не
+  fulcrum-подход.
+- 🟡 Bible 5.5.3: weights должны быть ВЫШЕ для важных атрибутов. Route даёт
+  equal weights = 1/attrCount. Не соответствует "контринтуитивному выводу"
+  Библии.
+- 🟡 Bible 5.7-5.8: Markov chains (5.8.1) и recursive EV (5.8.2) — НЕ
+  реализованы. Monte Carlo = 200 итераций с Math.random + payoff bias.
+  seed = "Math.random" (non-deterministic) — результаты не воспроизводимы.
+- 🟡 buildIntransitiveResult: cyclicalBias искусственно вводит RPS-структуру
+  (i beats (i+1)%n с bias 0.4). Это делает is_intransitive=true для n>=3
+  почти всегда, но это артефакт алгоритма, не реальный анализ.
+- 🟡 buildMachinationsResult: simulation model `value = value - dmg + hp*0.05
+  + noise` — упрощённая, не учитывает resource flows из graph. runs: 10
+  hardcoded, хотя в коде только 1 simulation per object.
+- 🟡 buildStability: machinationsResult.feedback_loops может быть undefined
+  (когда runMachinations=false) — есть guard, но `as unknown as` cast
+  указывает на type-system слабость.
+- 🟢 TransitiveResult: 4 статуса (overpowered/underpowered/balanced/
+  ideal_imbalance) с thresholds 0.25/0.1 — соответствует "идеальному
+  дисбалансу" Портноу (Bible 5.3.4, ~10-15%).
+- 🟢 Intransitive: nash_equilibrium, strategy_balance (entropy+max_share+gini),
+  RPS cycle detection, dominated_strategies — богатый набор метрик.
+- 🟢 Monte Carlo: win_rates, matchup_matrix, Spearman ranking_correlation,
+  verdict (GOOD/MODERATE/POOR) — хорошо структурировано.
+- 🟢 Schema соответствует src/types/balance.ts (FullBalanceResponse) — типы
+  согласованы.
+
+Cross-block issues:
+- 🔴 /home/z/my-project/repos/Gidede/worklog.md Task ID 25 утверждал "AI
+  enrichment wired for Blocks 3,4,5,6" — НО в Block 4 route AI enrichment
+  вызывается ПОСЛЕ `updateProjectStage` и ПОСЛЕ `return NextResponse.json`
+  preparation, но ПЕРЕД return. Из-за этого ai_insights попадает в response,
+  но НЕ попадает в сохранённый `fullResult` JSON (Persists happens before
+  enrichment). То же самое в Block 3. В Block 2 сохраняется fullProfile
+  через `const fullProfile = JSON.stringify(result)` ПОСЛЕ enrichment —
+  корректно. В Block 1 — inputData/onePagerData сохраняются отдельно, AI
+  text только в response. Несогласованность между блоками.
+- 🟡 AI system prompt (ai-service.ts:63) содержит китайские символы "除非"
+  ("unless"). Также в enrichGddSection prompt (line 333): "перепиши и扩充
+  эту секцию" ("扩充" = expand). Очевидно — переводные артефакты.
+- 🟡 Все 4 маршрута импортируют safeJsonParse "for future use" и тут же
+  делают `void safeJsonParse` чтобы удовлетворить linter — dead code.
+
+Overall:
+- Все 4 блока возвращают structurally-валидный JSON, не падают, persist в Prisma.
+- Главные критические проблемы: MechanicsDB genres=[], hardcoded 5-step
+  core loop, MDA overall_match всегда 0, тестовый скрипт не передаёт objects
+  в Block 4. Эти 4 бага делают детерминированные результаты по сути
+  бесполезными для реального game-design анализа.
+- AI-enrichment (use_ai=true) частично спасает ситуацию — добавляет
+  осмысленный текст, но не исправляет структурные проблемы алгоритмов.
+
+---
+Task ID: audit-blocks-5-8
+Agent: general-purpose
+Task: Аудит алгоритмов Блоков 5-8 пайплайна Gidede
+
+Work Log:
+- Прочитал /home/z/my-project/repos/Gidede/worklog.md для контекста (Task 25/26
+  подключили AI-enrichment флаг use_ai в Блоках 2-6; Task audit-blocks-1-4
+  выявил MechanicsDB genres=[], hardcoded 5-step core loop, MDA overall_match=0,
+  pipeline test передаёт неверное поле `elements` в Block 4).
+- Прочитал спецификации Библии:
+  - bible_2_6_economy_progression.md (640 строк): 6.6 progressions, 6.7 curves,
+    6.8 feedback loops (8-dim profile), 6.9 conversion chains (profitability),
+    6.10 pathologies (inflation/stagnation/arbitrage/runaway/deadlock/stall),
+    6.11 faucets/drains, 6.13 formal model + 7-step analysis algorithm +
+    12-point validation checklist.
+  - bible_2_11_gdd_templates_checklists.md (782 строки): 11.3 formats (One-Sheet
+    / Ten-Pager / Treatment / Full GDD 38 секций / Modular 13 модулей),
+    11.5 checklists (113 линз Шелла, 8 фильтров, 7 Роллингс/Моррис, 6 Аптона,
+    7 Бонд, 5 Фуллертон, 4+3 Бонд), 11.6 Universal Design Validator 10 уровней,
+    11.6.2 adaptive prioritization per genre, 11.7 templates, 11.8 pipeline.
+- Прочитал реализации:
+  - src/app/api/v1/progression/design/route.ts (644 строки)
+  - src/app/api/v1/economy/design/route.ts (821 строка)
+  - src/app/api/v1/gdd/generate/route.ts (1065 строк)
+  - src/app/api/v1/gdd/checklist/route.ts (121 строка) — STUB
+  - src/app/api/v1/checklists/[action]/route.ts + checklist/[action]/route.ts
+    (используют lib/checklist-logic.ts, 743 строки)
+  - src/app/api/v1/gdd/auto-fill/route.ts (65 строк)
+  - src/app/api/v1/gdd/map/route.ts (59 строк)
+  - src/app/api/v1/gdd/export/route.ts (320 строк)
+  - src/lib/ai-service.ts: enrichProgression, enrichGdd, enrichGddSection (dead
+    code — не вызывается ни из одного route)
+- Инспектировал сохранённые outputs из test_projects/01_Shadow_Depths/:
+  05_progression.json, 06_economy.json, 08_checklist.json — подтвердили
+  конкретные баги (см. ниже).
+
+Stage Summary (ключевые находки):
+
+БЛОК 5a (Progression, algorithm 3.5):
+- 🟡 Bible 6.7.3 расширяет до 7 типов кривых (добавляет Logarithmic, Triangular
+  `y=(x²−x)/2`, Obfuscation). Реализованы только 5 (linear/exponential/
+  diminishing/s_curve/intermittent/custom). Triangular, logarithmic,
+  obfuscation — отсутствуют.
+- 🟡 Bible 6.7.1 формула воспринимаемой сложности `(Cv + Cs) − (Pv + Ps)`
+  НЕ реализована. Route использует `target = 0.2 + (lvl/totalLevels)*0.7`
+  (линейный) и `enemyPower = powerCurve.points[lvl-1] * 1.1` (×1.1 от
+  player power). Strategic challenge (Cs) и player skill (Ps) игнорируются.
+- 🟡 Bible 6.6.4 D&D 4 этапа (1-4/5-10/11-16/17-20, по 4-7 уровней каждый).
+  Реализация: 5 тиров (Onboarding/Foundation/Expansion/Mastery/Endgame) с
+  hardcoded порогами (1-3/4-10/11-25/26-60/60+), tier scale по индексу, не
+  по уровням.
+- 🟡 TIER_ARCHETYPES (строки 52-98) — 5 фиксированных архетипов, не зависят
+  от genre. Архетип для tier 1 всегда Onboarding/micro/tutorial, независимо
+  от того, 3 уровня в игре или 60.
+- 🟡 unlockNames (строки 362-373) — 10 hardcoded имён с leading space в
+  " elemental_attack" (баг). Для targetLevels > 100 все unlocks после 10-го
+  получают имя "prestige_reset" (через Math.min cap).
+- 🟡 economyLink (строки 581-588, 609-616) — hardcoded `primary_resources:
+  ["xp", "gold"]` и `conversion_chains: ["xp→level", "gold→items"]` для ВСЕХ
+  жанров. Для shooter должно быть score/ammo, для strategy — wood/food/gold.
+- 🟢 5 кривых реализованы корректно с формулами и точками. buildCurve
+  (строки 122-187) — рабочая функция.
+- 🟢 Validation checks (no_runaway, no_grind, no_build_gaps) — reasonable
+  heuristics. XP runaway ratio > 1000 (critical) / > 200 (warning) —
+  срабатывает для exponential 50 уровней (ratio 942x → warning, подтверждено
+  в 05_progression.json).
+- 🟢 AI enrichment (enrichProgression) — корректный LLM-вызов с fallback.
+
+БЛОК 5b (Economy, algorithm 3.6):
+- 🔴 НЕТ функции `enrichEconomy` в ai-service.ts. Economy route (строка 29)
+  импортирует `enrichProgression` и вызывает её с `totalLevels:
+  resources.length` (6 для RPG). AI даёт advice по progression (кривые, тиры,
+  content gates) вместо economy (faucets/drains, conversion cycles,
+  pathologies). Подтверждено в 06_economy.json: ai_insights начинается
+  "1. Для RPG-проекта Shadow_Depths с 6 уровнями оптимальна логарифмическая
+  кривая прогрессии..." — разговор о прогрессии, не об экономике.
+- 🔴 Bible 6.4.1 Machinations library: 16+ паттернов (Static Engine, Dynamic
+  Engine, Converter Engine, Engine Building, Static Friction, Dynamic
+  Friction, Stopping Mechanism, Escalating Challenge, Escalating Complexity,
+  Arms Race, etc.). Реализация знает только 5 абстрактных паттернов
+  (source_pool_drain, converter_chain, consumable_burn, ecological_balance,
+  engine_accumulator) — строки 305-310. Library не реализована.
+- 🔴 Bible 6.8.2 8-мерный профиль петли ОС (Type, Effect, Investment, Return,
+  Speed, Duration, Indirectness, Determinism). FeedbackLoop interface
+  (строки 75-80) имеет только `nodes, loop_type, strength, description` —
+  4 поля вместо 8. Петли HARDCODED: всегда reinforcing "anchor→converter→
+  consumable→anchor" + balancing "anchor→drain_sink→anchor" (строки 292-303),
+  не выводятся из ресурсов.
+- 🔴 feedback_loops nodes содержат строковые литералы "converter" и
+  "consumable" (строка 293) — НЕ существующие node IDs. Это абстрактные
+  метки, не реальные узлы графа. Любой downstream-анализ, ссылающийся на
+  эти ID, упадёт.
+- 🔴 Bible 6.9.1 Conversion chains: `Курс_обмена = Выход / Вход`,
+  `Прибыльность = Курс × Частота − Альтернативные_издержки`. Реализация
+  (строка 353): `profitability = 0.8 + Math.random() * 0.4` — RANDOM число
+  0.8-1.2, не выведено из actual flows. Non-deterministic, не имеет
+  отношения к экономике.
+- 🔴 faucetDrain (строки 681-687) — значения hardcoded по class:
+  `is_catalytic ? 1.0 : currency ? 0.8 : 0.4` для faucet,
+  `is_consumable ? 0.6 : currency ? 0.7 : 0.3` для drain. Для RPG preset
+  ВСЕГДА: mana и materials (catalytic) получают faucet=1.0, drain=0.3 →
+  ratio=3.33 → ВСЕГДА 2 critical "Инфляция" pathologies для любого RPG.
+  Circulus vitiosus: диагноз определяется class, а class задаётся preset.
+- 🔴 simulate (строки 495-582): `value = value + d.faucet - d.drain + noise`
+  где `noise = (Math.random() - 0.5) * 0.2`. Non-deterministic — результаты
+  не воспроизводимы между запусками. `num_runs: 10` в config (строка 570) —
+  hardcoded, НО реальный цикл runs отсутствует (выполняется 1 run, не 10).
+  "aggregated" misleading — нет усреднения по runs.
+- 🔴 stallCount (строка 544): `rMax <= r.bounds.min + (max-min)*0.05`. Для
+  gold/hp с bounds.max=10000 (hardcoded в строке 621) порог = 500. Значения
+  колеблются 50→55 — ВСЕГДА stalled. Подтверждено: stall_frequency=0.5
+  (3 из 6 ресурсов stalled: gold, hp, stamina). Это artefact от
+  disproportionately-large bounds, не реальный stall.
+- 🟡 detectPathologies (строки 387-445): только 3 патологии из Bible 6.10
+  (Инфляция/Дефляция/Стагнация/Убегание). Bible определяет 6 (inflation,
+  stagnation, arbitrage, runaway, deadlock, stall). Arbitrage и deadlock
+  НЕ реализованы.
+- 🟡 Bible 6.13.4 validation checklist (12 пунктов): связность, баланс
+  кранов/сливов, нет runaway, нет deadlock, нет stall, прогрессия
+  определена, фазы экономики, инфляция под контролем, стагнация
+  предотвращена, арбитраж невозможен, глубина решений, доступность.
+  Реализация проверяет ~4 из 12.
+- 🟢 classifySystemType (строки 135-190) — корректная эвристика
+  Engine/Economy/Ecology по Sellers (Bible 6.3.2).
+- 🟢 proposeAdjustments (строки 454-493) — конкретные new_rate с
+  reason. Полезно для actionability.
+- 🟢 Simulation produces time series + ranges + stability_index —
+  концептуально соответствует Bible 6.11.3 Step 8.
+
+БЛОК 6 (GDD Generator, algorithm 3.7):
+- 🔴 Bible 11.3.3 Full GDD = 38 секций в 8 блоках. Реализация FORMAT_SECTIONS
+  .full_gdd (строки 101-123) — только 21 секция. Missing ~17: Управление (8),
+  Камера (10), Режимы игры (14), Диалоги (17), Квесты (18), Лор и мир (19),
+  Структура мира (20), Дизайн уровней (21), Навигация (22), Боевые
+  пространства (23), Ресурсы (24), Дерево технологий (26), HUD и UI (28),
+  Меню (29), Визуальный стиль (30), Звук (31), Режимы (32), Социальные (33),
+  Мета-игра (34), Тех. требования (35), Платформа (36), Milestones (38).
+- 🔴 Bible 11.3.4 Modular documentation = 13 модулей (M-01..M-13).
+  Реализация FORMAT_SECTIONS.modular (строки 143-154) — только 10 секций.
+  Missing: UI/UX Spec, Audio Bible, Production Plan.
+- 🔴 deriveSectionContent narrative cases (строки 481-506): для "narrative",
+  "world_overview", "characters", "plot_arcs", "themes", "tone_voice",
+  "story_mechanics", "branching_structure" — ВСЕ возвращают одно и то же:
+  `JSON.stringify(mda.ludonarrativeCheck, null, 2)`. Раздел "characters"
+  получает тот же контент, что "world_overview" и "plot_arcs" — это баг.
+- 🔴 deriveSectionContent default case (строки 555-580): для "ux", "ux_flow",
+  "ui_mockups", "tech_notes", "tech_stack", "tech_bible", "art_bible",
+  "sound", "localization", "testing_plan", "risks", "team_fit",
+  "live_ops_plan", "overview" — возвращает placeholder "Section is under
+  construction". Для full_gdd это 10+ секций с placeholder text →
+  coverage_score ~50% даже при наличии всех upstream-данных.
+- 🔴 buildConsistencyReport (строки 583-678): только 3 типа проверок —
+  requires_review (warning), short_content <20 chars (info), 2 hardcoded
+  pair checks (core_loop+mechanics, aesthetics+narrative). Bible 11.6
+  Universal Design Validator 10 уровней НЕ реализован. Никаких checks на
+  logline, target aesthetic, Q-factor, SPS, ludonarrative dissonance,
+  dramatic arc, agency, flow, interest curve, 5 pleasure killers, 6 UI
+  principles, accessibility.
+- 🔴 /gdd/auto-fill/route.ts возвращает filled_sections с ключами
+  `title, genre, synopsis, gameplay, features, core_mechanics,
+  gameplay_overview, progression, economy, balance` — НЕ совпадает с
+  именами секций в FORMAT_SECTIONS (там "concept" вместо "synopsis",
+  "core_loop_summary" вместо "gameplay_overview"). Endpoint бесполезен
+  для generate route.
+- 🔴 /gdd/map/route.ts возвращает HARDCODED mapping (строки 25-39)
+  `title: "concept", genre: "concept", synopsis: "concept", ...` — не
+  инспектирует actual available data, просто возвращает статический словарь.
+- 🟡 deriveSectionContent вызывается ДВАЖДЫ для каждой секции (строки 746-776
+  для mappings, затем 800-819 для content). O(2N) без caching.
+- 🟡 has_formulas regex `/=|∑|∫|≤|≥/` (строка 897) — матчит любой "="
+  символ. Любой текст с "key=value" flagged как "has formulas".
+- 🟡 aiEnriched (строки 828-841) — misleading labels: "enriched_sections"
+  это просто секции с source="ai_enrich" (narrative с ludonarrativeCheck),
+  "generated_sections" это fallback text. Реального AI enrichment
+  per-section нет — только top-level ai_insights через use_ai flag.
+- 🟡 enrichGddSection функция существует в ai-service.ts (строки 318-357),
+  но НЕ вызывается ни из одного route. Dead code.
+- 🟡 mdToPdfLike fallback (строки 82-108): `escapedText.slice(0, 4000)` —
+  обрезает контент до 4000 символов. Для full_gdd (50 страниц) теряет
+  большую часть. Реальный PDF через skills/pdf/scripts/html2pdf-next.js
+  (Playwright), но fallback ущербный.
+- 🟢 8 форматов (one_sheet/ten_pager/treatment/sketch_design/full_gdd/
+  concept_doc/narrative_bible/modular) — шире Bible (4 формата).
+- 🟢 DETAIL_FACTOR multipliers (overview=0.5, standard=1.0, detailed=1.6,
+  exhaustive=2.3) — влияет на длину AI-generated секций.
+- 🟢 /gdd/export real DOCX через `docx` npm package с heading levels,
+  bullets, blockquotes, bold/italic parsing (строки 243-291). Real PDF
+  через Playwright с graceful fallback.
+
+БЛОК 6b (Checklist, algorithm 3.8):
+- 🔴🔴🔴 Bible 11.6 Universal Design Validator = 10 уровней, каждый с 5-10
+  checks (всего ~80+ проверок). Плюс 11.5: 113 линз Шелла, 8 фильтров,
+  7 Роллингс/Моррис, 6 Аптона, 7 Бонд, 5 Фуллертон, 4+3 Бонд = ещё ~140
+  checks. Итого ~220 checks в спецификации.
+  Реализация checklist-logic.ts имеет 5 check-functions с ~15 правилами
+  суммарно. НЕ реализовано: Level 7 (Level Design), Level 9 (Interface),
+  Level 10 (Documentation). НЕ реализованы: 8 фильтров, 6 Аптона, 7 Бонд,
+  5 Фуллертон, 4+3 Бонд. 113 линз НЕ применяются — runLensCheck только
+  читает ранее вычисленные lensValidation.results (из Block 3 MDA).
+- 🔴🔴🔴 /api/v1/gdd/checklist/route.ts — STUB, не использует
+  checklist-logic.ts! Hardcoded scores (строки 29-61):
+    mda_check.score = mdaProfile ? 80 : 0
+    balance_check.score = balanceResult?.overallBalanceScore || 0
+    economy_check.score = hasPathology ? 40 : 80
+    narrative_check.score = concept ? 70 : 0
+    lens_check.score = mdaProfile ? 75 : 0
+  Никакой реальной валидации. Pipeline test script (run_pipeline_test.sh)
+  вызывает /gdd/checklist, НЕ /checklist/validate. Подтверждено в
+  08_checklist.json: scores целые числа 80/0/40/70/75, overall_score=53.
+  Богатая реализация checklist-logic.ts — фактически dead code в
+  production pipeline.
+- 🔴 runMdaCheck (строки 184-257): только 3 проверки — mechanicSet keys
+  count, overallMatch threshold (0.5), lensValidation.overall_score
+  threshold (0.6). Не проверяет 9 Shell lenses (Bible 3.6.2), aesthetic
+  coverage, bond matrix.
+- 🔴 runBalanceCheck (строки 259-324): только 4 проверки —
+  overallBalanceScore thresholds, imbalanceCount > 3, pathologies > 0.
+  Bible 11.5.3 7-point Rolling/Morris checklist (PvP balance, игрок-
+  геймдизайнер, геймдизайнер-игрок, Q-factor, SPS, golden rule,
+  scalability) НЕ реализован.
+- 🔴 runNarrativeCheck (строки 326-392): только 3 проверки —
+  ludonarrative issues count, USP exists, narrative_bible genre needs
+  GDD. Bible 11.4.1 11 narrative document types НЕ валидируются.
+  Triangle of Weirdness, dramatic arc, agency levels — отсутствуют.
+- 🔴 runEconomyCheck (строки 394-452): только 3 проверки — hasPathology,
+  simResults.quality.overall_pass, stability_index < 0.5. Bible 6.13.4
+  12-point validation checklist (связность, deadlock, arbitrage, фазы,
+  доступность) НЕ реализован.
+- 🔴 runLensCheck (строки 454-493): итерирует lensValidation.results,
+  flags scores < 0.5. Не применяет 113 линз — читает pre-computed из MDA.
+- 🟡 buildSummary (строки 495-548): overall_score = `mdaScore*0.3 +
+  balanceScore*0.3 + narrativeScore*0.3 + 0.1` — hardcoded weights, fixed
+  0.1 baseline boost. Bible 11.6.2 adaptive prioritization per genre НЕ
+  реализована (для PvP-экшн должны быть критичны 3/4/9, для RPG — 6/5/8,
+  для F2P — 5/3/8).
+- 🟡 clamp(score) где score starts at 0.5 с ±0.1/0.2/0.3 adjustments —
+  score всегда в [0, 1]. 5 critical issues всё равно дают score ≥ 0.
+- 🟢 runChecklistValidation поддерживает per-checklist invocation через
+  action param (mda-check, balance-check, narrative-check, economy-check,
+  lens-check) — соответствует API contract.
+- 🟢 remediationPlan (строки 650-655) — каждый issue maps to action/
+  effort/impact. Полезно для prioritization.
+- 🟢 quick_wins (строки 534-540) — filters info/warning issues с effort
+  labels. Actionable.
+- 🟢 3 severities (error/warning/info) corresponding to 🔴🟡🟢 —
+  соответствует Bible 11.6.3 format отчёта.
+
+Cross-block issues:
+- 🔴 AI enrichment для Economy (Block 5b) использует enrichProgression
+  (не enrichEconomy). AI даёт progression advice вместо economy advice.
+- 🟡 enrichGddSection (ai-service.ts:318-357) — dead code, не вызывается
+  ни из одного route.
+- 🟡 Все 4 блока (5a, 5b, 6, 6b) persist `fullProfile:
+  JSON.stringify(result)` ДО добавления `ai_insights`. ai_insights
+  попадает в HTTP response, но НЕ в DB. Несогласованность с Blocks 1-4
+  (уже отмечено previous agent).
+- 🟡 models_used arrays — hardcoded strings ("deterministic-progression-v1",
+  "tier-archetype-v1", etc.), не actual model identifiers.
+- 🟡 /gdd/checklist (STUB) vs /checklists/[action] (rich) — два
+  параллельных API для одной функции. Pipeline test использует STUB.
+
+Overall:
+- Все 4 блока возвращают structurally-валидный JSON, не падают, persist в
+  Prisma.
+- Главные критические проблемы:
+  1. /gdd/checklist STUB не использует checklist-logic.ts → Universal
+     Design Validator (10 уровней, 113 линз) фактически не работает в
+     production pipeline.
+  2. Economy AI enrichment использует enrichProgression → AI advice
+     не относится к экономике.
+  3. Conversion chain profitability = Math.random() → non-deterministic,
+     не имеет отношения к actual flows.
+  4. feedback_loops nodes содержат строковые литералы "converter"/
+     "consumable" — несуществующие node IDs.
+  5. Full GDD имеет 21 секцию вместо 38 из Bible. Modular имеет 10
+     вместо 13.
+  6. deriveSectionContent narrative cases возвращают один и тот же
+     ludonarrativeCheck JSON для 8 разных narrative sections.
+- AI-enrichment (use_ai=true) добавляет осмысленный текст, но не
+  исправляет структурные проблемы алгоритмов.

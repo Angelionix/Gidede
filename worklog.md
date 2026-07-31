@@ -2448,3 +2448,142 @@ Overall:
      ludonarrativeCheck JSON для 8 разных narrative sections.
 - AI-enrichment (use_ai=true) добавляет осмысленный текст, но не
   исправляет структурные проблемы алгоритмов.
+
+---
+Task ID: refactor-plan-block-1
+Agent: general-purpose
+Task: Глубокий аудит Блока 1 (Генератор концепции) + детальный план рефакторинга
+
+Work Log:
+- Прочитал /home/z/my-project/repos/Gidede/worklog.md для контекста (Task
+  audit-blocks-1-4 уже выявил MechanicsDB genres=[], GENRE_AESTHETICS с
+  невалидными эстетиками "competition"/"strategy", STUB /concept/validate,
+  substring matching в pickAesthetics).
+- Прочитал /home/z/my-project/repos/Gidede/docs/audit/AUDIT_REPORT.md (586
+  строк) — подтверждены критические находки: compatibility_score=0 для всех
+  10 test_projects, cascade к triangle_check.credible=false всегда.
+- Полностью прочитал все файлы реализации Блока 1:
+  - src/app/api/v1/concept/generate/route.ts (728 строк)
+  - src/app/api/v1/concept/[id]/route.ts (44 строки)
+  - src/app/api/v1/concept/[id]/validate/route.ts (69 строк)
+  - src/lib/mechanics-db.ts (1537 строк, прочитал целиком)
+  - src/lib/ai-service.ts (972 строки, фокус на SYSTEM_PROMPT и enrichConcept)
+  - src/types/concept.ts (48 строк)
+  - src/constants/concept.ts (40 строк)
+  - src/config/genres.ts (43 строки, 29 жанров)
+  - src/config/aesthetics.ts (108 строк, Hunicke 8 + Yee 12)
+- Полностью прочитал спецификацию Библии:
+  - docs/bible/bible_2_1_fundament.md (482 строки, раздел 1.5 типологии механик)
+  - docs/bible/bible_2_2_elements.md (355 строк, раздел 2.2.5 MechanicsDB
+    5-уровневая таксономия + матрица 127×6 жанров с 3-уровневой оценкой)
+- Прочитал shared types: shared/types/typescript/interfaces.ts (MechanicSet,
+  AestheticProfile, DynamicsProfile, ValidationReport, USPCandidate,
+  CoreLoopCandidate), shared/types/typescript/enums.ts (AestheticType,
+  Genre, LoopStructuralType, EmergencePotential).
+- Проверил Prisma schema (prisma/schema.prisma строки 106-129): модель
+  ProjectConcept НЕ имеет полей title, generationMetadata. ai_insights
+  не персистится.
+- Проверил MechanicsDB genres через grep:
+    grep -c "'genres': \[\]" src/lib/mechanics-db.ts → 128 (100% пустых)
+    grep -E "'genres': \[(.+)\]" | wc -l → 0 (ни одна механика не имеет
+    непустого genres массива)
+- Проверил все 10 test_projects/*/01_concept.json:
+    compatibility_score: 0 для ВСЕХ 10
+    triangle_check.credible: false для ВСЕХ 10
+    overall_score: 0.768 для 9, 0.63 для Frostbite (primary=submission)
+- Проверил китайские символы:
+    ai-service.ts:63 → "除非 пользователь просит подробнее"
+    ai-service.ts:333 → "перепиши и扩充 эту секцию"
+    mechanics-db.ts:293 (механика "Телепортация") → "Снижает摩擦 навигации"
+- Проверил bilingual core loop output в 01_Shadow_Depths/01_concept.json:
+    steps: ["Explore the world", "Encounter enemies", "Engage in Броня",
+           "Collect rewards", "Upgrade via Очки опыта"]
+    ← смешение английского и русского, существительные ("Броня" = Armor)
+      в позиции глаголов.
+- Проверил MechanicSet type bypass: shared type объявляет base: string[],
+  реализация возвращает base: Array<{name, group, desc}>. ConceptGenerationResult
+  использует Record<string, unknown> | null — type bypass.
+- Проверил GENRE_AESTHETICS: 4 жанра (fighting, tactical_rpg, tower_defense,
+  racing) используют невалидные эстетики "competition"/"strategy" через
+  `as unknown as string` cast.
+- Проверил buildMechanicSetForGenre: priorityGroups loop с break при count>=5
+  → после Базовые(2)+Боевые(2)+Прогрессия(2)=6 цикл останавливается →
+  Пространство/Экономика/Социальные/Движение НИКОГДА не заполняются →
+  fallback на GENRE_MECHANICS.default (английские имена map_exploration,
+  leaderboard, etc.) в route.ts:273-279.
+- Составил детальный план рефакторинга: 16 задач с приоритетами (🔴🟡🟢),
+  сложностью (S/M/L/XL), конкретными решениями (с код-примерами),
+  тест-кейсами, рисками и dependencies.
+- Сохранил план в docs/audit/REFACTOR_PLAN_block_1.md (~950 строк).
+
+Stage Summary (ключевые находки глубокого аудита):
+
+КРИТИЧНЫЕ ДЕФЕКТЫ (подтверждены):
+- 🔴 MechanicsDB: 128/128 механик имеют genres=[] (100% пустых) →
+  compatibility_score=0 для всех test_projects → cascade ломает
+  triangle_check.credible (всегда false), eight_filters.feasibility
+  (всегда 0.5), five_questions["Why would a player return tomorrow?"]
+  (всегда false), warning "Mechanic compatibility below 60%" всегда.
+- 🔴 /concept/[id]/validate — STUB, не пересчитывает Triangle/5Q/8Filters.
+  Возвращает ДРУГУЮ schema (0-100 vs 0-1, triangle_of_weirdness vs
+  triangle_check, idea_filters с 2 элементами vs eight_filters с 8).
+- 🔴 GENRE_AESTHETICS: 4 жанра используют невалидные эстетики "competition"
+  и "strategy" (Yee motivations, не Hunicke 8) через `as unknown as string`
+  cast → deriveDynamics fallback к неверным dynamics для fighting,
+  tactical_rpg, tower_defense, racing.
+- 🔴 buildMechanicSetForGenre: break при count>=5 ломает заполнение 2 из 5
+  категорий → fallback на английские имена из GENRE_MECHANICS.default,
+  несогласованность с русскими именами MechanicsDB.
+
+СРЕДНИЕ ДЕФЕКТЫ:
+- 🟡 buildCoreLoopCandidates: подставляет русские имена механик в английские
+  глагольные фразы → "Engage in Броня" (nonsensical bilingual output).
+- 🟡 4/8 idea filters захардкожены (clarity=0.8, market_fit=0.6,
+  emotional_impact=0.7, sustainability=0.65).
+- 🟡 2/5 core questions захардкожены true ("What is the core verb?",
+  "What does the player do moment-to-moment?").
+- 🟡 pickAesthetics: substring matching без word boundaries ("build" матчит
+  "deck-building"), дубликаты primary/tertiary для sandbox/visual_novel.
+- 🟡 GENRE_KEYWORDS overlap: "build" в strategy И sandbox → "deck-building"
+  получает genre=strategy вместо roguelike.
+- 🟡 buildUSPCandidates: slice(0,60)/slice(0,50) — несогласованные границы,
+  нет fallback для короткой идеи (<50 chars).
+- 🟡 ai_insights + generation_metadata + title НЕ персистятся в БД (schema
+  не имеет соответствующих полей). result.id = proj.id (project ID), но
+  GET /concept/[id] возвращает c.id (concept's own cuid) — inconsistency.
+- 🟡 MechanicSet shared type: base: string[], но реализация возвращает
+  Array<{name, group, desc}> — type bypass.
+- 🟡 Переводные артефакты: китайские символы "除非" (ai-service.ts:63),
+  "扩充" (ai-service.ts:333), "摩擦" (mechanics-db.ts:293).
+- 🟡 GENRE_AESTHETICS не содержит ключа "default", но pickAesthetics
+  ссылается на GENRE_AESTHETICS.default → TypeError для unknown genre.
+
+СЛАБЫЕ ДЕФЕКТЫ / ДОЛГ:
+- 🟢 Bible 2.2.5 требует 5-уровневую таксономию MechanicsDB (Level 0: 7
+  Шелла, Level 1: 5 Адамса/Дорманса, Level 2: 16 паттернов, Level 3: 127
+  SW.BAND, Level 4: жанровые шаблоны). Реализован только Level 3.
+- 🟢 Bible 2.2.5 требует «Матрицу Механика → Жанр» 127×6 с трёхуровневой
+  оценкой релевантности — полностью отсутствует.
+- 🟢 Top-down generation principle (aesthetics → dynamics → mechanics) не
+  соблюдён: реализация идёт bottom-up (genre → mechanics).
+- 🟢 Нет unit/integration тестов для Блока 1.
+- 🟢 Нет input validation: idea длиной >5000 chars может переполнить LLM
+  token limit, unknown genre может вызвать TypeError.
+
+План рефакторинга: 16 задач
+- 🔴 4 критичных: TASK-1.1 (MechanicsDB genres, XL), TASK-1.2
+  (compatibility_score каскад, M), TASK-1.5 (validate route реальный
+  пересчёт, M), TASK-1.6 (невалидные эстетики, S)
+- 🟡 9 средних: TASK-1.3 (8 filters, L), TASK-1.4 (5 questions, M),
+  TASK-1.7 (pickAesthetics, M), TASK-1.8 (buildMechanicSetForGenre, M),
+  TASK-1.9 (bilingual core loop, M), TASK-1.11 (persist ai_insights, M),
+  TASK-1.12 (китайские символы, S), TASK-1.13 (MechanicSet тип, M),
+  TASK-1.15 (input validation, M)
+- 🟢 3 низких: TASK-1.10 (USP candidates, S), TASK-1.14 (MechanicsDB
+  Levels 0-2, XL), TASK-1.16 (тесты, L)
+
+Структура плана: для каждой задачи — описание проблемы с цитатами кода,
+конкретное решение с код-примерами, тест-кейсы, риски, dependencies.
+Общая оценка: 30-50 часов (без TASK-1.14), 50-70 часов (с TASK-1.14).
+
+Файл плана: docs/audit/REFACTOR_PLAN_block_1.md (~950 строк).

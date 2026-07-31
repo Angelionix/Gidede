@@ -2782,3 +2782,251 @@ Stage Summary (ключевые находки глубокого аудита):
 70-95 часов (с TASK-2.20).
 
 Файл плана: docs/audit/REFACTOR_PLAN_block_2.md (~2497 строк).
+
+---
+
+## Task: refactor-plan-block-3
+**Date**: 2026-08-02
+**Agent**: refactor-plan-block-3 (sub-agent)
+**Status**: ✅ COMPLETED
+
+### Цель
+Глубокий аудит Блока 3 (MDA Lab) и детальный план рефакторинга на основе
+предыдущего аудита (AUDIT_REPORT.md, раздел 3) и планов для Блоков 1-2.
+
+### Что прочитано (полностью)
+- `src/app/api/v1/mda/analyze/route.ts` (875 строк) — все 7 стадий pipeline
+- `src/lib/ai-service.ts` (функция enrichMda, строки 547-583)
+- `src/types/mda.ts` (35 строк — плоские интерфейсы, потеря type safety)
+- `src/constants/mda.ts` (PRIORITY_LENSES, BOND_ELEMENTS, EMERGENCE_BADGES)
+- `src/config/aesthetics.ts` (Hunicke 8 + Yee motivations)
+- `prisma/schema.prisma` (модель ProjectMDAProfile, строки 166-192)
+- `docs/bible/bible_2_3_mda_framework.md` (463 строки, спецификация)
+- Все 10 test_projects/*/03_mda.json
+- `scripts/run_pipeline_test.sh` (строка 106 — pipeline runner bug)
+- `src/lib/pipeline-helpers.ts` (buildPreparedInput для blockId=3)
+- `src/app/api/v1/pipeline/prepare-input/[projectId]/[blockId]/route.ts`
+
+### Подтверждённые критические находки
+
+RC-1: overall_match = 0 ВСЕГДА для всех 10 test_projects
+- buildClassicMDA:402 берёт только [0] динамику эстетики (3 доступны):
+  `const mechs = DYNAMICS_TO_MECHANICS[(AESTHETIC_TO_DYNAMICS[a] || [""])[0]] || [];`
+- mechanic_id namespace mismatch: DYNAMICS_TO_MECHANICS использует IDs вроде
+  "difficulty_settings", "voice_acting" — не пересекаются с GENRE_DEFAULT_MECHANICS
+  IDs "inventory_management", "turn_based_combat". Overlap всегда 0.
+- Каскад: predicted=0 → match_scores=0 → overall_match=0 → converged=false →
+  iterations=3 (без реальной итерации).
+
+RC-2: ВСЕ 10 test_projects байт-в-байт идентичны
+- scripts/run_pipeline_test.sh:106 передаёт `target_aesthetics` (массив),
+  но route ожидает `primary_aesthetic`/`secondary_aesthetic`/`tertiary_aesthetic`
+  (3 scalar). Поле молча игнорируется, defaults используются.
+- Route НЕ загружает project.concept.aestheticProfile даже когда поля отсутствуют.
+- Результат: все 10 проектов имеют primary=challenge, secondary=fantasy,
+  tertiary=discovery, genre=rpg, concept_id=standalone, identical mechanic_set.
+
+RC-3: converged=false, iterations=3 всегда (следствие RC-1)
+- Никакой реальной итерации нет. `iterations = converged ? 1 : 3` — просто число.
+
+RC-4: Lens #41 «Доминантная стратегия» инвертирована (route.ts:511)
+- `if (lens.id === 41 && score > 0.7) { issuesFound.push(...) }` — flag'ает
+  проблему при ВЫСОКОМ score, хотя должно быть наоборот (низкий = доминантная
+  стратегия есть).
+
+RC-5: compatibility_score всегда 90+ (route.ts:293-321)
+- 4 из 5 patterns hardcoded `present: true` или легко true. Shadow_Depths:
+  compatibility_score=94 при overall_match=0 — внутреннее противоречие.
+
+RC-6: Bond ludonarrative.result = "Гармония" — hardcoded (route.ts:620)
+- Вне зависимости от mechanic set. mechanic_narrative_pairs canned.
+
+RC-7: machinationsModel сохраняется пустым (route.ts:828, 846)
+- `{ nodes: [], resource_flows: [], state_connections: [], feedback_loops: [] }`
+- Bible 3.5.2 Шаг 1 «Смоделировать динамику (Machinations)» — не реализовано.
+
+RC-8: AI enrichment не персистится (route.ts:857-868)
+- enrichMda вызывается ПОСЛЕ db.upsert. ai_insights попадает только в HTTP
+  response, не в БД. Block 2 уже решил эту проблему.
+
+RC-9: EMERGENCE_BADGES не содержит "moderate" (constants/mda.ts:36-41)
+- Route использует "moderate" (строки 144,146), но EMERGENCE_BADGES.multiple
+  ≠ moderate. UI fallback на nominal — некорректно.
+
+RC-10: Type bypass — `as unknown as` casts (route.ts:757,766)
+- MDAAnalysisResult описан как Record<string, unknown> | null для всех
+  подсекций. Полная потеря type safety.
+
+RC-11: mechanic_candidate_set.uncovered_dynamics всегда [] (route.ts:186-197)
+- Все 24 динамики имеют entries в DYNAMICS_TO_MECHANICS → coveredDynamics ==
+  requiredDynamics всегда.
+
+RC-12: observed_dynamics — copy из input (route.ts:382)
+- `dynamicsTarget.core_dynamics.slice(0, 3)` — не «наблюдается» из mechanic set.
+
+RC-13: gameplay_sequence — hardcoded 3-step template (route.ts:361-380)
+- `Engage baseMech → Execute combatMech → Use progMech` — не зависит от жанра.
+
+RC-14: Lens categories не соответствуют Bible 3.6 (route.ts:486)
+- Bible 3.6.3 определяет 3 уровня Зубека (experience/gameplay/context),
+  реализация использует 4 произвольные категории.
+
+RC-15: enrichMda prompt generic (ai-service.ts:557-568)
+- Передаёт только projectName, genre, aesthetics. LLM даёт общие советы,
+  не привязанные к конкретному mechanic set.
+
+RC-16: void safeJsonParse; dead code (route.ts:855)
+
+RC-17: buildMechanicSet round-robin по индексу (route.ts:242-252)
+- Механики распределяются по группам по i%5, не по content.
+
+RC-18: filterToMax slices first N без sort (route.ts:260-263)
+- Без учёта affinity/relevance.
+
+RC-19: aesthetic_coverage тоже берёт только [0] (route.ts:275-277)
+- Идентичный баг RC-1.
+
+RC-20: match_scores формула с min(target, predicted) — когда predicted=0,
+  score=0 всегда. Невозможно достичь overall_match > 0 без RC-1 fix.
+
+### План рефакторинга: 20 задач
+- 🔴 6 критичных:
+  - TASK-3.1 (XL) — выровнять mechanic_id namespace
+  - TASK-3.2 (M) — перебирать все динамики эстетики
+  - TASK-3.3 (M) — починить match_scores + реальная итерация
+  - TASK-3.4 (L) — реальный Reverse MDA (mechanic set из dynamics_target)
+  - TASK-3.5 (S) — инвертировать Lens #41 logic
+  - TASK-3.6 (M) — загружать aestheticProfile/genre/idea из project.concept
+- 🟡 11 средних:
+  - TASK-3.7 (M) — compatibility_score formula
+  - TASK-3.8 (L) — Bond 4×3 matrix + ludonarrative вычисление
+  - TASK-3.9 (M) — observed_dynamics из mechanic set
+  - TASK-3.10 (M) — gameplay_sequence templates по жанру
+  - TASK-3.11 (S) — EMERGENCE_BADGES.moderate
+  - TASK-3.12 (S) — persist ai_insights + убрать void safeJsonParse
+  - TASK-3.13 (M) — lens categories by Zubek level (Bible 3.6.3)
+  - TASK-3.14 (M) — enrichMda prompt extension
+  - TASK-3.16 (M) — machinationsModel graph из mechanic set
+  - TASK-3.19 (M) — semantic categorization + affinity-based sort
+- 🟢 4 низких:
+  - TASK-3.15 (M) — type-safe MDAAnalysisResult
+  - TASK-3.17 (S) — uncovered_dynamics sanity-validation
+  - TASK-3.18 (S) — dead code cleanup
+  - TASK-3.20 (L) — unit-тесты
+
+### Структура плана
+Для каждой задачи — описание проблемы с цитатами кода, конкретное решение с
+code-примерами (включая helper getMechanicsForAesthetic, runClassicMdaIterations
+с реальной итерацией, computeLudonarrative с тремя результатами, gameplay
+templates для 12+ жанров, buildMachinationsSkeleton, type-safe MDAAnalysisResult
+на ~250 строк), тест-кейсы, риски, dependencies.
+
+Файл плана: docs/audit/REFACTOR_PLAN_block_3.md (~1100 строк).
+Оценка трудозатрат: 55-75 часов (без TASK-3.20), 75-100 часов (с тестами).
+
+Фаза 1 (unblock pipeline, 15-20ч): TASK-3.6, TASK-3.5, TASK-3.11, TASK-3.18
+Фаза 2 (namespace, 25-35ч): TASK-3.1, TASK-3.17
+Фаза 3 (Classic MDA fix, 15-20ч): TASK-3.2, TASK-3.3, TASK-3.4
+Фаза 4 (validation, 15-20ч): TASK-3.7, TASK-3.8, TASK-3.9, TASK-3.10,
+  TASK-3.13, TASK-3.16, TASK-3.19
+Фаза 5 (AI+types+tests, 15-25ч): TASK-3.12, TASK-3.14, TASK-3.15, TASK-3.20
+
+---
+Task ID: refactor-plan-block-4
+Agent: refactor-plan-block-4 (sub-agent)
+Date: 2026-08-02
+Status: ✅ COMPLETED
+
+### Цель
+Глубокий аудит Блока 4 (Баланс и симуляция) и детальный план рефакторинга.
+
+### Созданные файлы
+- `/home/z/my-project/repos/Gidede/docs/audit/REFACTOR_PLAN_block_4.md` (~4575 строк, ~200KB)
+
+### Полный отчёт
+Запись в основном worklog репозитория:
+`/home/z/my-project/repos/Gidede/worklog.md` (Task ID: refactor-plan-block-4)
+
+### Краткое резюме находок
+- **0/10 test_projects** успешно завершают Block 4 — ВСЕ 10 возвращают
+  одинаковую 422-ошибку `{"detail":"Поле 'objects' обязательно и должно
+  содержать минимум 2 объекта"}`.
+- **Root cause #1**: `scripts/run_pipeline_test.sh:114` передаёт `elements`
+  вместо `objects`, только 1 объект, с неверным shape `{name, cost, power}`
+  вместо `BalanceObject` (`{id, name, type, attributes, cost?, tier?, tags?}`).
+  Block 4 НИКОГДА не тестировался end-to-end.
+- **20 root causes** идентифицировано (RC-1…RC-20):
+  - RC-1: pipeline test bug (elements vs objects)
+  - RC-2: `buildBalanceMap` возвращает бессмысленные поля (anchor, secondaryModel)
+  - RC-3: transitive — равные веса + hardcoded curve `0.6 * cost^0.8`
+  - RC-4: intransitive — artificial cyclicalBias + fake Nash + only 1 RPS cycle
+  - RC-5: situational — canned hash-based values
+  - RC-6: Q-factor — `Math.random()` synergy_score
+  - RC-7: Monte Carlo — `Math.random()` + unclamped winProb + Kendall mislabeled as Spearman + totalGames double-count
+  - RC-8: Machinations — hardcoded HP/damage + fake `runs: 10` + broken buildGap formula
+  - RC-9: buildStability — `as unknown as` type cast + feedback_loops always 0
+  - RC-10: AI enrichment не персистится (вызывается после db.upsert)
+  - RC-11: DB persistence теряет q_factor_result, balance_map, stability (только в fullResult)
+  - RC-12: applicable_balance_types не влияет на запуск stages
+  - RC-13: weak object validation (NaN risk, no count bound, no unique ID check)
+  - RC-14: stagesCompleted всегда включает transitive даже для чистого intransitive
+  - RC-15: enrichBalance prompt generic (без данных об объектах)
+  - RC-16: run-full-pipeline STAGES[3] — 4 hardcoded объекта для всех проектов
+  - RC-17: 6/8 Bible 5.13 pathologies не реализованы
+  - RC-18: 7 Schreiber curves (Bible 5.4.3) не реализованы (только hardcoded custom)
+  - RC-19: 8 feedback loop characteristics (Bible 5.6.1) не реализованы
+  - RC-20: test script не передаёт game_mode/genre/balance_type/run_* флаги
+
+### План рефакторинга: 18 задач
+- 🔴 9 критичных:
+  - TASK-4.1 (S) — починить run_pipeline_test.sh (elements → objects + правильный shape)
+  - TASK-4.2 (L) — run-full-pipeline derives objects from upstream (genre-based templates)
+  - TASK-4.3 (M) — 7 Schreiber curves (Bible 5.4.3, default triangular)
+  - TASK-4.4 (M) — weighted attribute importance (Bible 5.5.3)
+  - TASK-4.5 (L) — real Nash equilibrium + убрать cyclicalBias (Bible 5.3.2)
+  - TASK-4.6 (M) — deterministic Monte Carlo (mulberry32) + winProb clamp + Spearman
+  - TASK-4.7 (L) — Machinations graph from object types (Bible 5.6) + 8 feedback characteristics
+  - TASK-4.8 (S) — починить buildStability (убрать `as unknown as`)
+  - TASK-4.9 (XL) — 8 balance pathologies (Bible 5.13)
+  - TASK-4.10 (M) — persist ai_insights в БД (schema migration + вызов ДО persist)
+- 🟡 5 средних:
+  - TASK-4.11 (S) — расширенный enrichBalance prompt (с объектами и патологиями)
+  - TASK-4.12 (M) — унифицировать DB persistence + GET fallback типы
+  - TASK-4.13 (M) — fulcrum O(n) reference (Bible 5.5.2)
+  - TASK-4.14 (L) — Markov chains + recursive EV (Bible 5.8)
+  - TASK-4.15 (S) — валидация objects (count bound, numeric attrs, unique IDs)
+- 🟢 4 низких:
+  - TASK-4.16 (M) — 6 combinations sum × OS (Bible 5.6.2)
+  - TASK-4.17 (S) — убрать dead code + type bypasses
+  - TASK-4.18 (L) — unit-тесты для balance модулей
+
+### Структура плана
+Для каждой задачи — описание проблемы с цитатами кода, конкретное решение с
+code-примерами (включая `GENRE_OBJECT_TEMPLATES` для 10+ жанров, `COST_CURVES`
+registry с 7 кривыми, `solveNashEquilibrium` через Gaussian elimination,
+`mulberry32` PRNG, `analyzeMarkovChain` с stationary state, `detectAllPathologies`
+с 8 детекторами, `selectFulcrum` с median tier/cost strategy, `FeedbackCombination`
+каталог из 7 паттернов), тест-кейсы, риски, dependencies.
+
+### Bible compliance gaps закрыты
+- 5.3.2 — real Nash equilibrium + all C(n,3) RPS cycles
+- 5.4.3 — 7 Schreiber curves (triangular как default)
+- 5.5.2 — fulcrum O(n) reference
+- 5.5.3 — weighted attribute importance
+- 5.6.1 — 8 feedback loop characteristics
+- 5.6.2 — 6 combinations sum × OS
+- 5.7 — deterministic Monte Carlo (seeded PRNG)
+- 5.8 — Markov chains + recursive EV
+- 5.13 — 8 pathologies (включая dead zone, mandatory choice, build gap, economy, fragility, perceived unfairness)
+
+### Фазы реализации (130-180 часов без тестов, 140-195 с тестами)
+- Фаза 1 (unblock pipeline, 4-6ч): TASK-4.1, TASK-4.15, TASK-4.17
+- Фаза 2 (pipeline runner, 15-20ч): TASK-4.2
+- Фаза 3 (transitive, 15-20ч): TASK-4.3, TASK-4.4, TASK-4.13
+- Фаза 4 (intransitive, 20-30ч): TASK-4.5
+- Фаза 5 (Monte Carlo, 10-15ч): TASK-4.6
+- Фаза 6 (Machinations+Stability, 20-30ч): TASK-4.7, TASK-4.8, TASK-4.16
+- Фаза 7 (Pathologies, 15-20ч): TASK-4.9
+- Фаза 8 (AI+persistence, 8-12ч): TASK-4.10, TASK-4.11, TASK-4.12
+- Фаза 9 (Advanced, 10-15ч): TASK-4.14
+- Фаза 10 (Tests, 10-15ч): TASK-4.18

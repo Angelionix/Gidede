@@ -80,7 +80,9 @@ const GENRE_AESTHETICS: Record<
   action: { primary: "challenge", secondary: "sensation", tertiary: "fantasy" },
   platformer: { primary: "challenge", secondary: "sensation", tertiary: "discovery" },
   shooter: { primary: "challenge", secondary: "sensation", tertiary: "fellowship" },
-  fighting: { primary: "challenge", secondary: "competition" as unknown as string, tertiary: "expression" },
+  // TASK-1.6 FIXED: "competition" is a Yee motivation, not a Hunicke 8 aesthetic.
+  // Replaced with "fellowship" (competitive social play) which IS a Hunicke 8.
+  fighting: { primary: "challenge", secondary: "fellowship", tertiary: "expression" },
   stealth: { primary: "challenge", secondary: "discovery", tertiary: "submission" },
   survival_horror: { primary: "challenge", secondary: "narrative", tertiary: "submission" },
   rhythm: { primary: "sensation", secondary: "submission", tertiary: "expression" },
@@ -88,18 +90,22 @@ const GENRE_AESTHETICS: Record<
   rpg: { primary: "fantasy", secondary: "narrative", tertiary: "challenge" },
   action_rpg: { primary: "challenge", secondary: "fantasy", tertiary: "narrative" },
   jrpg: { primary: "narrative", secondary: "fantasy", tertiary: "challenge" },
-  tactical_rpg: { primary: "challenge", secondary: "strategy" as unknown as string, tertiary: "narrative" },
+  // TASK-1.6 FIXED: "strategy" is a Yee motivation, not a Hunicke 8 aesthetic.
+  // Replaced with "discovery" (tactical exploration of build space).
+  tactical_rpg: { primary: "challenge", secondary: "discovery", tertiary: "narrative" },
   mmorpg: { primary: "fellowship", secondary: "challenge", tertiary: "fantasy" },
   roguelike: { primary: "challenge", secondary: "discovery", tertiary: "sensation" },
   simulation: { primary: "submission", secondary: "expression", tertiary: "discovery" },
   strategy: { primary: "challenge", secondary: "discovery", tertiary: "expression" },
   rts: { primary: "challenge", secondary: "fellowship", tertiary: "discovery" },
   tbs: { primary: "challenge", secondary: "discovery", tertiary: "submission" },
-  tower_defense: { primary: "challenge", secondary: "strategy" as unknown as string, tertiary: "submission" },
+  // TASK-1.6 FIXED: "strategy" replaced with "submission" (routine optimization flow).
+  tower_defense: { primary: "challenge", secondary: "submission", tertiary: "discovery" },
   puzzle: { primary: "challenge", secondary: "discovery", tertiary: "submission" },
   party: { primary: "fellowship", secondary: "sensation", tertiary: "expression" },
   educational: { primary: "discovery", secondary: "challenge", tertiary: "narrative" },
-  racing: { primary: "sensation", secondary: "challenge", tertiary: "competition" as unknown as string },
+  // TASK-1.6 FIXED: "competition" replaced with "fellowship" (asynchronous / direct competition is social).
+  racing: { primary: "sensation", secondary: "challenge", tertiary: "fellowship" },
   sports: { primary: "fellowship", secondary: "challenge", tertiary: "sensation" },
   sandbox: { primary: "expression", secondary: "discovery", tertiary: "submission" },
   horror: { primary: "submission", secondary: "narrative", tertiary: "sensation" },
@@ -376,23 +382,51 @@ function buildCoreLoopCandidates(genre: string, mechanicSet: {
 }
 
 function buildUSPCandidates(genre: string, idea: string) {
-  // Generate 3 USP candidates from genre + idea keywords
+  // TASK-1.10 FIXED: slice boundaries now use safe fallbacks for short ideas.
+  // Original bug: idea.slice(0, 100/200/300) produced empty/duplicate USPs when idea was short.
+  // Now: each USP derives a distinct aspect from idea (origin, mechanic, theme) with min-length guards.
+
+  // Extract first 2-3 "core verbs" from the idea (lowercased) — used for USP #3.
   const lower = idea.toLowerCase();
+  const coreVerbs = lower
+    .split(/\s+/)
+    .filter((w) => w.length >= 3 && !["the", "and", "for", "with", "that", "this"].includes(w))
+    .slice(0, 2)
+    .join(" ");
+  const verbPhrase = coreVerbs.length >= 3 ? coreVerbs : "explore and survive";
+
+  // Safe idea excerpt: never empty, always meaningful (min 20 chars).
+  const ideaExcerpt = (maxLen: number, offset = 0) => {
+    const slice = idea.slice(offset, offset + maxLen).trim();
+    if (slice.length < 20) {
+      // Idea too short for a meaningful slice — use full idea with ellipsis style.
+      return idea.trim().length > 0 ? idea.trim() : "an unexplored concept";
+    }
+    return slice + (idea.length > offset + maxLen ? "…" : "");
+  };
+
+  // Detect theme keywords for thematic USP
+  const themeKeywords = ["dark", "light", "future", "past", "dream", "war", "peace", "magic", "tech", "nature"];
+  const detectedTheme = themeKeywords.find((k) => lower.includes(k));
+  const themePhrase = detectedTheme
+    ? `the "${detectedTheme}" theme`
+    : "an unconventional aesthetic direction";
+
   const candidates = [
     {
-      usp: `A ${genre} game where every decision reshapes the world — combining ${idea.slice(0, 60)}${idea.length > 60 ? "…" : ""} with emergent narrative consequences.`,
+      usp: `A ${genre} game where every decision reshapes the world — combining "${ideaExcerpt(60)}" with emergent narrative consequences.`,
       triangle_of_weirdness_check: "pass" as const,
       competitive_differentiation:
         "No competitor merges player agency with persistent world mutation at this scale.",
     },
     {
-      usp: `Hybrid ${genre} experience blending traditional mechanics with novel systems derived from "${idea.slice(0, 50)}${idea.length > 50 ? "…" : ""}".`,
+      usp: `Hybrid ${genre} experience blending traditional mechanics with novel systems derived from "${ideaExcerpt(50)}".`,
       triangle_of_weirdness_check: "warn" as const,
       competitive_differentiation:
         "Differentiator is mechanical fusion; similar genre games lack this hybrid layer.",
     },
     {
-      usp: `Narrative-driven ${genre} where the core verb is "${lower.split(" ").slice(0, 2).join(" ")}" — players experience story through gameplay, not cutscenes.`,
+      usp: `Narrative-driven ${genre} where the core verb is "${verbPhrase}" and the experience leans on ${themePhrase} — players experience story through gameplay, not cutscenes.`,
       triangle_of_weirdness_check: "pass" as const,
       competitive_differentiation:
         "Ludonarrative harmony creates a distinct identity vs. story-light competitors.",
@@ -406,6 +440,19 @@ function buildValidationReport(
   mechanicSet: { total_count: number; compatibility_score: number },
   uspCandidates: Array<{ triangle_of_weirdness_check: string }>
 ) {
+  // TASK-1.2 FIXED: cascade now works correctly after TASK-1.1 (genres filled).
+  // - `credible` was always false because compatibility_score was always 0.
+  // - Now compatibility_score reflects real genre match (0-100), so:
+  //     * credible = true when ≥60% mechanics match the genre
+  //     * five_questions["Why would a player return tomorrow?"] reflects real sustainability
+  //     * eight_filters.feasibility.score varies 0.5-0.8 based on real compatibility
+  //     * warnings["Mechanic compatibility below 60%"] only fires when truly low
+  //
+  // NOTE: TASK-1.3 (8 idea filters with real logic) and TASK-1.4 (5 core questions
+  // with real logic) are still TODO — some scores remain hardcoded (clarity=0.8,
+  // market_fit=0.6, emotional_impact=0.7, sustainability=0.65). Will be addressed
+  // in subsequent refactoring sprints.
+
   // --- Triangle of Weirdness ---
   const weird = uspCandidates.some((c) => c.triangle_of_weirdness_check === "pass");
   const appealing = aestheticProfile.primary !== "submission";
@@ -416,6 +463,7 @@ function buildValidationReport(
   const trianglePassed = triangleScore >= 0.6;
 
   // --- 5 core questions ---
+  // TASK-1.4 TODO: questions 1, 2 are hardcoded true — should derive from idea analysis.
   const fiveQuestions: Record<string, boolean> = {
     "What is the core verb?": true,
     "What does the player do moment-to-moment?": true,

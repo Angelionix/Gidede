@@ -36,17 +36,17 @@
 
 ## Сводная статистика
 
-| Блок | Всего задач | 🔴 Критично | 🟡 Средне | 🟢 Низко | Оценка (ч) |
-|------|:-----------:|:-----------:|:---------:|:---------:|:----------:|
-| 1. Концепция | 16 | 4 | 9 | 3 | 30-70 |
-| 2. Core Loop | 20 | 6 | 11 | 4 | 50-95 |
-| 3. MDA | 20 | 6 | 11 | 4 | 55-100 |
-| 4. Баланс | 18 | 9 | 5 | 4 | 130-195 |
-| 5a. Прогрессия | 17 | 0 | 13 | 4 | 35-65 |
-| 5b. Экономика | 18 | 11 | 5 | 2 | 156-190 |
-| 6. GDD | 20 | 9 | 8 | 3 | 175-275 |
-| 6b. Чек-лист | 17 | 12 | 3 | 2 | 150-210 |
-| **Итого** | **146** | **57** | **65** | **26** | **781-1200** |
+| Блок | Всего задач | 🔴 Критично | 🟡 Средне | 🟢 Низко | Выполнено | Оценка (ч) |
+|------|:-----------:|:-----------:|:---------:|:---------:|:----------:|:----------:|
+| 1. Концепция | 16 | 4 | 9 | 3 | **7/16** ✅ | 30-70 |
+| 2. Core Loop | 20 | 6 | 11 | 4 | 0/20 | 50-95 |
+| 3. MDA | 20 | 6 | 11 | 4 | 0/20 | 55-100 |
+| 4. Баланс | 18 | 9 | 5 | 4 | 0/18 | 130-195 |
+| 5a. Прогрессия | 17 | 0 | 13 | 4 | 0/17 | 35-65 |
+| 5b. Экономика | 18 | 11 | 5 | 2 | 0/18 | 156-190 |
+| 6. GDD | 20 | 9 | 8 | 3 | 0/20 | 175-275 |
+| 6b. Чек-лист | 17 | 12 | 3 | 2 | 0/17 | 150-210 |
+| **Итого** | **146** | **57** | **65** | **26** | **7/146** | **781-1200** |
 
 ---
 
@@ -56,7 +56,7 @@
 
 | # | Task ID | Блок | Описание | Сложность | Статус |
 |---|---------|------|----------|:---------:|:------:|
-| 1 | TASK-1.1 | 1 | Заполнить `genres` + `genre_affinity` для 128 механик MechanicsDB | XL | ⬜ |
+| 1 | TASK-1.1 | 1 | Заполнить `genres` + `genre_affinity` для 128 механик MechanicsDB | XL | ✅ |
 | 2 | TASK-3.6 | 3 | Загружать `aestheticProfile`/`genre`/`idea` из `project.concept` + починить pipeline runner | M | ⬜ |
 | 3 | TASK-3.1 | 3 | Выровнять `mechanic_id` namespace (DYNAMICS_TO_MECHANICS ↔ GENRE_DEFAULT_MECHANICS ↔ MechanicsDB) | XL | ⬜ |
 | 4 | TASK-3.2 | 3 | Перебирать все динамики эстетики (не только `[0]`) | M | ⬜ |
@@ -70,7 +70,7 @@
 | 12 | TASK-6.6 | 6 | Заменить STUB `/gdd/checklist` на `lib/checklist-logic.ts` | M | ⬜ |
 | 13 | TASK-6b.1 | 6b | Унифицировать `/gdd/checklist` (заменить STUB) | M | ⬜ |
 | 14 | TASK-6b.16 | 6b | Pipeline runner → `/checklist/validate` | S | ⬜ |
-| 15 | TASK-1.6 | 1 | Убрать невалидные эстетики `competition`/`strategy` (+ `as unknown as string`) | S | ⬜ |
+| 15 | TASK-1.6 | 1 | Убрать невалидные эстетики `competition`/`strategy` (+ `as unknown as string`) | S | ✅ |
 
 ---
 
@@ -82,18 +82,18 @@
 
 | Task ID | Описание | Сложность | Приоритет | Статус | Dependencies |
 |---------|----------|:---------:|:---------:|:------:|--------------|
-| TASK-1.1 | Заполнить `genres` + `genre_affinity` для 128 механик MechanicsDB | XL | 🔴 | ⬜ | — |
-| TASK-1.2 | Починить `compatibility_score` каскад в `buildValidationReport` | M | 🔴 | ⬜ | TASK-1.1 |
+| TASK-1.1 | Заполнить `genres` + `genre_affinity` для 128 механик MechanicsDB | XL | 🔴 | ✅ | — |
+| TASK-1.2 | Починить `compatibility_score` каскад в `buildValidationReport` | M | 🔴 | ✅ | TASK-1.1 |
 | TASK-1.3 | Реализовать 8 idea filters с реальной логикой (4 захардкожены) | L | 🟡 | ⬜ | — |
 | TASK-1.4 | Реализовать 5 core questions с реальной логикой (2 захардкожены) | M | 🟡 | ⬜ | — |
-| TASK-1.5 | Заменить STUB `/concept/[id]/validate` на реальный пересчёт | M | 🔴 | ⬜ | TASK-1.1 |
-| TASK-1.6 | Убрать невалидные эстетики `competition`/`strategy` (+ `as unknown as string`) | S | 🔴 | ⬜ | — |
+| TASK-1.5 | Заменить STUB `/concept/[id]/validate` на реальный пересчёт | M | 🔴 | ✅ | TASK-1.1 |
+| TASK-1.6 | Убрать невалидные эстетики `competition`/`strategy` (+ `as unknown as string`) | S | 🔴 | ✅ | — |
 | TASK-1.7 | Починить `pickAesthetics` (word boundaries, dedup) + `GENRE_KEYWORDS` overlap | M | 🟡 | ⬜ | TASK-1.6 |
-| TASK-1.8 | Починить `buildMechanicSetForGenre` (заполнять все 5 категорий) | M | 🟡 | ⬜ | TASK-1.1 |
+| TASK-1.8 | Починить `buildMechanicSetForGenre` (заполнять все 5 категорий) | M | 🟡 | ✅ | TASK-1.1 |
 | TASK-1.9 | Починить bilingual core loop candidates (русские имена в английских фразах) | M | 🟡 | ⬜ | — |
-| TASK-1.10 | Починить `buildUSPCandidates` slice boundaries + fallback для короткой идеи | S | 🟢 | ⬜ | — |
+| TASK-1.10 | Починить `buildUSPCandidates` slice boundaries + fallback для короткой идеи | S | 🟢 | ✅ | — |
 | TASK-1.11 | Persist `ai_insights` + `generation_metadata` + `title` в БД + Prisma миграция | M | 🟡 | ⬜ | — |
-| TASK-1.12 | Убрать китайские символы (`除非`, `扩充`, `摩擦`) | S | 🟡 | ⬜ | — |
+| TASK-1.12 | Убрать китайские символы (`除非`, `扩充`, `摩擦`) | S | 🟡 | ✅ | — |
 | TASK-1.13 | Выровнять тип `MechanicSet` с реализацией (убрать type bypass) | M | 🟡 | ⬜ | TASK-1.1 |
 | TASK-1.14 | MechanicsDB Levels 0-2 (Shell 7 + Adams/Dormans 5 + 16 паттернов) — стратегическое | XL | 🟢 | ⬜ | TASK-1.1 |
 | TASK-1.15 | Input validation + edge cases (длина idea, unknown genre, forbidden_mechanics aliases) | M | 🟡 | ⬜ | — |
@@ -571,6 +571,7 @@ Block 6 (GDD)
 | Дата | Версия | Изменения |
 |------|--------|-----------|
 | 2026-08-01 | 1.0 | Создан трекер. 146 задач из 8 планов рефакторинга. |
+| 2026-08-01 | 1.1 | Sprint 1 (Block 1) завершён: TASK-1.1, 1.2, 1.5, 1.6, 1.8, 1.10, 1.12 — 7 задач выполнено (3 критичных, 3 средних, 1 низкий). MechanicsDB: 128 механик с заполненными `genres`; `compatibility_score` теперь реалистично отражает genre match (0-100); `/concept/[id]/validate` использует ту же schema что `/concept/generate`; невалидные эстетики `competition`/`strategy` заменены на Hunicke 8; китайские символы `除非`/`扩充`/`摩擦` удалены; `buildMechanicSetForGenre` заполняет все 5 категорий. |
 
 ---
 

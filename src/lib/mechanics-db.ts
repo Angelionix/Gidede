@@ -21,7 +21,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fantasy',
       'sensation'
     ],
-    'genres': []
+    'genres': ['adventure', 'horror', 'jrpg', 'metroidvania', 'mmorpg', 'puzzle', 'rpg', 'sandbox']
   },
   {
     'group': 'Базовые',
@@ -32,7 +32,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'expression'
     ],
-    'genres': []
+    'genres': ['action', 'adventure', 'mmorpg', 'platformer', 'rpg', 'shooter']
   },
   {
     'group': 'Базовые',
@@ -43,7 +43,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fantasy',
       'narrative'
     ],
-    'genres': []
+    'genres': ['action', 'horror', 'metroidvania', 'platformer', 'roguelike', 'rpg', 'shooter']
   },
   {
     'group': 'Базовые',
@@ -54,7 +54,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'discovery'
     ],
-    'genres': []
+    'genres': ['adventure', 'horror', 'mmorpg', 'roguelike', 'rpg', 'survival_horror']
   },
   {
     'group': 'Базовые',
@@ -65,7 +65,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'submission'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'adventure', 'jrpg', 'mmorpg', 'rpg', 'visual_novel']
   },
   {
     'group': 'Базовые',
@@ -76,7 +76,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'discovery',
       'submission'
     ],
-    'genres': []
+    'genres': ['adventure', 'educational', 'metroidvania', 'puzzle', 'rts', 'strategy', 'tactical_rpg', 'tbs']
   },
   {
     'group': 'Базовые',
@@ -87,7 +87,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'discovery'
     ],
-    'genres': []
+    'genres': ['mmorpg', 'roguelike', 'rpg', 'rts', 'sandbox', 'strategy', 'survival_horror', 'tbs']
   },
   {
     'group': 'Базовые',
@@ -98,7 +98,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fantasy',
       'narrative'
     ],
-    'genres': []
+    'genres': ['action', 'fighting', 'horror', 'metroidvania', 'platformer', 'roguelike', 'rpg', 'sandbox']
   },
   {
     'group': 'Базовые',
@@ -109,7 +109,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'discovery'
     ],
-    'genres': []
+    'genres': ['rpg', 'rts', 'strategy', 'tactical_rpg', 'tbs']
   },
   {
     'group': 'Прогрессия',
@@ -120,7 +120,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'horror', 'jrpg', 'mmorpg', 'rpg', 'sandbox', 'simulation', 'survival_horror']
   },
   {
     'group': 'Прогрессия',
@@ -131,7 +131,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fantasy',
       'challenge'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'horror', 'mmorpg', 'roguelike', 'rpg', 'sandbox', 'shooter', 'simulation']
   },
   {
     'group': 'Прогрессия',
@@ -142,7 +142,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'horror', 'jrpg', 'mmorpg', 'puzzle', 'roguelike', 'rpg', 'rts']
   },
   {
     'group': 'Прогрессия',
@@ -153,7 +153,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'submission'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'horror', 'mmorpg', 'roguelike', 'rpg', 'sandbox', 'simulation', 'survival_horror']
   },
   {
     'group': 'Прогрессия',
@@ -164,7 +164,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['rpg', 'sandbox', 'shooter', 'simulation', 'strategy']
   },
   {
     'group': 'Прогрессия',
@@ -175,7 +175,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'expression'
     ],
-    'genres': []
+    'genres': ['action', 'adventure', 'mmorpg', 'platformer', 'rpg', 'shooter']
   },
   {
     'group': 'Прогрессия',
@@ -186,7 +186,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'discovery',
       'challenge'
     ],
-    'genres': []
+    'genres': ['mmorpg', 'roguelike', 'rpg', 'rts', 'sandbox', 'simulation', 'strategy', 'survival_horror']
   },
   {
     'group': 'Прогрессия',
@@ -197,7 +197,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fantasy',
       'challenge'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'horror', 'jrpg', 'mmorpg', 'platformer', 'puzzle', 'rpg', 'sandbox']
   },
   {
     'group': 'Прогрессия',
@@ -208,7 +208,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'narrative'
     ],
-    'genres': []
+    'genres': ['action', 'action_rpg', 'jrpg', 'mmorpg', 'platformer', 'puzzle', 'roguelike', 'rpg']
   },
   {
     'group': 'Пространство',
@@ -219,7 +219,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fantasy',
       'submission'
     ],
-    'genres': []
+    'genres': ['adventure', 'jrpg', 'mmorpg', 'rpg', 'sandbox', 'strategy']
   },
   {
     'group': 'Пространство',
@@ -230,7 +230,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fellowship',
       'sensation'
     ],
-    'genres': []
+    'genres': ['action', 'fighting', 'metroidvania', 'platformer', 'shooter']
   },
   {
     'group': 'Пространство',
@@ -241,7 +241,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'discovery',
       'challenge'
     ],
-    'genres': []
+    'genres': ['action', 'adventure', 'mmorpg', 'platformer', 'puzzle', 'rpg', 'shooter', 'visual_novel']
   },
   {
     'group': 'Пространство',
@@ -252,7 +252,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'expression'
     ],
-    'genres': []
+    'genres': ['puzzle', 'rts', 'strategy', 'tactical_rpg']
   },
   {
     'group': 'Пространство',
@@ -263,7 +263,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fantasy',
       'submission'
     ],
-    'genres': []
+    'genres': ['adventure', 'horror', 'metroidvania', 'platformer', 'rpg']
   },
   {
     'group': 'Пространство',
@@ -274,7 +274,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'adventure', 'jrpg', 'metroidvania', 'mmorpg', 'platformer', 'puzzle', 'rpg']
   },
   {
     'group': 'Пространство',
@@ -285,18 +285,18 @@ export const MECHANICS_DB: Mechanic[] = [
       'fantasy',
       'submission'
     ],
-    'genres': []
+    'genres': ['rts', 'sandbox', 'simulation', 'strategy', 'tbs']
   },
   {
     'group': 'Пространство',
     'name': 'Телепортация',
-    'desc': 'Мгновенное перемещение между точками мира. Снижает摩擦 навигации и управляет темпом игры.',
+    'desc': 'Мгновенное перемещение между точками мира. Снижает трение навигации и управляет темпом игры.',
     'aesthetics': [
       'submission',
       'fantasy',
       'discovery'
     ],
-    'genres': []
+    'genres': ['adventure', 'metroidvania', 'mmorpg', 'rpg', 'sandbox']
   },
   {
     'group': 'Пространство',
@@ -307,7 +307,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'expression'
     ],
-    'genres': []
+    'genres': ['adventure', 'platformer', 'rpg']
   },
   {
     'group': 'Боевые',
@@ -318,7 +318,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fantasy',
       'submission'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'mmorpg', 'roguelike', 'rpg', 'rts', 'sandbox', 'strategy', 'survival_horror']
   },
   {
     'group': 'Боевые',
@@ -329,7 +329,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'sensation'
     ],
-    'genres': []
+    'genres': ['action', 'horror', 'mmorpg', 'rts', 'sandbox', 'shooter', 'strategy', 'survival_horror']
   },
   {
     'group': 'Боевые',
@@ -340,7 +340,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'sensation',
       'submission'
     ],
-    'genres': []
+    'genres': ['action', 'horror', 'shooter', 'tactical_rpg']
   },
   {
     'group': 'Боевые',
@@ -351,7 +351,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fantasy',
       'narrative'
     ],
-    'genres': []
+    'genres': ['action', 'horror', 'metroidvania', 'platformer', 'roguelike', 'rpg', 'shooter', 'stealth']
   },
   {
     'group': 'Боевые',
@@ -362,7 +362,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'expression'
     ],
-    'genres': []
+    'genres': ['action', 'fighting', 'platformer', 'rhythm']
   },
   {
     'group': 'Боевые',
@@ -373,7 +373,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'sensation',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['action', 'action_rpg', 'fighting', 'jrpg', 'mmorpg', 'platformer', 'puzzle', 'rpg']
   },
   {
     'group': 'Боевые',
@@ -384,7 +384,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'sensation',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['action', 'fighting', 'roguelike', 'rpg', 'soulslike']
   },
   {
     'group': 'Боевые',
@@ -395,7 +395,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fantasy',
       'challenge'
     ],
-    'genres': []
+    'genres': ['action', 'fighting', 'mmorpg', 'rpg']
   },
   {
     'group': 'Боевые',
@@ -406,7 +406,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'submission'
     ],
-    'genres': []
+    'genres': ['action', 'action_rpg', 'fighting', 'jrpg', 'mmorpg', 'roguelike', 'rpg', 'rts']
   },
   {
     'group': 'Движение',
@@ -417,7 +417,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['action', 'adventure', 'platformer']
   },
   {
     'group': 'Движение',
@@ -428,7 +428,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fantasy',
       'expression'
     ],
-    'genres': []
+    'genres': ['action', 'metroidvania', 'platformer']
   },
   {
     'group': 'Движение',
@@ -439,7 +439,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'sensation',
       'expression'
     ],
-    'genres': []
+    'genres': ['action', 'platformer', 'sandbox', 'shooter']
   },
   {
     'group': 'Движение',
@@ -450,7 +450,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['action', 'horror', 'metroidvania', 'platformer', 'stealth']
   },
   {
     'group': 'Движение',
@@ -461,7 +461,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['action', 'fighting', 'metroidvania', 'platformer', 'roguelike', 'rpg', 'shooter', 'soulslike']
   },
   {
     'group': 'Движение',
@@ -472,7 +472,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'sensation',
       'narrative'
     ],
-    'genres': []
+    'genres': ['adventure', 'mmorpg', 'rpg', 'sandbox', 'simulation']
   },
   {
     'group': 'Движение',
@@ -483,7 +483,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'sensation',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['adventure', 'horror', 'platformer', 'sandbox', 'stealth', 'survival_horror']
   },
   {
     'group': 'Движение',
@@ -494,7 +494,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'sensation',
       'challenge'
     ],
-    'genres': []
+    'genres': ['action', 'action_rpg', 'jrpg', 'mmorpg', 'racing', 'roguelike', 'rpg', 'sandbox']
   },
   {
     'group': 'Движение',
@@ -505,7 +505,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['adventure', 'educational', 'metroidvania', 'platformer', 'puzzle', 'sandbox', 'simulation']
   },
   {
     'group': 'Экономика',
@@ -516,7 +516,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'challenge'
     ],
-    'genres': []
+    'genres': ['mmorpg', 'rts', 'sandbox', 'simulation', 'strategy', 'survival_horror', 'tbs', 'tycoon']
   },
   {
     'group': 'Экономика',
@@ -527,7 +527,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'submission'
     ],
-    'genres': []
+    'genres': ['mmorpg', 'rpg', 'sandbox', 'simulation', 'strategy']
   },
   {
     'group': 'Экономика',
@@ -538,7 +538,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'discovery'
     ],
-    'genres': []
+    'genres': ['mmorpg', 'roguelike', 'rpg', 'rts', 'sandbox', 'strategy', 'survival_horror', 'tbs']
   },
   {
     'group': 'Экономика',
@@ -549,7 +549,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'narrative'
     ],
-    'genres': []
+    'genres': ['farming', 'mmorpg', 'rpg', 'rts', 'sandbox', 'simulation', 'strategy', 'survival_horror']
   },
   {
     'group': 'Экономика',
@@ -560,7 +560,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'expression'
     ],
-    'genres': []
+    'genres': ['horror', 'mmorpg', 'rpg', 'sandbox', 'simulation', 'stealth', 'strategy', 'survival_horror']
   },
   {
     'group': 'Экономика',
@@ -571,7 +571,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'challenge'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'jrpg', 'mmorpg', 'roguelike', 'rpg', 'rts', 'sandbox', 'strategy']
   },
   {
     'group': 'Экономика',
@@ -582,7 +582,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'sensation'
     ],
-    'genres': []
+    'genres': ['action', 'fighting', 'horror', 'metroidvania', 'mmorpg', 'platformer', 'roguelike', 'rpg']
   },
   {
     'group': 'Экономика',
@@ -593,7 +593,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'sensation',
       'discovery'
     ],
-    'genres': []
+    'genres': ['idle', 'mmorpg', 'roguelike', 'rpg']
   },
   {
     'group': 'Экономика',
@@ -604,7 +604,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'jrpg', 'mmorpg', 'roguelike', 'rpg', 'rts', 'sandbox', 'simulation']
   },
   {
     'group': 'Социальные',
@@ -615,7 +615,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'expression'
     ],
-    'genres': []
+    'genres': ['action', 'adventure', 'horror', 'mmorpg', 'platformer', 'rpg', 'shooter', 'survival_horror']
   },
   {
     'group': 'Социальные',
@@ -626,7 +626,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fellowship',
       'expression'
     ],
-    'genres': []
+    'genres': ['fighting', 'party', 'racing', 'shooter', 'sports', 'strategy']
   },
   {
     'group': 'Социальные',
@@ -637,7 +637,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'submission'
     ],
-    'genres': []
+    'genres': ['mmorpg', 'rpg']
   },
   {
     'group': 'Социальные',
@@ -648,7 +648,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'challenge'
     ],
-    'genres': []
+    'genres': ['mmorpg', 'rpg', 'strategy', 'tactical_rpg']
   },
   {
     'group': 'Социальные',
@@ -659,7 +659,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'submission'
     ],
-    'genres': []
+    'genres': ['mmorpg', 'party', 'shooter']
   },
   {
     'group': 'Социальные',
@@ -670,7 +670,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fellowship',
       'expression'
     ],
-    'genres': []
+    'genres': ['fighting', 'party', 'racing', 'shooter', 'sports', 'strategy']
   },
   {
     'group': 'Социальные',
@@ -681,7 +681,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'fellowship'
     ],
-    'genres': []
+    'genres': ['adventure', 'horror', 'mmorpg', 'rpg', 'sandbox', 'simulation', 'survival_horror', 'tactical_rpg']
   },
   {
     'group': 'Социальные',
@@ -692,7 +692,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fellowship',
       'expression'
     ],
-    'genres': []
+    'genres': ['adventure', 'jrpg', 'rpg', 'visual_novel']
   },
   {
     'group': 'Стелс',
@@ -703,7 +703,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fantasy',
       'sensation'
     ],
-    'genres': []
+    'genres': ['action', 'adventure', 'horror', 'metroidvania', 'puzzle', 'stealth', 'survival_horror']
   },
   {
     'group': 'Стелс',
@@ -714,7 +714,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'discovery',
       'sensation'
     ],
-    'genres': []
+    'genres': ['horror', 'stealth', 'survival_horror']
   },
   {
     'group': 'Стелс',
@@ -725,7 +725,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'narrative',
       'challenge'
     ],
-    'genres': []
+    'genres': ['action', 'horror', 'stealth']
   },
   {
     'group': 'Стелс',
@@ -736,7 +736,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['action', 'horror', 'platformer', 'stealth', 'survival_horror']
   },
   {
     'group': 'Стелс',
@@ -747,7 +747,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'narrative',
       'expression'
     ],
-    'genres': []
+    'genres': ['action', 'adventure', 'horror', 'metroidvania', 'puzzle', 'stealth']
   },
   {
     'group': 'Стелс',
@@ -758,7 +758,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fantasy',
       'expression'
     ],
-    'genres': []
+    'genres': ['action', 'horror', 'metroidvania', 'platformer', 'roguelike', 'rpg', 'shooter', 'stealth']
   },
   {
     'group': 'Стелс',
@@ -769,7 +769,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'sensation',
       'submission'
     ],
-    'genres': []
+    'genres': ['action', 'adventure', 'horror', 'metroidvania', 'platformer', 'puzzle', 'roguelike', 'rpg']
   },
   {
     'group': 'Навыки',
@@ -780,7 +780,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'challenge'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'horror', 'mmorpg', 'roguelike', 'rpg', 'sandbox', 'simulation', 'survival_horror']
   },
   {
     'group': 'Навыки',
@@ -791,7 +791,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'discovery'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'mmorpg', 'roguelike', 'rpg', 'tactical_rpg']
   },
   {
     'group': 'Навыки',
@@ -802,7 +802,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'sensation',
       'expression'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'jrpg', 'mmorpg', 'roguelike', 'rpg', 'rts', 'sandbox', 'strategy']
   },
   {
     'group': 'Навыки',
@@ -813,7 +813,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'discovery',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['adventure', 'cyberpunk', 'horror', 'platformer', 'puzzle', 'rpg', 'stealth', 'visual_novel']
   },
   {
     'group': 'Навыки',
@@ -824,7 +824,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fantasy',
       'expression'
     ],
-    'genres': []
+    'genres': ['adventure', 'rpg', 'stealth']
   },
   {
     'group': 'Навыки',
@@ -835,7 +835,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['adventure', 'jrpg', 'rpg', 'visual_novel']
   },
   {
     'group': 'Навыки',
@@ -846,7 +846,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'mmorpg', 'rpg']
   },
   {
     'group': 'Навыки',
@@ -857,7 +857,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'jrpg', 'mmorpg', 'roguelike', 'rpg']
   },
   {
     'group': 'Навыки',
@@ -868,7 +868,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fantasy',
       'submission'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'jrpg', 'mmorpg', 'roguelike', 'rpg', 'sandbox', 'survival_horror', 'tactical_rpg']
   },
   {
     'group': 'Время',
@@ -879,7 +879,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fantasy',
       'narrative'
     ],
-    'genres': []
+    'genres': ['adventure', 'horror', 'mmorpg', 'platformer', 'rpg', 'simulation', 'stealth', 'survival_horror']
   },
   {
     'group': 'Время',
@@ -890,7 +890,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fantasy',
       'challenge'
     ],
-    'genres': []
+    'genres': ['adventure', 'racing', 'sandbox', 'simulation', 'survival_horror']
   },
   {
     'group': 'Время',
@@ -901,7 +901,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'sensation',
       'submission'
     ],
-    'genres': []
+    'genres': ['action', 'horror', 'platformer', 'puzzle', 'rhythm', 'stealth', 'strategy', 'tower_defense']
   },
   {
     'group': 'Время',
@@ -912,7 +912,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'discovery'
     ],
-    'genres': []
+    'genres': ['action', 'platformer', 'puzzle', 'strategy']
   },
   {
     'group': 'Время',
@@ -923,7 +923,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['action', 'fighting', 'puzzle', 'shooter']
   },
   {
     'group': 'Время',
@@ -934,7 +934,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'narrative',
       'discovery'
     ],
-    'genres': []
+    'genres': ['farming', 'mmorpg', 'rts', 'sandbox', 'simulation', 'sports', 'strategy', 'survival_horror']
   },
   {
     'group': 'Время',
@@ -945,7 +945,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'submission'
     ],
-    'genres': []
+    'genres': ['adventure', 'horror', 'mmorpg', 'rpg', 'rts', 'sandbox', 'simulation', 'strategy']
   },
   {
     'group': 'Время',
@@ -956,7 +956,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'expression'
     ],
-    'genres': []
+    'genres': ['puzzle', 'strategy', 'tactical_rpg']
   },
   {
     'group': 'Территория',
@@ -967,7 +967,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fellowship',
       'expression'
     ],
-    'genres': []
+    'genres': ['mmorpg', 'rts', 'shooter', 'strategy', 'tbs']
   },
   {
     'group': 'Территория',
@@ -978,7 +978,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fellowship',
       'submission'
     ],
-    'genres': []
+    'genres': ['rts', 'shooter', 'strategy', 'tower_defense']
   },
   {
     'group': 'Территория',
@@ -989,7 +989,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'sensation',
       'fellowship'
     ],
-    'genres': []
+    'genres': ['mmorpg', 'rts', 'strategy', 'tactical_rpg']
   },
   {
     'group': 'Территория',
@@ -1000,7 +1000,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fellowship',
       'submission'
     ],
-    'genres': []
+    'genres': ['fighting', 'mmorpg', 'rts', 'shooter', 'strategy']
   },
   {
     'group': 'Территория',
@@ -1011,7 +1011,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'narrative'
     ],
-    'genres': []
+    'genres': ['adventure', 'horror', 'metroidvania', 'puzzle', 'rts', 'stealth', 'strategy', 'tower_defense']
   },
   {
     'group': 'Территория',
@@ -1022,7 +1022,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'submission'
     ],
-    'genres': []
+    'genres': ['mmorpg', 'rts', 'stealth', 'strategy', 'tactical_rpg']
   },
   {
     'group': 'Территория',
@@ -1033,7 +1033,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'narrative'
     ],
-    'genres': []
+    'genres': ['rts', 'strategy', 'tactical_rpg', 'tbs']
   },
   {
     'group': 'Территория',
@@ -1044,7 +1044,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fantasy',
       'submission'
     ],
-    'genres': []
+    'genres': ['adventure', 'jrpg', 'mmorpg', 'rpg', 'sandbox']
   },
   {
     'group': 'Территория',
@@ -1055,7 +1055,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'expression'
     ],
-    'genres': []
+    'genres': ['mmorpg', 'rpg', 'simulation', 'strategy', 'tactical_rpg', 'tycoon']
   },
   {
     'group': 'Сюжет',
@@ -1066,7 +1066,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'discovery'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'adventure', 'jrpg', 'rpg', 'visual_novel']
   },
   {
     'group': 'Сюжет',
@@ -1077,7 +1077,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'sensation',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['action', 'adventure', 'jrpg', 'mmorpg', 'rpg', 'strategy', 'tactical_rpg', 'visual_novel']
   },
   {
     'group': 'Сюжет',
@@ -1088,7 +1088,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'discovery'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'adventure', 'jrpg', 'mmorpg', 'rpg', 'survival_horror', 'visual_novel']
   },
   {
     'group': 'Сюжет',
@@ -1099,7 +1099,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'discovery',
       'expression'
     ],
-    'genres': []
+    'genres': ['action', 'adventure', 'metroidvania', 'mmorpg', 'platformer', 'rpg', 'shooter']
   },
   {
     'group': 'Сюжет',
@@ -1110,7 +1110,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'narrative'
     ],
-    'genres': []
+    'genres': ['action', 'adventure', 'horror', 'jrpg', 'metroidvania', 'mmorpg', 'platformer', 'roguelike']
   },
   {
     'group': 'Сюжет',
@@ -1121,7 +1121,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'discovery',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['adventure', 'jrpg', 'rpg', 'visual_novel']
   },
   {
     'group': 'Сюжет',
@@ -1132,7 +1132,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fellowship',
       'expression'
     ],
-    'genres': []
+    'genres': ['mmorpg', 'rpg', 'strategy', 'tactical_rpg']
   },
   {
     'group': 'Сюжет',
@@ -1143,7 +1143,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'fellowship',
       'fantasy'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'adventure', 'jrpg', 'mmorpg', 'rpg']
   },
   {
     'group': 'Выживание',
@@ -1154,7 +1154,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'narrative'
     ],
-    'genres': []
+    'genres': ['horror', 'mmorpg', 'rts', 'sandbox', 'simulation', 'strategy', 'survival_horror', 'tbs']
   },
   {
     'group': 'Выживание',
@@ -1165,7 +1165,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'sensation'
     ],
-    'genres': []
+    'genres': ['horror', 'sandbox', 'simulation', 'survival_horror']
   },
   {
     'group': 'Выживание',
@@ -1176,7 +1176,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'narrative',
       'challenge'
     ],
-    'genres': []
+    'genres': ['action_rpg', 'horror', 'jrpg', 'mmorpg', 'roguelike', 'rpg', 'sandbox', 'simulation']
   },
   {
     'group': 'Выживание',
@@ -1187,7 +1187,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'sensation',
       'submission'
     ],
-    'genres': []
+    'genres': ['action', 'horror', 'sandbox', 'shooter', 'simulation', 'survival_horror', 'tactical_rpg']
   },
   {
     'group': 'Выживание',
@@ -1198,7 +1198,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'narrative',
       'submission'
     ],
-    'genres': []
+    'genres': ['horror', 'rpg', 'sandbox', 'simulation', 'survival_horror']
   },
   {
     'group': 'Выживание',
@@ -1209,7 +1209,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'narrative'
     ],
-    'genres': []
+    'genres': ['rpg', 'sandbox', 'shooter', 'simulation', 'survival_horror']
   },
   {
     'group': 'Выживание',
@@ -1220,7 +1220,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'narrative',
       'sensation'
     ],
-    'genres': []
+    'genres': ['horror', 'roguelike', 'sandbox', 'simulation', 'strategy', 'survival_horror', 'tactical_rpg']
   },
   {
     'group': 'Выживание',
@@ -1231,7 +1231,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'narrative'
     ],
-    'genres': []
+    'genres': ['adventure', 'horror', 'rpg', 'strategy', 'survival_horror']
   },
   {
     'group': 'Информация',
@@ -1242,7 +1242,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'discovery',
       'sensation'
     ],
-    'genres': []
+    'genres': ['mmorpg', 'moba', 'rts', 'shooter', 'strategy']
   },
   {
     'group': 'Информация',
@@ -1253,7 +1253,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'discovery',
       'challenge'
     ],
-    'genres': []
+    'genres': ['adventure', 'mmorpg', 'rpg', 'sandbox', 'shooter']
   },
   {
     'group': 'Информация',
@@ -1264,7 +1264,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'discovery'
     ],
-    'genres': []
+    'genres': ['adventure', 'educational', 'puzzle', 'rpg']
   },
   {
     'group': 'Информация',
@@ -1275,7 +1275,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'submission'
     ],
-    'genres': []
+    'genres': ['action', 'adventure', 'horror', 'metroidvania', 'platformer', 'puzzle', 'roguelike', 'rpg']
   },
   {
     'group': 'Информация',
@@ -1286,7 +1286,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'discovery',
       'submission'
     ],
-    'genres': []
+    'genres': ['mmorpg', 'puzzle', 'rts', 'stealth', 'strategy', 'tactical_rpg', 'tbs']
   },
   {
     'group': 'Информация',
@@ -1297,7 +1297,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'discovery'
     ],
-    'genres': []
+    'genres': ['action', 'educational', 'puzzle', 'rpg']
   },
   {
     'group': 'Информация',
@@ -1308,7 +1308,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'expression'
     ],
-    'genres': []
+    'genres': ['mmorpg', 'rpg', 'simulation', 'sports', 'strategy']
   },
   {
     'group': 'Информация',
@@ -1319,7 +1319,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'narrative',
       'discovery'
     ],
-    'genres': []
+    'genres': ['mmorpg', 'simulation', 'strategy', 'tactical_rpg']
   },
   {
     'group': 'Информация',
@@ -1330,7 +1330,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge',
       'sensation'
     ],
-    'genres': []
+    'genres': ['action', 'adventure', 'horror', 'metroidvania', 'platformer', 'puzzle', 'roguelike', 'rpg']
   },
   {
     'group': 'Мета',
@@ -1341,7 +1341,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'challenge'
     ],
-    'genres': []
+    'genres': ['action', 'adventure', 'mmorpg', 'platformer', 'rpg', 'shooter']
   },
   {
     'group': 'Мета',
@@ -1352,7 +1352,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'fellowship'
     ],
-    'genres': []
+    'genres': ['mmorpg', 'rpg', 'sandbox', 'simulation', 'strategy']
   },
   {
     'group': 'Мета',
@@ -1363,7 +1363,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'narrative'
     ],
-    'genres': []
+    'genres': ['action', 'adventure', 'horror', 'platformer', 'rpg', 'shooter', 'stealth', 'strategy']
   },
   {
     'group': 'Мета',
@@ -1374,7 +1374,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'discovery',
       'submission'
     ],
-    'genres': []
+    'genres': ['rpg', 'sandbox', 'shooter', 'simulation', 'strategy']
   },
   {
     'group': 'Мета',
@@ -1385,7 +1385,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'sensation'
     ],
-    'genres': []
+    'genres': ['action', 'fighting', 'party', 'shooter']
   },
   {
     'group': 'Мета',
@@ -1396,7 +1396,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'expression'
     ],
-    'genres': []
+    'genres': ['fighting', 'mmorpg', 'racing', 'shooter', 'sports']
   },
   {
     'group': 'Мета',
@@ -1406,7 +1406,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'submission',
       'expression'
     ],
-    'genres': []
+    'genres': ['idle', 'mmorpg', 'mobile', 'rpg', 'strategy']
   },
   {
     'group': 'Мета',
@@ -1417,7 +1417,7 @@ export const MECHANICS_DB: Mechanic[] = [
       'expression',
       'challenge'
     ],
-    'genres': []
+    'genres': ['farming', 'fighting', 'mmorpg', 'racing', 'shooter', 'simulation', 'sports']
   }
 ];
 
@@ -1457,8 +1457,17 @@ export function findMechanicsByAesthetic(aesthetic: string): Mechanic[] {
 }
 
 /**
- * Подобрать набор механик для жанра: 5 групп по 1-2 механики.
- * Возвращает структуру, совместимую с ConceptGenerationResult.mechanic_set.
+ * Подобрать набор механик для жанра.
+ *
+ * TASK-1.8 FIXED: оригинальная реализация имела `if (count >= 5) break;` после
+ * которого 2/5 категорий оставались пустыми и fallback на английские имена из
+ * GENRE_MECHANICS.default. Новая реализация:
+ *   1. Берёт ВСЕ 15 групп в порядке приоритета, по 1-2 механики из каждой.
+ *   2. Ограничивает итоговое количество mechanicals (targetTotalCount, по умолч. 10).
+ *   3. Гарантирует минимум 1 механику в каждой из 5 концептуальных категорий
+ *      (базовые/боевые/прогрессия/пространство/экономика), если такие группы есть в БД.
+ *   4. Compatibility score теперь реалистично отражает совпадение по жанру
+ *      (после TASK-1.1 genres[] заполнены, score будет 0-100 осмысленно).
  */
 export function buildMechanicSetForGenre(
   genre: string,
@@ -1473,7 +1482,7 @@ export function buildMechanicSetForGenre(
   const matching = findMechanicsByGenre(genreLower)
     .filter((m) => !forbiddenMechanics.some((f) => m.name.toLowerCase().includes(f.toLowerCase())));
 
-  // Если нет совпадений по жанру — берём случайные из каждой группы
+  // Если нет совпадений по жанру — берём все механики (фильтр по forbidden)
   const fallback = MECHANICS_DB
     .filter((m) => !forbiddenMechanics.some((f) => m.name.toLowerCase().includes(f.toLowerCase())));
 
@@ -1486,20 +1495,41 @@ export function buildMechanicSetForGenre(
     byGroup[m.group].push(m);
   }
 
-  // Берём по 1-2 механики из 5 групп (приоритет: Базовые, Боевые, Прогрессия, Пространство, Экономика)
-  const priorityGroups = ["Базовые", "Боевые", "Прогрессия", "Пространство", "Экономика", "Движение", "Социальные", "Выживание", "Стелс", "Навыки", "Время", "Территория", "Сюжет", "Информация", "Мета"];
+  // Приоритет групп: 5 концептуальных категорий первыми, затем остальные.
+  // Внутри каждой группы берём по 2 механики (чтобы покрыть разнообразие).
+  const PRIORITY_GROUPS = [
+    "Базовые", "Боевые", "Прогрессия", "Пространство", "Экономика",
+    "Движение", "Социальные", "Выживание", "Стелс", "Навыки",
+    "Время", "Территория", "Сюжет", "Информация", "Мета",
+  ];
+
+  const TARGET_TOTAL = 12; // целевое количество механик (6 групп × 2)
+  const PER_GROUP = 2;     // по 2 механики из каждой группы
+
   const selected: Record<string, Mechanic[]> = {};
   let count = 0;
-  for (const g of priorityGroups) {
-    if (count >= 5) break;
-    if (byGroup[g] && byGroup[g].length > 0) {
-      const picks = byGroup[g].slice(0, 2);
-      selected[g] = picks;
-      count += picks.length;
-    }
+
+  // Первый проход: 5 основных групп, минимум 1 механика каждая.
+  const ESSENTIAL_GROUPS = PRIORITY_GROUPS.slice(0, 5);
+  for (const g of ESSENTIAL_GROUPS) {
+    if (!byGroup[g] || byGroup[g].length === 0) continue;
+    const picks = byGroup[g].slice(0, PER_GROUP);
+    selected[g] = picks;
+    count += picks.length;
   }
 
-  // Compatibility score: % механик с совпадением по жанру
+  // Второй проход: остальные группы, пока не достигнем TARGET_TOTAL.
+  for (const g of PRIORITY_GROUPS.slice(5)) {
+    if (count >= TARGET_TOTAL) break;
+    if (!byGroup[g] || byGroup[g].length === 0) continue;
+    const remaining = TARGET_TOTAL - count;
+    const picks = byGroup[g].slice(0, Math.min(PER_GROUP, remaining));
+    selected[g] = picks;
+    count += picks.length;
+  }
+
+  // Compatibility score: % механик с совпадением по жанру.
+  // После TASK-1.1 genres[] заполнены, score будет реально отражать match.
   const allSelected = Object.values(selected).flat();
   const genreMatches = allSelected.filter((m) => m.genres.includes(genreLower)).length;
   const compatibilityScore = allSelected.length > 0

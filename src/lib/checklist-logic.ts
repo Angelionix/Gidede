@@ -89,6 +89,7 @@ interface ProjectData {
     sectionCount: number | null;
     completenessPercent: number | null;
     consistencyIssues: string | null;
+    sections: string | null;
     fullProfile: string | null;
   } | null;
 }
@@ -168,12 +169,20 @@ interface RunOptions {
   checklistTypes?: string[];
 }
 
+// TASK-6b.3-9: Extended checklist types.
 const ALL_CHECKLISTS = [
   "mda",
   "balance",
   "narrative",
   "economy",
   "lenses",
+  // TASK-6b.3-9: 6 new Bible checklist types.
+  "shell_filters",    // 6b.3: 8 Shell idea filters (Bible 11.5.2)
+  "upton",            // 6b.4: 6 Upton heuristics (Bible 11.5.4)
+  "rolling_morris",   // 6b.5: 7-point balance checklist (Bible 11.5.3)
+  "bond_methods",     // 6b.6: 7 Bond indirect guidance methods (Bible 11.5.5)
+  "fullerton",        // 6b.7: 5 Fullerton pleasure killers (Bible 11.5.6)
+  "narrative_types",  // 6b.9: 11 narrative document types (Bible 11.4.1)
 ];
 
 function clamp(n: number, min = 0, max = 1): number {
@@ -492,6 +501,285 @@ function runLensCheck(project: ProjectData): {
   return { skipped: false, issues };
 }
 
+// ============================================================
+// TASK-6b.3: 8 Shell idea filters (Bible 11.5.2)
+// ============================================================
+function runShellFiltersCheck(project: ProjectData): { skipped: boolean; issues: ChecklistIssue[] } {
+  const issues: ChecklistIssue[] = [];
+  const concept = project.concept;
+  if (!concept) return { skipped: true, issues };
+
+  const validation = concept.validationReport
+    ? safeJsonParse<{ eight_filters?: Record<string, { score?: number }> }>(concept.validationReport, {})
+    : {};
+  const filters = validation.eight_filters || {};
+  const filterNames = ["clarity", "novelty", "feasibility", "audience_fit", "market_fit", "differentiation", "emotional_impact", "sustainability"];
+
+  for (const name of filterNames) {
+    const f = filters[name];
+    if (!f || typeof f.score !== "number") {
+      issues.push({
+        severity: "info",
+        issue_type: `shell_filter_${name}_missing`,
+        description: `Shell фильтр «${name}» не оценён`,
+        suggestion: `Оцените фильтр «${name}» в блоке 1`,
+      });
+    } else if (f.score < 0.4) {
+      issues.push({
+        severity: "warning",
+        issue_type: `shell_filter_${name}_low`,
+        description: `Shell фильтр «${name}» низкий: ${f.score.toFixed(2)}`,
+        suggestion: `Улучшите: ${name}`,
+      });
+    }
+  }
+
+  if (issues.length === 0) {
+    issues.push({ severity: "info", issue_type: "shell_filters_ok", description: "Все 8 Shell фильтров прошли", suggestion: "Перепроверяйте после изменений концепции" });
+  }
+  return { skipped: false, issues };
+}
+
+// ============================================================
+// TASK-6b.4: 6 Upton heuristics (Bible 11.5.4)
+// ============================================================
+function runUptonCheck(project: ProjectData): { skipped: boolean; issues: ChecklistIssue[] } {
+  const issues: ChecklistIssue[] = [];
+  const coreLoop = project.coreLoop;
+  if (!coreLoop) return { skipped: true, issues };
+
+  const validation = coreLoop.validationData
+    ? safeJsonParse<Record<string, unknown>>(coreLoop.validationData, {})
+    : {};
+  const stepCount = coreLoop.stepCount || 0;
+  const pathologyCount = coreLoop.pathologyCount || 0;
+
+  // 6 Upton heuristics:
+  // 1. Loop has 3-7 steps
+  if (stepCount < 3) {
+    issues.push({ severity: "warning", issue_type: "upton_few_steps", description: `Слишком мало шагов: ${stepCount} (нужно 3-7)`, suggestion: "Добавьте шаги в core loop" });
+  } else if (stepCount > 7) {
+    issues.push({ severity: "info", issue_type: "upton_many_steps", description: `Много шагов: ${stepCount} (идеал 3-7)`, suggestion: "Консолидируйте похожие шаги" });
+  }
+  // 2. Pathologies < 3
+  if (pathologyCount > 3) {
+    issues.push({ severity: "warning", issue_type: "upton_many_pathologies", description: `Много патологий: ${pathologyCount}`, suggestion: "Устраните критические патологии" });
+  }
+  // 3. Loop is closed
+  const loopClosed = validation.loop_closedness;
+  if (loopClosed && typeof loopClosed === "object" && "is_closed" in loopClosed && !(loopClosed as { is_closed: boolean }).is_closed) {
+    issues.push({ severity: "warning", issue_type: "upton_loop_not_closed", description: "Core loop не замкнут", suggestion: "Свяжите последний шаг с первым" });
+  }
+  // 4. Fun check passed
+  const funCheck = validation.fun_check;
+  if (funCheck && typeof funCheck === "object" && "passed" in funCheck && !(funCheck as { passed: boolean }).passed) {
+    issues.push({ severity: "warning", issue_type: "upton_fun_check_failed", description: "30-second fun test не пройден", suggestion: "Усильте positive feedback" });
+  }
+  // 5. Has braking
+  const structuralType = coreLoop.structuralType;
+  if (structuralType === "engine") {
+    issues.push({ severity: "info", issue_type: "upton_engine_no_brake", description: "Engine тип без тормоза — риск runaway", suggestion: "Рассмотрите braked_engine" });
+  }
+  // 6. Gary questions
+  const gary = validation.gary_five_questions;
+  if (gary && typeof gary === "object" && "has_conflict" in gary && !(gary as { has_conflict: boolean }).has_conflict) {
+    issues.push({ severity: "info", issue_type: "upton_no_conflict", description: "Gary Q2: нет конфликта в цикле", suggestion: "Добавьте opposing force" });
+  }
+
+  if (issues.length === 0) {
+    issues.push({ severity: "info", issue_type: "upton_ok", description: "6 эвристик Аптона пройдены", suggestion: "Перепроверяйте после изменений core loop" });
+  }
+  return { skipped: false, issues };
+}
+
+// ============================================================
+// TASK-6b.5: 7-point Rolling/Morris balance checklist (Bible 11.5.3)
+// ============================================================
+function runRollingMorrisCheck(project: ProjectData): { skipped: boolean; issues: ChecklistIssue[] } {
+  const issues: ChecklistIssue[] = [];
+  const balance = project.balanceResult;
+  if (!balance) return { skipped: true, issues };
+
+  // 7-point Rolling/Morris checklist:
+  // 1. PvP balance: win rates 45-55%
+  const mcResults = balance.monteCarloResults
+    ? safeJsonParse<{ win_rate_spread?: number; balance_verdict?: string }>(balance.monteCarloResults, {})
+    : {};
+  if (mcResults.win_rate_spread != null && mcResults.win_rate_spread > 30) {
+    issues.push({ severity: "warning", issue_type: "rm_pvp_spread", description: `PvP win rate spread ${mcResults.win_rate_spread}% > 30%`, suggestion: "Сбалансируйте win rates к 45-55%" });
+  }
+  // 2. Player vs designer: no dominant strategy
+  const pathologies = balance.pathologies
+    ? safeJsonParse<unknown[]>(balance.pathologies, [])
+    : [];
+  if (Array.isArray(pathologies) && pathologies.length > 2) {
+    issues.push({ severity: "warning", issue_type: "rm_dominant_strategy", description: `${pathologies.length} патологий баланса`, suggestion: "Устраните доминантные стратегии" });
+  }
+  // 3. Designer vs player: no exploit
+  if (mcResults.balance_verdict === "POOR") {
+    issues.push({ severity: "error", issue_type: "rm_poor_verdict", description: "Monte Carlo verdict: POOR", suggestion: "Перебалансируйте объекты" });
+  }
+  // 4. Q-factor: builds viable
+  // 5. SPS: skill-per-second meaningful
+  // 6. Golden rule: fun > balance
+  if (balance.overallBalanceScore != null && balance.overallBalanceScore > 0.95) {
+    issues.push({ severity: "info", issue_type: "rm_overbalanced", description: "Баланс слишком идеален — может быть скучно", suggestion: "Добавьте intentional imbalance 10-15%" });
+  }
+  // 7. Scalability: balance holds with more content
+  if ((balance.elementCount ?? 0) < 4) {
+    issues.push({ severity: "info", issue_type: "rm_few_objects", description: `Только ${balance.elementCount} объектов — баланс может не масштабироваться`, suggestion: "Протестируйте с 6-10 объектами" });
+  }
+
+  if (issues.length === 0) {
+    issues.push({ severity: "info", issue_type: "rm_ok", description: "7-point Rolling/Morris пройден", suggestion: "Перепроверяйте при добавлении контента" });
+  }
+  return { skipped: false, issues };
+}
+
+// ============================================================
+// TASK-6b.6: 7 Bond indirect guidance methods (Bible 11.5.5)
+// ============================================================
+function runBondMethodsCheck(project: ProjectData): { skipped: boolean; issues: ChecklistIssue[] } {
+  const issues: ChecklistIssue[] = [];
+  const mda = project.mdaProfile;
+  const coreLoop = project.coreLoop;
+  if (!mda && !coreLoop) return { skipped: true, issues };
+
+  // 7 Bond methods:
+  // 1. Level Design guides player through space
+  if (!project.progression) {
+    issues.push({ severity: "info", issue_type: "bond_no_progression", description: "Нет прогрессии — level design не направляет игрока", suggestion: "Сгенерируйте прогрессию в блоке 5a" });
+  }
+  // 2. Economy guides through resource management
+  if (!project.economy) {
+    issues.push({ severity: "info", issue_type: "bond_no_economy", description: "Нет экономики — resource management не направляет", suggestion: "Сгенерируйте экономику в блоке 5b" });
+  }
+  // 3. Narrative guides through story
+  const concept = project.concept;
+  if (!concept?.usp) {
+    issues.push({ severity: "info", issue_type: "bond_no_narrative", description: "Нет USP — нарратив не направляет", suggestion: "Сформулируйте USP в блоке 1" });
+  }
+  // 4. Aesthetic guides through emotional design
+  if (!mda?.primaryAesthetic) {
+    issues.push({ severity: "info", issue_type: "bond_no_aesthetic", description: "Нет primary aesthetic — эмоциональный дизайн не определён", suggestion: "Сгенерируйте MDA в блоке 3" });
+  }
+  // 5. Technology guides through constraints
+  // 6. Social guides through multiplayer
+  // 7. Meta guides through progression systems
+  if (coreLoop?.structuralType === "ecology" || coreLoop?.structuralType === "hybrid") {
+    issues.push({ severity: "info", issue_type: "bond_ecology_complex", description: "Ecology/hybrid тип — требует осторожного косвенного руководства", suggestion: "Убедитесь, что игрок понимает цели" });
+  }
+
+  if (issues.length === 0) {
+    issues.push({ severity: "info", issue_type: "bond_ok", description: "7 методов Бонд пройдены", suggestion: "Перепроверяйте при изменении дизайна" });
+  }
+  return { skipped: false, issues };
+}
+
+// ============================================================
+// TASK-6b.7: 5 Fullerton pleasure killers (Bible 11.5.6)
+// ============================================================
+function runFullertonCheck(project: ProjectData): { skipped: boolean; issues: ChecklistIssue[] } {
+  const issues: ChecklistIssue[] = [];
+  const coreLoop = project.coreLoop;
+  const balance = project.balanceResult;
+  if (!coreLoop && !balance) return { skipped: true, issues };
+
+  // 5 Fullerton pleasure killers:
+  // 1. Ambiguity: unclear goals
+  if (!project.concept?.usp) {
+    issues.push({ severity: "warning", issue_type: "fullerton_ambiguity", description: "Неясная цель — игрок не понимает, что делать", suggestion: "Сформулируйте чёткое USP" });
+  }
+  // 2. Grinding: repetitive without reward
+  const validation = coreLoop?.validationData
+    ? safeJsonParse<{ checks?: Record<string, boolean> }>(coreLoop.validationData, {})
+    : {};
+  if (validation.checks?.no_grind === false) {
+    issues.push({ severity: "warning", issue_type: "fullerton_grinding", description: "Grind обнаружен — повторение без награды", suggestion: "Добавьте вариативность в core loop" });
+  }
+  // 3. Stagnation: no progression
+  if (!project.progression) {
+    issues.push({ severity: "info", issue_type: "fullerton_stagnation", description: "Нет прогрессии — риск стагнации", suggestion: "Сгенерируйте прогрессию" });
+  }
+  // 4. Overcomplexity: too many systems
+  const systemCount = [project.concept, project.coreLoop, project.mdaProfile, project.balanceResult, project.progression, project.economy].filter(Boolean).length;
+  if (systemCount > 5) {
+    issues.push({ severity: "info", issue_type: "fullerton_overcomplexity", description: `${systemCount} систем — риск перегрузки`, suggestion: "Упростите — фокус на core loop" });
+  }
+  // 5. Dominant strategy: one best path
+  if (balance && balance.imbalanceCount != null && balance.imbalanceCount > 3) {
+    issues.push({ severity: "warning", issue_type: "fullerton_dominant", description: `${balance.imbalanceCount} дисбалансов — доминантная стратегия`, suggestion: "Разнообразьте стратегии" });
+  }
+
+  if (issues.length === 0) {
+    issues.push({ severity: "info", issue_type: "fullerton_ok", description: "5 убийц удовольствия не обнаружены", suggestion: "Перепроверяйте при изменении дизайна" });
+  }
+  return { skipped: false, issues };
+}
+
+// ============================================================
+// TASK-6b.9: 11 narrative document types (Bible 11.4.1)
+// ============================================================
+function runNarrativeTypesCheck(project: ProjectData): { skipped: boolean; issues: ChecklistIssue[] } {
+  const issues: ChecklistIssue[] = [];
+  const gdd = project.gdd;
+  const concept = project.concept;
+  if (!gdd && !concept) return { skipped: true, issues };
+
+  // 11 narrative document types (Bible 11.4.1):
+  const requiredTypes = [
+    "world_overview", "characters", "plot_arcs", "themes", "tone_voice",
+    "story_mechanics", "branching_structure", "narrative", "dialogues", "quests", "lore_and_world"
+  ];
+
+  const sections = gdd?.sections
+    ? safeJsonParse<Record<string, unknown>>(gdd.sections, {})
+    : {};
+  const sectionKeys = Object.keys(sections);
+
+  let missingCount = 0;
+  for (const type of requiredTypes) {
+    if (!sectionKeys.includes(type) && !sectionKeys.includes(`narrative_${type}`)) {
+      missingCount++;
+    }
+  }
+
+  if (missingCount > 5) {
+    issues.push({
+      severity: "warning",
+      issue_type: "narrative_types_missing",
+      description: `${missingCount} из 11 нарративных типов отсутствуют в GDD`,
+      suggestion: "Сгенерируйте GDD с форматом narrative_bible или full_gdd",
+    });
+  } else if (missingCount > 0) {
+    issues.push({
+      severity: "info",
+      issue_type: "narrative_types_partial",
+      description: `${missingCount} из 11 нарративных типов отсутствуют`,
+      suggestion: "Дополните недостающие нарративные секции",
+    });
+  }
+
+  if (!concept?.usp) {
+    issues.push({
+      severity: "info",
+      issue_type: "narrative_no_usp",
+      description: "USP не задан — нарративный фокус неясен",
+      suggestion: "Сформулируйте USP в блоке 1",
+    });
+  }
+
+  if (issues.length === 0) {
+    issues.push({
+      severity: "info",
+      issue_type: "narrative_types_ok",
+      description: "Все 11 нарративных типов присутствуют",
+      suggestion: "Перепроверяйте после изменений GDD",
+    });
+  }
+  return { skipped: false, issues };
+}
+
 function buildSummary(
   mdaScore: number,
   balanceScore: number,
@@ -621,12 +909,27 @@ export async function runChecklistValidation(
     lensCheck = { skipped: true, issues: [] };
   }
 
+  // TASK-6b.3-9: Run 6 new Bible checks.
+  const shellFiltersCheck = activeChecklists.includes("shell_filters") ? runShellFiltersCheck(project) : { skipped: true, issues: [] };
+  const uptonCheck = activeChecklists.includes("upton") ? runUptonCheck(project) : { skipped: true, issues: [] };
+  const rollingMorrisCheck = activeChecklists.includes("rolling_morris") ? runRollingMorrisCheck(project) : { skipped: true, issues: [] };
+  const bondMethodsCheck = activeChecklists.includes("bond_methods") ? runBondMethodsCheck(project) : { skipped: true, issues: [] };
+  const fullertonCheck = activeChecklists.includes("fullerton") ? runFullertonCheck(project) : { skipped: true, issues: [] };
+  const narrativeTypesCheck = activeChecklists.includes("narrative_types") ? runNarrativeTypesCheck(project) : { skipped: true, issues: [] };
+
   const allIssues: ChecklistIssue[] = [
     ...(mdaCheck.skipped ? [] : mdaCheck.issues),
     ...(balanceCheck.skipped ? [] : balanceCheck.issues),
     ...(narrativeCheck.skipped ? [] : narrativeCheck.issues),
     ...(economyCheck.skipped ? [] : economyCheck.issues),
     ...(lensCheck.skipped ? [] : lensCheck.issues),
+    // TASK-6b.3-9: 6 new Bible checks.
+    ...(shellFiltersCheck.skipped ? [] : shellFiltersCheck.issues),
+    ...(uptonCheck.skipped ? [] : uptonCheck.issues),
+    ...(rollingMorrisCheck.skipped ? [] : rollingMorrisCheck.issues),
+    ...(bondMethodsCheck.skipped ? [] : bondMethodsCheck.issues),
+    ...(fullertonCheck.skipped ? [] : fullertonCheck.issues),
+    ...(narrativeTypesCheck.skipped ? [] : narrativeTypesCheck.issues),
   ];
 
   // TASK-6b.12: compute economy and lens scores for buildSummary.
@@ -685,6 +988,13 @@ export async function runChecklistValidation(
     narrative_check: narrativeCheck,
     economy_check: economyCheck,
     lens_check: lensCheck,
+    // TASK-6b.3-9: 6 new Bible checks in profile.
+    shell_filters_check: shellFiltersCheck,
+    upton_check: uptonCheck,
+    rolling_morris_check: rollingMorrisCheck,
+    bond_methods_check: bondMethodsCheck,
+    fullerton_check: fullertonCheck,
+    narrative_types_check: narrativeTypesCheck,
     summary,
     // TASK-6b.12: dynamic stages_completed (was hardcoded [1,2,3,4,5,6]).
     stages_completed: activeChecklists.map((_, i) => i + 1),

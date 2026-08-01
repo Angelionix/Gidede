@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R4-07` — унифицировать mechanic namespace и taxonomy.
-- **Зависимости:** `R4-06` завершена; compatibility_score основан на genre coverage + hybrid bonus, cross-genre mechanics не штрафуются.
-- **Ожидаемый результат:** Concept/Core/MDA используют одни и те же mechanic IDs и namespace.
-- **После неё:** `R4-08` — реализовать реальную MDA iteration loop.
+- **Следующая задача:** `R4-08` — реализовать реальную MDA iteration loop.
+- **Зависимости:** `R4-07` завершена; Concept/Core/MDA используют единый `MechanicRef` wire-тип со стабильным `id` + canonical `category`.
+- **Ожидаемый результат:** каждая iteration меняет candidate set и сохраняет diff; `iterations_done` отражает реальное число итераций.
+- **После неё:** `R4-09` — Lens #41 получать из Balance dominance evidence.
 
 ## Правила ведения
 
@@ -69,9 +69,54 @@
 | R4-04 | DONE | market_fit разделяет heuristic prior и external evidence с confidence/source | 543 tests, TypeScript, scoped ESLint |
 | R4-05 | DONE | USP candidates вычисляют Triangle of Weirdness из реальных свойств текста | 577 tests, TypeScript, scoped ESLint |
 | R4-06 | DONE | compatibility_score: genre coverage + hybrid bonus; cross-genre mechanics не штрафуются | 579 tests, TypeScript, scoped ESLint |
-| R4-07…R7 | TODO | См. активный roadmap | — |
+| R4-07 | DONE | Единый `MechanicRef` wire-тип со стабильным `id` + canonical `category` через Concept/Core/MDA | 624 tests, TypeScript, scoped ESLint |
+| R4-08…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R4-07 — DONE
+
+Что сделано:
+
+- создан единый модуль `src/lib/mechanic-ref.ts` с wire-типом `MechanicRef` (`id`, `name`, `group`, `category`, `source`) — единый формат для передачи механик между всеми стадиями пайплайна;
+- `slugifyMechanicId(name)` — детерминированная транслитерация русских имён в стабильные ASCII snake_case ID (например, «Изучение мира» → `izuchenie_mira`, «Броня» → `bronya`); не требует ручной курации 128 английских имён;
+- `categoryOfGroup(group)` — единая canonical маппировка MechanicsDB групп (русских) → 5-bucket category (base/combat/progression/spatial/social); заменяет дублированные `groupMap` в route.ts и `categorizeMechanic` regex в mda/constants.ts;
+- `categoryOfName(name)` — keyword-regex fallback для non-MechanicsDB механик (MDA-internal English IDs из DYNAMICS_TO_MECHANICS);
+- `toMechanicRef`, `refFromName`, `coerceToMechanicRef`, `mechanicIdOf` — конверсии для heterogeneous input;
+- Stage 1 (`concept/generate/route.ts`): каждая entry в persistируемом `mechanic_set` теперь содержит `id` (slug), `category` (canonical), `source` (`mechanics_db` | `genre_default`); fallback-entries из `GENRE_MECHANICS.default` тоже получают стабильные id + `source:"genre_default"`;
+- `pipeline-context.ts`: добавлен `extractConceptMechanicRefs()` — возвращает `MechanicRef[]` с стабильными id + canonical category из persistированного mechanic_set; `selectedMechanicRefs()` — fallback к deriveMechanicsFromIdea verbs (как refs) когда Concept пуст;
+- `buildStageRequestBody` для `core_loop` и `mda` теперь передаёт `mechanic_refs: MechanicRef[]` (NEW field) рядом с существующим `mechanics: string[]` (backward compat);
+- `balanceObjects` использует стабильный `ref.id` вместо синтетического `'mechanic_N'` — Balance-объекты теперь traceable к MechanicsDB;
+- Stage 3 (`mda/analyze/route.ts`): `buildMechanicSet` принимает `mechanicRefs[]` и читает `ref.category` напрямую для existing mechanics — **исправляет баг**, где русские имена вроде «Броня» молча попадали в `base` bucket из-за того, что `categorizeMechanic` regex не матчит кириллицу; теперь «Броня» корректно попадает в `combat` через MechanicsDB group «Боевые»;
+- MDA-internal DYNAMICS_TO_MECHANICS values по-прежнему используют `categorizeMechanic` regex (правильно — это English IDs без group);
+- `algorithm-metadata` обновлён: `mechanic_set.*[*].id` имеет provenance о транслитерации, fallback и стабильности.
+
+Изменённые области:
+
+- `src/lib/mechanic-ref.ts` (новый, 230 строк) и `mechanic-ref.test.ts` (новый, 36 тестов);
+- `src/lib/mechanic-namespace-contract.test.ts` (новый, 9 contract-тестов доказывающих одинаковые id через Concept → Core Loop → MDA);
+- `src/lib/pipeline-context.ts` — `extractConceptMechanicRefs`, `selectedMechanicRefs`, `mechanic_refs` в buildStageRequestBody, `balanceObjects` с stable id;
+- `src/app/api/v1/concept/generate/route.ts` — `id` + `category` + `source` в mechanic_set entries, `categoryOfGroup` вместо локального groupMap;
+- `src/app/api/v1/mda/analyze/route.ts` — `mechanicRefs` parsing из body, `buildMechanicSet` читает `ref.category`;
+- `src/lib/algorithm-metadata.ts` — provenance для mechanic id.
+
+Проверки:
+
+- `bun run test` — 60 файлов, 624 теста пройдено (было 579; +36 mechanic-ref + 9 contract);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- `extractConceptMechanicRefs` возвращает refs с теми же id, что сохранены в Concept mechanic_set;
+- `buildStageRequestBody("core_loop")` и `buildStageRequestBody("mda")` передают одинаковый `mechanic_refs` array — same id set;
+- contract-тест «the same mechanic id appears in Concept, Core Loop and MDA outputs» проходит — все MechanicsDB-derived id присутствуют во всех трёх стадиях;
+- Cyrillic name «Броня» (group «Боевые») → `category="combat"` через ref (раньше `categorizeMechanic` возвращал `"base"` — regex не матчит кириллицу);
+- legacy backward compat: Concept output с только `{name, group}` (без id/category) → refs с slugified id + category из mechanic_set key;
+- fallback: Concept без mechanic_set → deriveMechanicsFromIdea verbs как refs с `source:"fallback"`;
+- Balance objects используют `ref.id` (например `bronya`) вместо `mechanic_1`;
+- следующей задачей назначена `R4-08`.
 
 ### 2026-08-01 — R4-06 — DONE
 

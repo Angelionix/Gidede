@@ -9,6 +9,10 @@ import {
   type ContractStageId,
   type GddDocumentFormat,
 } from "@/lib/contracts/stage-contracts";
+import {
+  coerceToMechanicRef,
+  type MechanicRef,
+} from "@/lib/mechanic-ref";
 
 export interface PipelineInput {
   idea: string;
@@ -139,6 +143,42 @@ export function extractConceptMechanics(conceptOutput: unknown): string[] {
   return mechanics;
 }
 
+/**
+ * R4-07: Extract mechanic refs (with stable id + category) from Concept's
+ * persisted `mechanic_set`. Returns `MechanicRef[]` so downstream stages
+ * (Core Loop, MDA) can use `ref.id` as the join key and `ref.category` as
+ * the canonical 5-bucket — instead of re-deriving category from the name
+ * via regex (which silently fails on Cyrillic).
+ *
+ * When the persisted entry already has `id` and `category` (R4-07+ Concept
+ * output), they are preserved. When it's a legacy entry (only `name`), the
+ * id is slugified and category is derived from the name — graceful fallback.
+ */
+export function extractConceptMechanicRefs(conceptOutput: unknown): MechanicRef[] {
+  const concept = asRecord(conceptOutput);
+  const mechanicSet = asRecord(concept?.mechanic_set);
+  if (!mechanicSet) return [];
+
+  const refs: MechanicRef[] = [];
+  const seenIds = new Set<string>();
+  for (const category of MECHANIC_CATEGORIES) {
+    const entries = mechanicSet[category];
+    if (!Array.isArray(entries)) continue;
+    for (const entry of entries) {
+      const ref = coerceToMechanicRef(entry, "mechanics_db");
+      if (!ref) continue;
+      // Override category with the canonical bucket from the mechanic_set key
+      // (the key IS the authoritative category — Concept placed it there).
+      ref.category = category as MechanicRef["category"];
+      if (!seenIds.has(ref.id)) {
+        seenIds.add(ref.id);
+        refs.push(ref);
+      }
+    }
+  }
+  return refs;
+}
+
 function deriveMechanicsFromIdea(idea: string): string[] {
   const text = idea.toLowerCase();
   const candidates = [
@@ -180,6 +220,20 @@ function selectedMechanics(input: PipelineInput, context: PipelineContext): stri
   return fromConcept.length > 0 ? fromConcept : deriveMechanicsFromIdea(input.idea);
 }
 
+/**
+ * R4-07: Selected mechanic refs (with stable id + category) for forwarding
+ * to downstream stages. Falls back to deriveMechanicsFromIdea verbs (as
+ * refs) when Concept has no persisted mechanic_set.
+ */
+function selectedMechanicRefs(input: PipelineInput, context: PipelineContext): MechanicRef[] {
+  const fromConcept = extractConceptMechanicRefs(context.outputs.concept);
+  if (fromConcept.length > 0) return fromConcept;
+  // Fallback: derive verbs from idea and wrap as refs.
+  return deriveMechanicsFromIdea(input.idea).map((name) =>
+    coerceToMechanicRef(name, "fallback")!,
+  );
+}
+
 function hashText(value: string): number {
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
@@ -189,12 +243,15 @@ function hashText(value: string): number {
   return hash >>> 0;
 }
 
-function balanceObjects(mechanics: string[]): Array<Record<string, unknown>> {
+function balanceObjects(mechanics: string[], refs: MechanicRef[]): Array<Record<string, unknown>> {
   const source = mechanics.length >= 2 ? mechanics : [...mechanics, "secondary mechanic"];
   return source.slice(0, 8).map((name, index) => {
     const hash = hashText(name);
+    // R4-07: use the stable mechanic id from the ref when available, instead
+    // of a synthetic 'mechanic_N' that isn't traceable to MechanicsDB.
+    const ref = refs[index];
     return {
-      id: `mechanic_${index + 1}`,
+      id: ref?.id ?? `mechanic_${index + 1}`,
       name,
       type: "mechanic",
       attributes: {
@@ -219,6 +276,7 @@ export function buildStageRequestBody(
 ): Record<string, unknown> {
   const genre = conceptGenre(input, context);
   const mechanics = selectedMechanics(input, context);
+  const mechanicRefs = selectedMechanicRefs(input, context);
   const concept = asRecord(context.outputs.concept);
   const aesthetics = conceptAesthetics(input, context);
   const upstreamVersions = lineage(context);
@@ -235,6 +293,9 @@ export function buildStageRequestBody(
       return {
         concept_id: typeof concept?.id === "string" ? concept.id : "standalone",
         mechanics,
+        // R4-07: forward structured refs with stable id + category so Core Loop
+        // and downstream stages share the same mechanic namespace as Concept.
+        mechanic_refs: mechanicRefs,
         genre,
         primary_aesthetic: aesthetics[0],
         use_ai: input.useAi,
@@ -247,12 +308,15 @@ export function buildStageRequestBody(
         genre,
         target_aesthetics: aesthetics,
         existing_mechanics: mechanics,
+        // R4-07: forward structured refs so MDA reads category from the ref
+        // instead of re-deriving it via name regex (which fails on Cyrillic).
+        mechanic_refs: mechanicRefs,
         use_ai: input.useAi,
         upstream_versions: upstreamVersions,
       };
     case "balance":
       return {
-        objects: balanceObjects(mechanics),
+        objects: balanceObjects(mechanics, mechanicRefs),
         game_mode: genre === "fighting" ? "PvP" : "PvE",
         genre,
         use_ai: input.useAi,

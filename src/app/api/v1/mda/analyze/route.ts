@@ -247,13 +247,22 @@ function categorizeMechanic(mechanicName: string): "base" | "combat" | "progress
   return "base";
 }
 
+interface MechanicRefInput {
+  id: string;
+  name: string;
+  group: string;
+  category: string;
+  source: string;
+}
+
 function buildMechanicSet(
   genre: string,
   dynamicsTarget: { core_dynamics: string[]; supporting_dynamics: string[] },
   existingMechanics: string[],
   requiredMechanics: string[],
   forbiddenMechanics: string[],
-  maxMechanics: number
+  maxMechanics: number,
+  mechanicRefs: MechanicRefInput[] = []
 ) {
   const templates = GENRE_DEFAULT_MECHANICS[genre] || GENRE_DEFAULT_MECHANICS.default;
 
@@ -264,6 +273,16 @@ function buildMechanicSet(
   const spatialSet = new Set(templates.spatial);
   const socialSet = new Set(templates.social);
 
+  // Helper to add a mechanic to its category set.
+  const addToCategory = (category: string, m: string) => {
+    if (category === "base") baseSet.add(m);
+    else if (category === "combat") combatSet.add(m);
+    else if (category === "progression") progressionSet.add(m);
+    else if (category === "spatial") spatialSet.add(m);
+    else if (category === "social") socialSet.add(m);
+    else baseSet.add(m);
+  };
+
   // TASK-3.4: Reverse MDA — add mechanics from dynamics_target (not just genre defaults).
   // For each target dynamic, add its mechanics to the appropriate semantic group.
   const allTargetDynamics = [...dynamicsTarget.core_dynamics, ...dynamicsTarget.supporting_dynamics];
@@ -271,25 +290,29 @@ function buildMechanicSet(
     const mechs = DYNAMICS_TO_MECHANICS[dyn] || [];
     for (const m of mechs) {
       if (forbiddenMechanics.includes(m)) continue;
-      // TASK-3.19: semantic categorization instead of round-robin.
+      // DYNAMICS_TO_MECHANICS values are MDA-internal English IDs with no group,
+      // so categorizeMechanic (name regex) is the right tool for them.
       const category = categorizeMechanic(m);
-      if (category === "base") baseSet.add(m);
-      else if (category === "combat") combatSet.add(m);
-      else if (category === "progression") progressionSet.add(m);
-      else if (category === "spatial") spatialSet.add(m);
-      else if (category === "social") socialSet.add(m);
+      addToCategory(category, m);
     }
   }
 
-  // TASK-3.19: semantic categorization for existing mechanics (was round-robin i % 5).
+  // R4-07: when mechanic_refs are supplied, use the ref's canonical category
+  // (set by Concept from the MechanicsDB group) instead of re-deriving it via
+  // name regex. This fixes the bug where Cyrillic MechanicsDB names like
+  // "Броня" were silently dumped into "base" because the regex only matches
+  // English keywords. Refs not found by name fall back to regex categorization.
+  const refByName = new Map<string, MechanicRefInput>();
+  for (const ref of mechanicRefs) {
+    refByName.set(ref.name, ref);
+  }
   for (const m of existingMechanics) {
     if (forbiddenMechanics.includes(m)) continue;
-    const category = categorizeMechanic(m);
-    if (category === "base") baseSet.add(m);
-    else if (category === "combat") combatSet.add(m);
-    else if (category === "progression") progressionSet.add(m);
-    else if (category === "spatial") spatialSet.add(m);
-    else if (category === "social") socialSet.add(m);
+    const ref = refByName.get(m);
+    const category = ref && ref.category
+      ? ref.category
+      : categorizeMechanic(m);
+    addToCategory(category, m);
   }
 
   // Add required mechanics
@@ -862,6 +885,25 @@ export async function POST(request: NextRequest) {
     const existingMechanics = Array.isArray(body?.existing_mechanics)
       ? body.existing_mechanics.map((m: unknown) => String(m).trim()).filter(Boolean)
       : [];
+    // R4-07: accept structured mechanic_refs (with stable id + category) from
+    // the pipeline runner. When present, MDA reads the category directly from
+    // the ref instead of re-deriving it via name regex (which fails on Cyrillic
+    // MechanicsDB names like "Броня" → "base" instead of "combat").
+    const mechanicRefs = Array.isArray(body?.mechanic_refs)
+      ? body.mechanic_refs
+          .map((r: unknown) => {
+            if (!r || typeof r !== "object") return null;
+            const obj = r as Record<string, unknown>;
+            const name = typeof obj.name === "string" ? obj.name.trim() : "";
+            if (!name) return null;
+            const id = typeof obj.id === "string" ? obj.id.trim() : "";
+            const category = typeof obj.category === "string" ? obj.category : "";
+            const group = typeof obj.group === "string" ? obj.group : "";
+            const source = typeof obj.source === "string" ? obj.source : "mechanics_db";
+            return { id, name, group, category, source };
+          })
+          .filter((r: { name: string } | null): r is { id: string; name: string; group: string; category: string; source: string } => r !== null)
+      : [];
     const requiredMechanics = Array.isArray(body?.required_mechanics)
       ? body.required_mechanics.map((m: unknown) => String(m).trim()).filter(Boolean)
       : [];
@@ -965,7 +1007,8 @@ export async function POST(request: NextRequest) {
       existingMechanics,
       requiredMechanics,
       forbiddenMechanics,
-      maxMechanics
+      maxMechanics,
+      mechanicRefs
     );
 
     // TASK-3.17 FIXED: recompute uncovered_dynamics based on actual mechanic set.

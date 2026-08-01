@@ -37,6 +37,7 @@ import { enrichConcept } from "@/lib/ai-service";
 import { buildMechanicSetForGenres, type Mechanic } from "@/lib/mechanics-db";
 import { buildValidationReport } from "@/lib/concept/validation";
 import { buildUSPCandidates } from "@/lib/concept/usp-builders";
+import { slugifyMechanicId, categoryOfGroup } from "@/lib/mechanic-ref";
 import { validateConceptInput } from "@/lib/concept/validation-input";
 import {
   rankAestheticsFromText,
@@ -293,7 +294,7 @@ function buildMechanicSet(
     "Мета": "progression",
   };
 
-  const categories: Record<string, Array<{ name: string; group: string; desc?: string; cross_genre?: boolean; matched_genres?: string[] }>> = {
+  const categories: Record<string, Array<{ id: string; name: string; group: string; category: string; desc?: string; cross_genre?: boolean; matched_genres?: string[]; source: string }>> = {
     base: [],
     combat: [],
     progression: [],
@@ -302,7 +303,8 @@ function buildMechanicSet(
   };
 
   for (const [groupName, mechanics] of Object.entries(dbResult.groups)) {
-    const category = groupMap[groupName] || "base";
+    // R4-07: use unified categoryOfGroup from mechanic-ref module (single source of truth).
+    const category = categoryOfGroup(groupName);
     for (const m of mechanics) {
       const isCrossGenre = crossGenreNames.has(m.name);
       // Какие из переданных жанров релевантны этой механике.
@@ -310,21 +312,32 @@ function buildMechanicSet(
         m.genres.includes(g.toLowerCase().replace(/\s+/g, "_"))
       );
       categories[category].push({
+        id: slugifyMechanicId(m.name),
         name: m.name,
         group: groupName,
+        category,
         desc: m.desc,
         cross_genre: isCrossGenre || undefined,
         matched_genres: matchedGenres.length > 0 ? matchedGenres : undefined,
+        source: isCrossGenre ? "mechanics_db" : "mechanics_db",
       });
     }
   }
 
   // Fallback: если категория пуста, берём из default
+  // R4-07: fallback entries get stable id + category + source:"genre_default"
+  // so they flow through the unified namespace like MechanicsDB entries.
   for (const [cat, list] of Object.entries(categories)) {
     if (list.length === 0) {
       const templates = GENRE_MECHANICS.default;
       const key = cat as keyof typeof templates;
-      categories[cat] = templates[key].map((name: string) => ({ name, group: cat }));
+      categories[cat] = templates[key].map((name: string) => ({
+        id: slugifyMechanicId(name),
+        name,
+        group: cat,
+        category: cat,
+        source: "genre_default",
+      }));
     }
   }
 

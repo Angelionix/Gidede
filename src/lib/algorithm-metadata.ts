@@ -54,6 +54,12 @@ const SCORE_METADATA_BY_STAGE = {
       "template",
       "Synergy values are rule/template constants, not measured interaction effects.",
     ),
+    "mechanic_set.*[*].id": score(
+      "heuristic",
+      "Mechanic ids are deterministic transliteration slugs of the MechanicsDB Russian name, used as the stable join key across Concept, Core Loop and MDA stages (R4-07).",
+      "Fallback entries from GENRE_MECHANICS.default get slugified English ids tagged source='genre_default'.",
+      "Ids are stable per name but not human-curated — two different names cannot collide, but a name change produces a different id.",
+    ),
     "validation_report.eight_filters.*.score": score(
       "heuristic",
       "Keyword, length, genre and mechanic proxies approximate the eight qualitative filters.",

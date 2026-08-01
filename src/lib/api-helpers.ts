@@ -11,6 +11,17 @@
 
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import { artifactEnvelopeSchema } from "@/lib/contracts/artifact-envelope";
+import {
+  CONTRACT_STAGE_IDS,
+  type ContractStageId,
+} from "@/lib/contracts/stage-contracts";
+import { buildPersistedPipelineOutputs } from "@/lib/pipeline-persisted-outputs";
+import {
+  parsePipelineFreshnessState,
+  reconcilePipelineFreshness,
+  recordFreshArtifact,
+} from "@/lib/pipeline-stale";
 
 export interface AuthedUser {
   id: string;
@@ -119,14 +130,14 @@ export async function updateProjectStage(
   const proj = await db.project.findUnique({
     where: { id: projectId },
     include: {
-      concept: { select: { id: true } },
-      coreLoop: { select: { id: true } },
-      mdaProfile: { select: { id: true } },
-      balanceResult: { select: { id: true } },
-      progression: { select: { id: true } },
-      economy: { select: { id: true } },
-      gdd: { select: { id: true } },
-      checklist: { select: { id: true } },
+      concept: true,
+      coreLoop: true,
+      mdaProfile: true,
+      balanceResult: true,
+      progression: true,
+      economy: true,
+      gdd: true,
+      checklist: true,
     },
   });
   if (!proj) return;
@@ -143,12 +154,29 @@ export async function updateProjectStage(
 
   completion = Math.min(100, completion + (options.completionBoost || 0));
 
+  let pipelineState = proj.pipelineState;
+  if ((CONTRACT_STAGE_IDS as readonly string[]).includes(stage)) {
+    const contractStage = stage as ContractStageId;
+    const outputs = buildPersistedPipelineOutputs(proj);
+    const output = outputs[contractStage];
+    const artifact = artifactEnvelopeSchema.safeParse(output?.artifact);
+    if (artifact.success && artifact.data.artifactType === contractStage) {
+      const nextState = recordFreshArtifact(
+        parsePipelineFreshnessState(proj.pipelineState),
+        contractStage,
+        artifact.data,
+      );
+      pipelineState = JSON.stringify(reconcilePipelineFreshness(nextState, outputs));
+    }
+  }
+
   await db.project.update({
     where: { id: projectId },
     data: {
       projectStage: stage,
       completionPercent: completion,
       lastAlgorithmRun: stage,
+      pipelineState,
     },
   });
 }

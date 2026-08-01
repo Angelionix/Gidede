@@ -7,6 +7,8 @@
  */
 
 import { db } from "@/lib/db";
+import type { ContractStageId } from "@/lib/contracts/stage-contracts";
+import { parsePipelineFreshnessState } from "@/lib/pipeline-stale";
 
 export type BlockStatus = "empty" | "in_progress" | "completed" | "stale";
 
@@ -46,6 +48,7 @@ export interface ProjectPipelineSnapshot {
   completionPercent: number;
   currentStage: string | null;
   updatedAt: Date | null;
+  pipelineState: string | null;
 }
 
 export const BLOCK_NAMES: Record<number, string> = {
@@ -161,6 +164,7 @@ export async function loadProjectPipelineSnapshot(
     completionPercent: completion,
     currentStage,
     updatedAt: latestUpdate || project.updatedAt,
+    pipelineState: project.pipelineState,
   };
 }
 
@@ -176,65 +180,33 @@ export function buildBlocks(snap: ProjectPipelineSnapshot): BlockProgress[] {
     7: true, // AI assistant — always available
     8: true, // GBE — always available
   };
-
-  // Stale detection: if a later block is filled but an earlier block hasn't
-  // been updated since, mark the earlier one as stale. For simplicity (no
-  // real stale tracking in DB), we use a heuristic: if the project's stage
-  // is later than this block's stage, but the block is filled, it's not stale.
-  const stageOrder = [
-    "concept",
-    "core_loop",
-    "mda",
-    "balance",
-    "progression",
-    "economy",
-    "gdd",
-    "validation",
-  ];
-  const currentStageIdx = snap.currentStage
-    ? stageOrder.indexOf(snap.currentStage)
-    : -1;
-
-  const blockStageIdx: Record<number, number> = {
-    1: 0,
-    2: 1,
-    3: 2,
-    4: 3,
-    5: 4, // progression / economy
-    6: 6, // gdd / validation
-    7: 7,
-    8: 7,
+  const blockStages: Record<number, readonly ContractStageId[]> = {
+    1: ["concept"],
+    2: ["core_loop"],
+    3: ["mda"],
+    4: ["balance"],
+    5: ["progression", "economy"],
+    6: ["gdd", "validation"],
+    7: [],
+    8: [],
   };
+  const freshness = parsePipelineFreshnessState(snap.pipelineState);
 
   return [1, 2, 3, 4, 5, 6, 7, 8].map((blockId) => {
     const isFilled = !!filledMap[blockId];
-    let status: BlockStatus;
-    if (!isFilled) {
-      status = "empty";
-    } else if (
-      currentStageIdx >= 0 &&
-      blockStageIdx[blockId] < currentStageIdx &&
-      // Block 5 has progression+economy — count as completed if BOTH filled
-      !(blockId === 5 && snap.hasProgression && snap.hasEconomy) &&
-      !(blockId === 6 && snap.hasGdd && snap.hasChecklist)
-    ) {
-      // Earlier stage filled but a later stage is current → could be stale.
-      // For demo we just mark as "completed" (not stale) unless project stage
-      // regressed. Stale notifications are still derived below.
-      status = "completed";
-    } else if (blockId === 7 || blockId === 8) {
-      status = "completed";
-    } else {
-      status = "completed";
-    }
+    const staleArtifacts = blockStages[blockId]
+      .map((stage) => freshness.artifacts[stage])
+      .filter((artifact) => artifact?.staleSince);
+    const firstStale = staleArtifacts[0];
+    const status: BlockStatus = !isFilled ? "empty" : firstStale ? "stale" : "completed";
     return {
       block_id: blockId,
       name: BLOCK_NAMES[blockId],
       status,
       is_filled: isFilled,
       updated_at: snap.updatedAt ? snap.updatedAt.toISOString() : null,
-      stale_since: null,
-      stale_reason: null,
+      stale_since: firstStale?.staleSince ?? null,
+      stale_reason: firstStale?.staleReason ?? null,
     };
   });
 }
@@ -266,7 +238,17 @@ export function canProceedTo(
 export function derivePipelineNotifications(
   snap: ProjectPipelineSnapshot
 ): PipelineNotification[] {
-  const notifs: PipelineNotification[] = [];
+  const notifs: PipelineNotification[] = buildBlocks(snap)
+    .filter((block) => block.status === "stale")
+    .map((block) => ({
+      type: "stale_warning" as const,
+      block_id: block.block_id,
+      block_name: block.name,
+      message: `Блок «${block.name}» устарел после изменения upstream artifact и должен быть пересчитан.`,
+      severity: "warning" as const,
+      stale_since: block.stale_since,
+      stale_reason: block.stale_reason,
+    }));
   // Warn about gaps in the pipeline.
   if (snap.hasGdd && !snap.hasChecklist) {
     notifs.push({

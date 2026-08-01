@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R1-08` — реализовать stale propagation по dependency graph.
-- **Зависимости:** `R1-07` завершена; critical gate останавливает downstream, а resume перепроверяет сохранённые prerequisites.
-- **Ожидаемый результат:** изменение upstream artifact помечает все зависимые артефакты stale по явному графу зависимостей.
-- **После неё:** `R1-09` — считать completion только по accepted/non-stale artifacts.
+- **Следующая задача:** `R1-09` — считать completion только по accepted/non-stale artifacts.
+- **Зависимости:** `R1-08` завершена; проект хранит versioned freshness-map, а stale распространяется транзитивно.
+- **Ожидаемый результат:** наличие старой DB row не увеличивает completion; учитываются только существующие, принятые и свежие artifacts.
+- **После неё:** `R1-10` — increment версии только для согласованного сохранённого run.
 
 ## Правила ведения
 
@@ -41,12 +41,55 @@
 | R1-05 | DONE | Aliases приводятся к `full_gdd`, `target_format` и `target_levels` на contract boundary | 305 tests, TypeScript, scoped ESLint |
 | R1-06 | DONE | Единые run/stage statuses; `ok` истинно только для полного success | 309 tests, TypeScript, scoped ESLint |
 | R1-07 | DONE | Evidence-based gates, downstream blocking и безопасный `resume_from` | 316 tests, TypeScript, scoped ESLint |
-| R1-08 | TODO | Stale propagation | — |
+| R1-08 | DONE | Persistent freshness-map и транзитивная invalidation по dependency graph | 322 tests, TypeScript, scoped ESLint, Prisma validate |
 | R1-09 | TODO | Completion по accepted/non-stale artifacts | — |
 | R1-10 | TODO | Version increment только для согласованного run | — |
 | R2…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R1-08 — DONE
+
+Что сделано:
+
+- в `Project` добавлено JSON-поле `pipelineState` для versioned artifact freshness-map;
+- задан явный dependency graph всех восьми стадий и вычисление транзитивных descendants;
+- `updateProjectStage` после каждого сохранения записывает свежий artifact и помечает существующие downstream artifacts stale;
+- stale reason содержит upstream stage и старый/новый artifact ref, а `staleSince` фиксируется один раз до пересчёта;
+- cold bootstrap старых проектов сравнивает сохранённые `upstreamVersions` с текущими refs и обнаруживает stale даже при пустом `pipelineState`;
+- пересчёт стадии очищает stale только у неё самой; её ещё не пересчитанные descendants остаются stale;
+- pipeline state API отображает persisted stale в блоках, включая агрегированные блоки Progression/Economy и GDD/Validation;
+- notifications строятся из той же freshness-map;
+- прежний mock DELETE stale больше не скрывает устаревший результат: возвращает 409 до реального пересчёта.
+
+Изменённые области:
+
+- `prisma/schema.prisma`
+- `src/lib/pipeline-stale.ts`
+- `src/lib/pipeline-stale.test.ts`
+- `src/lib/api-helpers.ts`
+- `src/lib/pipeline-helpers.ts`
+- `src/lib/pipeline-helpers.test.ts`
+- `src/app/api/v1/pipeline/stale/[projectId]/[blockId]/route.ts`
+
+Проверки:
+
+- stale/block freshness tests — 2 файла, 6 тестов пройдены;
+- `npm run test` — 21 файл, 322 теста пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых файлов — ошибок нет;
+- `prisma generate` — Prisma Client успешно обновлён локально;
+- `prisma validate` с временным SQLite URL — schema valid;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- изменение Concept помечает stale все семь существующих downstream artifacts;
+- изменение Progression инвалидирует Economy, GDD и Validation;
+- тест подтверждает частичное восстановление: пересчёт Economy не делает GDD свежим;
+- cold-bootstrap fixture с новым Concept и Core Loop, ссылающимся на старый Concept ref, помечает Core Loop stale;
+- pipeline block и notification tests читают одну persisted freshness-map;
+- следующей задачей назначена `R1-09`.
 
 ### 2026-08-01 — R1-07 — DONE
 

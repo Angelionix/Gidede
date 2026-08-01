@@ -74,6 +74,7 @@ model Project {
   completionPercent Int      @default(0)
   version           Int      @default(1)
   lastAlgorithmRun  String?
+  pipelineState     String?  // JSON: versioned artifact freshness/stale map
   deletedAt         DateTime?                    // soft-delete: null = active, date = archived
   createdAt         DateTime @default(now())
   updatedAt         DateTime @updatedAt

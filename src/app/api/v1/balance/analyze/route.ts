@@ -857,6 +857,93 @@ function buildMachinationsResult(
   };
 }
 
+// TASK-4.14: Markov chain analysis + recursive EV (Bible 5.8).
+// Models state transitions between "winning", "losing", and "neutral" states
+// to compute steady-state probabilities and expected value of each object.
+function buildMarkovAnalysis(
+  objects: BalanceObject[],
+  monteCarloResult: { win_rates?: Record<string, number>; matchup_matrix?: Record<string, Record<string, number>> }
+) {
+  if (!monteCarloResult.win_rates || !monteCarloResult.matchup_matrix) {
+    return { skipped: true, steady_state: {}, expected_values: {}, warnings: ["Markov analysis skipped — no MC data"] };
+  }
+
+  const names = objects.map((o) => o.name);
+  const n = names.length;
+
+  // Build transition matrix: P(i → j) = probability that object i loses to object j.
+  // State = "currently using object i". Transition to j = probability of facing j and losing.
+  const transitionMatrix: number[][] = [];
+  for (let i = 0; i < n; i++) {
+    const row: number[] = [];
+    let rowSum = 0;
+    for (let j = 0; j < n; j++) {
+      if (i === j) {
+        row.push(0); // No self-transition
+      } else {
+        // P(switch from i to j) = P(facing j) * P(losing to j | using i)
+        const faceProb = 1 / n; // Uniform probability of facing any opponent
+        const lossProb = 1 - (monteCarloResult.matchup_matrix[names[i]]?.[names[j]] ?? 0.5);
+        const transProb = faceProb * lossProb;
+        row.push(Number(transProb.toFixed(4)));
+        rowSum += transProb;
+      }
+    }
+    // Self-transition = 1 - rowSum (probability of staying with current object)
+    row[i] = Number(Math.max(0, 1 - rowSum).toFixed(4));
+    transitionMatrix.push(row);
+  }
+
+  // Compute steady-state via power iteration (simplified, 100 iterations).
+  let state = names.map(() => 1 / n); // Uniform initial distribution
+  for (let iter = 0; iter < 100; iter++) {
+    const newState = names.map((_, i) => {
+      let sum = 0;
+      for (let j = 0; j < n; j++) {
+        sum += state[j] * transitionMatrix[j][i];
+      }
+      return sum;
+    });
+    // Normalize
+    const total = newState.reduce((s, v) => s + v, 0);
+    state = newState.map((v) => v / Math.max(1e-10, total));
+  }
+
+  const steadyState: Record<string, number> = {};
+  names.forEach((name, i) => {
+    steadyState[name] = Number(state[i].toFixed(4));
+  });
+
+  // Expected value: EV(object) = steady_state * win_rate
+  const expectedValues: Record<string, number> = {};
+  for (const name of names) {
+    const ss = steadyState[name];
+    const wr = monteCarloResult.win_rates[name] ?? 0.5;
+    expectedValues[name] = Number((ss * wr).toFixed(4));
+  }
+
+  // Recursive EV: for infinite processes, EV = steady_state * win_rate / (1 - discount)
+  // Discount factor = 0.95 (standard for game theory).
+  const discount = 0.95;
+  const recursiveEV: Record<string, number> = {};
+  for (const name of names) {
+    const ss = steadyState[name];
+    const wr = monteCarloResult.win_rates[name] ?? 0.5;
+    recursiveEV[name] = Number(((ss * wr) / (1 - discount)).toFixed(4));
+  }
+
+  return {
+    skipped: false,
+    transition_matrix: transitionMatrix,
+    steady_state: steadyState,
+    expected_values: expectedValues,
+    recursive_ev: recursiveEV,
+    discount_factor: discount,
+    bible_ref: "Bible 5.8.1 (Markov) + 5.8.2 (recursive EV)",
+    warnings: [],
+  };
+}
+
 // TASK-4.8 FIXED: buildStability signature broadened to avoid `as unknown as` cast.
 // Before: called with `machinationsResult as unknown as { ... feedback_loops: Array<{type: string}> }`.
 // After: accepts the actual return type of buildMachinationsResult, which may or may not
@@ -1070,6 +1157,8 @@ export async function POST(request: NextRequest) {
       stability,
       // TASK-4.9: 8 Bible 5.13 balance pathologies.
       balance_pathologies: balancePathologies,
+      // TASK-4.14: Markov chain analysis + recursive EV (Bible 5.8).
+      markov_analysis: buildMarkovAnalysis(objects, monteCarloResult),
       monte_carlo_result: monteCarloResult,
       machinations_result: machinationsResult,
       stages_completed: stagesCompleted,

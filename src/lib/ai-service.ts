@@ -1,28 +1,13 @@
 /**
- * Gidede — Real AI service via z-ai-web-dev-sdk.
+ * Gidede — provider-agnostic AI orchestration service.
  *
- * Integrates the LLM skill (z-ai-web-dev-sdk) into the assistant for genuine
- * generative responses about game design. Falls back to deterministic logic
- * if the SDK is unavailable or errors out.
+ * Uses the shared LlmClient contract and falls back to deterministic logic
+ * if the selected provider is unavailable or errors out.
  */
 
-import ZAI from "z-ai-web-dev-sdk";
+import { getDefaultLlmClient } from "@/lib/llm/default-client";
 
-let zaiInstance: Awaited<ReturnType<typeof ZAI.create>> | null = null;
-let initError: string | null = null;
-
-async function getZai() {
-  if (initError) return null;
-  if (zaiInstance) return zaiInstance;
-  try {
-    zaiInstance = await ZAI.create();
-    return zaiInstance;
-  } catch (e) {
-    initError = e instanceof Error ? e.message : String(e);
-    console.error("[ai-service] ZAI.create() failed:", initError);
-    return null;
-  }
-}
+const getLlmClient = getDefaultLlmClient;
 
 export interface AiContext {
   message: string;
@@ -97,14 +82,14 @@ function buildUserPrompt(ctx: AiContext): string {
 }
 
 /**
- * Generate a real AI response via z-ai-web-dev-sdk.
- * Returns null if SDK is unavailable or fails — caller should fall back
+ * Generate a real AI response via the selected LLM provider.
+ * Returns null if the provider is unavailable or fails — caller should fall back
  * to deterministic logic.
  */
 export async function generateAiResponse(
   ctx: AiContext
 ): Promise<string | null> {
-  const zai = await getZai();
+  const zai = await getLlmClient();
   if (!zai) return null;
 
   try {
@@ -123,17 +108,17 @@ export async function generateAiResponse(
 
     messages.push({ role: "user", content: buildUserPrompt(ctx) });
 
-    const response = await zai.chat.completions.create({
+    const response = await zai.createCompletion({
       messages,
       stream: false,
-      thinking: { type: "disabled" },
+      reasoning: "disabled",
     });
 
     const reply = response.choices?.[0]?.message?.content;
     return reply && reply.trim().length > 0 ? reply.trim() : null;
   } catch (e) {
     console.error(
-      "[ai-service] chat.completions.create failed:",
+      "[ai-service] LLM completion failed:",
       e instanceof Error ? e.message : e
     );
     return null;
@@ -141,15 +126,15 @@ export async function generateAiResponse(
 }
 
 /**
- * Stream an AI response token-by-token via z-ai-web-dev-sdk.
+ * Stream an AI response token-by-token via the selected LLM provider.
  * Calls onDelta for each chunk. Returns the full text when done.
- * Returns null if SDK unavailable — caller should fall back.
+ * Returns null if the provider is unavailable — caller should fall back.
  */
 export async function streamAiResponse(
   ctx: AiContext,
   onDelta: (chunk: string) => void
 ): Promise<string | null> {
-  const zai = await getZai();
+  const zai = await getLlmClient();
   if (!zai) return null;
 
   try {
@@ -167,10 +152,10 @@ export async function streamAiResponse(
 
     messages.push({ role: "user", content: buildUserPrompt(ctx) });
 
-    const stream = await zai.chat.completions.create({
+    const stream = await zai.createCompletion({
       messages,
       stream: true,
-      thinking: { type: "disabled" },
+      reasoning: "disabled",
     });
 
     let fullText = "";
@@ -192,9 +177,9 @@ export async function streamAiResponse(
   }
 }
 
-/** Check if the AI service is available (SDK loaded). */
+/** Check if the selected LLM provider is available. */
 export async function isAiAvailable(): Promise<boolean> {
-  const zai = await getZai();
+  const zai = await getLlmClient();
   return zai !== null;
 }
 
@@ -224,7 +209,7 @@ export interface ConceptEnrichment {
 export async function enrichConcept(
   ctx: ConceptEnrichmentInput
 ): Promise<ConceptEnrichment | null> {
-  const zai = await getZai();
+  const zai = await getLlmClient();
   if (!zai) return null;
 
   try {
@@ -243,7 +228,7 @@ export async function enrichConcept(
 
 Ответ — только валидный JSON, без markdown обёртки.`;
 
-    const response = await zai.chat.completions.create({
+    const response = await zai.createCompletion({
       messages: [
         {
           role: "system",
@@ -253,7 +238,7 @@ export async function enrichConcept(
         { role: "user", content: prompt },
       ],
       stream: false,
-      thinking: { type: "disabled" },
+      reasoning: "disabled",
     });
 
     const raw = response.choices?.[0]?.message?.content?.trim() || "";
@@ -329,7 +314,7 @@ export interface PrototypeAiInput {
 export async function generatePrototypeInsights(
   ctx: PrototypeAiInput
 ): Promise<string | null> {
-  const zai = await getZai();
+  const zai = await getLlmClient();
   if (!zai) return null;
 
   try {
@@ -350,7 +335,7 @@ ${ctx.idea ? `Идея проекта: ${ctx.idea}` : ""}
 
 Ответ — обычный текст с нумерованными пунктами, без JSON.`;
 
-    const response = await zai.chat.completions.create({
+    const response = await zai.createCompletion({
       messages: [
         {
           role: "system",
@@ -360,7 +345,7 @@ ${ctx.idea ? `Идея проекта: ${ctx.idea}` : ""}
         { role: "user", content: prompt },
       ],
       stream: false,
-      thinking: { type: "disabled" },
+      reasoning: "disabled",
     });
 
     const text = response.choices?.[0]?.message?.content?.trim();
@@ -389,7 +374,7 @@ export interface CustomMechanicInput {
 export async function generateCustomMechanic(
   ctx: CustomMechanicInput
 ): Promise<{ mechanicName: string; description: string; codeSnippet: string } | null> {
-  const zai = await getZai();
+  const zai = await getLlmClient();
   if (!zai) return null;
 
   try {
@@ -408,13 +393,13 @@ export async function generateCustomMechanic(
 
 Ответ — только валидный JSON, без markdown.`;
 
-    const response = await zai.chat.completions.create({
+    const response = await zai.createCompletion({
       messages: [
         { role: "system", content: "Ты — AI-ассистент по геймдизайну и программированию. Отвечай только валидным JSON." },
         { role: "user", content: prompt },
       ],
       stream: false,
-      thinking: { type: "disabled" },
+      reasoning: "disabled",
     });
 
     const raw = response.choices?.[0]?.message?.content?.trim() || "";
@@ -462,7 +447,7 @@ export interface CoreLoopAiInput {
 }
 
 export async function enrichCoreLoop(ctx: CoreLoopAiInput): Promise<string | null> {
-  const zai = await getZai();
+  const zai = await getLlmClient();
   if (!zai) return null;
   try {
     // TASK-2.18: расширенный prompt с реальным контекстом
@@ -497,13 +482,13 @@ ${pathologiesSection}${deadResourcesSection}${unsourcedSection}${garySection}
 4. Конкретное улучшение для замкнутости цикла или resource flow
 
 Ответ — обычный текст с нумерованными пунктами.`;
-    const response = await zai.chat.completions.create({
+    const response = await zai.createCompletion({
       messages: [
         { role: "system", content: "Ты — AI-ассистент по геймдизайну, специализирующийся на core loop проектировании по методологии Шелла и Адамса/Дорманс." },
         { role: "user", content: prompt },
       ],
       stream: false,
-      thinking: { type: "disabled" },
+      reasoning: "disabled",
     });
     const text = response.choices?.[0]?.message?.content?.trim();
     return text && text.length > 30 ? text : null;
@@ -530,7 +515,7 @@ export interface MdaAiInput {
 }
 
 export async function enrichMda(ctx: MdaAiInput): Promise<string | null> {
-  const zai = await getZai();
+  const zai = await getLlmClient();
   if (!zai) return null;
   try {
     // TASK-3.14: расширенный prompt с реальным контекстом MDA-анализа.
@@ -563,13 +548,13 @@ export async function enrichMda(ctx: MdaAiInput): Promise<string | null> {
 4. Как улучшить ludonarrative alignment (Гармония/Ирония/Диссонанс)
 
 Ответ — обычный текст с нумерованными пунктами.`;
-    const response = await zai.chat.completions.create({
+    const response = await zai.createCompletion({
       messages: [
         { role: "system", content: "Ты — AI-ассистент по геймдизайну, эксперт по MDA фреймворку (Hunicke/LeBlanc/Zubek), линзам Шелла и матрице Бонда." },
         { role: "user", content: prompt },
       ],
       stream: false,
-      thinking: { type: "disabled" },
+      reasoning: "disabled",
     });
     const text = response.choices?.[0]?.message?.content?.trim();
     return text && text.length > 30 ? text : null;
@@ -598,7 +583,7 @@ export interface BalanceAiInput {
 }
 
 export async function enrichBalance(ctx: BalanceAiInput): Promise<string | null> {
-  const zai = await getZai();
+  const zai = await getLlmClient();
   if (!zai) return null;
   try {
     // TASK-4.11: extended prompt with real balance analysis context.
@@ -635,13 +620,13 @@ export async function enrichBalance(ctx: BalanceAiInput): Promise<string | null>
 4. Конкретные корректировки для overpowered/underpowered объектов (если есть)
 
 Ответ — обычный текст с нумерованными пунктами.`;
-    const response = await zai.chat.completions.create({
+    const response = await zai.createCompletion({
       messages: [
         { role: "system", content: "Ты — AI-ассистент по геймдизайну, эксперт по балансу игр по методологии Шрайбера и Адамса/Дорманс." },
         { role: "user", content: prompt },
       ],
       stream: false,
-      thinking: { type: "disabled" },
+      reasoning: "disabled",
     });
     const text = response.choices?.[0]?.message?.content?.trim();
     return text && text.length > 30 ? text : null;
@@ -663,7 +648,7 @@ export interface ProgressionAiInput {
 }
 
 export async function enrichProgression(ctx: ProgressionAiInput): Promise<string | null> {
-  const zai = await getZai();
+  const zai = await getLlmClient();
   if (!zai) return null;
   try {
     const prompt = `Ты — эксперт по прогрессии в играх. Дай рекомендации.
@@ -679,13 +664,13 @@ export async function enrichProgression(ctx: ProgressionAiInput): Promise<string
 3. Какие content gates рекомендуются
 
 Ответ — обычный текст с нумерованными пунктами.`;
-    const response = await zai.chat.completions.create({
+    const response = await zai.createCompletion({
       messages: [
         { role: "system", content: "Ты — AI-ассистент по геймдизайну, эксперт по прогрессии." },
         { role: "user", content: prompt },
       ],
       stream: false,
-      thinking: { type: "disabled" },
+      reasoning: "disabled",
     });
     const text = response.choices?.[0]?.message?.content?.trim();
     return text && text.length > 30 ? text : null;
@@ -710,7 +695,7 @@ export interface EconomyAiInput {
 }
 
 export async function enrichEconomy(ctx: EconomyAiInput): Promise<string | null> {
-  const zai = await getZai();
+  const zai = await getLlmClient();
   if (!zai) return null;
   try {
     const pathologiesSection = ctx.pathologies && ctx.pathologies.length > 0
@@ -742,13 +727,13 @@ export async function enrichEconomy(ctx: EconomyAiInput): Promise<string | null>
 4. Как монетизация влияет на баланс экономики (учти тип монетизации и открытость)
 
 Ответ — обычный текст с нумерованными пунктами.`;
-    const response = await zai.chat.completions.create({
+    const response = await zai.createCompletion({
       messages: [
         { role: "system", content: "Ты — AI-ассистент по геймдизайну, эксперт по игровой экономике (Machinations, Schreiber, Adams/Dormans)." },
         { role: "user", content: prompt },
       ],
       stream: false,
-      thinking: { type: "disabled" },
+      reasoning: "disabled",
     });
     const text = response.choices?.[0]?.message?.content?.trim();
     return text && text.length > 30 ? text : null;
@@ -770,7 +755,7 @@ export interface GddAiInput {
 }
 
 export async function enrichGdd(ctx: GddAiInput): Promise<string | null> {
-  const zai = await getZai();
+  const zai = await getLlmClient();
   if (!zai) return null;
   try {
     const prompt = `Ты — технический писатель GDD. Дай рекомендации по структуре дизайн-документа.
@@ -786,13 +771,13 @@ export async function enrichGdd(ctx: GddAiInput): Promise<string | null> {
 3. Какие чек-листы валидации приоритетны
 
 Ответ — обычный текст с нумерованными пунктами.`;
-    const response = await zai.chat.completions.create({
+    const response = await zai.createCompletion({
       messages: [
         { role: "system", content: "Ты — AI-ассистент по геймдизайну, эксперт по написанию GDD." },
         { role: "user", content: prompt },
       ],
       stream: false,
-      thinking: { type: "disabled" },
+      reasoning: "disabled",
     });
     const text = response.choices?.[0]?.message?.content?.trim();
     return text && text.length > 30 ? text : null;
@@ -834,7 +819,7 @@ export interface AiGraphResult {
 export async function generateGraphFromText(
   ctx: AiGraphInput
 ): Promise<AiGraphResult | null> {
-  const zai = await getZai();
+  const zai = await getLlmClient();
   if (!zai) return null;
 
   try {
@@ -873,13 +858,13 @@ Output: win, lose
 
 Ответ — только валидный JSON, без markdown.`;
 
-    const response = await zai.chat.completions.create({
+    const response = await zai.createCompletion({
       messages: [
         { role: "system", content: "Ты — AI-ассистент по геймдизайну. Отвечай только валидным JSON." },
         { role: "user", content: prompt },
       ],
       stream: false,
-      thinking: { type: "disabled" },
+      reasoning: "disabled",
     });
 
     const raw = response.choices?.[0]?.message?.content?.trim() || "";
@@ -929,7 +914,7 @@ export async function validateGraphWithAI(
   edgeCount: number,
   description?: string
 ): Promise<AiGraphSuggestion[] | null> {
-  const zai = await getZai();
+  const zai = await getLlmClient();
   if (!zai) return null;
 
   try {
@@ -950,13 +935,13 @@ ${description ? `Описание игры: ${description}` : ""}
 
 Ответ — JSON массив: [{"type":"error|warning|suggestion","message":"...","suggestedNode":"тип ноды (опционально)","fixAction":"описание (опционально)"}]`;
 
-    const response = await zai.chat.completions.create({
+    const response = await zai.createCompletion({
       messages: [
         { role: "system", content: "Ты — AI-ассистент по геймдизайну. Отвечай только валидным JSON массивом." },
         { role: "user", content: prompt },
       ],
       stream: false,
-      thinking: { type: "disabled" },
+      reasoning: "disabled",
     });
 
     const raw = response.choices?.[0]?.message?.content?.trim() || "";
@@ -995,7 +980,7 @@ export interface GddToGraphInput {
 export async function generateGraphFromGdd(
   ctx: GddToGraphInput
 ): Promise<AiGraphResult | null> {
-  const zai = await getZai();
+  const zai = await getLlmClient();
   if (!zai) return null;
 
   try {
@@ -1022,13 +1007,13 @@ ${ctx.mechanicsDb ? `Механики из MechanicsDB: ${ctx.mechanicsDb.join("
 
 Ответ — только валидный JSON.`;
 
-    const response = await zai.chat.completions.create({
+    const response = await zai.createCompletion({
       messages: [
         { role: "system", content: "Ты — AI-ассистент по геймдизайну. Отвечай только валидным JSON." },
         { role: "user", content: prompt },
       ],
       stream: false,
-      thinking: { type: "disabled" },
+      reasoning: "disabled",
     });
 
     const raw = response.choices?.[0]?.message?.content?.trim() || "";

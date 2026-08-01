@@ -26,6 +26,7 @@ import {
   getHistory,
 } from "@/lib/assistant-store";
 import { streamAiResponse } from "@/lib/ai-service";
+import { getDefaultLlmStatus } from "@/lib/llm/default-client";
 import {
   UNAUTH,
   VALIDATION_ERROR,
@@ -89,6 +90,9 @@ export async function POST(request: NextRequest) {
     .filter((m) => m.role === "user" || m.role === "assistant");
 
   const assistantMsgId = `a-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const llmStatus = await getDefaultLlmStatus();
+  const activeModel = llmStatus.modelId || "unknown";
+  const activeProvider = llmStatus.providerId || "unknown";
 
   // Build the SSE stream
   const stream = new ReadableStream({
@@ -102,13 +106,13 @@ export async function POST(request: NextRequest) {
         send({
           type: "start",
           message_id: assistantMsgId,
-          model_used: "glm-4.6",
-          provider: "z-ai-web-dev-sdk",
+          model_used: activeModel,
+          provider: activeProvider,
         });
 
         let fullText = "";
-        let modelUsed = "glm-4.6";
-        let provider = "z-ai-web-dev-sdk";
+        let modelUsed = activeModel;
+        let provider = activeProvider;
 
         // 2. Try real AI streaming first
         const aiText = await streamAiResponse(

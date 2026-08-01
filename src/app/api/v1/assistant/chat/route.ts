@@ -26,6 +26,7 @@ import {
   getHistory,
 } from "@/lib/assistant-store";
 import { generateAiResponse } from "@/lib/ai-service";
+import { getDefaultLlmStatus } from "@/lib/llm/default-client";
 import {
   UNAUTH,
   SERVER_ERROR,
@@ -88,6 +89,7 @@ export async function POST(request: NextRequest) {
     let modelUsed: string;
     let provider: string;
 
+    const llmStatus = await getDefaultLlmStatus();
     const aiText = await generateAiResponse({
       message,
       projectName,
@@ -106,8 +108,8 @@ export async function POST(request: NextRequest) {
 
     if (aiText) {
       responseText = aiText;
-      modelUsed = "glm-4.6";
-      provider = "z-ai-web-dev-sdk";
+      modelUsed = llmStatus.modelId || "unknown";
+      provider = llmStatus.providerId || "unknown";
     } else {
       // Deterministic fallback
       const fallback = generateAssistantResponse({

@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R3-01` — выделить provider-agnostic `LlmClient` и registry.
-- **Зависимости:** `R2-08` завершена; GDD защищён evidence-based playtest decision gate.
-- **Ожидаемый результат:** `ai-service` зависит от общего LLM-контракта, а не от конкретного SDK/provider.
-- **После неё:** `R3-02` — реализовать OpenAI-compatible adapter для произвольного LLM-router API.
+- **Следующая задача:** `R3-02` — реализовать OpenAI-compatible adapter для произвольного LLM-router API.
+- **Зависимости:** `R3-01` завершена; общий `LlmClient` и lazy provider registry работают.
+- **Ожидаемый результат:** новый router подключается через base URL/model/secret reference без изменения `ai-service`.
+- **После неё:** `R3-03` — добавить Generic HTTP mapping и Custom adapter SPI.
 
 ## Правила ведения
 
@@ -52,9 +52,50 @@
 | R2-06 | DONE | PrototypeArtifact закрепляет прототип за accepted/fresh Core Loop lineage | 349 tests, TypeScript, scoped ESLint |
 | R2-07 | DONE | Versioned playtest evidence хранит hypothesis/cohort/observations и агрегируется по прототипу | 353 tests, TypeScript, scoped ESLint, Prisma validate |
 | R2-08 | DONE | GDD требует `go` либо документированный override; доступны 4 decision outcome | 355 tests, TypeScript, scoped ESLint |
-| R3…R7 | TODO | См. активный roadmap | — |
+| R3-01 | DONE | `LlmClient`, lazy registry и изолированный ZAI adapter отделены от `ai-service` | 358 tests, TypeScript, scoped ESLint |
+| R3-02…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R3-01 — DONE
+
+Что сделано:
+
+- введён provider-agnostic `LlmClient` с нормализованными message, completion и streaming contracts;
+- контракт поддерживает model, temperature, max tokens и reasoning без SDK-specific типов;
+- реализован `LlmRegistry`: регистрация factory, lazy initialization, singleton reuse, список providers и выбор default;
+- текущий `z-ai-web-dev-sdk` изолирован в `providers/zai.ts` и адаптирует native response/stream к общему контракту;
+- default-client bootstrap регистрирует legacy ZAI provider без знания о нём в доменном сервисе;
+- все 14 completion/stream paths `ai-service` переведены на `LlmClient.createCompletion`;
+- `ai-service` больше не импортирует, не создаёт и не типизируется через конкретный SDK;
+- assistant status получает provider/model из активного клиента, а не из hardcoded значения.
+
+Изменённые области:
+
+- `src/lib/llm/types.ts`;
+- `src/lib/llm/registry.ts` и тесты;
+- `src/lib/llm/default-client.ts`;
+- `src/lib/llm/providers/zai.ts`;
+- `src/lib/ai-service.ts`;
+- `src/app/api/v1/assistant/status/route.ts`;
+- `src/app/api/v1/assistant/chat/route.ts` и streaming route.
+
+Проверки:
+
+- LLM registry targeted tests — 3 теста пройдены;
+- `npm run test` — 27 файлов, 358 тестов пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых файлов — ошибок нет;
+- `git diff --check` — ошибок нет;
+- `z-ai-web-dev-sdk` отсутствует в `ai-service` и находится только в concrete adapter.
+
+Acceptance evidence:
+
+- provider factory не вызывается при регистрации и создаётся только при первом `get`;
+- повторный `get` использует тот же client instance;
+- default provider переключается registry без изменений вызывающего кода;
+- duplicate/unknown provider IDs отклоняются;
+- следующей задачей назначена `R3-02`.
 
 ### 2026-08-01 — R2-08 — DONE
 

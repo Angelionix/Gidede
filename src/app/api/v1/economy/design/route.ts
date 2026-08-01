@@ -27,6 +27,7 @@ import {
   VALIDATION_ERROR,
 } from "@/lib/api-helpers";
 import { enrichEconomy } from "@/lib/ai-service";
+import { runGraphSimulation } from "@/lib/economy/graph-simulation";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
@@ -901,6 +902,34 @@ export async function POST(request: NextRequest) {
     const simSeed = hashString(proj.id || "economy-default-seed");
     const simResult = simulate(resources, faucetDrain, 50, simSeed);
 
+    // R5-15: execute the Machinations graph (nodes + resource_flows +
+    // state_connections) as a real resource-flow simulation, not just
+    // single-pool decay. The graph sim provides diagnostics derived from the
+    // actual graph structure, complementing the single-pool simResult.
+    const graphSimResult = runGraphSimulation(
+      machinations.nodes.map((n) => ({
+        id: n.id,
+        type: n.node_type,
+        rate: n.rate ?? undefined,
+        capacity: n.capacity ?? undefined,
+      })),
+      machinations.resource_flows.map((f) => ({
+        source_id: f.source_id,
+        target_id: f.target_id,
+        resource: f.resource,
+        rate: f.rate,
+      })),
+      machinations.state_connections.map((sc) => ({
+        source_id: sc.source_id,
+        target_id: sc.target_id,
+        modifier: sc.modifier,
+        formula: sc.formula ?? undefined,
+      })),
+      resources.map((r) => ({ name: r.name, initial_value: r.initial_value, bounds: r.bounds })),
+      50,
+      simSeed,
+    );
+
     // TASK-5b.9: 12-point validation checklist (Bible 6.13.4).
     const checklist = {
       1: resources.length >= 2, // Минимум 2 ресурса
@@ -967,6 +996,9 @@ export async function POST(request: NextRequest) {
       diagnostics,
       balance,
       sim_result: simResult,
+      // R5-15: graph-based simulation diagnostics (from executing the
+      // Machinations graph, not single-pool decay).
+      graph_sim_result: graphSimResult,
       // TASK-5b.9: 12-point validation checklist.
       economy_checklist: { checks: checklist, passed: checklistPassed, total: 12 },
       // TASK-5b.12: 8-dimensional feedback loop profiles.

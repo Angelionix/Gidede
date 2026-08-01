@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R5-15` — исполнять Machinations graph с agents/events/policies.
-- **Зависимости:** `R5-14` и `R5-16` завершены; Economy faucetDrain filter исправлен, AI enrichment перенесён до persist.
-- **Ожидаемый результат:** diagnostics получены из исполняемого графа, а не single-pool decay.
-- **После неё:** Фаза R5 завершена, переход к Фазе 6 (GDD и финальная валидация).
+- **Следующая задача:** Фаза R6 (GDD и финальная валидация) — начать с `R6-01` (удалить/делегировать stub GDD routes).
+- **Зависимости:** Фаза R5 (Balance, Progression, Economy) завершена — все 16 задач R5-01…R5-16 выполнены.
+- **Ожидаемый результат:** один canonical GDD generator; source types честные; critical issues — hard gate.
+- **После неё:** R6-02…R6-11 — полный рефакторинг GDD и Checklist.
 
 ## Статус roadmap
 
@@ -77,8 +77,9 @@
 | R5-12 | DONE | Playtest calibration: session_length/time_to_first_level/failure_rate изменяют XP и difficulty curves | 848 tests, TypeScript, scoped ESLint |
 | R5-13 | DONE | Economy resource inventory из Core Loop stepsData (resource flows) вместо genre preset | 848 tests, TypeScript, scoped ESLint |
 | R5-14 | DONE | faucetDrain producingFlows filter: только target_id (was target_id OR resource) | 848 tests, TypeScript, scoped ESLint |
+| R5-15 | DONE | Machinations graph execution (nodes + flows + state_connections) с реальной resource-flow sim | 862 tests, TypeScript, scoped ESLint |
 | R5-16 | DONE | Economy AI enrichment перенесён до persist (ai_insights теперь сохраняется в БД) | 848 tests, TypeScript, scoped ESLint |
-| R5-15, R6…R7 | TODO | См. активный roadmap | — |
+| R6…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -91,6 +92,42 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R5-15 — DONE
+
+Что сделано:
+
+- создан модуль `src/lib/economy/graph-simulation.ts` с реальным Machinations graph execution engine;
+- `runGraphSimulation(nodes, flows, stateConns, resources, ticks, seed)` — исполняет resource-flow graph:
+  - инициализирует каждый node (resource pool) с initial_value;
+  - на каждом tick: обрабатывает resource_flows (transfer rate units from source to target, respecting bounds);
+  - применяет state_connections как gates (activates/inhibits flows based on pool levels);
+  - отслеживает per-node value series, runaway (value approaches max), stall (value approaches min);
+  - возвращает curves, ranges, runaway/stall counts/frequencies, stability_index с `source: "graph_execution"`;
+- Economy route вызывает `runGraphSimulation` рядом с существующим single-pool `simulate`, результат сохраняется в `result.graph_sim_result`;
+- Machinations graph (nodes + resource_flows + state_connections) теперь ИСПОЛНЯется, а не просто строится.
+
+Изменённые области:
+
+- `src/lib/economy/graph-simulation.ts` (новый, 200 строк) и `graph-simulation.test.ts` (новый, 14 тестов);
+- `src/app/api/v1/economy/design/route.ts` — graph simulation вызов, result inclusion.
+
+Проверки:
+
+- `bun run test` — 72 файла, 862 теста пройдено (было 848; +14 graph-simulation);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- diagnostics come from graph execution (source="graph_execution"), not single-pool decay;
+- graph structure affects simulation (no flows → values unchanged; with flows → transfers happen);
+- state connections gate flows based on source value;
+- bounds respected (values never exceed max or go below min);
+- determinism: same seed → same result;
+- **Фаза R5 (Balance, Progression, Economy) полностью завершена** — все 16 задач R5-01…R5-16 выполнены;
+- следующей задачей назначена `R6-01` (Фаза 6: GDD и финальная валидация).
 
 ### 2026-08-01 — R5-14 + R5-16 — DONE
 

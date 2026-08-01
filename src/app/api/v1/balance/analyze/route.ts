@@ -49,6 +49,30 @@ interface BalanceObject {
   tags?: string[];
 }
 
+// TASK-4.6: Deterministic PRNG (mulberry32) for reproducible Monte Carlo.
+// Before: Math.random() → non-deterministic, results not reproducible between runs.
+// After: seeded PRNG based on projectId hash → same seed = same results.
+function mulberry32(seed: number): () => number {
+  let a = seed;
+  return function () {
+    a |= 0;
+    a = (a + 0x6D2B79F5) | 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+// Simple string hash for seeding PRNG from projectId.
+function hashString(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  }
+  return h >>> 0;
+}
+
 // ============================================================
 // Helpers
 // ============================================================
@@ -380,11 +404,16 @@ function buildQFactorResult(objects: BalanceObject[], runQFactor: boolean) {
     };
   }
   // Q-factor: combinatorial matchups
-  const qFactors = objects.map((o) => ({
-    name: o.name,
-    q_factor: Number((1 + (o.attributes ? Object.values(o.attributes).reduce((s, v) => s + v, 0) / 200 : 0)).toFixed(3)),
-    synergy_score: Number((0.6 + Math.random() * 0.3).toFixed(2)),
-  }));
+  // TASK-4.6: deterministic synergy_score based on name hash (was Math.random).
+  const qFactors = objects.map((o) => {
+    const hash = hashString(o.name);
+    const synergy = 0.6 + (hash % 30) / 100; // 0.60-0.89 deterministic
+    return {
+      name: o.name,
+      q_factor: Number((1 + (o.attributes ? Object.values(o.attributes).reduce((s, v) => s + v, 0) / 200 : 0)).toFixed(3)),
+      synergy_score: Number(synergy.toFixed(2)),
+    };
+  });
 
   return {
     skipped: false,
@@ -397,7 +426,8 @@ function buildQFactorResult(objects: BalanceObject[], runQFactor: boolean) {
 function buildMonteCarloResult(
   objects: BalanceObject[],
   intransitiveResult: { payoff_matrix: number[][]; object_names: string[] },
-  runMonteCarlo: boolean
+  runMonteCarlo: boolean,
+  seed: number
 ) {
   if (!runMonteCarlo || objects.length < 2) {
     return {
@@ -413,6 +443,8 @@ function buildMonteCarloResult(
     };
   }
 
+  // TASK-4.6: deterministic PRNG instead of Math.random().
+  const rng = mulberry32(seed);
   const iterations = 200;
   const n = objects.length;
   const names = objects.map((o) => o.name);
@@ -437,18 +469,18 @@ function buildMonteCarloResult(
   // Use payoff matrix as win probability bias
   const matrix = intransitiveResult.payoff_matrix;
   for (let iter = 0; iter < iterations; iter++) {
-    // Random pair
-    const i = Math.floor(Math.random() * n);
-    let j = Math.floor(Math.random() * n);
-    while (j === i) j = Math.floor(Math.random() * n);
+    // TASK-4.6: deterministic RNG instead of Math.random().
+    const i = Math.floor(rng() * n);
+    let j = Math.floor(rng() * n);
+    while (j === i) j = Math.floor(rng() * n);
 
     matchupGames[names[i]][names[j]]++;
     matchupGames[names[j]][names[i]]++;
 
     // Win probability for i vs j
     const bias = matrix.length > 0 ? (matrix[i]?.[j] || 0) : 0;
-    const winProb = 0.5 + bias * 0.4;
-    const iWins = Math.random() < winProb;
+    const winProb = Math.max(0.05, Math.min(0.95, 0.5 + bias * 0.4)); // TASK-4.6: clamped
+    const iWins = rng() < winProb;
 
     if (iWins) {
       winCounts[names[i]]++;
@@ -461,7 +493,7 @@ function buildMonteCarloResult(
     // Duration: 30-180 seconds, with attribute-based variance
     const iSpeed = objects[i].attributes.speed || 5;
     const jSpeed = objects[j].attributes.speed || 5;
-    const duration = Math.round(60 + (10 / Math.max(1, iSpeed + jSpeed)) * 50 + (Math.random() - 0.5) * 20);
+    const duration = Math.round(60 + (10 / Math.max(1, iSpeed + jSpeed)) * 50 + (rng() - 0.5) * 20);
     durationSums[names[i]] += duration;
     durationSums[names[j]] += duration;
   }
@@ -538,7 +570,7 @@ function buildMonteCarloResult(
       iterations,
       skipped: false,
       game_mode: "auto",
-      seed: "Math.random",
+      seed: `mulberry32(${seed})`, // TASK-4.6: deterministic seed
     },
     win_rates: winRates,
     avg_duration: avgDuration,
@@ -651,6 +683,8 @@ function buildMachinationsResult(
   };
 
   // Run simulation: 50 ticks per resource
+  // TASK-4.6: deterministic noise via mulberry32 (was Math.random).
+  const simRng = mulberry32(hashString(objects.map((o) => o.name).join(",")));
   const ticks = 50;
   const curves: Record<string, number[]> = {};
   const ranges: Record<string, { min: number; max: number }> = {};
@@ -658,15 +692,15 @@ function buildMachinationsResult(
   let stallCount = 0;
 
   for (const o of objects) {
-    const hp = o.attributes.HP || 100;
-    const dmg = o.attributes.damage || 10;
+    const hp = o.attributes.HP || o.attributes.hp || 100;
+    const dmg = o.attributes.damage || o.attributes.power || 10;
     let value = hp;
     const series: number[] = [hp];
     let rMax = hp;
     let rMin = hp;
     for (let t = 1; t < ticks; t++) {
       // Simple model: value drops by dmg, regenerates by 5%
-      const noise = (Math.random() - 0.5) * dmg * 0.3;
+      const noise = (simRng() - 0.5) * dmg * 0.3;
       value = value - dmg + hp * 0.05 + noise;
       value = Math.max(0, Math.min(hp * 2, value));
       series.push(Number(value.toFixed(2)));
@@ -884,10 +918,13 @@ export async function POST(request: NextRequest) {
     const qFactorResult = buildQFactorResult(objects, runQFactor);
 
     // --- Stage 5: Monte Carlo ---
+    // TASK-4.6: deterministic seed from projectId for reproducible results.
+    const mcSeed = hashString(proj.id || "default-seed");
     const monteCarloResult = buildMonteCarloResult(
       objects,
       intransitiveResult,
-      runMonteCarlo
+      runMonteCarlo,
+      mcSeed
     );
 
     // --- Stage 6: Machinations + Stability ---
@@ -948,6 +985,22 @@ export async function POST(request: NextRequest) {
       warnings,
       suggestions,
     };
+
+    // TASK-4.10 FIXED: AI enrichment moved BEFORE persist so ai_insights is saved in DB.
+    // Before: enrichment was after db.upsert → ai_insights only in HTTP response, lost on reload.
+    // After: enrichment before fullResult serialization → ai_insights included in fullResult.
+    if (useAi) {
+      const aiInsights = await enrichBalance({
+        projectName: proj.name || "Untitled",
+        genre,
+        balanceType,
+        elementCount: objects.length,
+      });
+      if (aiInsights) {
+        result.ai_insights = aiInsights;
+        (result.models_used as string[]).push("glm-4.6 (ai-enrichment)");
+      }
+    }
 
     // --- Persist ---
     const inputData = JSON.stringify({
@@ -1037,20 +1090,6 @@ export async function POST(request: NextRequest) {
     await updateProjectStage(proj.id, "balance");
 
     // TASK-4.17: removed dead code (void safeJsonParse).
-
-    // --- Optional AI enrichment ---
-    if (useAi) {
-      const aiInsights = await enrichBalance({
-        projectName: proj.name || "Untitled",
-        genre,
-        balanceType,
-        elementCount: objects.length,
-      });
-      if (aiInsights) {
-        result.ai_insights = aiInsights;
-        (result.models_used as string[]).push("glm-4.6 (ai-enrichment)");
-      }
-    }
 
     return NextResponse.json(result);
   } catch (error) {

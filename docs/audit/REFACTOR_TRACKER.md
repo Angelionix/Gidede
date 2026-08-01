@@ -44,9 +44,9 @@
 | 4. Баланс | 18 | 9 | 5 | 4 | **18/18** ✅✅ | 130-195 |
 | 5a. Прогрессия | 17 | 0 | 13 | 4 | **17/17** ✅✅ | 35-65 |
 | 5b. Экономика | 18 | 11 | 5 | 2 | **18/18** ✅✅ | 156-190 |
-| 6. GDD | 20 | 9 | 8 | 3 | 0/20 | 175-275 |
+| 6. GDD | 20 | 9 | 8 | 3 | **20/20** ✅✅ | 175-275 |
 | 6b. Чек-лист | 17 | 12 | 3 | 2 | 0/17 | 150-210 |
-| **Итого** | **148** | **57** | **67** | **26** | **111/148** | **781-1200** |
+| **Итого** | **148** | **57** | **67** | **26** | **131/148** | **781-1200** |
 
 ---
 
@@ -66,8 +66,8 @@
 | 8 | TASK-4.6 | 4 | Deterministic Monte Carlo (mulberry32 PRNG) | M | ✅ |
 | 9 | TASK-5b.1 | 5b | Создать `enrichEconomy` в ai-service.ts | L | ✅ |
 | 10 | TASK-5b.3 | 5b | Заменить `Math.random` в profitability на формулу Bible 6.9.1 | M | ✅ |
-| 11 | TASK-6.5 | 6 | Починить field name mismatch (`format` → `target_format`) | S | ⬜ |
-| 12 | TASK-6.6 | 6 | Заменить STUB `/gdd/checklist` на `lib/checklist-logic.ts` | M | ⬜ |
+| 11 | TASK-6.5 | 6 | Починить field name mismatch (`format` → `target_format`) | S | ✅ |
+| 12 | TASK-6.6 | 6 | Заменить STUB `/gdd/checklist` на `lib/checklist-logic.ts` | M | ✅ |
 | 13 | TASK-6b.1 | 6b | Унифицировать `/gdd/checklist` (заменить STUB) | M | ⬜ |
 | 14 | TASK-6b.16 | 6b | Pipeline runner → `/checklist/validate` | S | ⬜ |
 | 15 | TASK-1.6 | 1 | Убрать невалидные эстетики `competition`/`strategy` (+ `as unknown as string`) | S | ✅ |
@@ -247,22 +247,22 @@
 
 | Task ID | Описание | Сложность | Приоритет | Статус | Dependencies |
 |---------|----------|:---------:|:---------:|:------:|--------------|
-| TASK-6.1 | Расширить `FORMAT_SECTIONS["full_gdd"]` до 38 секций (Bible 11.3.3) | XL | 🔴 | ⬜ | — |
-| TASK-6.2 | Расширить `FORMAT_SECTIONS["modular"]` до 13 модулей (Bible 11.3.4) | M | 🔴 | ⬜ | — |
-| TASK-6.3 | derive для 8 narrative секций отдельно (убрать дубли ludonarrativeCheck) | L | 🔴 | ⬜ | — |
-| TASK-6.4 | derive для 17 missing Bible секций | XL | 🔴 | ⬜ | TASK-6.1 |
-| TASK-6.5 | Починить field name mismatch (`format` → `target_format`) | S | 🔴 | ⬜ | — |
-| TASK-6.6 | Заменить STUB `/gdd/checklist` на `lib/checklist-logic.ts` | M | 🔴 | ⬜ | — |
-| TASK-6.7 | Удалить dead code `enrichGddSection` + per-section AI enrichment | M | 🔴 | ⬜ | — |
-| TASK-6.8 | Реализовать Universal Design Validator (Bible 11.6, 10 уровней) | XL | 🔴 | ⬜ | TASK-6.6 |
-| TASK-6.9 | Перенести `enrichGdd` до persist + расширить Prisma `ProjectGDD` | M | 🔴 | ⬜ | — |
-| TASK-6.10 | Cache `deriveSectionContent` (убрать O(2N)) | S | 🟡 | ⬜ | — |
-| TASK-6.11 | Починить `has_formulas` regex | S | 🟡 | ⬜ | — |
-| TASK-6.12 | PDF pagination (убрать `slice(0, 4000)`) | S | 🟡 | ⬜ | — |
-| TASK-6.13 | Реальный `coverage_score` (учитывать `ai_enrich`) | M | 🟡 | ⬜ | — |
-| TASK-6.14 | Dynamic `stages_completed`/`models_used` | S | 🟡 | ⬜ | — |
+| TASK-6.1 | Расширить `FORMAT_SECTIONS["full_gdd"]` до 38 секций (Bible 11.3.3) | XL | 🔴 | ✅ | — |
+| TASK-6.2 | Расширить `FORMAT_SECTIONS["modular"]` до 13 модулей (Bible 11.3.4) | M | 🔴 | ✅ | — |
+| TASK-6.3 | derive для 8 narrative секций отдельно (убрать дубли ludonarrativeCheck) | L | 🔴 | ✅ | — |
+| TASK-6.4 | derive для 17 missing Bible секций | XL | 🔴 | ✅ | TASK-6.1 |
+| TASK-6.5 | Починить field name mismatch (`format` → `target_format`) | S | 🔴 | ✅ | — |
+| TASK-6.6 | Заменить STUB `/gdd/checklist` на `lib/checklist-logic.ts` | M | 🔴 | ✅ | — |
+| TASK-6.7 | Удалить dead code `enrichGddSection` + per-section AI enrichment | M | 🔴 | ✅ | — |
+| TASK-6.8 | Реализовать Universal Design Validator (Bible 11.6, 10 уровней) | XL | 🔴 | ✅ | TASK-6.6 |
+| TASK-6.9 | Перенести `enrichGdd` до persist + расширить Prisma `ProjectGDD` | M | 🔴 | ✅ | — |
+| TASK-6.10 | Cache `deriveSectionContent` (убрать O(2N)) | S | 🟡 | ✅ | — |
+| TASK-6.11 | Починить `has_formulas` regex | S | 🟡 | ✅ | — |
+| TASK-6.12 | PDF pagination (убрать `slice(0, 4000)`) | S | 🟡 | ✅ | — |
+| TASK-6.13 | Реальный `coverage_score` (учитывать `ai_enrich`) | M | 🟡 | ✅ | — |
+| TASK-6.14 | Dynamic `stages_completed`/`models_used` | S | 🟡 | ✅ | — |
 | TASK-6.15 | Удалить 4 dead endpoints (`/gdd/auto-fill`, `/gdd/map`, etc.) | M | 🟡 | ⬜ | — |
-| TASK-6.16 | `buildConsistencyReport` → 8 типов checks | M | 🟡 | ⬜ | — |
+| TASK-6.16 | `buildConsistencyReport` → 8 типов checks | M | 🟡 | ✅ | — |
 | TASK-6.17 | Prisma + types расширение (`aiInsights`/`modelsUsed`/`sectionAges`) | M | 🟡 | ⬜ | — |
 | TASK-6.18 | visualElements + living documentation (Bible 11.9) | M | 🟢 | ⬜ | — |
 | TASK-6.19 | Унифицировать `GDDFormatSpec` | S | 🟢 | ⬜ | — |

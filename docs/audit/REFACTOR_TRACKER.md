@@ -41,12 +41,12 @@
 | 1. Концепция | 18 | 4 | 11 | 3 | **18/18** ✅✅ | 30-70 |
 | 2. Core Loop | 20 | 6 | 11 | 4 | **20/20** ✅✅ | 50-95 |
 | 3. MDA | 20 | 6 | 11 | 4 | **20/20** ✅✅ | 55-100 |
-| 4. Баланс | 18 | 9 | 5 | 4 | 0/18 | 130-195 |
+| 4. Баланс | 18 | 9 | 5 | 4 | **14/18** ✅ | 130-195 |
 | 5a. Прогрессия | 17 | 0 | 13 | 4 | 0/17 | 35-65 |
 | 5b. Экономика | 18 | 11 | 5 | 2 | 0/18 | 156-190 |
 | 6. GDD | 20 | 9 | 8 | 3 | 0/20 | 175-275 |
 | 6b. Чек-лист | 17 | 12 | 3 | 2 | 0/17 | 150-210 |
-| **Итого** | **148** | **57** | **67** | **26** | **58/148** | **781-1200** |
+| **Итого** | **148** | **57** | **67** | **26** | **72/148** | **781-1200** |
 
 ---
 
@@ -61,9 +61,9 @@
 | 3 | TASK-3.1 | 3 | Выровнять `mechanic_id` namespace (DYNAMICS_TO_MECHANICS ↔ GENRE_DEFAULT_MECHANICS ↔ MechanicsDB) | XL | ⬜ |
 | 4 | TASK-3.2 | 3 | Перебирать все динамики эстетики (не только `[0]`) | M | ⬜ |
 | 5 | TASK-3.5 | 3 | Инвертировать logic в Lens #41 «Доминантная стратегия» | S | ⬜ |
-| 6 | TASK-4.1 | 4 | Починить `run_pipeline_test.sh` (`elements` → `objects` с правильным shape) | S | ⬜ |
-| 7 | TASK-4.2 | 4 | `run-full-pipeline` STAGES[3] derives objects from upstream (genre-based templates) | L | ⬜ |
-| 8 | TASK-4.6 | 4 | Deterministic Monte Carlo (mulberry32 PRNG) | M | ⬜ |
+| 6 | TASK-4.1 | 4 | Починить `run_pipeline_test.sh` (`elements` → `objects` с правильным shape) | S | ✅ |
+| 7 | TASK-4.2 | 4 | `run-full-pipeline` STAGES[3] derives objects from upstream (genre-based templates) | L | ✅ |
+| 8 | TASK-4.6 | 4 | Deterministic Monte Carlo (mulberry32 PRNG) | M | ✅ |
 | 9 | TASK-5b.1 | 5b | Создать `enrichEconomy` в ai-service.ts | L | ⬜ |
 | 10 | TASK-5b.3 | 5b | Заменить `Math.random` в profitability на формулу Bible 6.9.1 | M | ⬜ |
 | 11 | TASK-6.5 | 6 | Починить field name mismatch (`format` → `target_format`) | S | ⬜ |
@@ -167,24 +167,24 @@
 
 | Task ID | Описание | Сложность | Приоритет | Статус | Dependencies |
 |---------|----------|:---------:|:---------:|:------:|--------------|
-| TASK-4.1 | Починить `run_pipeline_test.sh` (`elements` → `objects` с правильным shape) | S | 🔴 | ⬜ | — |
-| TASK-4.2 | `run-full-pipeline` STAGES[3] derives objects from upstream (genre-based templates) | L | 🔴 | ⬜ | — |
-| TASK-4.3 | 7 Schreiber curves (Bible 5.4.3, default `triangular`) | M | 🔴 | ⬜ | — |
-| TASK-4.4 | Weighted attribute importance (Bible 5.5.3) | M | 🔴 | ⬜ | — |
-| TASK-4.5 | Real Nash equilibrium через Gaussian elimination + убрать artificial cyclicalBias | L | 🔴 | ⬜ | — |
-| TASK-4.6 | Deterministic Monte Carlo (mulberry32 PRNG) + winProb clamp + real Spearman | M | 🔴 | ⬜ | — |
-| TASK-4.7 | Machinations graph from object types + 8 feedback loop characteristics (Bible 5.6.1) | L | 🔴 | ⬜ | — |
-| TASK-4.8 | Починить `buildStability` — убрать `as unknown as` cast | S | 🔴 | ⬜ | — |
-| TASK-4.9 | 8 balance pathologies (Bible 5.13) — `balance-pathologies.ts` | XL | 🔴 | ⬜ | — |
-| TASK-4.10 | Persist `ai_insights` в БД — schema migration + вызов ДО persist | M | 🔴 | ⬜ | — |
-| TASK-4.11 | Расширенный `enrichBalance` prompt | S | 🟡 | ⬜ | — |
+| TASK-4.1 | Починить `run_pipeline_test.sh` (`elements` → `objects` с правильным shape) | S | 🔴 | ✅ | — |
+| TASK-4.2 | `run-full-pipeline` STAGES[3] derives objects from upstream (genre-based templates) | L | 🔴 | ✅ | — |
+| TASK-4.3 | 7 Schreiber curves (Bible 5.4.3, default `triangular`) | M | 🔴 | ✅ | — |
+| TASK-4.4 | Weighted attribute importance (Bible 5.5.3) | M | 🔴 | ✅ | — |
+| TASK-4.5 | Real Nash equilibrium через Gaussian elimination + убрать artificial cyclicalBias | L | 🔴 | ✅ | — |
+| TASK-4.6 | Deterministic Monte Carlo (mulberry32 PRNG) + winProb clamp + real Spearman | M | 🔴 | ✅ | — |
+| TASK-4.7 | Machinations graph from object types + 8 feedback loop characteristics (Bible 5.6.1) | L | 🔴 | ✅ | — |
+| TASK-4.8 | Починить `buildStability` — убрать `as unknown as` cast | S | 🔴 | ✅ | — |
+| TASK-4.9 | 8 balance pathologies (Bible 5.13) — `balance-pathologies.ts` | XL | 🔴 | ✅ | — |
+| TASK-4.10 | Persist `ai_insights` в БД — schema migration + вызов ДО persist | M | 🔴 | ✅ | — |
+| TASK-4.11 | Расширенный `enrichBalance` prompt | S | 🟡 | ✅ | — |
 | TASK-4.12 | Унифицировать DB persistence + правильные GET fallback типы | M | 🟡 | ⬜ | — |
 | TASK-4.13 | Fulcrum O(n) reference (Bible 5.5.2) | M | 🟡 | ⬜ | — |
 | TASK-4.14 | Markov chains + recursive EV (Bible 5.8) | L | 🟡 | ⬜ | — |
-| TASK-4.15 | Валидация objects (count bound 2-100, numeric attrs, unique IDs) | S | 🟡 | ⬜ | — |
+| TASK-4.15 | Валидация objects (count bound 2-100, numeric attrs, unique IDs) | S | 🟡 | ✅ | — |
 | TASK-4.16 | 6 combinations sum × OS (Bible 5.6.2) | M | 🟢 | ⬜ | — |
-| TASK-4.17 | Убрать dead code + type bypasses | S | 🟢 | ⬜ | — |
-| TASK-4.18 | Unit-тесты для balance модулей | L | 🟢 | ⬜ | Все остальные |
+| TASK-4.17 | Убрать dead code + type bypasses | S | 🟢 | ✅ | — |
+| TASK-4.18 | Unit-тесты для balance модулей | L | 🟢 | ✅ | Все остальные |
 
 ---
 

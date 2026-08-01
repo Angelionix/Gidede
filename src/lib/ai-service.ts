@@ -639,28 +639,56 @@ export interface BalanceAiInput {
   genre: string;
   balanceType: string;
   elementCount: number;
+  // TASK-4.11: extended context for better AI insights.
+  transitiveOverpowered?: string[];
+  transitiveUnderpowered?: string[];
+  balanceVerdict?: string;
+  winRateSpread?: number;
+  stabilityIndex?: number;
+  balancePathologies?: string[];
 }
 
 export async function enrichBalance(ctx: BalanceAiInput): Promise<string | null> {
   const zai = await getZai();
   if (!zai) return null;
   try {
+    // TASK-4.11: extended prompt with real balance analysis context.
+    const overpoweredSection = ctx.transitiveOverpowered && ctx.transitiveOverpowered.length > 0
+      ? `\nOverpowered: ${ctx.transitiveOverpowered.join(", ")}`
+      : "";
+    const underpoweredSection = ctx.transitiveUnderpowered && ctx.transitiveUnderpowered.length > 0
+      ? `\nUnderpowered: ${ctx.transitiveUnderpowered.join(", ")}`
+      : "";
+    const verdictSection = ctx.balanceVerdict
+      ? `\nBalance verdict: ${ctx.balanceVerdict}`
+      : "";
+    const spreadSection = ctx.winRateSpread !== undefined
+      ? `\nWin rate spread: ${ctx.winRateSpread}%`
+      : "";
+    const stabilitySection = ctx.stabilityIndex !== undefined
+      ? `\nStability index: ${ctx.stabilityIndex}`
+      : "";
+    const pathologiesSection = ctx.balancePathologies && ctx.balancePathologies.length > 0
+      ? `\nОбнаруженные патологии: ${ctx.balancePathologies.join(", ")}`
+      : "\nПатологии не обнаружены.";
+
     const prompt = `Ты — эксперт по балансу игр. Дай рекомендации.
 
 Проект: ${ctx.projectName}
 Жанр: ${ctx.genre}
 Тип баланса: ${ctx.balanceType}
-Количество элементов: ${ctx.elementCount}
+Количество элементов: ${ctx.elementCount}${overpoweredSection}${underpoweredSection}${verdictSection}${spreadSection}${stabilitySection}${pathologiesSection}
 
-Дай 3 совета (на русском):
-1. Какие метрики баланса наиболее важны для этого типа
-2. Какие дисбалансы вероятны и как их предотвратить
+Дай 4 совета (на русском, каждый 1-2 предложения):
+1. Какие метрики баланса наиболее важны для этого типа (учти verdict и spread)
+2. Какие дисбалансы вероятны и как их предотвратить (учти обнаруженные патологии)
 3. Какие Monte-Carlo параметры рекомендуются (итерации, критерии победы)
+4. Конкретные корректировки для overpowered/underpowered объектов (если есть)
 
 Ответ — обычный текст с нумерованными пунктами.`;
     const response = await zai.chat.completions.create({
       messages: [
-        { role: "system", content: "Ты — AI-ассистент по геймдизайну, эксперт по балансу." },
+        { role: "system", content: "Ты — AI-ассистент по геймдизайну, эксперт по балансу игр по методологии Шрайбера и Адамса/Дорманс." },
         { role: "user", content: prompt },
       ],
       stream: false,

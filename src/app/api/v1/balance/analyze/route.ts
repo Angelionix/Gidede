@@ -930,6 +930,12 @@ export async function POST(request: NextRequest) {
         "Поле 'objects' обязательно и должно содержать минимум 2 объекта"
       );
     }
+    // TASK-4.15: input validation — max 100 objects, unique IDs, numeric attributes.
+    if (objectsRaw.length > 100) {
+      return VALIDATION_ERROR(
+        `Слишком много объектов: ${objectsRaw.length}. Максимум 100.`
+      );
+    }
 
     const VALID_BALANCE_TYPES = ["transitive", "intransitive", "situational", "mixed"];
     if (!VALID_BALANCE_TYPES.includes(balanceType)) {
@@ -1066,11 +1072,18 @@ export async function POST(request: NextRequest) {
     // Before: enrichment was after db.upsert → ai_insights only in HTTP response, lost on reload.
     // After: enrichment before fullResult serialization → ai_insights included in fullResult.
     if (useAi) {
+      // TASK-4.11: pass extended context for better AI insights.
       const aiInsights = await enrichBalance({
         projectName: proj.name || "Untitled",
         genre,
         balanceType,
         elementCount: objects.length,
+        transitiveOverpowered: transitiveResult.overpowered,
+        transitiveUnderpowered: transitiveResult.underpowered,
+        balanceVerdict: monteCarloResult.balance_verdict,
+        winRateSpread: monteCarloResult.win_rate_spread,
+        stabilityIndex: stability.overall_stability,
+        balancePathologies: balancePathologies.map((p) => p.name),
       });
       if (aiInsights) {
         result.ai_insights = aiInsights;

@@ -35,7 +35,7 @@ import { useToast } from "@/hooks/use-toast";
 import { usePipeline } from "@/hooks/use-pipeline";
 import { apiRoutes } from "@/config/api";
 import { GENRES } from "@/config/genres";
-import { LOOP_TYPES, DEFAULT_MECHANICS } from "@/constants/coreloop";
+import { LOOP_TYPES } from "@/constants/coreloop";
 import type { CoreLoopFormState, CoreLoopDesignResult } from "@/types/coreloop";
 import {
   StructuralTypeCard,
@@ -63,8 +63,8 @@ export default function Block2Page() {
   // --- Form state ---
   const [form, setForm] = useState<CoreLoopFormState>({
     conceptId: "",
-    mechanics: DEFAULT_MECHANICS,
-    genre: "rpg",
+    mechanics: "",
+    genre: "",
     desiredLoopType: "",
     customSteps: "",
   });
@@ -144,10 +144,13 @@ export default function Block2Page() {
         .filter(Boolean);
 
       const body: Record<string, unknown> = {
-        concept_id: form.conceptId || "standalone",
+        project_id: projectId || undefined,
         mechanics: mechanicsList,
         genre: form.genre,
       };
+      if (form.conceptId) {
+        body.concept_id = form.conceptId;
+      }
 
       if (form.desiredLoopType) {
         body.desired_loop_type = form.desiredLoopType;
@@ -196,7 +199,7 @@ export default function Block2Page() {
     } finally {
       setIsDesigning(false);
     }
-  }, [form, isFormValid, apiFetch, toast]);
+  }, [form, isFormValid, apiFetch, projectId, toast]);
 
   return (
     <div className="p-4 md:p-6 max-w-5xl mx-auto space-y-6">
@@ -280,7 +283,7 @@ export default function Block2Page() {
             <Label htmlFor="mechanics" className="text-sm">Механики (через запятую) *</Label>
             <Input
               id="mechanics"
-              placeholder={DEFAULT_MECHANICS}
+              placeholder="Загрузите механики из сохранённой концепции или укажите свои"
               value={form.mechanics}
               onChange={(e) => updateField("mechanics", e.target.value)}
             />

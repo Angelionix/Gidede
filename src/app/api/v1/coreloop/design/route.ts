@@ -26,6 +26,7 @@ import { buildLoopHierarchy, buildRecommendations } from "@/lib/coreloop/hierarc
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
+import { resolveCoreLoopInput } from "@/lib/coreloop/input";
 
 const GENRE_DEFAULT_LOOP_TYPE: Record<string, string> = {
   action: "engine", shooter: "engine", platformer: "engine", fighting: "engine",
@@ -45,25 +46,15 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const contractInput = validateStageInput("core_loop", body);
-    if (!contractInput.success) return VALIDATION_ERROR(contractInput.error);
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      return VALIDATION_ERROR("Core Loop input must be a JSON object");
+    }
     const projectId = body?.project_id?.toString().trim() || undefined;
     const useAi = body?.use_ai === true || body?.use_ai === "true";
-    const conceptId = body?.concept_id?.toString().trim() || "standalone";
-    const genre = body?.genre?.toString().trim() || "action";
-    const primaryAesthetic = body?.primary_aesthetic?.toString().trim() || undefined;
     const desiredLoopType = body?.desired_loop_type?.toString().trim() || undefined;
-
-    const mechanics: string[] = Array.isArray(body?.mechanics)
-      ? body.mechanics.map((m: unknown) => String(m).trim()).filter(Boolean)
-      : [];
     const customSteps: string[] | undefined = Array.isArray(body?.custom_steps)
       ? body.custom_steps.map((s: unknown) => String(s).trim()).filter(Boolean)
       : undefined;
-
-    if (mechanics.length < 1) {
-      return VALIDATION_ERROR("Поле 'mechanics' обязательно и должно содержать хотя бы одну механику");
-    }
     if (desiredLoopType && !VALID_LOOP_TYPES.includes(desiredLoopType as typeof VALID_LOOP_TYPES[number])) {
       return VALIDATION_ERROR(`Неверный desired_loop_type: ${desiredLoopType}. Допустимо: ${VALID_LOOP_TYPES.join(", ")}`);
     }
@@ -72,17 +63,28 @@ export async function POST(request: NextRequest) {
     if (owned instanceof NextResponse) return owned;
     const proj = owned.project as {
       id: string; name: string; genre: string | null;
-      concept?: { onePagerData?: string | null; aestheticProfile?: string | null } | null;
+      concept?: {
+        id?: string | null;
+        genre?: string | null;
+        primaryAesthetic?: string | null;
+        aestheticProfile?: string | null;
+        mechanicSet?: string | null;
+      } | null;
     };
-
-    // TASK-2.2: load primaryAesthetic from concept if not provided
-    let resolvedAesthetic = primaryAesthetic;
-    if (!resolvedAesthetic && proj.concept?.aestheticProfile) {
-      try {
-        const ap = JSON.parse(proj.concept.aestheticProfile);
-        resolvedAesthetic = ap.primary;
-      } catch { /* ignore */ }
-    }
+    const resolvedInput = resolveCoreLoopInput(body, proj.genre, proj.concept);
+    const conceptId = resolvedInput.conceptId;
+    const mechanics = resolvedInput.mechanics;
+    const genre = resolvedInput.genre;
+    const resolvedAesthetic = resolvedInput.primaryAesthetic;
+    const resolvedBody = {
+      ...body,
+      concept_id: conceptId,
+      mechanics,
+      genre,
+      ...(resolvedAesthetic ? { primary_aesthetic: resolvedAesthetic } : {}),
+    };
+    const contractInput = validateStageInput("core_loop", resolvedBody);
+    if (!contractInput.success) return VALIDATION_ERROR(contractInput.error);
 
     // Stage 1: Build steps + classify
     const loopType = desiredLoopType || GENRE_DEFAULT_LOOP_TYPE[genre] || "hybrid";
@@ -135,7 +137,7 @@ export async function POST(request: NextRequest) {
       loop_hierarchy: loopHierarchy,
       gary_five_questions: validation.gary_five_questions,
       contract_version: STAGE_CONTRACT_VERSION,
-      artifact: createArtifactEnvelope("core_loop", body),
+      artifact: createArtifactEnvelope("core_loop", contractInput.data),
       algorithm_metadata: getStageAlgorithmMetadata("core_loop"),
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,
@@ -168,6 +170,7 @@ export async function POST(request: NextRequest) {
     const inputData = JSON.stringify({
       concept_id: conceptId, mechanics, genre,
       primary_aesthetic: resolvedAesthetic,
+      mechanics_source: resolvedInput.mechanicsSource,
       desired_loop_type: desiredLoopType, custom_steps: customSteps,
     });
     const stepsData = JSON.stringify(steps);

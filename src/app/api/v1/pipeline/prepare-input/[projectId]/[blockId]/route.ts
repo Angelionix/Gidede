@@ -44,6 +44,7 @@ export async function POST(
     if (!input) return NOT_FOUND();
 
     return NextResponse.json({
+      ...input,
       project_id: projectId,
       block_id: blockId,
       block_name: BLOCK_NAMES[blockId] || `Block ${blockId}`,

@@ -23,8 +23,6 @@ export const LOOP_TYPES = [
   { value: "hybrid", label: "Hybrid (Гибрид)", description: "Смешанная структура. Adventure, Roguelike, Tower Defense." },
 ];
 
-export const DEFAULT_MECHANICS = "Враги, Здоровье, Очки опыта, Уровни";
-
 export const LOOP_TYPE_BADGES: Record<string, { label: string; color: string; icon: typeof Flame }> = {
   engine: { label: "Двигатель", color: "bg-red-100 text-red-800 border-red-300 dark:bg-red-950/40 dark:text-red-300 dark:border-red-800", icon: Flame },
   economy: { label: "Экономика", color: "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-950/40 dark:text-blue-300 dark:border-blue-800", icon: Activity },

@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R2-01` — передавать selected Concept mechanics/genre/aesthetic в Core Loop.
-- **Зависимости:** фаза R1 завершена; versioned pipeline contracts и фактический stage-to-stage context готовы.
-- **Ожидаемый результат:** Core Loop использует выбранные свойства принятого Concept и не возвращается к fallback `explore/combat/reward`, когда Concept заполнен.
-- **После неё:** `R2-02` — сначала определять structural type, затем строить steps.
+- **Следующая задача:** `R2-02` — сначала определять structural type, затем строить steps.
+- **Зависимости:** `R2-01` завершена; Core Loop получает mechanics/genre/aesthetic из сохранённого Concept без generic fallback.
+- **Ожидаемый результат:** step template выбирается по фактически классифицированному structural type, а не по предварительному genre-default.
+- **После неё:** `R2-03` — заменить closure proxy на directed resource/state graph.
 
 ## Правила ведения
 
@@ -44,9 +44,51 @@
 | R1-08 | DONE | Persistent freshness-map и транзитивная invalidation по dependency graph | 322 tests, TypeScript, scoped ESLint, Prisma validate |
 | R1-09 | DONE | Completion и блоки учитывают только accepted/non-stale artifacts | 324 tests, TypeScript, scoped ESLint |
 | R1-10 | DONE | Version commit только для полного accepted/fresh snapshot с optimistic lock | 331 tests, TypeScript, scoped ESLint |
-| R2…R7 | TODO | См. активный roadmap | — |
+| R2-01 | DONE | Concept mechanics/genre/aesthetic доходят до Core Loop без generic fallback | 334 tests, TypeScript, scoped ESLint |
+| R2-02 | TODO | Structural type определяется до построения steps | — |
+| R2-03…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R2-01 — DONE
+
+Что сделано:
+
+- введён единый `resolveCoreLoopInput` для объединения request overrides, сохранённого Concept и project context;
+- без явных overrides Core Loop получает выбранные Concept mechanics, genre и primary aesthetic;
+- явные пользовательские mechanics/genre/aesthetic сохраняют приоритет и дедуплицируются;
+- при отсутствии Concept mechanics resolver возвращает `missing`, а не изобретает `explore/combat/reward`;
+- endpoint Core Loop разрешает persisted Concept context до contract validation и хеширует уже фактически использованный canonical input;
+- `prepare-input` возвращает подготовленные данные как на верхнем уровне для существующего UI, так и в `prepared_input` для совместимости;
+- подготовка Блока 2 отдаёт `concept_id`, mechanics, genre, primary aesthetic и provenance источника механик;
+- форма Core Loop больше не инициализируется RPG/fake mechanics и передаёт активный `project_id` серверу;
+- неиспользуемая константа фиктивных механик удалена.
+
+Изменённые области:
+
+- `src/lib/coreloop/input.ts`
+- `src/lib/coreloop/input.test.ts`
+- `src/lib/pipeline-helpers.ts`
+- `src/app/api/v1/pipeline/prepare-input/[projectId]/[blockId]/route.ts`
+- `src/app/api/v1/coreloop/design/route.ts`
+- `src/app/blocks/2/page.tsx`
+- `src/constants/coreloop.ts`
+
+Проверки:
+
+- Core Loop input/context/contract tests — 3 файла, 17 тестов пройдены;
+- `npm run test` — 23 файла, 334 теста пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- fixture сохранённого puzzle Concept передаёт `Rotate Rooms`, `Unlock Light Paths`, `Redirect Light`, `Synchronize Robots`, genre `puzzle` и aesthetic `discovery`;
+- результат не содержит generic `explore/combat/reward`;
+- тест подтверждает, что явные пользовательские overrides не теряются;
+- пустой Concept context даёт пустой список/validation error, а не скрытый fallback;
+- следующей задачей назначена `R2-02`.
 
 ### 2026-08-01 — R1-10 — DONE
 

@@ -13,6 +13,7 @@ import {
   parsePipelineFreshnessState,
   stageIsAcceptedFresh,
 } from "@/lib/pipeline-stale";
+import { resolveCoreLoopInput } from "@/lib/coreloop/input";
 
 export type BlockStatus = "empty" | "in_progress" | "completed" | "stale";
 
@@ -308,6 +309,14 @@ export async function buildPreparedInput(
       dynamics_profile: project.concept.dynamicsProfile,
       mechanic_set: project.concept.mechanicSet,
     };
+    if (blockId === 2) {
+      const coreLoopInput = resolveCoreLoopInput({}, project.genre, project.concept);
+      input.concept_id = coreLoopInput.conceptId;
+      input.mechanics = coreLoopInput.mechanics;
+      input.genre = coreLoopInput.genre;
+      input.primary_aesthetic = coreLoopInput.primaryAesthetic;
+      input.mechanics_source = coreLoopInput.mechanicsSource;
+    }
   }
   if (blockId >= 3 && project.coreLoop) {
     upstream.core_loop = {

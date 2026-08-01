@@ -515,22 +515,24 @@ function buildClassicMDA(
   };
 }
 
+// TASK-3.15: broadened type to avoid `as unknown as` casts.
 function buildLensValidation(
-  mechanicSet: { compatibility_score: number; synergy_score: number },
-  dynamicsTarget: { emergence_level: string },
-  aesthetics: { primary: string }
+  mechanicSet: { compatibility_score: number; synergy_score: number; [key: string]: unknown },
+  dynamicsTarget: { emergence_level: string; [key: string]: unknown },
+  aesthetics: { primary: string; [key: string]: unknown }
 ) {
-  // 9 priority lenses from constants
+  // TASK-3.13: 9 priority lenses with Zubek 3-level categorization (Bible 3.6.3).
+  // zubek_level: 1=foundational, 2=contextual, 3=optional.
   const lenses = [
-    { id: 9, name: "Тетрада", focus: "Согласованность Механика/История/Эстетика/Технология", category: "целостность" },
-    { id: 11, name: "Единство", focus: "Работают ли все элементы на общий замысел?", category: "целостность" },
-    { id: 12, name: "Резонанс", focus: "Усиливают ли элементы друг друга?", category: "целостность" },
-    { id: 30, name: "Эмерджентность", focus: "Сколько глаголов? Сколько результирующих действий?", category: "эмерджентность" },
-    { id: 31, name: "Пространство действий", focus: "Совпадает ли воспринимаемое с реальным?", category: "эмерджентность" },
-    { id: 40, name: "Треугольность", focus: "Осмысленный выбор риска vs безопасности", category: "баланс" },
-    { id: 41, name: "Доминантная стратегия", focus: "Есть ли один очевидно лучший путь?", category: "баланс" },
-    { id: 69, name: "Кривая интереса", focus: "Пики и спады интереса на протяжении игры", category: "интерес" },
-    { id: 74, name: "Свобода vs управляемость", focus: "Баланс агентивности и замысла", category: "интерес" },
+    { id: 9, name: "Тетрада", focus: "Согласованность Механика/История/Эстетика/Технология", category: "целостность", zubek_level: 1 },
+    { id: 11, name: "Единство", focus: "Работают ли все элементы на общий замысел?", category: "целостность", zubek_level: 1 },
+    { id: 12, name: "Резонанс", focus: "Усиливают ли элементы друг друга?", category: "целостность", zubek_level: 1 },
+    { id: 30, name: "Эмерджентность", focus: "Сколько глаголов? Сколько результирующих действий?", category: "эмерджентность", zubek_level: 2 },
+    { id: 31, name: "Пространство действий", focus: "Совпадает ли воспринимаемое с реальным?", category: "эмерджентность", zubek_level: 2 },
+    { id: 40, name: "Треугольность", focus: "Осмысленный выбор риска vs безопасности", category: "баланс", zubek_level: 2 },
+    { id: 41, name: "Доминантная стратегия", focus: "Есть ли один очевидно лучший путь?", category: "баланс", zubek_level: 2 },
+    { id: 69, name: "Кривая интереса", focus: "Пики и спады интереса на протяжении игры", category: "интерес", zubek_level: 3 },
+    { id: 74, name: "Свобода vs управляемость", focus: "Баланс агентивности и замысла", category: "интерес", zubek_level: 3 },
   ];
 
   const results = lenses.map((lens) => {
@@ -568,6 +570,9 @@ function buildLensValidation(
     return {
       lens_id: lens.id,
       lens_name: lens.name,
+      category: lens.category,
+      // TASK-3.13: Zubek priority level (1=foundational, 2=contextual, 3=optional).
+      zubek_level: lens.zubek_level,
       score: Number(score.toFixed(3)),
       issues_found: issuesFound,
       suggestions,
@@ -612,9 +617,10 @@ function buildLensValidation(
   };
 }
 
+// TASK-3.15: broadened type to avoid `as unknown as` casts.
 function buildBondValidation(
-  mechanicSet: { compatibility_score: number },
-  aesthetics: { primary: string }
+  mechanicSet: { compatibility_score: number; [key: string]: unknown },
+  aesthetics: { primary: string; [key: string]: unknown }
 ) {
   const elements = ["Механика", "История", "Эстетика", "Технология"];
   const levels = ["Фиксированный", "Динамический", "Культурный"];
@@ -882,8 +888,9 @@ export async function POST(request: NextRequest) {
     // --- Stage 6: Lens validation ---
     let lensValidation: ReturnType<typeof buildLensValidation> | null = null;
     if (fullAnalysis) {
+      // TASK-3.15: removed `as unknown as` cast — function signature now accepts broader type.
       lensValidation = buildLensValidation(
-        mechanicSet as unknown as { compatibility_score: number; synergy_score: number },
+        mechanicSet,
         dynamicsTarget,
         aestheticProfile
       );
@@ -892,7 +899,8 @@ export async function POST(request: NextRequest) {
     // --- Stage 7: Bond matrix ---
     let bondValidation: ReturnType<typeof buildBondValidation> | null = null;
     if (fullAnalysis) {
-      bondValidation = buildBondValidation(mechanicSet as unknown as { compatibility_score: number }, aestheticProfile);
+      // TASK-3.15: removed `as unknown as` cast.
+      bondValidation = buildBondValidation(mechanicSet, aestheticProfile);
     }
 
     const latencyMs = Date.now() - startedAt;
@@ -923,10 +931,29 @@ export async function POST(request: NextRequest) {
     // Before: enrichment was after db.upsert → ai_insights only in HTTP response, lost on reload.
     // After: enrichment before fullProfile serialization → ai_insights included in fullProfile.
     if (useAi) {
+      // TASK-3.14: pass extended context for better AI insights.
       const aiInsights = await enrichMda({
         projectName: proj.name || "Untitled",
         genre,
         aesthetics: [primaryAesthetic, secondaryAesthetic, tertiaryAesthetic],
+        mechanicSet: {
+          compatibility_score: mechanicSet.compatibility_score,
+          total_count: [...mechanicSet.base, ...mechanicSet.combat, ...mechanicSet.progression, ...mechanicSet.spatial, ...mechanicSet.social].length,
+        },
+        dynamicsTarget: {
+          core_dynamics: dynamicsTarget.core_dynamics,
+          supporting_dynamics: dynamicsTarget.supporting_dynamics,
+          emergence_level: dynamicsTarget.emergence_level,
+        },
+        lensValidation: lensValidation
+          ? { overall_score: lensValidation.overall_score, critical_issues: lensValidation.critical_issues }
+          : undefined,
+        bondValidation: bondValidation
+          ? { overall_consistency: bondValidation.overall_consistency, ludonarrative: bondValidation.ludonarrative }
+          : undefined,
+        classicMda: classicMdaResult
+          ? { overall_match: classicMdaResult.overall_match, converged: classicMdaResult.converged }
+          : undefined,
       });
       if (aiInsights) {
         result.ai_insights = aiInsights;

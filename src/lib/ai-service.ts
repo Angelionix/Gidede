@@ -572,27 +572,51 @@ export interface MdaAiInput {
   projectName: string;
   genre: string;
   aesthetics: string[];
+  // TASK-3.14: расширенный контекст для более качественных AI-инсайтов.
+  mechanicSet?: { compatibility_score: number; total_count?: number };
+  dynamicsTarget?: { core_dynamics: string[]; supporting_dynamics: string[]; emergence_level: string };
+  lensValidation?: { overall_score: number; critical_issues?: unknown[] };
+  bondValidation?: { overall_consistency: number; ludonarrative?: { result: string } };
+  classicMda?: { overall_match: number; converged: boolean };
 }
 
 export async function enrichMda(ctx: MdaAiInput): Promise<string | null> {
   const zai = await getZai();
   if (!zai) return null;
   try {
+    // TASK-3.14: расширенный prompt с реальным контекстом MDA-анализа.
+    const compatSection = ctx.mechanicSet
+      ? `\nСовместимость механик: ${ctx.mechanicSet.compatibility_score}%`
+      : "";
+    const dynamicsSection = ctx.dynamicsTarget
+      ? `\nCore динамики: ${ctx.dynamicsTarget.core_dynamics.join(", ")}\nSupporting динамики: ${ctx.dynamicsTarget.supporting_dynamics.join(", ")}\nУровень эмерджентности: ${ctx.dynamicsTarget.emergence_level}`
+      : "";
+    const lensSection = ctx.lensValidation
+      ? `\nОбщий score линз Шелла: ${ctx.lensValidation.overall_score}\nCritical issues: ${ctx.lensValidation.critical_issues?.length || 0}`
+      : "";
+    const bondSection = ctx.bondValidation
+      ? `\nBond matrix consistency: ${ctx.bondValidation.overall_consistency}\nLudonarrative: ${ctx.bondValidation.ludonarrative?.result || "unknown"}`
+      : "";
+    const matchSection = ctx.classicMda
+      ? `\nOverall MDA match: ${ctx.classicMda.overall_match}\nConverged: ${ctx.classicMda.converged ? "yes" : "no"}`
+      : "";
+
     const prompt = `Ты — экспертный геймдизайнер. Проанализируй MDA-профиль игры.
 
 Проект: ${ctx.projectName}
 Жанр: ${ctx.genre}
-Целевые эстетики (LeBlanc): ${ctx.aesthetics.join(", ")}
+Целевые эстетики (LeBlanc): ${ctx.aesthetics.join(", ")}${compatSection}${dynamicsSection}${lensSection}${bondSection}${matchSection}
 
-Дай 3 рекомендации (на русском):
-1. Какие механики лучше всего вызовут эти эстетики
-2. Какие динамики могут возникнуть и как их направить
-3. Какие линзы Шелла приоритетны для этого набора эстетик
+Дай 4 рекомендации (на русском, каждая 1-2 предложения):
+1. Какие механики лучше всего вызовут целевые эстетики (учти текущий compatibility_score)
+2. Какие динамики могут возникнуть и как их направить (учти emergence_level)
+3. Какие линзы Шелла приоритетны (учти critical issues и zubek_level)
+4. Как улучшить ludonarrative alignment (Гармония/Ирония/Диссонанс)
 
 Ответ — обычный текст с нумерованными пунктами.`;
     const response = await zai.chat.completions.create({
       messages: [
-        { role: "system", content: "Ты — AI-ассистент по геймдизайну, эксперт по MDA фреймворку." },
+        { role: "system", content: "Ты — AI-ассистент по геймдизайну, эксперт по MDA фреймворку (Hunicke/LeBlanc/Zubek), линзам Шелла и матрице Бонда." },
         { role: "user", content: prompt },
       ],
       stream: false,

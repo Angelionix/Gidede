@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R5-03` — валидация finite numeric attributes и unique IDs.
-- **Зависимости:** `R5-02` завершена; Balance objects строятся из MDA mechanic_set (domain model) с typed weapon/armor/upgrade/unit/support.
-- **Ожидаемый результат:** NaN/string/duplicate ID возвращают 422 на contract boundary.
-- **После неё:** `R5-04` — корректный solver для поддерживаемого класса игр или честное переименование поля.
+- **Следующая задача:** `R5-04` — корректный solver для поддерживаемого класса игр или честное переименование поля.
+- **Зависимости:** `R5-03` завершена; Balance input validation отклоняет NaN/string/duplicate ID с 422.
+- **Ожидаемый результат:** поле `nash_equilibrium` проходит mathematical fixtures, либо переименовано в `uniform_over_non_dominated` с честным source.
+- **После неё:** `R5-05` — перебирать все RPS cycles.
 
 ## Статус roadmap
 
@@ -65,7 +65,8 @@
 | R4-10 | DONE | Bond matrix из artifact evidence; dissonances из конкретных несовместимых пар | 685 tests, TypeScript, scoped ESLint |
 | R5-01 | DONE | Typed attribute units + per-unit normalization для Balance transitive power | 713 tests, TypeScript, scoped ESLint |
 | R5-02 | DONE | Balance objects из MDA mechanic_set (domain model с typed weapon/armor/upgrade/unit/support) | 734 tests, TypeScript, scoped ESLint |
-| R5-03…R7 | TODO | См. активный roadmap | — |
+| R5-03 | DONE | Strict input validation: NaN/string/duplicate ID/duplicate name → 422 | 762 tests, TypeScript, scoped ESLint |
+| R5-04…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -78,6 +79,47 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R5-03 — DONE
+
+Что сделано:
+
+- создан модуль `src/lib/balance/input-validation.ts` с strict validation для Balance objects;
+- `validateBalanceObjects(objects)` — comprehensive validation возвращающий 422 при любом нарушении:
+  1. минимум 2 объекта;
+  2. максимум 100 объектов;
+  3. все объекты имеют non-empty name;
+  4. все attribute values — finite numbers (NaN/Infinity/-Infinity/string/boolean отклоняются);
+  5. ни одного empty attributes record;
+  6. no duplicate IDs (с учётом auto-assigned `obj_N`);
+  7. no duplicate names (case-insensitive, trimmed);
+- helper-функции: `findInvalidAttributeValues`, `findDuplicateIds`, `findDuplicateNames`, `findEmptyAttributes` — возвращают detailed lists для debugging;
+- Balance route теперь вызывает `validateBalanceObjects` перед любым анализом, заменяя legacy count+name-only check;
+- ранее NaN/string attributes и duplicate IDs молча проходили и corrupted downstream transitive/intransitive/Monte Carlo analysis.
+
+Изменённые области:
+
+- `src/lib/balance/input-validation.ts` (новый, 180 строк) и `input-validation.test.ts` (новый, 28 тестов);
+- `src/app/api/v1/balance/analyze/route.ts` — strict validation перед построением objects.
+
+Проверки:
+
+- `bun run test` — 66 файлов, 762 теста пройдено (было 734; +28 input-validation);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- NaN attribute → 422 с сообщением про NaN и именем объекта/атрибута;
+- string attribute → 422 с "тип string";
+- Infinity/-Infinity → 422;
+- duplicate explicit IDs → 422 со списком дубликатов;
+- duplicate names (case-insensitive) → 422;
+- empty attributes record → 422;
+- well-formed set с 3 объектами → valid;
+- zero и negative finite numbers принимаются;
+- следующей задачей назначена `R5-04`.
 
 ### 2026-08-01 — R5-02 — DONE
 

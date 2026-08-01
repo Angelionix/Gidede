@@ -41,6 +41,7 @@ import {
   computeUnitAwarePower,
   findInvalidAttributes,
 } from "@/lib/balance/attribute-units";
+import { validateBalanceObjects, type BalanceObjectInput } from "@/lib/balance/input-validation";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
@@ -1093,16 +1094,25 @@ export async function POST(request: NextRequest) {
     const runMonteCarlo = body?.run_monte_carlo !== false;
     const runMachinations = body?.run_machinations !== false;
 
-    if (!Array.isArray(objectsRaw) || objectsRaw.length < 2) {
-      return VALIDATION_ERROR(
-        "Поле 'objects' обязательно и должно содержать минимум 2 объекта"
-      );
-    }
-    // TASK-4.15: input validation — max 100 objects, unique IDs, numeric attributes.
-    if (objectsRaw.length > 100) {
-      return VALIDATION_ERROR(
-        `Слишком много объектов: ${objectsRaw.length}. Максимум 100.`
-      );
+    // R5-03: strict input validation — finite numeric attributes, unique IDs,
+    // unique names, non-empty attributes. Returns 422 on any violation.
+    // Replaces the legacy count+name-only check that silently accepted NaN,
+    // string attributes and duplicate IDs.
+    const objectsForValidation: BalanceObjectInput[] = Array.isArray(objectsRaw)
+      ? objectsRaw.map((o: unknown) => {
+          const obj = (o && typeof o === "object" ? o : {}) as Record<string, unknown>;
+          return {
+            id: typeof obj.id === "string" ? obj.id : undefined,
+            name: typeof obj.name === "string" ? obj.name : "",
+            attributes: (obj.attributes && typeof obj.attributes === "object"
+              ? obj.attributes
+              : {}) as Record<string, unknown>,
+          };
+        })
+      : [];
+    const validation = validateBalanceObjects(objectsForValidation);
+    if (!validation.valid) {
+      return VALIDATION_ERROR(validation.error || "Невалидные objects");
     }
 
     const VALID_BALANCE_TYPES = ["transitive", "intransitive", "situational", "mixed"];
@@ -1112,7 +1122,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const objects: BalanceObject[] = objectsRaw.map((o: unknown, i: number) => {
+    const objects: BalanceObject[] = (objectsRaw as unknown[]).map((o: unknown, i: number) => {
       const obj = o as Record<string, unknown>;
       return {
         id: String(obj.id ?? `obj_${i + 1}`),
@@ -1126,10 +1136,6 @@ export async function POST(request: NextRequest) {
         tags: Array.isArray(obj.tags) ? obj.tags as string[] : undefined,
       };
     });
-
-    if (objects.some((o) => !o.name || !o.name.trim())) {
-      return VALIDATION_ERROR("Все объекты должны иметь name");
-    }
 
     // --- Resolve project ---
     const owned = await getOwnedProject(user, projectId);

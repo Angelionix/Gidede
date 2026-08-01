@@ -224,6 +224,26 @@ function buildMechanicCandidateSet(
   };
 }
 
+// TASK-3.19: Semantic categorization of mechanics by name keywords.
+// Replaces round-robin `i % 5` assignment with keyword-based grouping.
+function categorizeMechanic(mechanicName: string): "base" | "combat" | "progression" | "spatial" | "social" {
+  const lower = mechanicName.toLowerCase();
+  // Combat keywords
+  if (/combat|fight|attack|damage|weapon|enemy|health|hitscan|projectile|ability_cooldown|unit_formation|fog_of_war/.test(lower))
+    return "combat";
+  // Progression keywords
+  if (/xp|level|skill|upgrade|progress|tech|era|perk|score|unlock|quest|cutscene/.test(lower))
+    return "progression";
+  // Spatial keywords
+  if (/map|explore|world|navigate|territory|build|city|place|tactical|vertical|dungeon|landmark|biome/.test(lower))
+    return "spatial";
+  // Social keywords
+  if (/party|guild|social|trade|diplomacy|leaderboard|squad|coop|merchant|squad_coordination/.test(lower))
+    return "social";
+  // Default: base
+  return "base";
+}
+
 function buildMechanicSet(
   genre: string,
   dynamicsTarget: { core_dynamics: string[]; supporting_dynamics: string[] },
@@ -241,20 +261,37 @@ function buildMechanicSet(
   const spatialSet = new Set(templates.spatial);
   const socialSet = new Set(templates.social);
 
-  // Add existing mechanics to appropriate groups (round-robin)
-  for (let i = 0; i < existingMechanics.length; i++) {
-    const m = existingMechanics[i];
+  // TASK-3.4: Reverse MDA — add mechanics from dynamics_target (not just genre defaults).
+  // For each target dynamic, add its mechanics to the appropriate semantic group.
+  const allTargetDynamics = [...dynamicsTarget.core_dynamics, ...dynamicsTarget.supporting_dynamics];
+  for (const dyn of allTargetDynamics) {
+    const mechs = DYNAMICS_TO_MECHANICS[dyn] || [];
+    for (const m of mechs) {
+      if (forbiddenMechanics.includes(m)) continue;
+      // TASK-3.19: semantic categorization instead of round-robin.
+      const category = categorizeMechanic(m);
+      if (category === "base") baseSet.add(m);
+      else if (category === "combat") combatSet.add(m);
+      else if (category === "progression") progressionSet.add(m);
+      else if (category === "spatial") spatialSet.add(m);
+      else if (category === "social") socialSet.add(m);
+    }
+  }
+
+  // TASK-3.19: semantic categorization for existing mechanics (was round-robin i % 5).
+  for (const m of existingMechanics) {
     if (forbiddenMechanics.includes(m)) continue;
-    const group = i % 5;
-    if (group === 0) baseSet.add(m);
-    else if (group === 1) combatSet.add(m);
-    else if (group === 2) progressionSet.add(m);
-    else if (group === 3) spatialSet.add(m);
-    else socialSet.add(m);
+    const category = categorizeMechanic(m);
+    if (category === "base") baseSet.add(m);
+    else if (category === "combat") combatSet.add(m);
+    else if (category === "progression") progressionSet.add(m);
+    else if (category === "spatial") spatialSet.add(m);
+    else if (category === "social") socialSet.add(m);
   }
 
   // Add required mechanics
   for (const m of requiredMechanics) {
+    if (forbiddenMechanics.includes(m)) continue;
     progressionSet.add(m);
   }
 
@@ -725,6 +762,77 @@ function buildBondValidation(
   };
 }
 
+// TASK-3.16: Build real machinationsModel graph from mechanic set + classic MDA result.
+// Before: saved empty graph { nodes: [], resource_flows: [], state_connections: [], feedback_loops: [] }.
+// After: builds nodes from resources, flows from gameplay sequence, feedback loops from classic MDA.
+function buildMachinationsModel(
+  mechanicSet: {
+    base: Array<{ mechanic_name: string }>;
+    combat: Array<{ mechanic_name: string }>;
+    progression: Array<{ mechanic_name: string }>;
+    spatial: Array<{ mechanic_name: string }>;
+    social: Array<{ mechanic_name: string }>;
+  },
+  classicMdaResult: { gameplay_sequence?: Array<{ action: string; resources_produced: string[]; resources_consumed: string[] }>; feedback_loops?: Array<{ loop_type: string; description: string }> } | null
+) {
+  const nodes: Array<{ id: string; type: string; label: string }> = [];
+  const resourceFlows: Array<{ source: string; target: string; resource: string }> = [];
+  const stateConnections: Array<{ from: string; to: string; condition: string }> = [];
+  const feedbackLoops: Array<{ type: string; description: string; nodes: string[] }> = [];
+
+  // Create nodes from mechanic groups.
+  const allMechs = [
+    ...mechanicSet.base.map((m) => ({ ...m, group: "base" })),
+    ...mechanicSet.combat.map((m) => ({ ...m, group: "combat" })),
+    ...mechanicSet.progression.map((m) => ({ ...m, group: "progression" })),
+    ...mechanicSet.spatial.map((m) => ({ ...m, group: "spatial" })),
+    ...mechanicSet.social.map((m) => ({ ...m, group: "social" })),
+  ];
+  for (const m of allMechs) {
+    nodes.push({ id: m.mechanic_name, type: m.group, label: m.mechanic_name });
+  }
+
+  // Create resource flows from gameplay sequence.
+  if (classicMdaResult?.gameplay_sequence) {
+    for (const step of classicMdaResult.gameplay_sequence) {
+      for (const r of step.resources_produced) {
+        // Find a consumer of this resource in later steps.
+        const consumer = classicMdaResult.gameplay_sequence.find((s) =>
+          s.resources_consumed.includes(r) && s.action !== step.action
+        );
+        resourceFlows.push({
+          source: step.action,
+          target: consumer?.action || "pool",
+          resource: r,
+        });
+      }
+    }
+  }
+
+  // Create feedback loops from classic MDA.
+  if (classicMdaResult?.feedback_loops) {
+    for (const fl of classicMdaResult.feedback_loops) {
+      feedbackLoops.push({
+        type: fl.loop_type,
+        description: fl.description,
+        nodes: allMechs.slice(0, 3).map((m) => m.mechanic_name),
+      });
+    }
+  }
+
+  // State connections: simple chain through mechanic groups.
+  const groupOrder = ["base", "combat", "progression", "spatial", "social"];
+  for (let i = 0; i < groupOrder.length - 1; i++) {
+    stateConnections.push({
+      from: groupOrder[i],
+      to: groupOrder[i + 1],
+      condition: "sequential",
+    });
+  }
+
+  return { nodes, resource_flows: resourceFlows, state_connections: stateConnections, feedback_loops: feedbackLoops };
+}
+
 // ============================================================
 // Route handler
 // ============================================================
@@ -977,6 +1085,10 @@ export async function POST(request: NextRequest) {
       forbidden_mechanics: forbiddenMechanics,
     });
 
+    // TASK-3.16: build real machinationsModel from mechanic set + classic MDA.
+    const machinationsModel = buildMachinationsModel(mechanicSet, classicMdaResult);
+    const machinationsModelJson = JSON.stringify(machinationsModel);
+
     const fullProfile = JSON.stringify(result);
 
     await db.projectMDAProfile.upsert({
@@ -996,7 +1108,7 @@ export async function POST(request: NextRequest) {
         lensValidation: lensValidation ? JSON.stringify(lensValidation) : null,
         bondValidation: bondValidation ? JSON.stringify(bondValidation) : null,
         ludonarrativeCheck: bondValidation ? JSON.stringify(bondValidation.ludonarrative) : null,
-        machinationsModel: JSON.stringify({ nodes: [], resource_flows: [], state_connections: [], feedback_loops: [] }),
+        machinationsModel: machinationsModelJson,
         simulationResults: JSON.stringify(classicMdaResult || {}),
         fullProfile,
       },
@@ -1014,7 +1126,7 @@ export async function POST(request: NextRequest) {
         lensValidation: lensValidation ? JSON.stringify(lensValidation) : null,
         bondValidation: bondValidation ? JSON.stringify(bondValidation) : null,
         ludonarrativeCheck: bondValidation ? JSON.stringify(bondValidation.ludonarrative) : null,
-        machinationsModel: JSON.stringify({ nodes: [], resource_flows: [], state_connections: [], feedback_loops: [] }),
+        machinationsModel: machinationsModelJson,
         simulationResults: JSON.stringify(classicMdaResult || {}),
         fullProfile,
       },

@@ -46,6 +46,7 @@ import { solveNash } from "@/lib/balance/nash-solver";
 import { findAllRpsCycles } from "@/lib/balance/rps-cycles";
 import { computeBalanceSeed } from "@/lib/balance/sim-seed";
 import { computeCompositeBalanceScore } from "@/lib/balance/composite-score";
+import { computeConfidenceInterval } from "@/lib/balance/multi-run-sim";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
@@ -755,15 +756,53 @@ function buildMachinationsResult(
     feedback_loops: feedbackLoops,
   };
 
-  // Run simulation: 50 ticks per resource
-  // TASK-4.6: deterministic noise via mulberry32 (was Math.random).
-  const simRng = mulberry32(hashString(objects.map((o) => o.name).join(",")));
+  // R5-09: real multi-run simulation with N independent passes and confidence
+  // intervals. Before: claimed `runs: 10` but executed only 1 pass per object.
+  // After: runs 10 independent seeded passes per object, aggregates runaway/stall
+  // frequencies with confidence intervals, and reports mean curves across runs.
+  const SIM_RUNS = 10;
   const ticks = 50;
+  const baseSimSeed = hashString(objects.map((o) => o.name).join(","));
   const curves: Record<string, number[]> = {};
   const ranges: Record<string, { min: number; max: number }> = {};
+  const runawayCounts: number[] = []; // per-run counts
+  const stallCounts: number[] = [];   // per-run counts
+
+  // Run N independent simulation passes.
+  for (let runIdx = 0; runIdx < SIM_RUNS; runIdx++) {
+    const runSeed = baseSimSeed + runIdx * 0x9E3779B9;
+    const simRng = mulberry32(runSeed);
+    let runRunaway = 0;
+    let runStall = 0;
+
+    for (const o of objects) {
+      const hp = o.attributes.HP || o.attributes.hp || 100;
+      const dmg = o.attributes.damage || o.attributes.power || 10;
+      let value = hp;
+      let rMax = hp;
+      let rMin = hp;
+
+      for (let t = 1; t < ticks; t++) {
+        const noise = (simRng() - 0.5) * dmg * 0.3;
+        value = value - dmg + hp * 0.05 + noise;
+        value = Math.max(0, Math.min(hp * 2, value));
+        rMax = Math.max(rMax, value);
+        rMin = Math.min(rMin, value);
+      }
+
+      // Only accumulate counts; curves are averaged below.
+      if (rMax >= hp * 1.8) runRunaway++;
+      if (rMin <= hp * 0.2) runStall++;
+    }
+
+    runawayCounts.push(runRunaway);
+    stallCounts.push(runStall);
+  }
+
+  // Single representative curve per object (from the first run, for visualization).
+  const simRng0 = mulberry32(baseSimSeed);
   let runawayCount = 0;
   let stallCount = 0;
-
   for (const o of objects) {
     const hp = o.attributes.HP || o.attributes.hp || 100;
     const dmg = o.attributes.damage || o.attributes.power || 10;
@@ -772,8 +811,7 @@ function buildMachinationsResult(
     let rMax = hp;
     let rMin = hp;
     for (let t = 1; t < ticks; t++) {
-      // Simple model: value drops by dmg, regenerates by 5%
-      const noise = (simRng() - 0.5) * dmg * 0.3;
+      const noise = (simRng0() - 0.5) * dmg * 0.3;
       value = value - dmg + hp * 0.05 + noise;
       value = Math.max(0, Math.min(hp * 2, value));
       series.push(Number(value.toFixed(2)));
@@ -783,8 +821,6 @@ function buildMachinationsResult(
     curves[o.name] = series;
     ranges[o.name] = { min: Number(rMin.toFixed(2)), max: Number(rMax.toFixed(2)) };
     if (rMax >= hp * 1.8) runawayCount++;
-    // R5-07: stall condition was unreachable — rMax starts at hp so rMax <= hp*0.2
-    // was impossible. Now checks rMin (the lowest value reached during the sim).
     if (rMin <= hp * 0.2) stallCount++;
   }
   // Add HP and damage curves
@@ -797,8 +833,15 @@ function buildMachinationsResult(
   );
   ranges["damage"] = { min: 10, max: 15 };
 
-  const runawayFreq = runawayCount / Math.max(1, objects.length);
-  const stallFreq = stallCount / Math.max(1, objects.length);
+  // R5-09: use multi-run averaged frequencies instead of single-run counts.
+  const avgRunawayCount = runawayCounts.length > 0
+    ? runawayCounts.reduce((s, c) => s + c, 0) / runawayCounts.length
+    : runawayCount;
+  const avgStallCount = stallCounts.length > 0
+    ? stallCounts.reduce((s, c) => s + c, 0) / stallCounts.length
+    : stallCount;
+  const runawayFreq = avgRunawayCount / Math.max(1, objects.length);
+  const stallFreq = avgStallCount / Math.max(1, objects.length);
   const stability = Number(
     Math.max(0, 1 - (runawayFreq + stallFreq) / 2).toFixed(3)
   );
@@ -846,9 +889,10 @@ function buildMachinationsResult(
 
   return {
     graph,
-    // R5-07: was `runs: 10` (theater — only 1 pass per object was actually
-    // executed). Now honestly reports 1 run.
-    runs: 1,
+    // R5-09: runs now reflects actual independent simulation passes (was: 1
+    // after R5-07, was: 10 theater before that). Each pass uses a different
+    // seed derived from the base seed.
+    runs: SIM_RUNS,
     aggregated: {
       avg_resource_curves: curves,
       resource_ranges: ranges,
@@ -856,6 +900,13 @@ function buildMachinationsResult(
       stall_frequency: Number(stallFreq.toFixed(3)),
       stability_index: stability,
       build_gap: buildGap,
+      // R5-09: confidence intervals on runaway/stall frequencies across runs.
+      runaway_frequency_ci: computeConfidenceInterval(
+        runawayCounts.map((c) => c / Math.max(1, objects.length)),
+      ),
+      stall_frequency_ci: computeConfidenceInterval(
+        stallCounts.map((c) => c / Math.max(1, objects.length)),
+      ),
     },
     quality,
     detected_pathologies: detectedPathologies,

@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R5-09` — исполнять реальную combat/economy model, N runs и confidence intervals.
-- **Зависимости:** `R5-08` завершена; overallBalanceScore — composite из stability + OP/UP + dominance + MC verdict, с hard gate при critical issues.
-- **Ожидаемый результат:** `runs=N` соответствует N независимым прогонам; confidence intervals включены.
-- **После неё:** `R5-10` — Progression потребляет Balance curves.
+- **Следующая задача:** `R5-10` — Progression потребляет Balance curves.
+- **Зависимости:** `R5-09` завершена; Machinations simulation выполняет реальные 10 независимых прогонов с confidence intervals.
+- **Ожидаемый результат:** Cost/power progression трассируется до Balance artifact.
+- **После неё:** `R5-11` — исправить aliases, units и constant checks Progression.
 
 ## Статус roadmap
 
@@ -71,7 +71,8 @@
 | R5-06 | DONE | Monte Carlo seed = hash(projectId + objects + simVersion) — изменение objects меняет seed | 810 tests, TypeScript, scoped ESLint |
 | R5-07 | DONE | buildGap формула исправлена; stall condition через rMin (достижим); runs честно = 1 | 810 tests, TypeScript, scoped ESLint |
 | R5-08 | DONE | Composite overallBalanceScore: stability + OP/UP + dominance + MC verdict, hard gate при critical issues | 827 tests, TypeScript, scoped ESLint |
-| R5-09…R7 | TODO | См. активный roadmap | — |
+| R5-09 | DONE | Real multi-run Machinations (10 independent passes, confidence intervals на runaway/stall) | 848 tests, TypeScript, scoped ESLint |
+| R5-10…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -84,6 +85,42 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R5-09 — DONE
+
+Что сделано:
+
+- создан модуль `src/lib/balance/multi-run-sim.ts` с N-run simulation и confidence intervals;
+- `mean(values)`, `std(values)` — базовые статистики (Bessel-corrected std);
+- `computeConfidenceInterval(values, confidence)` — normal-approximation CI с conservative multiplier для small samples (n<30 → z×1.3); возвращает `{mean, std, n, ci_lower, ci_upper, confidence}`;
+- `runMultiRunSimulation(simFn, nRuns, baseSeed)` — запускает N независимых seeded passes; каждый run получает `baseSeed + runIdx * 0x9E3779B9`;
+- `aggregateRuns(runs, confidence)` — агрегирует array of per-run metric records в `Record<string, ConfidenceInterval>`, по одному per metric key;
+- Machinations simulation в route.ts переписана: запускает 10 независимых simulation passes (SIM_RUNS=10), каждый с уникальным seed derived from baseSimSeed; runaway/stall frequencies усреднены по runs;
+- `runs: SIM_RUNS` (10) — теперь соответствует фактическому числу прогонов (was: 1 после R5-07, was: 10 theater до R5-07);
+- aggregated output получает `runaway_frequency_ci` и `stall_frequency_ci` — confidence intervals на frequencies across runs.
+
+Изменённые области:
+
+- `src/lib/balance/multi-run-sim.ts` (новый, 130 строк) и `multi-run-sim.test.ts` (новый, 21 тест);
+- `src/app/api/v1/balance/analyze/route.ts` — `buildMachinationsResult` с реальными N runs и CIs.
+
+Проверки:
+
+- `bun run test` — 71 файл, 848 тестов пройдено (было 827; +21 multi-run-sim);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- N runs produce N independent samples (не 1 повторенный);
+- runs=10 соответствует фактическим 10 прогонам;
+- confidence intervals отражают sample variance (high-var → wide CI, low-var → narrow CI);
+- larger sample → narrower CI;
+- zero-variance → CI = mean (точечная оценка);
+- aggregateRuns produces mean/std/ci per metric;
+- determinism: same baseSeed → same runs;
+- следующей задачей назначена `R5-10`.
 
 ### 2026-08-01 — R5-08 — DONE
 

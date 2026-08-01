@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R4-03` — feasibility из team/budget/platform/scope.
-- **Зависимости:** `R4-02` завершена; genre selection возвращает и сохраняет проверяемое word-level evidence.
-- **Ожидаемый результат:** изменение constraints объяснимо изменяет feasibility.
-- **После неё:** `R4-04` — разделить market evidence и heuristic prior.
+- **Следующая задача:** `R4-04` — разделить market evidence и heuristic prior.
+- **Зависимости:** `R4-03` завершена; feasibility вычисляется композитной моделью из team/budget/platform/scope с per-factor breakdown.
+- **Ожидаемый результат:** без внешних данных нет псевдоточного market score; market score явно маркируется `heuristic` prior или `evidence` с источником.
+- **После неё:** `R4-05` — генерировать USP candidates без hardcoded Triangle result.
 
 ## Правила ведения
 
@@ -65,9 +65,52 @@
 | R3-11 | DONE | Built-in ZAI зарегистрирован общим adapter descriptor с lazy/recoverable lifecycle | 445 tests, TypeScript, scoped ESLint |
 | R4-01 | DONE | Общий `Intl.Segmenter`/Unicode tokenizer для RU/EN genre, aesthetics и core verbs | 453 tests, TypeScript, scoped ESLint |
 | R4-02 | DONE | Word-level genre candidates, exact matched-keyword evidence и честный fallback | 458 tests, TypeScript, scoped ESLint |
-| R4-03…R7 | TODO | См. активный roadmap | — |
+| R4-03 | DONE | Composite feasibility из team/budget/platform/scope с per-factor breakdown | 510 tests, TypeScript, scoped ESLint |
+| R4-04…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R4-03 — DONE
+
+Что сделано:
+
+- feasibility переведена с compat-only эвристики на composite-модель: mechanics compatibility (0.35) + team capacity (0.25) + budget tier (0.2) + platform complexity (0.2);
+- новый тестируемый модуль `src/lib/concept/feasibility.ts` с функциями `computeFeasibility` и `parseBudget`;
+- team capacity считается как mechanics-per-developer с честными порогами (≤3 → 0.9, ≤6 → 0.75, ≤10 → 0.55, >10 → 0.35) и объяснением в reason;
+- budget парсит tier keywords (low/medium/high/indie/AAA/bootstrapped/well-funded) и currency amounts ($25k, $1.5M, £200,000, 100000) с поддержкой thousands separators и k/m suffixes;
+- platform complexity использует словарь известных платформ (web/mobile/PC/console/VR с весами 0.9→0.4) и применяет 5% penalty за каждую дополнительную платформу;
+- когда constraints не указаны, возвращается legacy compat-only score для backward compatibility (все 41 существующий тест validation проходят без изменений);
+- при любом указанном constraint активируется composite mode: feasibility filter получает поля `factors[]` (per-factor breakdown) и `composite: true`;
+- reason агрегирует только specified-факторы, improvement нацеливается на слабейший specified-фактор с конкретной рекомендацией (scope/team, MVP/budget, single-platform, cross-genre narrowing);
+- `buildValidationReport` получил опциональный параметр `constraints` (backward compatible);
+- `/api/v1/concept/generate` передаёт реальные `team_size`, `budget`, `platform` в validation;
+- `algorithm-metadata` обновлён: `validation_report.eight_filters.feasibility.score` имеет отдельные assumptions о composite-модели, fallback и rule-of-thumb порогах.
+
+Изменённые области:
+
+- `src/lib/concept/feasibility.ts` (новый) и `feasibility.test.ts` (новый, 46 тестов);
+- `src/lib/concept/validation.ts` и `validation.test.ts` (+6 integration тестов для composite path);
+- `src/app/api/v1/concept/generate/route.ts` — передача constraints в `buildValidationReport`;
+- `src/lib/algorithm-metadata.ts` — отдельная provenance-запись для feasibility.
+
+Проверки:
+
+- targeted feasibility/validation tests — 2 файла, 93 теста пройдено (46 новых feasibility + 41 существующий validation + 6 новых integration);
+- `bun run test` — 55 файлов, 510 тестов пройдено (было 458);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- legacy fixture (без constraints) возвращает score 0.9 для compat 86 — backward compat сохранён, `composite` и `factors` отсутствуют;
+- composite fixture с `team_size: 5` активирует 4-факторную модель, веса суммируются в 1.0, score равен сумме contribution;
+- изменение `team_size` (1 vs 10) для 12 механик даёт разный score (0.55 vs 0.9) и разный reason («1 чел» vs «10 чел»);
+- изменение `budget` (low vs high) даёт разный score и reason содержит tier;
+- изменение `platform` (web vs PlayStation) даёт разный score и reason содержит имя платформы;
+- weakest-factor routing: team_capacity weakest → improvement про «scope/команду»; budget weakest → про «MVP»; platform weakest → про «платформы»;
+- составной fixture (team=1, budget=low, platform=VR) vs (team=10, budget=high, platform=web) даёт разные score, reason и improvement по всем трём;
+- следующей задачей назначена `R4-04`.
 
 ### 2026-08-01 — R4-02 — DONE
 

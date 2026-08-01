@@ -57,6 +57,12 @@ const SCORE_METADATA_BY_STAGE = {
       "heuristic",
       "Keyword, length, genre and mechanic proxies approximate the eight qualitative filters.",
     ),
+    "validation_report.eight_filters.feasibility.score": score(
+      "heuristic",
+      "Feasibility is a weighted composite of mechanics compatibility, team capacity (mechanics per developer), budget tier and platform complexity.",
+      "When no constraints are supplied, falls back to compatibility-only legacy score for backward compatibility.",
+      "Budget and team-size thresholds are rule-of-thumb defaults, not measured production data.",
+    ),
     "validation_report.triangle_check.score": score(
       "heuristic",
       "The current Triangle of Weirdness dimensions are rule-derived and not user-validated.",

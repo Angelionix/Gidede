@@ -231,6 +231,136 @@ describe("buildValidationReport — 8 idea filters (TASK-1.3)", () => {
     expect(r.eight_filters.feasibility.score).toBe(0.4);
   });
 
+  // --- R4-03: composite feasibility from team/budget/platform/scope ---
+
+  it("feasibility: legacy mode (no constraints) has no factors breakdown", () => {
+    const r = buildValidationReport(baseAesthetic, baseMechanicSet, baseUSP, "Build a castle", []);
+    const feasibility = r.eight_filters.feasibility as { composite?: boolean; factors?: unknown[] };
+    expect(feasibility.composite).toBeUndefined();
+    expect(feasibility.factors).toBeUndefined();
+  });
+
+  it("feasibility: composite mode activates when team_size is supplied", () => {
+    const r = buildValidationReport(
+      baseAesthetic,
+      baseMechanicSet,
+      baseUSP,
+      "Build a castle",
+      [],
+      { team_size: 5 }
+    );
+    const feasibility = r.eight_filters.feasibility as {
+      composite?: boolean;
+      factors?: Array<{ name: string; score: number; source: string }>;
+    };
+    expect(feasibility.composite).toBe(true);
+    expect(feasibility.factors).toHaveLength(4);
+    expect(feasibility.factors!.map((f) => f.name)).toEqual([
+      "mechanics_compatibility",
+      "team_capacity",
+      "budget",
+      "platform_complexity",
+    ]);
+  });
+
+  it("feasibility: larger team raises score vs tiny team (same mechanics)", () => {
+    const small = buildValidationReport(
+      baseAesthetic,
+      baseMechanicSet,
+      baseUSP,
+      "Build a castle",
+      [],
+      { team_size: 1 }
+    );
+    const large = buildValidationReport(
+      baseAesthetic,
+      baseMechanicSet,
+      baseUSP,
+      "Build a castle",
+      [],
+      { team_size: 10 }
+    );
+    expect(large.eight_filters.feasibility.score).toBeGreaterThan(
+      small.eight_filters.feasibility.score
+    );
+  });
+
+  it("feasibility: budget tier changes score explainably", () => {
+    const low = buildValidationReport(
+      baseAesthetic,
+      baseMechanicSet,
+      baseUSP,
+      "Build a castle",
+      [],
+      { budget: "low" }
+    );
+    const high = buildValidationReport(
+      baseAesthetic,
+      baseMechanicSet,
+      baseUSP,
+      "Build a castle",
+      [],
+      { budget: "high" }
+    );
+    expect(high.eight_filters.feasibility.score).toBeGreaterThan(
+      low.eight_filters.feasibility.score
+    );
+    expect(low.eight_filters.feasibility.reason).toContain("low");
+    expect(high.eight_filters.feasibility.reason).toContain("high");
+  });
+
+  it("feasibility: platform complexity affects score (web vs console)", () => {
+    const web = buildValidationReport(
+      baseAesthetic,
+      baseMechanicSet,
+      baseUSP,
+      "Build a castle",
+      [],
+      { platform: ["web"] }
+    );
+    const consoleG = buildValidationReport(
+      baseAesthetic,
+      baseMechanicSet,
+      baseUSP,
+      "Build a castle",
+      [],
+      { platform: ["PlayStation"] }
+    );
+    expect(web.eight_filters.feasibility.score).toBeGreaterThan(
+      consoleG.eight_filters.feasibility.score
+    );
+    expect(web.eight_filters.feasibility.reason).toContain("web");
+    expect(consoleG.eight_filters.feasibility.reason).toContain("PlayStation");
+  });
+
+  it("feasibility: reason and improvement change when constraints change", () => {
+    const r1 = buildValidationReport(
+      baseAesthetic,
+      baseMechanicSet,
+      baseUSP,
+      "Build a castle",
+      [],
+      { team_size: 1, budget: "low", platform: ["VR"] }
+    );
+    const r2 = buildValidationReport(
+      baseAesthetic,
+      baseMechanicSet,
+      baseUSP,
+      "Build a castle",
+      [],
+      { team_size: 10, budget: "high", platform: ["web"] }
+    );
+    expect(r1.eight_filters.feasibility.score).toBeLessThan(
+      r2.eight_filters.feasibility.score
+    );
+    expect(r1.eight_filters.feasibility.reason).not.toBe(
+      r2.eight_filters.feasibility.reason
+    );
+    expect(r1.eight_filters.feasibility.improvement).not.toBe(
+      r2.eight_filters.feasibility.improvement
+    );
+  });
+
   it("audience_fit: challenge = 0.9 (wide audience)", () => {
     const r = buildValidationReport(
       { primary: "challenge", secondary: "fantasy", tertiary: "narrative" },

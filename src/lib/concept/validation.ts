@@ -1,3 +1,4 @@
+import { computeFeasibility, type FeasibilityConstraints } from "@/lib/concept/feasibility";
 import { hasCoreActionVerb } from "@/lib/concept/text-analysis";
 import {
   hasAnyTokenPrefix,
@@ -38,6 +39,25 @@ export interface USPCandidateInput {
   usp: string;
 }
 
+export interface FeasibilityFactorView {
+  name: string;
+  score: number;
+  weight: number;
+  contribution: number;
+  reason: string;
+  source: "specified" | "default";
+}
+
+export interface FeasibilityFilterView {
+  score: number;
+  reason: string;
+  improvement: string;
+  /** Per-factor breakdown; absent when no constraints are supplied (legacy mode). */
+  factors?: FeasibilityFactorView[];
+  /** Whether the composite model was used (true) or legacy compat-only (false). */
+  composite?: boolean;
+}
+
 export interface ValidationReport {
   triangle_check: {
     passed: boolean;
@@ -62,13 +82,17 @@ export interface ValidationReport {
  * @param uspCandidates — кандидаты USP (нужно только triangle_of_weirdness_check)
  * @param idea — текст идеи (для анализа keywords, длины, verb-noun structure)
  * @param subgenres — массив subgenres (для multi-genre и cross-genre detection)
+ * @param constraints — опциональные проектные ограничения (team_size, budget, platform).
+ *   Когда передан хотя бы один constraint, feasibility вычисляется композитной моделью
+ *   с per-factor breakdown; иначе используется legacy compat-only оценка (backward compat).
  */
 export function buildValidationReport(
   aestheticProfile: AestheticProfileInput,
   mechanicSet: MechanicSetInput,
   uspCandidates: USPCandidateInput[],
   idea: string,
-  subgenres: string[]
+  subgenres: string[],
+  constraints: FeasibilityConstraints = {},
 ): ValidationReport {
   // --- Анализ идеи для filters и questions ---
   const ideaTokens = tokenizeUnicodeWords(idea);
@@ -144,16 +168,31 @@ export function buildValidationReport(
   if (weird) noveltyScore = Math.max(noveltyScore, 0.85);
   noveltyScore = Math.min(1.0, noveltyScore);
 
-  // 3. Feasibility
-  let feasibilityScore: number;
-  if (mechanicSet.compatibility_score >= 80 && mechanicSet.total_count >= 8) {
-    feasibilityScore = 0.9;
-  } else if (mechanicSet.compatibility_score >= 60 && mechanicSet.total_count >= 5) {
-    feasibilityScore = 0.75;
-  } else if (mechanicSet.compatibility_score >= 40) {
-    feasibilityScore = 0.55;
-  } else {
-    feasibilityScore = 0.4;
+  // 3. Feasibility — composite model from team/budget/platform/scope (R4-03).
+  //    Falls back to legacy compat-only score when no constraints are supplied.
+  const feasibility = computeFeasibility(
+    {
+      total_count: mechanicSet.total_count,
+      compatibility_score: mechanicSet.compatibility_score,
+    },
+    constraints,
+  );
+  const feasibilityScore = feasibility.score;
+  const feasibilityView: FeasibilityFilterView = {
+    score: Number(feasibilityScore.toFixed(2)),
+    reason: feasibility.reason,
+    improvement: feasibility.improvement,
+  };
+  if (feasibility.composite) {
+    feasibilityView.factors = feasibility.factors.map((f) => ({
+      name: f.name,
+      score: Number(f.score.toFixed(2)),
+      weight: f.weight,
+      contribution: Number(f.contribution.toFixed(3)),
+      reason: f.reason,
+      source: f.source,
+    }));
+    feasibilityView.composite = true;
   }
 
   // 4. Audience fit
@@ -242,17 +281,7 @@ export function buildValidationReport(
         : "Знакомые жанровые конвенции доминируют",
       improvement: "Добавьте один по-настоящему странный угол (Triangle of Weirdness) или необычное сочетание жанров",
     },
-    feasibility: {
-      score: Number(feasibilityScore.toFixed(2)),
-      reason: feasibilityScore >= 0.75
-        ? "Набор механик реализуем в заданном scope"
-        : feasibilityScore >= 0.55
-        ? "Реализуем, но требует тщательного планирования"
-        : "Низкая совместимость механик или слишком амбициозный scope",
-      improvement: feasibilityScore < 0.6
-        ? "Сократите scope или добавьте чёткий MVP slice"
-        : "Определите MVP — минимальный играбельный slice",
-    },
+    feasibility: feasibilityView,
     audience_fit: {
       score: Number(audienceFitScore.toFixed(2)),
       reason: audienceFitScore >= 0.75

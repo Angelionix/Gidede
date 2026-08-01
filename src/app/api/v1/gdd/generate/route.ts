@@ -478,29 +478,106 @@ function deriveSectionContent(
         requires_review: true,
       };
     }
-    case "narrative":
-    case "world_overview":
-    case "characters":
-    case "plot_arcs":
-    case "themes":
-    case "tone_voice":
-    case "story_mechanics":
-    case "branching_structure": {
+    // TASK-6.3 FIXED: Each narrative section now gets unique content derived from
+    // different aspects of the project data, not the same ludonarrativeCheck JSON.
+    case "narrative": {
       const ludonarrative = mda?.ludonarrativeCheck
         ? safeJsonParse<Record<string, unknown>>(mda.ludonarrativeCheck, {})
         : {};
-      if (Object.keys(ludonarrative).length > 0) {
-        return {
-          content: `## ${sectionName}\n\n${JSON.stringify(ludonarrative, null, 2)}`,
-          source: "ai_enrich",
-          requires_review: true,
-        };
-      }
+      const narrativeContent = isRu
+        ? `## Нарратив\n\nИгра «${name}» в жанре ${genre} использует нарративные элементы для усиления эстетики «${mda?.primaryAesthetic || concept?.primaryAesthetic || "challenge"}».\n\n${Object.keys(ludonarrative).length > 0 ? `**Ludonarrative анализ:** ${ludonarrative.result || "—"}\n${ludonarrative.description || ""}` : "Ludonarrative анализ не проводился."}`
+        : `## Narrative\n\nGame "${name}" in ${genre} genre uses narrative elements to reinforce aesthetic "${mda?.primaryAesthetic || concept?.primaryAesthetic || "challenge"}".\n\n${Object.keys(ludonarrative).length > 0 ? `**Ludonarrative analysis:** ${ludonarrative.result || "—"}\n${ludonarrative.description || ""}` : "Ludonarrative analysis not conducted."}`;
+      return { content: narrativeContent, source: Object.keys(ludonarrative).length > 0 ? "auto_fill" : "ai_generate", requires_review: Object.keys(ludonarrative).length === 0 };
+    }
+    case "world_overview": {
+      const aestheticProfile = concept?.aestheticProfile
+        ? safeJsonParse<Record<string, unknown>>(concept.aestheticProfile, {})
+        : {};
       return {
         content: isRu
-          ? `Нарративный раздел «${sectionName}» для «${name}» требует ручного заполнения. Жанр: ${genre}.`
-          : `Narrative section "${sectionName}" for "${name}" requires manual content. Genre: ${genre}.`,
-        source: "manual",
+          ? `## Обзор мира\n\nМир «${name}» построен вокруг эстетики «${aestheticProfile.primary || mda?.primaryAesthetic || "challenge"}». Жанр: ${genre}.\n\nМир включает:\n- Основные локации\n- Культуры и фракции\n- Исторические события\n- Географию и климат`
+          : `## World Overview\n\nThe world of "${name}" is built around aesthetic "${aestheticProfile.primary || mda?.primaryAesthetic || "challenge"}". Genre: ${genre}.\n\nThe world includes:\n- Key locations\n- Cultures and factions\n- Historical events\n- Geography and climate`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    }
+    case "characters": {
+      const mechanicSet = concept?.mechanicSet
+        ? safeJsonParse<Record<string, unknown>>(concept.mechanicSet, {})
+        : {};
+      const hasPartyManagement = JSON.stringify(mechanicSet).includes("party_management") || JSON.stringify(mechanicSet).includes("npc");
+      return {
+        content: isRu
+          ? `## Персонажи\n\n${hasPartyManagement ? "Игра включает систему управления группой персонажей." : "Игрок управляет главным героем."}\n\nОсновные типы персонажей:\n- Главный герой\n- NPC${hasPartyManagement ? "\n- Спутники" : ""}\n- Антагонисты\n\n${mda?.primaryAesthetic ? `Эстетический фокус: ${mda.primaryAesthetic}` : ""}`
+          : `## Characters\n\n${hasPartyManagement ? "Game includes party management system." : "Player controls a main character."}\n\nKey character types:\n- Protagonist\n- NPCs${hasPartyManagement ? "\n- Companions" : ""}\n- Antagonists\n\n${mda?.primaryAesthetic ? `Aesthetic focus: ${mda.primaryAesthetic}` : ""}`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    }
+    case "plot_arcs": {
+      const coreSteps = coreLoop?.stepsData
+        ? safeJsonParse<unknown[]>(coreLoop.stepsData, [])
+        : [];
+      return {
+        content: isRu
+          ? `## Сюжетные арки\n\nСюжет «${name}» следует структуре, основанной на core loop из ${coreSteps.length || "нескольких"} шагов.\n\nОсновные арки:\n1. Завязка — введение в мир и конфликт\n2. Развитие — усложнение через gameplay\n3. Кульминация — финальное противостояние\n4. Развязка — разрешение конфликта\n\nЖанр: ${genre}`
+          : `## Plot Arcs\n\nThe plot of "${name}" follows a structure based on the core loop of ${coreSteps.length || "several"} steps.\n\nMain arcs:\n1. Setup — introduction to world and conflict\n2. Development — complication through gameplay\n3. Climax — final confrontation\n4. Resolution — conflict resolution\n\nGenre: ${genre}`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    }
+    case "themes": {
+      const aestheticProfile = concept?.aestheticProfile
+        ? safeJsonParse<Record<string, unknown>>(concept.aestheticProfile, {})
+        : {};
+      const primary = (aestheticProfile.primary as string) || mda?.primaryAesthetic || "challenge";
+      const themeMap: Record<string, string> = {
+        challenge: "Преодоление, мастерство, рост через трудности",
+        fantasy: "Героизм, судьба, сила воли",
+        narrative: "Идентичность, выбор, последствия",
+        sensation: "Интенсивность, момент, поток",
+        fellowship: "Дружба, сотрудничество, доверие",
+        discovery: "Любопытство, исследование, тайны",
+        expression: "Творчество, свобода, самовыражение",
+        submission: "Рутина, привычка, медитативность",
+      };
+      return {
+        content: isRu
+          ? `## Темы\n\nОсновные темы «${name}»:\n- ${themeMap[primary] || "Универсальные темы"}\n- Взаимодействие механик и нарратива\n- Эмоциональное путешествие игрока\n\nPrimary aesthetic: ${primary}`
+          : `## Themes\n\nMain themes of "${name}":\n- ${themeMap[primary] || "Universal themes"}\n- Mechanics-narrative interaction\n- Player's emotional journey\n\nPrimary aesthetic: ${primary}`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    }
+    case "tone_voice": {
+      return {
+        content: isRu
+          ? `## Тон и голос\n\nТон «${name}» определяется жанром ${genre} и эстетикой «${mda?.primaryAesthetic || "challenge"}».\n\nТональность:\n- Диалоги: ${genre === "horror" ? "напряжённые, сдержанные" : genre === "rpg" ? "многогранные, глубокие" : "динамичные, лаконичные"}\n- Описание: ${genre === "horror" ? "атмосферное, мрачное" : "сбалансированное"}\n- UI текст: краткий, функциональный`
+          : `## Tone and Voice\n\nThe tone of "${name}" is defined by genre ${genre} and aesthetic "${mda?.primaryAesthetic || "challenge"}".\n\nTonal qualities:\n- Dialogue: ${genre === "horror" ? "tense, restrained" : genre === "rpg" ? "multifaceted, deep" : "dynamic, concise"}\n- Description: ${genre === "horror" ? "atmospheric, dark" : "balanced"}\n- UI text: brief, functional`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    }
+    case "story_mechanics": {
+      const coreLoopType = coreLoop?.structuralType || "hybrid";
+      return {
+        content: isRu
+          ? `## Сюжетные механики\n\nСюжетные механики «${name}» интегрированы с core loop типа «${coreLoopType}».\n\nМеханики:\n- Квесты и задания\n- Диалоговые деревья\n- Сюжетные триггеры\n- Branching choices (если применимо)\n\nТип цикла: ${coreLoopType}`
+          : `## Story Mechanics\n\nStory mechanics of "${name}" are integrated with the ${coreLoopType} core loop.\n\nMechanics:\n- Quests and missions\n- Dialogue trees\n- Story triggers\n- Branching choices (if applicable)\n\nLoop type: ${coreLoopType}`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    }
+    case "branching_structure": {
+      const validation = coreLoop?.validationData
+        ? safeJsonParse<Record<string, unknown>>(coreLoop.validationData, {})
+        : {};
+      const hasBranching = JSON.stringify(validation).includes("branch") || JSON.stringify(validation).includes("choice");
+      return {
+        content: isRu
+          ? `## Ветвление сюжета\n\n${hasBranching ? "Игра включает систему ветвящегося сюжета." : "Игра следует линейной структуре с локальными выборами."}\n\nСтруктура:\n- Основная линия: линейная\n- Побочные квесты: ${hasBranching ? "несколько веток" : "линейные"}\n- Концовки: ${hasBranching ? "множественные" : "одна основная + вариации"}\n\nЖанр: ${genre}`
+          : `## Branching Structure\n\n${hasBranching ? "Game includes branching narrative system." : "Game follows a linear structure with local choices."}\n\nStructure:\n- Main storyline: linear\n- Side quests: ${hasBranching ? "multiple branches" : "linear"}\n- Endings: ${hasBranching ? "multiple" : "one main + variations"}\n\nGenre: ${genre}`,
+        source: "ai_generate",
         requires_review: true,
       };
     }

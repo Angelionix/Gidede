@@ -139,4 +139,44 @@ describe("GenericHttpLlmClient — R3-03", () => {
     const normalized = parseGenericHttpMapping(mapping);
     expect(parseGenericHttpMapping(normalized)).toEqual(normalized);
   });
+
+  it("uses declared capabilities and mapped health/model discovery endpoints", async () => {
+    const fetchMock = vi.fn(async (url: RequestInfo | URL) => {
+      if (String(url).endsWith("/health")) return new Response(null, { status: 204 });
+      return Response.json({ catalog: [{ slug: "m-1", title: "Model One", vendor: "acme" }] });
+    });
+    const client = new GenericHttpLlmClient({
+      providerId: "generic-http:introspection",
+      endpoint: "https://vendor.example/generate",
+      model: "m-1",
+      mapping: {
+        ...mapping,
+        capabilities: { json_mode: true, tools: true },
+        health: { url: "https://vendor.example/health", method: "HEAD" },
+        models: {
+          url: "https://vendor.example/models",
+          list_path: "catalog",
+          id_path: "slug",
+          label_path: "title",
+          owned_by_path: "vendor",
+        },
+      },
+      fetch: fetchMock as typeof fetch,
+    });
+
+    expect(client.getCapabilities()).toEqual({
+      streaming: false,
+      jsonMode: true,
+      tools: true,
+      modelDiscovery: true,
+    });
+    await expect(client.healthCheck()).resolves.toMatchObject({ status: "healthy", reason: "ok" });
+    await expect(client.listModels()).resolves.toEqual([
+      { id: "m-1", label: "Model One", ownedBy: "acme" },
+    ]);
+    expect(fetchMock.mock.calls.map(([url]) => String(url))).toEqual([
+      "https://vendor.example/health",
+      "https://vendor.example/models",
+    ]);
+  });
 });

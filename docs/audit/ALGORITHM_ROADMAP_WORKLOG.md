@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R3-06` — добавить capability negotiation, health check и model discovery.
-- **Зависимости:** `R3-01`–`R3-05` завершены; adapters используют единый resilient client contract.
-- **Ожидаемый результат:** UI показывает фактические streaming/JSON/tools capabilities, health и доступные модели provider.
-- **После неё:** `R3-07` — добавить per-stage routing и fallback chain.
+- **Следующая задача:** `R3-07` — добавить per-stage routing и fallback chain.
+- **Зависимости:** `R3-01`–`R3-06` завершены; adapters имеют единые execution и introspection contracts.
+- **Ожидаемый результат:** Concept и GDD могут использовать разные providers/models с управляемым fallback.
+- **После неё:** `R3-08` — валидировать structured output схемой до записи в domain state.
 
 ## Правила ведения
 
@@ -57,9 +57,55 @@
 | R3-03 | DONE | Generic HTTP dot-path mapping, SSE/NDJSON и Custom adapter SPI | 372 tests, TypeScript, scoped ESLint, Prisma validate |
 | R3-04 | DONE | AES-256-GCM encrypted API keys и client-safe secret status поверх `env:` refs | 376 tests, TypeScript, scoped ESLint |
 | R3-05 | DONE | Timeout, transient retry/backoff, TTL cache, circuit breaker и recoverable init | 384 tests, TypeScript, scoped ESLint |
-| R3-06…R7 | TODO | См. активный roadmap | — |
+| R3-06 | DONE | Capability contract, health diagnostics и model discovery в adapters/UI | 391 tests, TypeScript, scoped ESLint |
+| R3-07…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R3-06 — DONE
+
+Что сделано:
+
+- общий `LlmClient` расширен нормализованными contracts capabilities, health и model catalog;
+- каждый adapter явно объявляет streaming, JSON mode, tools и model discovery без догадок в pipeline-коде;
+- OpenAI-compatible adapter получает каталог через стандартный `/models` endpoint и не считает сбой discovery доказательством отказа chat completions;
+- Generic HTTP mapping поддерживает декларативные capability flags, отдельный GET/HEAD health endpoint и dot-path mapping каталога моделей;
+- built-in ZAI adapter реализует тот же introspection contract и не заявляет неподдерживаемый model discovery;
+- health check и model discovery проходят через timeout, retry/backoff и circuit breaker, а результаты кэшируются независимыми TTL;
+- authenticated settings endpoint возвращает только нормализованные результаты и не проксирует provider error bodies;
+- settings UI показывает health/latency и capability badges, а обнаруженные model IDs подключает к выбору модели;
+- assistant status API дополнен capabilities и health;
+- конфигурация Generic HTTP, introspection и новые TTL environment variables документированы.
+
+Изменённые области:
+
+- `src/lib/llm/types.ts`;
+- `src/lib/llm/providers/zai.ts`;
+- `src/lib/llm/providers/openai-compatible.ts` и тесты;
+- `src/lib/llm/providers/generic-http.ts` и тесты;
+- `src/lib/llm/resilience.ts` и тесты;
+- `src/lib/llm/default-client.ts`;
+- `src/app/api/v1/settings/llm/introspect/route.ts` и тесты;
+- `src/app/api/v1/assistant/status/route.ts`;
+- `src/app/settings/page.tsx`;
+- `docs/LLM_ADAPTERS.md` и `docs/DEPLOYMENT.md`.
+
+Проверки:
+
+- targeted provider/resilience/introspection tests — 4 файла, 22 теста пройдены;
+- `npm run test` — 35 файлов, 391 тест пройден;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- OpenAI-compatible fixture проверяет корректный `/models` URL, server-side auth header и нормализованный catalog;
+- Generic HTTP fixture доказывает явные JSON/tools capabilities, HEAD health и mapped model discovery;
+- resilience fixtures доказывают независимые health/models TTL и retry transient discovery failure;
+- route fixtures доказывают authentication, нормализованный response и отсутствие discovery call без capability;
+- UI показывает все четыре capability, health/latency и использует discovery catalog как model suggestions;
+- следующей задачей назначена `R3-07`.
 
 ### 2026-08-01 — R3-05 — DONE
 

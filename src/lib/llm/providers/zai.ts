@@ -3,6 +3,9 @@ import type {
   LlmClient,
   LlmCompletionRequest,
   LlmCompletionResponse,
+  LlmCapabilities,
+  LlmModelDescriptor,
+  LlmProviderHealth,
   LlmStreamChunk,
 } from "@/lib/llm/types";
 
@@ -30,6 +33,28 @@ export class ZaiLlmClient implements LlmClient {
 
   async isAvailable(): Promise<boolean> {
     return true;
+  }
+
+  getCapabilities(): LlmCapabilities {
+    return {
+      streaming: true,
+      jsonMode: false,
+      tools: false,
+      modelDiscovery: false,
+    };
+  }
+
+  async healthCheck(): Promise<LlmProviderHealth> {
+    return {
+      status: "healthy",
+      latencyMs: 0,
+      checkedAt: new Date().toISOString(),
+      reason: "ok",
+    };
+  }
+
+  async listModels(): Promise<LlmModelDescriptor[]> {
+    return [];
   }
 }
 

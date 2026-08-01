@@ -52,6 +52,8 @@ GIDEDE_LLM_MAX_RETRIES="2"            # transient retries
 GIDEDE_LLM_CIRCUIT_FAILURE_THRESHOLD="3"
 GIDEDE_LLM_CIRCUIT_COOLDOWN_MS="30000"
 GIDEDE_LLM_CLIENT_TTL_MS="300000"
+GIDEDE_LLM_HEALTH_TTL_MS="30000"     # TTL результата health check
+GIDEDE_LLM_MODELS_TTL_MS="300000"    # TTL каталога моделей provider
 NEXT_PUBLIC_API_URL=""                 # пусто = относительные пути
 ZAI_API_KEY=""                         # опционально, AI работает и без него
 ```

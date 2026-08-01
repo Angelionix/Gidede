@@ -20,7 +20,9 @@ import {
   Mail,
   CheckCircle2,
   Cpu,
+  Activity,
   Loader2,
+  RefreshCw,
   Trash2,
 } from "lucide-react";
 import { useTheme } from "next-themes";
@@ -57,8 +59,33 @@ const DEFAULT_GENERIC_MAPPING = JSON.stringify({
     content_path: "result.text",
     model_path: "result.model",
   },
+  capabilities: {
+    json_mode: false,
+    tools: false,
+  },
+  health: null,
+  models: null,
   stream: null,
 }, null, 2);
+
+interface LlmIntrospectionResult {
+  provider: string;
+  configured_model: string | null;
+  capabilities: {
+    streaming: boolean;
+    jsonMode: boolean;
+    tools: boolean;
+    modelDiscovery: boolean;
+  };
+  health: {
+    status: "healthy" | "unavailable" | "unknown";
+    latencyMs: number;
+    checkedAt: string;
+    reason?: string;
+  };
+  models: Array<{ id: string; label: string; ownedBy?: string | null }>;
+  models_error: string | null;
+}
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -89,6 +116,8 @@ export default function SettingsPage() {
   const [llmEncryptionAvailable, setLlmEncryptionAvailable] = useState(false);
   const [llmLoading, setLlmLoading] = useState(true);
   const [llmSaving, setLlmSaving] = useState(false);
+  const [llmInspecting, setLlmInspecting] = useState(false);
+  const [llmIntrospection, setLlmIntrospection] = useState<LlmIntrospectionResult | null>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -178,6 +207,7 @@ export default function SettingsPage() {
         secretSource: config.secret_source,
         clearSecret: false,
       }));
+      setLlmIntrospection(null);
       toast({ title: "LLM-router сохранён" });
     } catch (error) {
       toast({
@@ -207,6 +237,7 @@ export default function SettingsPage() {
         enabled: true,
       });
       setLlmSecretAvailable(null);
+      setLlmIntrospection(null);
       toast({ title: "Пользовательский LLM-router отключён" });
     } catch (error) {
       toast({
@@ -216,6 +247,34 @@ export default function SettingsPage() {
       });
     } finally {
       setLlmSaving(false);
+    }
+  }
+
+  async function inspectLlmConfig() {
+    setLlmInspecting(true);
+    try {
+      const result = await apiFetch<LlmIntrospectionResult>("/settings/llm/introspect", {
+        method: "POST",
+      });
+      setLlmIntrospection(result);
+      if (result.health.status === "unavailable") {
+        toast({
+          title: "LLM-router недоступен",
+          description: `Проверка завершилась со статусом ${result.health.reason || "request_failed"}`,
+          variant: "destructive",
+        });
+      } else {
+        toast({ title: "Проверка LLM-router завершена" });
+      }
+    } catch (error) {
+      setLlmIntrospection(null);
+      toast({
+        title: "Не удалось проверить LLM-router",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setLlmInspecting(false);
     }
   }
 
@@ -428,10 +487,16 @@ export default function SettingsPage() {
                     <Label htmlFor="llm-model">Модель</Label>
                     <Input
                       id="llm-model"
+                      list="llm-discovered-models"
                       value={llmConfig.model}
                       onChange={(event) => setLlmConfig((value) => ({ ...value, model: event.target.value }))}
                       placeholder="openai/gpt-4.1-mini"
                     />
+                    <datalist id="llm-discovered-models">
+                      {llmIntrospection?.models.map((model) => (
+                        <option key={model.id} value={model.id}>{model.label}</option>
+                      ))}
+                    </datalist>
                   </div>
                 </div>
                 <div className="space-y-2">
@@ -553,6 +618,43 @@ export default function SettingsPage() {
                     onCheckedChange={(enabled) => setLlmConfig((value) => ({ ...value, enabled }))}
                   />
                 </div>
+                {llmIntrospection && (
+                  <div className="space-y-3 rounded-lg border p-3" aria-live="polite">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2">
+                        <Activity className="h-4 w-4 text-primary" />
+                        <span className="text-sm font-medium">{llmIntrospection.provider}</span>
+                      </div>
+                      <Badge variant={llmIntrospection.health.status === "healthy"
+                        ? "default"
+                        : llmIntrospection.health.status === "unavailable"
+                          ? "destructive"
+                          : "secondary"}
+                      >
+                        {llmIntrospection.health.status} · {llmIntrospection.health.latencyMs} ms
+                      </Badge>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {([
+                        ["Streaming", llmIntrospection.capabilities.streaming],
+                        ["JSON mode", llmIntrospection.capabilities.jsonMode],
+                        ["Tools", llmIntrospection.capabilities.tools],
+                        ["Model discovery", llmIntrospection.capabilities.modelDiscovery],
+                      ] as const).map(([label, supported]) => (
+                        <Badge key={label} variant={supported ? "secondary" : "outline"}>
+                          {supported ? "✓" : "—"} {label}
+                        </Badge>
+                      ))}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {llmIntrospection.models.length > 0
+                        ? `Доступно моделей: ${llmIntrospection.models.length}. Список подключён к полю «Модель».`
+                        : llmIntrospection.models_error
+                          ? "Provider заявил discovery, но список моделей получить не удалось."
+                          : "Adapter не предоставил отдельный список моделей."}
+                    </div>
+                  </div>
+                )}
                 <div className="flex flex-wrap gap-2">
                   <Button
                     onClick={saveLlmConfig}
@@ -560,6 +662,16 @@ export default function SettingsPage() {
                   >
                     {llmSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Сохранить router
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={inspectLlmConfig}
+                    disabled={llmSaving || llmInspecting || !llmConfig.baseUrl}
+                  >
+                    {llmInspecting
+                      ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      : <RefreshCw className="mr-2 h-4 w-4" />}
+                    Проверить сохранённый router
                   </Button>
                   <Button variant="outline" onClick={removeLlmConfig} disabled={llmSaving || !llmConfig.baseUrl}>
                     <Trash2 className="mr-2 h-4 w-4" />

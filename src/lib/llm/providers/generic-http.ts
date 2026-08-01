@@ -2,9 +2,13 @@ import { normalizeOpenAiBaseUrl, resolveServerSecret } from "@/lib/llm/config";
 import { LlmProviderError, isRetryableHttpStatus } from "@/lib/llm/errors";
 import type {
   LlmClient,
+  LlmCapabilities,
   LlmCompletionRequest,
   LlmCompletionResponse,
+  LlmIntrospectionOptions,
   LlmMessage,
+  LlmModelDescriptor,
+  LlmProviderHealth,
   LlmStreamChunk,
 } from "@/lib/llm/types";
 
@@ -33,6 +37,21 @@ export interface GenericHttpMapping {
     contentPath: string;
     dataPrefix: string;
     doneSentinel: string;
+  };
+  capabilities: {
+    jsonMode: boolean;
+    tools: boolean;
+  };
+  health: null | {
+    url: string;
+    method: "GET" | "HEAD";
+  };
+  models: null | {
+    url: string;
+    listPath: string;
+    idPath: string;
+    labelPath: string | null;
+    ownedByPath: string | null;
   };
 }
 
@@ -86,6 +105,12 @@ function shortString(value: unknown, fallback: string, field: string, max = 200)
   return value;
 }
 
+function booleanValue(value: unknown, field: string, fallback = false): boolean {
+  if (value == null) return fallback;
+  if (typeof value !== "boolean") throw new Error(`${field} must be a boolean`);
+  return value;
+}
+
 function stringRecord(value: unknown, field: string): Record<string, string> {
   if (value == null) return {};
   const record = objectValue(value, field);
@@ -127,6 +152,9 @@ export function parseGenericHttpMapping(value: unknown): GenericHttpMapping {
   const request = objectValue(root.request, "request");
   const response = objectValue(root.response, "response");
   const streamInput = root.stream == null ? null : objectValue(root.stream, "stream");
+  const capabilitiesInput = root.capabilities == null ? {} : objectValue(root.capabilities, "capabilities");
+  const healthInput = root.health == null ? null : objectValue(root.health, "health");
+  const modelsInput = root.models == null ? null : objectValue(root.models, "models");
   const messagesFormat = request.messages_format ?? request.messagesFormat ?? "messages";
   if (messagesFormat !== "messages" && messagesFormat !== "prompt") {
     throw new Error("request.messages_format must be messages or prompt");
@@ -148,6 +176,11 @@ export function parseGenericHttpMapping(value: unknown): GenericHttpMapping {
     ? {}
     : objectValue(root.static_body ?? root.staticBody, "static_body");
   assertSafeStaticValue(staticBody, "static_body");
+
+  const healthMethod = healthInput?.method ?? "GET";
+  if (healthMethod !== "GET" && healthMethod !== "HEAD") {
+    throw new Error("health.method must be GET or HEAD");
+  }
 
   return {
     authHeader,
@@ -171,6 +204,24 @@ export function parseGenericHttpMapping(value: unknown): GenericHttpMapping {
       contentPath: requiredPath(streamInput.content_path ?? streamInput.contentPath, "stream.content_path"),
       dataPrefix: shortString(streamInput.data_prefix ?? streamInput.dataPrefix, "data:", "stream.data_prefix", 50),
       doneSentinel: shortString(streamInput.done_sentinel ?? streamInput.doneSentinel, "[DONE]", "stream.done_sentinel", 100),
+    } : null,
+    capabilities: {
+      jsonMode: booleanValue(
+        capabilitiesInput.json_mode ?? capabilitiesInput.jsonMode,
+        "capabilities.json_mode",
+      ),
+      tools: booleanValue(capabilitiesInput.tools, "capabilities.tools"),
+    },
+    health: healthInput ? {
+      url: normalizeOpenAiBaseUrl(healthInput.url),
+      method: healthMethod,
+    } : null,
+    models: modelsInput ? {
+      url: normalizeOpenAiBaseUrl(modelsInput.url),
+      listPath: requiredPath(modelsInput.list_path ?? modelsInput.listPath, "models.list_path"),
+      idPath: requiredPath(modelsInput.id_path ?? modelsInput.idPath, "models.id_path"),
+      labelPath: optionalPath(modelsInput.label_path ?? modelsInput.labelPath, "models.label_path"),
+      ownedByPath: optionalPath(modelsInput.owned_by_path ?? modelsInput.ownedByPath, "models.owned_by_path"),
     } : null,
   };
 }
@@ -325,5 +376,103 @@ export class GenericHttpLlmClient implements LlmClient {
     } catch {
       return false;
     }
+  }
+
+  getCapabilities(): LlmCapabilities {
+    return {
+      streaming: this.mapping.stream !== null,
+      jsonMode: this.mapping.capabilities.jsonMode,
+      tools: this.mapping.capabilities.tools,
+      modelDiscovery: this.mapping.models !== null,
+    };
+  }
+
+  private requestHeaders(contentType = false): Headers {
+    const secret = resolveServerSecret(this.secretRef);
+    if (this.secretRef && !secret) throw new LlmProviderError("LLM secret reference is not configured");
+    const headers = new Headers({
+      Accept: "application/json",
+      ...this.mapping.staticHeaders,
+    });
+    if (contentType) headers.set("Content-Type", "application/json");
+    if (secret) {
+      headers.set(this.mapping.authHeader, this.mapping.authScheme ? `${this.mapping.authScheme} ${secret}` : secret);
+    }
+    return headers;
+  }
+
+  async healthCheck(options: LlmIntrospectionOptions = {}): Promise<LlmProviderHealth> {
+    const startedAt = Date.now();
+    if (!(await this.isAvailable())) {
+      return {
+        status: "unavailable",
+        latencyMs: Date.now() - startedAt,
+        checkedAt: new Date().toISOString(),
+        reason: "secret_unavailable",
+      };
+    }
+    if (!this.mapping.health) {
+      return {
+        status: "unknown",
+        latencyMs: Date.now() - startedAt,
+        checkedAt: new Date().toISOString(),
+        reason: "not_configured",
+      };
+    }
+    try {
+      const response = await this.fetchImpl(this.mapping.health.url, {
+        method: this.mapping.health.method,
+        headers: this.requestHeaders(),
+        signal: options.signal,
+      });
+      return {
+        status: response.ok ? "healthy" : "unavailable",
+        latencyMs: Date.now() - startedAt,
+        checkedAt: new Date().toISOString(),
+        reason: response.ok ? "ok" : "request_failed",
+      };
+    } catch {
+      return {
+        status: "unavailable",
+        latencyMs: Date.now() - startedAt,
+        checkedAt: new Date().toISOString(),
+        reason: "request_failed",
+      };
+    }
+  }
+
+  async listModels(options: LlmIntrospectionOptions = {}): Promise<LlmModelDescriptor[]> {
+    if (!this.mapping.models) {
+      return [];
+    }
+    const response = await this.fetchImpl(this.mapping.models.url, {
+      method: "GET",
+      headers: this.requestHeaders(),
+      signal: options.signal,
+    });
+    if (!response.ok) {
+      throw new LlmProviderError(`Generic LLM models endpoint returned ${response.status}`, {
+        status: response.status,
+        retryable: isRetryableHttpStatus(response.status),
+      });
+    }
+    const payload = await response.json() as unknown;
+    const list = getPath(payload, this.mapping.models.listPath);
+    if (!Array.isArray(list)) throw new LlmProviderError("Generic LLM models response is invalid");
+    return list.flatMap((item): LlmModelDescriptor[] => {
+      const id = getPath(item, this.mapping.models!.idPath);
+      if (typeof id !== "string" || !id.trim()) return [];
+      const label = this.mapping.models!.labelPath
+        ? getPath(item, this.mapping.models!.labelPath!)
+        : id;
+      const ownedBy = this.mapping.models!.ownedByPath
+        ? getPath(item, this.mapping.models!.ownedByPath!)
+        : null;
+      return [{
+        id: id.trim(),
+        label: typeof label === "string" && label.trim() ? label.trim() : id.trim(),
+        ownedBy: typeof ownedBy === "string" ? ownedBy : null,
+      }];
+    }).slice(0, 1_000);
   }
 }

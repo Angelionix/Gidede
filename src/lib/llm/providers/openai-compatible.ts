@@ -2,8 +2,12 @@ import { normalizeOpenAiBaseUrl, resolveServerSecret } from "@/lib/llm/config";
 import { LlmProviderError, isRetryableHttpStatus } from "@/lib/llm/errors";
 import type {
   LlmClient,
+  LlmCapabilities,
   LlmCompletionRequest,
   LlmCompletionResponse,
+  LlmIntrospectionOptions,
+  LlmModelDescriptor,
+  LlmProviderHealth,
   LlmStreamChunk,
 } from "@/lib/llm/types";
 
@@ -19,6 +23,13 @@ function completionEndpoint(baseUrl: string): string {
   return baseUrl.endsWith("/chat/completions")
     ? baseUrl
     : `${baseUrl}/chat/completions`;
+}
+
+function modelsEndpoint(baseUrl: string): string {
+  const root = baseUrl.endsWith("/chat/completions")
+    ? baseUrl.slice(0, -"/chat/completions".length)
+    : baseUrl;
+  return `${root}/models`;
 }
 
 async function parseError(response: Response): Promise<Error> {
@@ -59,6 +70,7 @@ export class OpenAiCompatibleLlmClient implements LlmClient {
   readonly providerId: string;
   readonly modelId: string;
   private readonly endpoint: string;
+  private readonly modelsEndpoint: string;
   private readonly secretRef: string | null;
   private readonly fetchImpl: typeof fetch;
 
@@ -67,7 +79,9 @@ export class OpenAiCompatibleLlmClient implements LlmClient {
     this.modelId = options.model.trim();
     if (!this.providerId) throw new Error("providerId is required");
     if (!this.modelId) throw new Error("model is required");
-    this.endpoint = completionEndpoint(normalizeOpenAiBaseUrl(options.baseUrl));
+    const baseUrl = normalizeOpenAiBaseUrl(options.baseUrl);
+    this.endpoint = completionEndpoint(baseUrl);
+    this.modelsEndpoint = modelsEndpoint(baseUrl);
     this.secretRef = options.secretRef ?? null;
     this.fetchImpl = options.fetch ?? fetch;
   }
@@ -113,6 +127,77 @@ export class OpenAiCompatibleLlmClient implements LlmClient {
     } catch {
       return false;
     }
+  }
+
+  getCapabilities(): LlmCapabilities {
+    return {
+      streaming: true,
+      jsonMode: false,
+      tools: false,
+      modelDiscovery: true,
+    };
+  }
+
+  async healthCheck(options: LlmIntrospectionOptions = {}): Promise<LlmProviderHealth> {
+    const startedAt = Date.now();
+    if (!(await this.isAvailable())) {
+      return {
+        status: "unavailable",
+        latencyMs: Date.now() - startedAt,
+        checkedAt: new Date().toISOString(),
+        reason: "secret_unavailable",
+      };
+    }
+    try {
+      await this.listModels(options);
+      return {
+        status: "healthy",
+        latencyMs: Date.now() - startedAt,
+        checkedAt: new Date().toISOString(),
+        reason: "ok",
+      };
+    } catch {
+      return {
+        // `/models` is the only side-effect-free standard probe. A router may omit it
+        // while chat completions still work, so discovery failure is not proof of outage.
+        status: "unknown",
+        latencyMs: Date.now() - startedAt,
+        checkedAt: new Date().toISOString(),
+        reason: "request_failed",
+      };
+    }
+  }
+
+  async listModels(options: LlmIntrospectionOptions = {}): Promise<LlmModelDescriptor[]> {
+    const secret = resolveServerSecret(this.secretRef);
+    if (this.secretRef && !secret) {
+      throw new LlmProviderError("LLM secret reference is not configured");
+    }
+    const headers = new Headers({ Accept: "application/json" });
+    if (secret) headers.set("Authorization", `Bearer ${secret}`);
+    const response = await this.fetchImpl(this.modelsEndpoint, {
+      method: "GET",
+      headers,
+      signal: options.signal,
+    });
+    if (!response.ok) throw await parseError(response);
+    const payload = await response.json() as { data?: unknown };
+    if (!Array.isArray(payload.data)) {
+      throw new LlmProviderError("OpenAI-compatible models response is invalid");
+    }
+    return payload.data
+      .flatMap((item): LlmModelDescriptor[] => {
+        if (!item || typeof item !== "object") return [];
+        const id = (item as { id?: unknown }).id;
+        if (typeof id !== "string" || !id.trim()) return [];
+        const ownedBy = (item as { owned_by?: unknown }).owned_by;
+        return [{
+          id: id.trim(),
+          label: id.trim(),
+          ownedBy: typeof ownedBy === "string" ? ownedBy : null,
+        }];
+      })
+      .slice(0, 1_000);
   }
 }
 

@@ -14,6 +14,10 @@ Select **OpenAI-compatible** in `/settings` and provide:
 The adapter calls `{base URL}/chat/completions`. If the configured URL already ends
 in `/chat/completions`, it is used unchanged.
 
+The adapter discovers models through the corresponding `/models` endpoint. Streaming
+is declared as supported; JSON mode and tool calls remain disabled until a specialized
+adapter can guarantee their exact wire format.
+
 ## Generic HTTP mapping
 
 Select **Generic HTTP mapping** when the API uses a different request or response
@@ -26,6 +30,8 @@ The JSON configuration supports:
 - request dot paths for model, messages/prompt, stream flag, temperature and token limit;
 - response dot paths for generated content and actual model;
 - optional `sse` or `ndjson` streaming with a content dot path.
+- explicit JSON-mode and tool-call capability declarations;
+- optional health and model-catalog endpoints used by the settings diagnostics.
 
 If `stream` is `null`, a non-streaming provider is adapted to `LlmClient` streaming
 as one chunk. Numeric dot-path components can read array response values, for example
@@ -34,6 +40,33 @@ as one chunk. Numeric dot-path components can read array response values, for ex
 Secret-bearing static headers (`Authorization`, `x-api-key`, `api-key`) are rejected.
 Use an environment reference or the encrypted key field so a secret never enters
 adapter JSON or a plaintext database column.
+
+Example optional introspection fields:
+
+```json
+{
+  "capabilities": { "json_mode": true, "tools": false },
+  "health": { "url": "https://router.example/health", "method": "GET" },
+  "models": {
+    "url": "https://router.example/models",
+    "list_path": "data",
+    "id_path": "id",
+    "label_path": "name",
+    "owned_by_path": "owner"
+  }
+}
+```
+
+Omit `health` or `models` (or set them to `null`) when the provider does not expose
+those endpoints. In that case health is reported as `unknown`, and the configured
+model remains usable without claiming model discovery support.
+
+## Capability and health diagnostics
+
+After saving a router, use **Проверить сохранённый router** in `/settings`. The UI
+shows normalized health, latency, streaming/JSON/tools/model-discovery capability
+badges, and adds discovered model IDs to the model input suggestions. Provider error
+bodies and credentials are never returned by the diagnostics endpoint.
 
 ## Secrets
 
@@ -72,7 +105,8 @@ caller, an interruption is returned as an error instead of repeating already emi
 The server defaults can be adjusted with `GIDEDE_LLM_TIMEOUT_MS`,
 `GIDEDE_LLM_MAX_RETRIES`, `GIDEDE_LLM_BACKOFF_BASE_MS`,
 `GIDEDE_LLM_BACKOFF_MAX_MS`, `GIDEDE_LLM_CIRCUIT_FAILURE_THRESHOLD`,
-`GIDEDE_LLM_CIRCUIT_COOLDOWN_MS` and `GIDEDE_LLM_CLIENT_TTL_MS`.
+`GIDEDE_LLM_CIRCUIT_COOLDOWN_MS`, `GIDEDE_LLM_CLIENT_TTL_MS`,
+`GIDEDE_LLM_HEALTH_TTL_MS` and `GIDEDE_LLM_MODELS_TTL_MS`.
 
 ## Custom adapter SPI
 
@@ -92,4 +126,6 @@ registerConfiguredLlmAdapter({
 
 The adapter then appears in the settings API/UI. Its validated options are stored in
 `configJson`; secret values must still come only from `config.secretRef`. No changes
-to `ai-service` or pipeline stages are required.
+to `ai-service` or pipeline stages are required. A custom client must also implement
+`getCapabilities`, `healthCheck` and `listModels`; unsupported discovery should return
+an empty list and declare `modelDiscovery: false`.

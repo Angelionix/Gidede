@@ -1,12 +1,17 @@
 import {
   isTransientLlmError,
   LlmCircuitOpenError,
+  LlmProviderError,
   LlmTimeoutError,
 } from "@/lib/llm/errors";
 import type {
   LlmClient,
+  LlmCapabilities,
   LlmCompletionRequest,
   LlmCompletionResponse,
+  LlmIntrospectionOptions,
+  LlmModelDescriptor,
+  LlmProviderHealth,
   LlmStreamChunk,
 } from "@/lib/llm/types";
 
@@ -18,6 +23,8 @@ export interface LlmResiliencePolicy {
   circuitFailureThreshold: number;
   circuitCooldownMs: number;
   clientTtlMs: number;
+  healthTtlMs: number;
+  modelsTtlMs: number;
 }
 
 export const DEFAULT_LLM_RESILIENCE_POLICY: LlmResiliencePolicy = {
@@ -28,6 +35,8 @@ export const DEFAULT_LLM_RESILIENCE_POLICY: LlmResiliencePolicy = {
   circuitFailureThreshold: 3,
   circuitCooldownMs: 30_000,
   clientTtlMs: 5 * 60_000,
+  healthTtlMs: 30_000,
+  modelsTtlMs: 5 * 60_000,
 };
 
 type Sleep = (delayMs: number, signal?: AbortSignal) => Promise<void>;
@@ -63,6 +72,8 @@ export function llmResiliencePolicyFromEnv(): LlmResiliencePolicy {
       600_000,
     ),
     clientTtlMs: integerFromEnv("GIDEDE_LLM_CLIENT_TTL_MS", DEFAULT_LLM_RESILIENCE_POLICY.clientTtlMs, 1_000, 3_600_000),
+    healthTtlMs: integerFromEnv("GIDEDE_LLM_HEALTH_TTL_MS", DEFAULT_LLM_RESILIENCE_POLICY.healthTtlMs, 1_000, 600_000),
+    modelsTtlMs: integerFromEnv("GIDEDE_LLM_MODELS_TTL_MS", DEFAULT_LLM_RESILIENCE_POLICY.modelsTtlMs, 1_000, 3_600_000),
   };
 }
 
@@ -141,6 +152,8 @@ export class ResilientLlmClient implements LlmClient {
   private consecutiveFailures = 0;
   private circuitOpenedAt: number | null = null;
   private halfOpenProbe = false;
+  private healthCache: { value: LlmProviderHealth; expiresAt: number } | null = null;
+  private modelsCache: { value: LlmModelDescriptor[]; expiresAt: number } | null = null;
 
   constructor(
     private readonly inner: LlmClient,
@@ -196,16 +209,16 @@ export class ResilientLlmClient implements LlmClient {
     this.halfOpenProbe = false;
   }
 
-  private recordRequestFailure(error: unknown, request: LlmCompletionRequest): void {
-    if (request.signal?.aborted) {
+  private recordRequestFailure(error: unknown, signal?: AbortSignal): void {
+    if (signal?.aborted) {
       this.halfOpenProbe = false;
       return;
     }
     this.recordFailure(error);
   }
 
-  private canRetry(error: unknown, attempt: number, request: LlmCompletionRequest): boolean {
-    return !request.signal?.aborted
+  private canRetry(error: unknown, attempt: number, signal?: AbortSignal): boolean {
+    return !signal?.aborted
       && isTransientLlmError(error)
       && attempt < this.policy.maxRetries;
   }
@@ -232,16 +245,16 @@ export class ResilientLlmClient implements LlmClient {
         this.recordSuccess();
         return response;
       } catch (error) {
-        if (this.canRetry(error, attempt, request)) {
+        if (this.canRetry(error, attempt, request.signal)) {
           try {
             await this.sleep(this.backoffDelay(attempt), request.signal);
           } catch (sleepError) {
-            this.recordRequestFailure(sleepError, request);
+            this.recordRequestFailure(sleepError, request.signal);
             throw sleepError;
           }
           continue;
         }
-        this.recordRequestFailure(error, request);
+        this.recordRequestFailure(error, request.signal);
         throw error;
       } finally {
         context.cleanup();
@@ -276,17 +289,17 @@ export class ResilientLlmClient implements LlmClient {
             yield next.value;
           }
         } catch (error) {
-          if (!emitted && this.canRetry(error, attempt, request)) {
+          if (!emitted && this.canRetry(error, attempt, request.signal)) {
             try {
               await this.sleep(this.backoffDelay(attempt), request.signal);
             } catch (sleepError) {
-              this.recordRequestFailure(sleepError, request);
+              this.recordRequestFailure(sleepError, request.signal);
               settled = true;
               throw sleepError;
             }
             continue;
           }
-          this.recordRequestFailure(error, request);
+          this.recordRequestFailure(error, request.signal);
           settled = true;
           throw error;
         } finally {
@@ -319,6 +332,80 @@ export class ResilientLlmClient implements LlmClient {
       if (error instanceof LlmCircuitOpenError) return false;
       this.recordFailure(error);
       return false;
+    }
+  }
+
+  getCapabilities(): LlmCapabilities {
+    return this.inner.getCapabilities();
+  }
+
+  async healthCheck(options: LlmIntrospectionOptions = {}): Promise<LlmProviderHealth> {
+    const startedAt = this.now();
+    if (!options.signal && this.healthCache && this.healthCache.expiresAt > startedAt) {
+      return this.healthCache.value;
+    }
+    try {
+      this.beginCircuitRequest();
+      const context = new AttemptContext(this.policy.timeoutMs, options.signal);
+      try {
+        const health = await context.run(() => this.inner.healthCheck({ signal: context.signal }));
+        if (health.status === "unavailable") {
+          this.recordFailure(new LlmProviderError("LLM health check failed", { retryable: true }));
+        } else {
+          this.recordSuccess();
+        }
+        if (!options.signal) {
+          this.healthCache = { value: health, expiresAt: this.now() + this.policy.healthTtlMs };
+        }
+        return health;
+      } finally {
+        context.cleanup();
+      }
+    } catch (error) {
+      if (!(error instanceof LlmCircuitOpenError)) this.recordRequestFailure(error, options.signal);
+      const health: LlmProviderHealth = {
+        status: "unavailable",
+        latencyMs: this.now() - startedAt,
+        checkedAt: new Date().toISOString(),
+        reason: error instanceof LlmCircuitOpenError ? "circuit_open" : "request_failed",
+      };
+      if (!options.signal) {
+        this.healthCache = { value: health, expiresAt: this.now() + this.policy.healthTtlMs };
+      }
+      return health;
+    }
+  }
+
+  async listModels(options: LlmIntrospectionOptions = {}): Promise<LlmModelDescriptor[]> {
+    const startedAt = this.now();
+    if (!options.signal && this.modelsCache && this.modelsCache.expiresAt > startedAt) {
+      return this.modelsCache.value;
+    }
+    this.beginCircuitRequest();
+    for (let attempt = 0; ; attempt += 1) {
+      const context = new AttemptContext(this.policy.timeoutMs, options.signal);
+      try {
+        const models = await context.run(() => this.inner.listModels({ signal: context.signal }));
+        this.recordSuccess();
+        if (!options.signal) {
+          this.modelsCache = { value: models, expiresAt: this.now() + this.policy.modelsTtlMs };
+        }
+        return models;
+      } catch (error) {
+        if (this.canRetry(error, attempt, options.signal)) {
+          try {
+            await this.sleep(this.backoffDelay(attempt), options.signal);
+          } catch (sleepError) {
+            this.recordRequestFailure(sleepError, options.signal);
+            throw sleepError;
+          }
+          continue;
+        }
+        this.recordRequestFailure(error, options.signal);
+        throw error;
+      } finally {
+        context.cleanup();
+      }
     }
   }
 }

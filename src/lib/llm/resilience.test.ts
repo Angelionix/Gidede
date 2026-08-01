@@ -21,18 +21,31 @@ function policy(overrides: Partial<LlmResiliencePolicy> = {}): LlmResiliencePoli
     circuitFailureThreshold: 3,
     circuitCooldownMs: 1_000,
     clientTtlMs: 5_000,
+    healthTtlMs: 100,
+    modelsTtlMs: 100,
     ...overrides,
   };
 }
 
 function fakeClient(
   create: (request: LlmCompletionRequest) => Promise<unknown>,
+  overrides: Partial<LlmClient> = {},
 ): LlmClient {
   return {
     providerId: "test-provider",
     modelId: "test-model",
     createCompletion: create,
     async isAvailable() { return true; },
+    getCapabilities() {
+      return { streaming: true, jsonMode: false, tools: false, modelDiscovery: true };
+    },
+    async healthCheck() {
+      return { status: "healthy", latencyMs: 1, checkedAt: new Date().toISOString(), reason: "ok" };
+    },
+    async listModels() {
+      return [{ id: "test-model", label: "Test model" }];
+    },
+    ...overrides,
   } as unknown as LlmClient;
 }
 
@@ -140,5 +153,51 @@ describe("ResilientLlmClient — R3-05", () => {
       }
     })()).rejects.toBeInstanceOf(LlmTimeoutError);
     expect(create).toHaveBeenCalledOnce();
+  });
+
+  it("caches health and model discovery independently for their configured TTLs", async () => {
+    let now = 1_000;
+    const healthCheck = vi.fn(async () => ({
+      status: "healthy" as const,
+      latencyMs: 2,
+      checkedAt: new Date().toISOString(),
+      reason: "ok" as const,
+    }));
+    const listModels = vi.fn(async () => [{ id: "model-a", label: "Model A" }]);
+    const client = new ResilientLlmClient(
+      fakeClient(vi.fn(), { healthCheck, listModels }),
+      policy({ healthTtlMs: 50, modelsTtlMs: 100 }),
+      { now: () => now },
+    );
+
+    await client.healthCheck();
+    await client.healthCheck();
+    await client.listModels();
+    await client.listModels();
+    expect(healthCheck).toHaveBeenCalledOnce();
+    expect(listModels).toHaveBeenCalledOnce();
+
+    now += 60;
+    await client.healthCheck();
+    await client.listModels();
+    expect(healthCheck).toHaveBeenCalledTimes(2);
+    expect(listModels).toHaveBeenCalledOnce();
+  });
+
+  it("retries transient model discovery failures before caching the result", async () => {
+    const listModels = vi.fn()
+      .mockRejectedValueOnce(new LlmProviderError("busy", { status: 503, retryable: true }))
+      .mockResolvedValueOnce([{ id: "model-a", label: "Model A" }]);
+    const sleep = vi.fn(async () => undefined);
+    const client = new ResilientLlmClient(
+      fakeClient(vi.fn(), { listModels }),
+      policy({ maxRetries: 1 }),
+      { sleep },
+    );
+
+    await expect(client.listModels()).resolves.toEqual([{ id: "model-a", label: "Model A" }]);
+    await expect(client.listModels()).resolves.toEqual([{ id: "model-a", label: "Model A" }]);
+    expect(listModels).toHaveBeenCalledTimes(2);
+    expect(sleep).toHaveBeenCalledOnce();
   });
 });

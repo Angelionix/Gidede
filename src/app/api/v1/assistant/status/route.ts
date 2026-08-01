@@ -17,6 +17,8 @@ export async function GET(request: Request) {
     ai_available: status.available,
     provider: status.available ? status.providerId : "unavailable (fallback to rules-engine)",
     model: status.available ? status.modelId : "gidede-rules-v1",
+    capabilities: status.capabilities,
+    health: status.health,
     ai_calls_count: user.aiCallsCount,
     ai_calls_limit: user.aiCallsLimit,
     ai_calls_remaining: user.aiCallsLimit - user.aiCallsCount,

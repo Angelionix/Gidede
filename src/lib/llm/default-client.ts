@@ -6,7 +6,11 @@ import {
   withLlmResilience,
 } from "@/lib/llm/resilience";
 import { createZaiLlmClient } from "@/lib/llm/providers/zai";
-import type { LlmClient } from "@/lib/llm/types";
+import type {
+  LlmCapabilities,
+  LlmClient,
+  LlmProviderHealth,
+} from "@/lib/llm/types";
 import { db } from "@/lib/db";
 import { getAuthUserId } from "@/lib/server-auth";
 
@@ -76,12 +80,25 @@ export async function getDefaultLlmStatus(): Promise<{
   available: boolean;
   providerId: string | null;
   modelId: string | null;
+  capabilities: LlmCapabilities | null;
+  health: LlmProviderHealth | null;
 }> {
   const client = await getDefaultLlmClient();
-  if (!client) return { available: false, providerId: registry.getDefaultProviderId(), modelId: null };
+  if (!client) {
+    return {
+      available: false,
+      providerId: registry.getDefaultProviderId(),
+      modelId: null,
+      capabilities: null,
+      health: null,
+    };
+  }
+  const health = await client.healthCheck();
   return {
-    available: await client.isAvailable(),
+    available: health.status !== "unavailable",
     providerId: client.providerId,
     modelId: client.modelId,
+    capabilities: client.getCapabilities(),
+    health,
   };
 }

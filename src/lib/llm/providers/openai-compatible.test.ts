@@ -109,4 +109,36 @@ describe("OpenAiCompatibleLlmClient — R3-02", () => {
     expect(error.message).not.toContain("model not found");
     expect(error.message).not.toContain("never-log-this");
   });
+
+  it("declares conservative capabilities and discovers models through the standard endpoint", async () => {
+    process.env[SECRET_ENV] = "discovery-secret";
+    const fetchMock = vi.fn(async () => Response.json({
+      data: [
+        { id: "vendor/model-a", owned_by: "vendor" },
+        { id: "vendor/model-b" },
+        { invalid: true },
+      ],
+    }));
+    const client = new OpenAiCompatibleLlmClient({
+      providerId: "openai-compatible:discovery",
+      baseUrl: "https://router.example/api/v1/chat/completions",
+      model: "vendor/model-a",
+      secretRef: `env:${SECRET_ENV}`,
+      fetch: fetchMock as typeof fetch,
+    });
+
+    expect(client.getCapabilities()).toEqual({
+      streaming: true,
+      jsonMode: false,
+      tools: false,
+      modelDiscovery: true,
+    });
+    await expect(client.listModels()).resolves.toEqual([
+      { id: "vendor/model-a", label: "vendor/model-a", ownedBy: "vendor" },
+      { id: "vendor/model-b", label: "vendor/model-b", ownedBy: null },
+    ]);
+    const [url, init] = fetchMock.mock.calls[0] as unknown as [string, RequestInit];
+    expect(url).toBe("https://router.example/api/v1/models");
+    expect(new Headers(init.headers).get("Authorization")).toBe("Bearer discovery-secret");
+  });
 });

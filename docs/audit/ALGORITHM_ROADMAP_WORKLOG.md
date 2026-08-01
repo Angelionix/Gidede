@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R5-07` — исправить buildGap, stall и runs metadata.
-- **Зависимости:** `R5-06` завершена; Monte Carlo seed включает projectId + objects + simVersion.
-- **Ожидаемый результат:** метрика buildGap корректна; stall condition достижим; runs metadata соответствует выполненным прогонам.
-- **После неё:** `R5-08` — composite overall balance score + hard sub-gates.
+- **Следующая задача:** `R5-08` — composite overall balance score + hard sub-gates.
+- **Зависимости:** `R5-07` завершена; buildGap формула исправлена, stall condition достижим через rMin, runs честно = 1.
+- **Ожидаемый результат:** OP/dominance/POOR verdict уменьшают score независимо от stability; critical issues — hard gate.
+- **После неё:** `R5-09` — исполнять реальную combat/economy model, N runs и confidence intervals.
 
 ## Статус roadmap
 
@@ -69,7 +69,8 @@
 | R5-04 | DONE | Real Nash solver для 2×2 (closed-form), honest heuristic fallback для larger matrices | 781 tests, TypeScript, scoped ESLint |
 | R5-05 | DONE | findAllRpsCycles: перебирает все cycles (не только consecutive), без early break, deduplicates rotations | 793 tests, TypeScript, scoped ESLint |
 | R5-06 | DONE | Monte Carlo seed = hash(projectId + objects + simVersion) — изменение objects меняет seed | 810 tests, TypeScript, scoped ESLint |
-| R5-07…R7 | TODO | См. активный roadmap | — |
+| R5-07 | DONE | buildGap формула исправлена; stall condition через rMin (достижим); runs честно = 1 | 810 tests, TypeScript, scoped ESLint |
+| R5-08…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -82,6 +83,33 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R5-07 — DONE
+
+Что сделано:
+
+- исправлены три бага в Machinations simulation (`buildMachinationsResult`):
+  1. **buildGap operator precedence bug**: `Math.abs(runawayFreq - stallFreq / 2)` оценивалось как `|runaway - (stall/2)|` вместо `|(runaway - stall) / 2|`; при runaway=1, stall=1 возвращало 0.5 (должно 0); исправлено на `Math.abs(runawayFreq - stallFreq) / 2`;
+  2. **stall condition unreachable**: `rMax <= hp * 0.2` было невозможно — rMax начинается с hp (полное HP), поэтому rMax всегда >= hp > hp*0.2; исправлено: теперь проверяет `rMin <= hp * 0.2` (минимальное значение за sim);
+  3. **runs metadata theater**: `runs: 10` заявляло 10 прогонов, но фактически выполнялся 1 pass per object; исправлено на `runs: 1` (честно).
+
+Изменённые области:
+
+- `src/app/api/v1/balance/analyze/route.ts` — buildGap формула, stall condition, runs metadata.
+
+Проверки:
+
+- `bun run test` — 69 файлов, 810 тестов пройдено (без изменений — существующие тесты покрывают API contract, не внутренние формулы);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- buildGap при runaway=1, stall=1 теперь 0 (was 0.5);
+- stall condition достижим через rMin (минимальное значение за sim может упасть ниже 20% от hp при большом dmg);
+- runs честно сообщает 1 (не 10);
+- следующей задачей назначена `R5-08`.
 
 ### 2026-08-01 — R5-06 — DONE
 

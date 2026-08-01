@@ -782,7 +782,9 @@ function buildMachinationsResult(
     curves[o.name] = series;
     ranges[o.name] = { min: Number(rMin.toFixed(2)), max: Number(rMax.toFixed(2)) };
     if (rMax >= hp * 1.8) runawayCount++;
-    if (rMax <= hp * 0.2) stallCount++;
+    // R5-07: stall condition was unreachable — rMax starts at hp so rMax <= hp*0.2
+    // was impossible. Now checks rMin (the lowest value reached during the sim).
+    if (rMin <= hp * 0.2) stallCount++;
   }
   // Add HP and damage curves
   curves["hp"] = Array.from({ length: ticks }, (_, t) =>
@@ -799,8 +801,12 @@ function buildMachinationsResult(
   const stability = Number(
     Math.max(0, 1 - (runawayFreq + stallFreq) / 2).toFixed(3)
   );
+  // R5-07: buildGap formula was broken — `Math.abs(runawayFreq - stallFreq / 2)`
+  // evaluated as `|runaway - (stall/2)|` due to operator precedence, not
+  // `|(runaway - stall) / 2|`. With runaway=1, stall=1 it returned 0.5 (wrong)
+  // instead of 0. Fixed to `Math.abs(runawayFreq - stallFreq) / 2`.
   const buildGap = Number(
-    Math.abs(runawayFreq - stallFreq / 2).toFixed(3)
+    (Math.abs(runawayFreq - stallFreq) / 2).toFixed(3)
   );
 
   const criticalIssues: string[] = [];
@@ -839,7 +845,9 @@ function buildMachinationsResult(
 
   return {
     graph,
-    runs: 10,
+    // R5-07: was `runs: 10` (theater — only 1 pass per object was actually
+    // executed). Now honestly reports 1 run.
+    runs: 1,
     aggregated: {
       avg_resource_curves: curves,
       resource_ranges: ranges,

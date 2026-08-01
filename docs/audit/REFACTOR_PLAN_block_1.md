@@ -1661,3 +1661,149 @@ Edge cases не обработаны:
 3. **Локализовать ли core loop / USP на русский?** Сейчас английский, но `SYSTEM_PROMPT` AI и `desc` MechanicsDB — русский. Несогласованно.
 4. **Реализовывать ли TASK-1.14 (Levels 0-2) в этом цикле?** Это стратегический долг — не блокирует текущие баги, но нужен для Bible compliance.
 5. **Добавлять ли `genre_affinity` через LLM-генерацию или вручную?** LLM быстрее, но может дать неточные оценки; вручную дольше, но точнее. Рекомендация: гибрид — LLM draft + ручной review.
+
+---
+
+## Дополнительные задачи (добавлены после Sprint 1)
+
+### TASK-1.17: Поддержка primary genre + subgenres ✅ DONE
+
+**Сложность**: M  
+**Приоритет**: 🟡  
+**Файлы**: `src/app/api/v1/concept/generate/route.ts`, `src/lib/mechanics-db.ts`  
+**Добавлено**: 2026-08-01 по запросу пользователя
+
+#### Проблема
+
+Оригинальная реализация поддерживала только один жанр (`genre: string`), хотя реальные игры часто являются гибридами:
+- "Action RPG" = action (primary) + rpg (subgenre)
+- "Roguelike deckbuilder" = roguelike (primary) + strategy (subgenre)
+- "Survival horror" = survival_horror (primary) + horror (subgenre)
+
+Жанр выводился по первому keyword-совпадению (`for ... if (some) return`), остальные жанры игнорировались.
+
+#### Решение
+
+1. **`inferGenres(idea)`** — заменяет `inferGenre`:
+   ```typescript
+   function inferGenres(idea: string): { primary: string; subgenres: string[] } {
+     // Считаем keyword-совпадения для каждого жанра.
+     // Primary = жанр с макс. совпадениями.
+     // Subgenres = остальные жанры с совпадениями (макс. 3).
+   }
+   ```
+
+2. **Body принимает `subgenres: string[]`** — пользователь может явно указать поджанры:
+   ```json
+   { "idea": "...", "genre": "action", "subgenres": ["rpg", "roguelike"] }
+   ```
+
+3. **`buildMechanicSetForGenres(genres[], ...)`** — новая функция в mechanics-db.ts:
+   - Ищет механики, релевантные ЛЮБОМУ из жанров `[primary, ...subgenres]`
+   - Сортирует pool по количеству совпадающих жанров (multi-genre priority)
+   - Механики, релевантные нескольким жанрам, получают приоритет
+
+4. **Response включает `primary_genre` + `subgenres`** + `mechanic_set.genres_searched[]`
+
+5. **DB persist**: `inputData` сохраняет `primary_genre` и `subgenres` для последующей загрузки
+
+#### Тест-кейсы
+
+- ✅ Single genre (backward compat): `inferGenres("puzzle game")` → `{primary: "puzzle", subgenres: []}`
+- ✅ Multi-genre: `inferGenres("action RPG with roguelike elements")` → `{primary: "action", subgenres: ["rpg", "roguelike"]}`
+- ✅ Explicit override: body `{genre: "rpg", subgenres: ["strategy"]}` → primary="rpg", subgenres=["strategy"]
+- ✅ Max 3 subgenres: idea с 5 жанрами → subgenres.length === 3
+
+#### Риски
+
+- 🟡 Downstream blocks (2, 3, 6) могут не знать о `subgenres` — они используют `genre` (primary), что обеспечивает backward compat. В будущем можно расширить.
+
+---
+
+### TASK-1.18: Cross-genre mechanics ✅ DONE
+
+**Сложность**: M  
+**Приоритет**: 🟡  
+**Файлы**: `src/lib/mechanics-db.ts`, `src/app/api/v1/concept/generate/route.ts`  
+**Добавлено**: 2026-08-01 по запросу пользователя  
+**Dependencies**: TASK-1.1, TASK-1.8
+
+#### Проблема
+
+Оригинальный `buildMechanicSetForGenre` брал только механики с точным совпадением по жанру. Это слишком строго — лучшие инновации возникают на стыке жанров:
+- "Прыжки" (platformer) + "Головоломки" (puzzle) → puzzle platformer (Limbo, Braid)
+- "Ритм" (rhythm) + "Боевые" (fighting) → rhythm combat (Crypt of the NecroDancer, Hi-Fi Rush)
+- "Стелс" (stealth) + "RPG" → stealth RPG (Disco Elysium)
+
+Без cross-genre механик концепции получаются "плоскими" — только жанровые клише.
+
+#### Решение
+
+В `buildMechanicSetForGenres` добавлен шаг 5 — **cross-genre mechanics**:
+
+```typescript
+// 1. Собрать aesthetics основного набора.
+const primaryAesthetics = new Set<string>();
+for (const m of allSelected) {
+  for (const a of m.aesthetics) primaryAesthetics.add(a);
+}
+
+// 2. Найти cross-genre candidates:
+//    - genres НЕ пересекаются с переданными
+//    - aesthetics ПЕРЕСЕКАЮТСЯ с aesthetics основного набора
+const crossGenreCandidates = MECHANICS_DB
+  .filter((m) => !isForbidden(m))
+  .filter((m) => !selectedNames.has(m.name))
+  .filter((m) => {
+    const genreMatch = m.genres.some((g) => genreLowers.includes(g));
+    if (genreMatch) return false; // уже в основном наборе
+    return m.aesthetics.some((a) => primaryAesthetics.has(a));
+  })
+  // Сортировка: больше пересечений по aesthetics = выше приоритет
+  .map((m) => ({
+    mechanic: m,
+    aestheticOverlap: m.aesthetics.filter((a) => primaryAesthetics.has(a)).length,
+  }))
+  .sort((a, b) => b.aestheticOverlap - a.aestheticOverlap);
+
+// 3. Взять ~18% от основного набора (настраивается через crossGenreRatio)
+const crossGenreTarget = Math.max(1, Math.round(allSelected.length * crossGenreRatio));
+const crossGenrePicks = crossGenreCandidates.slice(0, crossGenreTarget).map((x) => x.mechanic);
+```
+
+**Почему aesthetic overlap, а не random?**
+- Aesthetic overlap гарантирует, что cross-genre механика **дополнит** существующий набор, а не конфликтует с ним
+- Например, для RPG (primary aesthetic: "fantasy") подойдёт "Прыжки" (aesthetics: challenge, sensation, discovery) — sensation/discovery пересекаются с secondary/tertiary RPG aesthetics
+- Random pick мог бы дать "Торговая площадка" (aesthetics: fellowship) — это не вписалось бы в RPG solo experience
+
+**Помечка в результате**:
+- Каждая cross-genre механика получает `cross_genre: true` в массиве категорий
+- Отдельный массив `cross_genre_mechanics[]` в `mechanic_set` содержит metadata (original_genres, matched_aesthetics)
+- Synergies array дополняется cross-genre synergie с пометкой "(cross-genre: ...)"
+
+#### Тест-кейсы (sanity test)
+
+- ✅ rpg (single): 14 mechanics, 86% compat, **2 cross-genre** (platformer/puzzle mechanics with aesthetic overlap)
+- ✅ action+rpg+roguelike: 14 mechanics, 64% compat, **2 cross-genre** (Головоломки, Мультицели)
+- ✅ survival_horror+horror: 14 mechanics, 64% compat, **2 cross-genre**
+- ✅ rpg with crossGenreRatio=0.4: 17 mechanics, 71% compat, **5 cross-genre** (vs 2 at 0.18)
+- ✅ tower_defense+strategy (sparse): 14 mechanics, 0% compat (sparse genre), **2 cross-genre** still added
+
+#### Риски
+
+- 🟡 `compatibility_score` теперь учитывает cross-genre механики в знаменателе, но не в числителе → score немного снизился (с 100% для rpg до 86%). Это **правильно** — cross-genre механики по определению не "matching" по жанру.
+- 🟢 Backward compat: `buildMechanicSetForGenre()` (single) остаётся и делегирует в новую функцию.
+
+---
+
+## Обновлённый ожидаемый результат
+
+После Sprint 1 + TASK-1.17/1.18:
+
+1. **`compatibility_score`** 50-95 для основных жанров (rpg, shooter, puzzle, horror) — ✅
+2. **`mechanic_set.cross_genre_mechanics[]`** — 1-5 механик из других жанров с aesthetic overlap — ✅ NEW
+3. **`mechanic_set.genres_searched[]`** — `[primary, ...subgenres]` — ✅ NEW
+4. **Каждая механика** имеет опциональные поля `cross_genre: boolean` и `matched_genres: string[]` — ✅ NEW
+5. **Body принимает `subgenres: string[]`** — ✅ NEW
+6. **Response включает `primary_genre` + `subgenres`** — ✅ NEW
+7. Остальные пункты из Sprint 1 сохраняются.

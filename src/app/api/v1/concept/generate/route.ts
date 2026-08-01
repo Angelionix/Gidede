@@ -34,7 +34,7 @@ import {
   VALIDATION_ERROR,
 } from "@/lib/api-helpers";
 import { enrichConcept } from "@/lib/ai-service";
-import { buildMechanicSetForGenre, type Mechanic } from "@/lib/mechanics-db";
+import { buildMechanicSetForGenres, type Mechanic } from "@/lib/mechanics-db";
 
 // ============================================================
 // Constants — valid enum values & static lookup tables
@@ -179,14 +179,47 @@ const GENRE_COMPETITORS: Record<string, string[]> = {
 // Helper functions
 // ============================================================
 
-function inferGenre(idea: string): string {
+/**
+ * TASK-1.17: Infer primary genre + subgenres from idea keywords.
+ *
+ * Поддержка primary + subgenres: "Action RPG with roguelike elements" →
+ *   { primary: "action", subgenres: ["rpg", "roguelike"] }
+ *
+ * Алгоритм:
+ *   1. Считаем keyword-совпадения для каждого жанра.
+ *   2. Primary = жанр с макс. совпадениями.
+ *   3. Subgenres = остальные жанры с совпадениями (отсортированы по убыванию score).
+ *   4. Если ничего не совпало — primary="action", subgenres=[].
+ *
+ * Limit: максимум 3 subgenres (чтобы не раздувать набор механик).
+ */
+function inferGenres(idea: string): { primary: string; subgenres: string[] } {
   const lower = idea.toLowerCase();
+  const scores = new Map<string, number>();
+
   for (const entry of GENRE_KEYWORDS) {
-    if (entry.keywords.some((kw) => lower.includes(kw))) {
-      return entry.genre;
+    const matches = entry.keywords.filter((kw) => lower.includes(kw)).length;
+    if (matches > 0) {
+      scores.set(entry.genre, (scores.get(entry.genre) || 0) + matches);
     }
   }
-  return "action";
+
+  if (scores.size === 0) {
+    return { primary: "action", subgenres: [] };
+  }
+
+  // Сортируем по убыванию score.
+  const sorted = Array.from(scores.entries()).sort((a, b) => b[1] - a[1]);
+  const primary = sorted[0][0];
+  // Максимум 3 subgenres, чтобы не раздувать набор механик.
+  const subgenres = sorted.slice(1, 4).map(([g]) => g);
+
+  return { primary, subgenres };
+}
+
+/** Backward compatibility wrapper — возвращает только primary жанр. */
+function inferGenre(idea: string): string {
+  return inferGenres(idea).primary;
 }
 
 function pickAesthetics(genre: string, idea: string) {
@@ -234,12 +267,28 @@ function deriveDynamics(aestheticProfile: {
   };
 }
 
+/**
+ * TASK-1.17/1.18: buildMechanicSet теперь принимает primary + subgenres.
+ *
+ * - Использует buildMechanicSetForGenres() для multi-genre поиска.
+ * - Cross-genre механики помечаются в результате (cross_genre: true).
+ * - Каждая механика в категориях получает флаг `cross_genre` для UI.
+ */
 function buildMechanicSet(
-  genre: string,
+  primaryGenre: string,
+  subgenres: string[],
   forbiddenMechanics: string[]
 ) {
-  // Используем MechanicsDB (128 механик из SW.BAND карт) вместо упрощённой таблицы
-  const dbResult = buildMechanicSetForGenre(genre, forbiddenMechanics);
+  // Используем MechanicsDB с поддержкой multi-genre + cross-genre mechanics.
+  const allGenres = [primaryGenre, ...subgenres];
+  const dbResult = buildMechanicSetForGenres(allGenres, forbiddenMechanics, {
+    crossGenreRatio: 0.18, // 18% механик из других жанров
+    targetTotal: 12,
+    perGroup: 2,
+  });
+
+  // Set cross-genre mechanic names для пометки в категориях.
+  const crossGenreNames = new Set(dbResult.cross_genre_mechanics.map((m) => m.name));
 
   // Маппим группы MechanicsDB на 5 категорий концепции
   const groupMap: Record<string, string> = {
@@ -260,7 +309,7 @@ function buildMechanicSet(
     "Мета": "progression",
   };
 
-  const categories: Record<string, Array<{ name: string; group: string; desc?: string }>> = {
+  const categories: Record<string, Array<{ name: string; group: string; desc?: string; cross_genre?: boolean; matched_genres?: string[] }>> = {
     base: [],
     combat: [],
     progression: [],
@@ -271,7 +320,18 @@ function buildMechanicSet(
   for (const [groupName, mechanics] of Object.entries(dbResult.groups)) {
     const category = groupMap[groupName] || "base";
     for (const m of mechanics) {
-      categories[category].push({ name: m.name, group: groupName, desc: m.desc });
+      const isCrossGenre = crossGenreNames.has(m.name);
+      // Какие из переданных жанров релевантны этой механике.
+      const matchedGenres = allGenres.filter((g) =>
+        m.genres.includes(g.toLowerCase().replace(/\s+/g, "_"))
+      );
+      categories[category].push({
+        name: m.name,
+        group: groupName,
+        desc: m.desc,
+        cross_genre: isCrossGenre || undefined,
+        matched_genres: matchedGenres.length > 0 ? matchedGenres : undefined,
+      });
     }
   }
 
@@ -286,10 +346,18 @@ function buildMechanicSet(
 
   const total = Object.values(categories).reduce((sum, arr) => sum + arr.length, 0);
 
-  // Synergies (from MechanicsDB data)
+  // Synergies (from MechanicsDB data) — включаем cross-genre synergie.
+  const crossGenreSynergy = dbResult.cross_genre_mechanics.length > 0
+    ? dbResult.cross_genre_mechanics.map((m) => ({
+        name: `${m.name} (cross-genre: ${m.genres.slice(0, 2).join(", ")}) ↔ primary aesthetic`,
+        score: 0.65,
+      }))
+    : [];
+
   const synergies = [
     { name: `${categories.progression[0]?.name || "progression"} ↔ ${categories.combat[0]?.name || "combat"}`, score: 0.85 },
     { name: `${categories.base[0]?.name || "base"} ↔ ${categories.spatial[0]?.name || "spatial"}`, score: 0.72 },
+    ...crossGenreSynergy,
   ];
 
   const conflicts = forbiddenMechanics.length > 0
@@ -307,6 +375,14 @@ function buildMechanicSet(
     synergies_detected: synergies,
     compatibility_score: dbResult.compatibility_score,
     mechanics_db_source: dbResult.source,
+    cross_genre_mechanics: dbResult.cross_genre_mechanics.map((m) => ({
+      name: m.name,
+      group: m.group,
+      desc: m.desc,
+      original_genres: m.genres,
+      matched_aesthetics: m.aesthetics,
+    })),
+    genres_searched: allGenres,
   };
 }
 
@@ -593,8 +669,31 @@ export async function POST(request: NextRequest) {
       : [];
     const useAi = body?.use_ai === true || body?.use_ai === "true";
 
-    // --- Stage 1: Genre inference ---
-    const genre = explicitGenre || inferGenre(idea);
+    // TASK-1.17: Поддержка явных subgenres в body.
+    // Body может содержать `subgenres: string[]` для явного указания поджанров.
+    // Если не указано — subgenres выводятся из idea keywords (inferGenres).
+    const explicitSubgenres = Array.isArray(body?.subgenres)
+      ? body.subgenres
+          .filter((g: unknown) => typeof g === "string" && g.trim().length > 0)
+          .map((g: string) => g.trim())
+          .slice(0, 3) // максимум 3 subgenres
+      : null;
+
+    // --- Stage 1: Genre inference (primary + subgenres) ---
+    // TASK-1.17: inferGenres возвращает { primary, subgenres }.
+    // Если explicitGenre указан — используем его как primary, subgenres из explicit или inferred.
+    let primaryGenre: string;
+    let subgenres: string[];
+    if (explicitGenre) {
+      primaryGenre = explicitGenre;
+      subgenres = explicitSubgenres ?? inferGenres(idea).subgenres;
+    } else {
+      const inferred = inferGenres(idea);
+      primaryGenre = inferred.primary;
+      subgenres = explicitSubgenres ?? inferred.subgenres;
+    }
+    // Backward compat: `genre` используется в后续 stages.
+    const genre = primaryGenre;
 
     // --- Resolve project (auto-select most recent) ---
     const owned = await getOwnedProject(user, projectId);
@@ -612,14 +711,14 @@ export async function POST(request: NextRequest) {
       primary: aestheticSelection.primary,
       secondary: aestheticSelection.secondary,
       tertiary: aestheticSelection.tertiary,
-      rationale: `Primary aesthetic "${aestheticSelection.primary}" matches genre "${genre}" and idea emphasis. Secondary/tertiary chosen to broaden the player experience.`,
+      rationale: `Primary aesthetic "${aestheticSelection.primary}" matches genre "${genre}"${subgenres.length > 0 ? ` with subgenres [${subgenres.join(", ")}]` : ""} and idea emphasis. Secondary/tertiary chosen to broaden the player experience.`,
     };
 
     // --- Stage 3: Dynamics profile ---
     const dynamicsProfile = deriveDynamics(aestheticProfile);
 
-    // --- Stage 4: Mechanic set ---
-    const mechanicSet = buildMechanicSet(genre, forbiddenMechanics);
+    // --- Stage 4: Mechanic set (TASK-1.17/1.18: primary + subgenres + cross-genre) ---
+    const mechanicSet = buildMechanicSet(primaryGenre, subgenres, forbiddenMechanics);
 
     // --- Stage 5: Core loop + USP candidates ---
     const coreLoopCandidates = buildCoreLoopCandidates(genre, mechanicSet);
@@ -687,8 +786,11 @@ export async function POST(request: NextRequest) {
 
     const result = {
       id: proj.id,
-      title: `${proj.name || "Untitled"} — ${genre.toUpperCase()} Concept`,
+      title: `${proj.name || "Untitled"} — ${genre.toUpperCase()}${subgenres.length > 0 ? `+${subgenres.join("+")}` : ""} Concept`,
       genre,
+      // TASK-1.17: primary + subgenres в response.
+      primary_genre: primaryGenre,
+      subgenres,
       target_audience: targetAudienceStr,
       story_synopsis: storySynopsis,
       gameplay_description: gameplayDescription,
@@ -717,6 +819,9 @@ export async function POST(request: NextRequest) {
     const inputData = JSON.stringify({
       idea,
       genre: explicitGenre,
+      // TASK-1.17: сохраняем subgenres для последующей загрузки.
+      primary_genre: primaryGenre,
+      subgenres,
       target_audience: targetAudience,
       platform: platforms,
       constraints,

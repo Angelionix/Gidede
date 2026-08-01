@@ -38,7 +38,7 @@
 
 | Блок | Всего задач | 🔴 Критично | 🟡 Средне | 🟢 Низко | Выполнено | Оценка (ч) |
 |------|:-----------:|:-----------:|:---------:|:---------:|:----------:|:----------:|
-| 1. Концепция | 16 | 4 | 9 | 3 | **7/16** ✅ | 30-70 |
+| 1. Концепция | 18 | 4 | 11 | 3 | **9/18** ✅ | 30-70 |
 | 2. Core Loop | 20 | 6 | 11 | 4 | 0/20 | 50-95 |
 | 3. MDA | 20 | 6 | 11 | 4 | 0/20 | 55-100 |
 | 4. Баланс | 18 | 9 | 5 | 4 | 0/18 | 130-195 |
@@ -46,7 +46,7 @@
 | 5b. Экономика | 18 | 11 | 5 | 2 | 0/18 | 156-190 |
 | 6. GDD | 20 | 9 | 8 | 3 | 0/20 | 175-275 |
 | 6b. Чек-лист | 17 | 12 | 3 | 2 | 0/17 | 150-210 |
-| **Итого** | **146** | **57** | **65** | **26** | **7/146** | **781-1200** |
+| **Итого** | **148** | **57** | **67** | **26** | **9/148** | **781-1200** |
 
 ---
 
@@ -98,6 +98,8 @@
 | TASK-1.14 | MechanicsDB Levels 0-2 (Shell 7 + Adams/Dormans 5 + 16 паттернов) — стратегическое | XL | 🟢 | ⬜ | TASK-1.1 |
 | TASK-1.15 | Input validation + edge cases (длина idea, unknown genre, forbidden_mechanics aliases) | M | 🟡 | ⬜ | — |
 | TASK-1.16 | Unit + integration тесты (vitest, coverage ≥ 70%) | L | 🟡 | ⬜ | Все остальные |
+| TASK-1.17 | **NEW**: Поддержка primary genre + subgenres (`inferGenres`, body.subgenres) | M | 🟡 | ✅ | — |
+| TASK-1.18 | **NEW**: Cross-genre mechanics — добавление механик из других жанров с aesthetic overlap | M | 🟡 | ✅ | TASK-1.1, TASK-1.8 |
 
 ---
 
@@ -572,6 +574,7 @@ Block 6 (GDD)
 |------|--------|-----------|
 | 2026-08-01 | 1.0 | Создан трекер. 146 задач из 8 планов рефакторинга. |
 | 2026-08-01 | 1.1 | Sprint 1 (Block 1) завершён: TASK-1.1, 1.2, 1.5, 1.6, 1.8, 1.10, 1.12 — 7 задач выполнено (3 критичных, 3 средних, 1 низкий). MechanicsDB: 128 механик с заполненными `genres`; `compatibility_score` теперь реалистично отражает genre match (0-100); `/concept/[id]/validate` использует ту же schema что `/concept/generate`; невалидные эстетики `competition`/`strategy` заменены на Hunicke 8; китайские символы `除非`/`扩充`/`摩擦` удалены; `buildMechanicSetForGenre` заполняет все 5 категорий. |
+| 2026-08-01 | 1.2 | Sprint 1 (Block 1) расширено: TASK-1.17 (primary + subgenres), TASK-1.18 (cross-genre mechanics) — добавлены по запросу пользователя. `inferGenres()` возвращает `{ primary, subgenres }` (макс. 3 subgenres по keyword-score); `buildMechanicSetForGenres()` ищет механики по всем жанрам + добавляет ~18% cross-genre механик с aesthetic overlap (но без genre overlap). Body принимает `subgenres: string[]`. Response включает `primary_genre`, `subgenres`, `mechanic_set.cross_genre_mechanics[]`, `mechanic_set.genres_searched[]`. Каждая механика в категориях помечается `cross_genre: true` и `matched_genres: string[]`. Sanity test: rpg → 14 mechanics, 86% compat, 2 cross-genre; action+rpg+roguelike → 14 mechanics, 64% compat, 2 cross-genre (Головоломки, Мультицели). |
 
 ---
 

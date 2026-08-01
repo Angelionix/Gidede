@@ -1468,6 +1468,10 @@ export function findMechanicsByAesthetic(aesthetic: string): Mechanic[] {
  *      (базовые/боевые/прогрессия/пространство/экономика), если такие группы есть в БД.
  *   4. Compatibility score теперь реалистично отражает совпадение по жанру
  *      (после TASK-1.1 genres[] заполнены, score будет 0-100 осмысленно).
+ *
+ * TASK-1.17/1.18: для поддержки primary + subgenres и cross-genre mechanics
+ * используйте новую функцию `buildMechanicSetForGenres()` ниже. Эта функция
+ * оставлена для backward compatibility (делегирует в новую с одним жанром).
  */
 export function buildMechanicSetForGenre(
   genre: string,
@@ -1477,41 +1481,105 @@ export function buildMechanicSetForGenre(
   total_count: number;
   compatibility_score: number;
   source: string;
+  cross_genre_mechanics?: Mechanic[];
 } {
-  const genreLower = genre.toLowerCase().replace(/\s+/g, "_");
-  const matching = findMechanicsByGenre(genreLower)
-    .filter((m) => !forbiddenMechanics.some((f) => m.name.toLowerCase().includes(f.toLowerCase())));
+  return buildMechanicSetForGenres([genre], forbiddenMechanics, {});
+}
 
-  // Если нет совпадений по жанру — берём все механики (фильтр по forbidden)
-  const fallback = MECHANICS_DB
-    .filter((m) => !forbiddenMechanics.some((f) => m.name.toLowerCase().includes(f.toLowerCase())));
+/**
+ * Подобрать набор механик для нескольких жанров (primary + subgenres).
+ *
+ * TASK-1.17: поддержка primary genre + subgenres.
+ *   - "Action RPG" → primary="action", subgenres=["rpg"]
+ *   - "Roguelike deckbuilder" → primary="roguelike", subgenres=["strategy"]
+ *   - Механики, релевантные ЛЮБОМУ из жанров, попадают в основной pool.
+ *   - Приоритет отдаётся механикам, релевантным нескольким жанрам одновременно
+ *     (например, "Здоровье" релевантно и action, и rpg → high priority).
+ *
+ * TASK-1.18: cross-genre mechanics — добавление механик из ДРУГИХ жанров
+ *   для создания интересных разножанровых сочетаний.
+ *   - Cross-genre candidates: механики, чьи `aesthetics` пересекаются с
+ *     aesthetics основного набора, но `genres` НЕ пересекаются с переданными.
+ *   - Это позволяет находить неочевидные гибриды:
+ *     * "Прыжки" (platformer) + "Головоломки" (puzzle) → puzzle platformer
+ *     * "Ритм" (rhythm) + "Боевые" (fighting) → rhythm combat
+ *   - Количество cross-genre механик: ~15-20% от основного набора (настраивается).
+ *   - Каждая cross-genre механика помечается в результате для UI.
+ *
+ * @param genres — массив жанров: [primary, ...subgenres]
+ * @param forbiddenMechanics — механики для исключения
+ * @param options.crossGenreRatio — доля cross-genre механик (0.0-0.5, default 0.18)
+ * @param options.targetTotal — целевое количество механик (default 12)
+ * @param options.perGroup — макс. механик из одной группы (default 2)
+ */
+export function buildMechanicSetForGenres(
+  genres: string[],
+  forbiddenMechanics: string[] = [],
+  options: {
+    crossGenreRatio?: number;
+    targetTotal?: number;
+    perGroup?: number;
+  } = {}
+): {
+  groups: Record<string, Mechanic[]>;
+  total_count: number;
+  compatibility_score: number;
+  source: string;
+  cross_genre_mechanics: Mechanic[];
+} {
+  const genreLowers = genres
+    .map((g) => g.toLowerCase().replace(/\s+/g, "_"))
+    .filter((g) => g.length > 0);
 
-  const pool = matching.length >= 5 ? matching : fallback;
-
-  // Группируем по group
-  const byGroup: Record<string, Mechanic[]> = {};
-  for (const m of pool) {
-    if (!byGroup[m.group]) byGroup[m.group] = [];
-    byGroup[m.group].push(m);
+  if (genreLowers.length === 0) {
+    genreLowers.push("action");
   }
 
-  // Приоритет групп: 5 концептуальных категорий первыми, затем остальные.
-  // Внутри каждой группы берём по 2 механики (чтобы покрыть разнообразие).
+  const primaryGenre = genreLowers[0];
+  const crossGenreRatio = options.crossGenreRatio ?? 0.18;
+  const TARGET_TOTAL = options.targetTotal ?? 12;
+  const PER_GROUP = options.perGroup ?? 2;
+
+  // Forbidden filter (применяется ко всем pool'ам).
+  const isForbidden = (m: Mechanic) =>
+    forbiddenMechanics.some((f) => m.name.toLowerCase().includes(f.toLowerCase()));
+
+  // --- 1. Найти механики, релевантные любому из жанров ---
+  const matching = MECHANICS_DB
+    .filter((m) => !isForbidden(m))
+    .filter((m) => m.genres.some((g) => genreLowers.includes(g)));
+
+  // Если нет совпадений — fallback ко всей БД.
+  const fallback = MECHANICS_DB.filter((m) => !isForbidden(m));
+  const pool = matching.length >= 5 ? matching : fallback;
+
+  // --- 2. Сортировка pool по количеству совпадающих жанров (multi-genre priority) ---
+  // Механики, релевантные нескольким жанрам, получают приоритет.
+  const poolWithScores = pool.map((m) => {
+    const genreMatchCount = m.genres.filter((g) => genreLowers.includes(g)).length;
+    return { mechanic: m, genreMatchCount };
+  });
+  poolWithScores.sort((a, b) => b.genreMatchCount - a.genreMatchCount);
+
+  // --- 3. Группировка по group ---
+  const byGroup: Record<string, Mechanic[]> = {};
+  for (const { mechanic } of poolWithScores) {
+    if (!byGroup[mechanic.group]) byGroup[mechanic.group] = [];
+    byGroup[mechanic.group].push(mechanic);
+  }
+
+  // --- 4. Выбор механик из каждой группы ---
   const PRIORITY_GROUPS = [
     "Базовые", "Боевые", "Прогрессия", "Пространство", "Экономика",
     "Движение", "Социальные", "Выживание", "Стелс", "Навыки",
     "Время", "Территория", "Сюжет", "Информация", "Мета",
   ];
 
-  const TARGET_TOTAL = 12; // целевое количество механик (6 групп × 2)
-  const PER_GROUP = 2;     // по 2 механики из каждой группы
-
   const selected: Record<string, Mechanic[]> = {};
   let count = 0;
 
   // Первый проход: 5 основных групп, минимум 1 механика каждая.
-  const ESSENTIAL_GROUPS = PRIORITY_GROUPS.slice(0, 5);
-  for (const g of ESSENTIAL_GROUPS) {
+  for (const g of PRIORITY_GROUPS.slice(0, 5)) {
     if (!byGroup[g] || byGroup[g].length === 0) continue;
     const picks = byGroup[g].slice(0, PER_GROUP);
     selected[g] = picks;
@@ -1528,19 +1596,69 @@ export function buildMechanicSetForGenre(
     count += picks.length;
   }
 
-  // Compatibility score: % механик с совпадением по жанру.
-  // После TASK-1.1 genres[] заполнены, score будет реально отражать match.
   const allSelected = Object.values(selected).flat();
-  const genreMatches = allSelected.filter((m) => m.genres.includes(genreLower)).length;
-  const compatibilityScore = allSelected.length > 0
-    ? Math.round((genreMatches / allSelected.length) * 100)
+  const selectedNames = new Set(allSelected.map((m) => m.name));
+
+  // --- 5. TASK-1.18: Cross-genre mechanics ---
+  // Найти механики, чьи aesthetics пересекаются с aesthetics основного набора,
+  // но genres НЕ пересекаются с переданными жанрами.
+  const primaryAesthetics = new Set<string>();
+  for (const m of allSelected) {
+    for (const a of m.aesthetics) primaryAesthetics.add(a);
+  }
+
+  const crossGenreCandidates = MECHANICS_DB
+    .filter((m) => !isForbidden(m))
+    .filter((m) => !selectedNames.has(m.name))
+    .filter((m) => {
+      // Не должно быть совпадения по жанру
+      const genreMatch = m.genres.some((g) => genreLowers.includes(g));
+      if (genreMatch) return false;
+      // Должно быть совпадение по aesthetic
+      return m.aesthetics.some((a) => primaryAesthetics.has(a));
+    })
+    // Сортировка: больше пересечений по aesthetics = выше приоритет.
+    .map((m) => ({
+      mechanic: m,
+      aestheticOverlap: m.aesthetics.filter((a) => primaryAesthetics.has(a)).length,
+    }))
+    .sort((a, b) => b.aestheticOverlap - a.aestheticOverlap);
+
+  // Целевое количество cross-genre механик.
+  const crossGenreTarget = Math.max(
+    1,
+    Math.round(allSelected.length * crossGenreRatio)
+  );
+  const crossGenrePicks = crossGenreCandidates
+    .slice(0, crossGenreTarget)
+    .map((x) => x.mechanic);
+
+  // Добавляем cross-genre механики в существующие группы (по их group).
+  // Не увеличиваем count — они "bonus" механики.
+  for (const m of crossGenrePicks) {
+    if (!selected[m.group]) selected[m.group] = [];
+    if (!selected[m.group].some((x) => x.name === m.name)) {
+      selected[m.group].push(m);
+    }
+  }
+
+  // --- 6. Compatibility score ---
+  // Считаем по primary жанру (как в оригинальной реализации).
+  // Cross-genre механики НЕ считаются "matching" по жанру (по определению).
+  const finalSelected = Object.values(selected).flat();
+  const genreMatches = finalSelected.filter((m) =>
+    m.genres.includes(primaryGenre)
+  ).length;
+  const compatibilityScore = finalSelected.length > 0
+    ? Math.round((genreMatches / finalSelected.length) * 100)
     : 50;
 
   return {
     groups: selected,
-    total_count: allSelected.length,
+    total_count: finalSelected.length,
     compatibility_score: compatibilityScore,
     source: "MechanicsDB (SW.BAND, 128 механик)",
+    cross_genre_mechanics: crossGenrePicks,
   };
 }
 

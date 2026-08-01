@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R4-01` — Unicode tokenization/`Intl.Segmenter` для RU/EN.
-- **Зависимости:** фазы R0–R3 завершены; весь LLM-слой проходит через общий adapter/routing contract.
-- **Ожидаемый результат:** русские и английские genre/aesthetic/core verbs устойчиво распознаются unit tests.
-- **После неё:** `R4-02` — word-level genre classifier с evidence.
+- **Следующая задача:** `R4-02` — word-level genre classifier с evidence.
+- **Зависимости:** `R4-01` завершена; genre/aesthetic/core-verb эвристики используют общий Unicode tokenizer.
+- **Ожидаемый результат:** classifier возвращает evidence и не даёт substring false positives.
+- **После неё:** `R4-03` — feasibility из team/budget/platform/scope.
 
 ## Правила ведения
 
@@ -63,9 +63,47 @@
 | R3-09 | DONE | Bounded Bible RAG context и server-owned source provenance в assistant API/UI | 427 tests, TypeScript, scoped ESLint |
 | R3-10 | DONE | Actual provider/model, latency, provider tokens и safe error class для каждого routed attempt | 438 tests, TypeScript, scoped ESLint, Prisma validate |
 | R3-11 | DONE | Built-in ZAI зарегистрирован общим adapter descriptor с lazy/recoverable lifecycle | 445 tests, TypeScript, scoped ESLint |
-| R4-01…R7 | TODO | См. активный roadmap | — |
+| R4-01 | DONE | Общий `Intl.Segmenter`/Unicode tokenizer для RU/EN genre, aesthetics и core verbs | 453 tests, TypeScript, scoped ESLint |
+| R4-02…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R4-01 — DONE
+
+Что сделано:
+
+- создан общий Unicode word tokenizer на `Intl.Segmenter` с fallback на Unicode property escapes;
+- токены проходят NFKC/case normalization и безопасное русское `ё → е` folding;
+- реализован общий exact word/phrase matcher для однословных, многословных и hyphenated keywords;
+- genre inference вынесен из API route в тестируемый модуль и расширен русскими genre words/phrases;
+- aesthetic ranking переведён с ASCII-only `\b` regex на общий RU/EN word/phrase matcher;
+- Concept validation использует те же Unicode tokens для word count, core verbs, novelty, emotion и sustainability signals;
+- core-verb lexicon поддерживает английские формы и распространённые русские инфинитивы/спряжения;
+- сохранены deterministic tie order, максимум три subgenres и существующие genre-based aesthetic fallbacks.
+
+Изменённые области:
+
+- `src/lib/text/unicode-tokenizer.ts` и тест;
+- `src/lib/concept/text-analysis.ts` и тест;
+- `src/lib/concept/validation.ts` и тест;
+- `src/app/api/v1/concept/generate/route.ts`.
+
+Проверки:
+
+- targeted tokenizer/text-analysis/validation tests — 3 файла, 48 тестов пройдено;
+- `npm run test` — 54 файла, 453 теста пройдено;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- tokenizer fixture сегментирует кириллицу, латиницу, em dash, slash и hyphenated phrases и нормализует `ё`;
+- genre fixtures распознают русские `стратегия`, `визуальная новелла` и `защита башен`;
+- aesthetic fixtures распознают русскую fellowship-лексику и английскую discovery-лексику;
+- core-verb fixtures и validation integration распознают спряжённые `исследует`, `собирает`, `планирует`, `защищает`;
+- общий phrase matcher не принимает `team` внутри `steam` и `story` внутри `история`;
+- следующей задачей назначена `R4-02`.
 
 ### 2026-08-01 — R3-11 — DONE
 

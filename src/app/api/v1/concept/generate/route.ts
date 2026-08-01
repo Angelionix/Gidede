@@ -37,6 +37,10 @@ import { enrichConcept } from "@/lib/ai-service";
 import { buildMechanicSetForGenres, type Mechanic } from "@/lib/mechanics-db";
 import { buildValidationReport } from "@/lib/concept/validation";
 import { validateConceptInput } from "@/lib/concept/validation-input";
+import {
+  inferGenresFromText,
+  rankAestheticsFromText,
+} from "@/lib/concept/text-analysis";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
@@ -56,27 +60,6 @@ const AESTHETIC_VALUES = [
   "expression",
   "submission",
 ] as const;
-
-// Keyword → genre mapping for genre inference
-const GENRE_KEYWORDS: Array<{ keywords: string[]; genre: string }> = [
-  { keywords: ["shooter", "shoot", "gun", "bullet", "fps"], genre: "shooter" },
-  { keywords: ["puzzle", "match-3", "logic", "tile"], genre: "puzzle" },
-  { keywords: ["platformer", "jump", "platform", "speedrun"], genre: "platformer" },
-  { keywords: ["rpg", "roleplay", "quest", "character", "leveling"], genre: "rpg" },
-  { keywords: ["strategy", "tactic", "rts", "build", "empire"], genre: "strategy" },
-  { keywords: ["horror", "scary", "fear", "survival"], genre: "horror" },
-  { keywords: ["race", "racing", "car", "speed"], genre: "racing" },
-  { keywords: ["card", "deck", "roguelike", "rogue"], genre: "roguelike" },
-  { keywords: ["sandbox", "craft", "build", "open world"], genre: "sandbox" },
-  { keywords: ["tower defense", "td", "wave"], genre: "tower_defense" },
-  { keywords: ["mmo", "online", "raid"], genre: "mmorpg" },
-  { keywords: ["idle", "clicker", "incremental"], genre: "idle" },
-  { keywords: ["story", "visual novel", "narrative"], genre: "visual_novel" },
-  { keywords: ["fighting", "brawl", "combat", "versus"], genre: "fighting" },
-  { keywords: ["stealth", "sneak", "invisible"], genre: "stealth" },
-  { keywords: ["metroid", "vania", "metroidvania"], genre: "metroidvania" },
-  { keywords: ["rhythm", "music", "beat"], genre: "rhythm" },
-];
 
 // Genre → typical aesthetics (primary, secondary, tertiary)
 const GENRE_AESTHETICS: Record<
@@ -200,36 +183,11 @@ const GENRE_COMPETITORS: Record<string, string[]> = {
  * Limit: максимум 3 subgenres (чтобы не раздувать набор механик).
  */
 function inferGenres(idea: string): { primary: string; subgenres: string[] } {
-  const lower = idea.toLowerCase();
-  const scores = new Map<string, number>();
-
-  for (const entry of GENRE_KEYWORDS) {
-    const matches = entry.keywords.filter((kw) => lower.includes(kw)).length;
-    if (matches > 0) {
-      scores.set(entry.genre, (scores.get(entry.genre) || 0) + matches);
-    }
-  }
-
-  if (scores.size === 0) {
-    return { primary: "action", subgenres: [] };
-  }
-
-  // Сортируем по убыванию score.
-  const sorted = Array.from(scores.entries()).sort((a, b) => b[1] - a[1]);
-  const primary = sorted[0][0];
-  // Максимум 3 subgenres, чтобы не раздувать набор механик.
-  const subgenres = sorted.slice(1, 4).map(([g]) => g);
-
-  return { primary, subgenres };
-}
-
-/** Backward compatibility wrapper — возвращает только primary жанр. */
-function inferGenre(idea: string): string {
-  return inferGenres(idea).primary;
+  return inferGenresFromText(idea);
 }
 
 /**
- * TASK-1.7 FIXED: pickAesthetics с word boundaries и dedup.
+ * TASK-1.7 + R4-01: pickAesthetics с Unicode word boundaries и dedup.
  *
  * Оригинальные баги:
  *   1. `lower.includes("build")` матчит "deck-building", "building", "rebuild".
@@ -238,84 +196,20 @@ function inferGenre(idea: string): string {
  *      давал primary=expression, secondary=discovery, tertiary=expression — дубликат).
  *
  * Новая реализация:
- *   - Word boundary matching через regex `\bKEYWORD\b`.
+ *   - Word/phrase matching через общий `Intl.Segmenter`-based tokenizer.
  *   - Dedup: primary не может совпадать с secondary или tertiary.
  *   - Если primary совпадает с secondary/tertiary, fallback к base.primary.
- *   - Поддержка русских и английских keywords.
+ *   - Поддержка русских и английских keywords без ASCII-only `\b`.
  */
 function pickAesthetics(genre: string, idea: string) {
   const base = GENRE_AESTHETICS[genre] || GENRE_AESTHETICS.action;
 
-  // Word-boundary keyword matching.
-  // Каждый keyword проверяется как отдельное слово, не как substring.
-  const hasWord = (text: string, keyword: string): boolean => {
-    // \b на границе слова; экранируем keyword на случай спецсимволов.
-    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    const regex = new RegExp(`\\b${escaped}\\b`, "i");
-    return regex.test(text);
-  };
-
-  const lower = idea.toLowerCase();
-
-  // Keyword groups: каждый aesthetic имеет набор keywords (включая русские).
-  const AESTHETIC_KEYWORDS: Array<{ aesthetic: string; keywords: string[] }> = [
-    {
-      aesthetic: "narrative",
-      keywords: ["story", "narrative", "plot", "dialogue", "character-driven", "storytelling",
-                 "история", "нарратив", "сюжет", "диалог", "персонаж"],
-    },
-    {
-      aesthetic: "discovery",
-      keywords: ["explore", "discover", "exploration", "uncover", "find", "search",
-                 "исследовать", "открывать", "исследование", "найти"],
-    },
-    {
-      aesthetic: "expression",
-      keywords: ["build", "create", "construct", "craft", "design", "customize", "sandbox",
-                 "строить", "создавать", "крафтить", "конструировать", "настраивать"],
-    },
-    {
-      aesthetic: "fellowship",
-      keywords: ["team", "friends", "co-op", "coop", "cooperative", "multiplayer", "party", "guild",
-                 "команда", "друзья", "кооператив", "вместе", "гильдия"],
-    },
-    {
-      aesthetic: "challenge",
-      keywords: ["difficult", "hard", "skill", "competitive", "hardcore", "challenge",
-                 "сложный", "сложно", "навык", "соревновательный", "хардкор", "вызов"],
-    },
-    {
-      aesthetic: "sensation",
-      keywords: ["fast", "speed", "action", "intense", "adrenaline", "thrilling",
-                 "быстрый", "скорость", "экшен", "интенсивный", "адреналин"],
-    },
-    {
-      aesthetic: "fantasy",
-      keywords: ["roleplay", "role-play", "immersion", "character", "hero", "epic",
-                 "роли", "ролевая", "погружение", "герой", "эпический"],
-    },
-    {
-      aesthetic: "submission",
-      keywords: ["relax", "calm", "zen", "meditative", "idle", "peaceful", "routine",
-                 "расслаб", "спокойный", "дзен", "медитативный", "мирный"],
-    },
-  ];
-
-  // Считаем совпадения для каждого aesthetic.
-  const scores = new Map<string, number>();
-  for (const entry of AESTHETIC_KEYWORDS) {
-    let score = 0;
-    for (const kw of entry.keywords) {
-      if (hasWord(lower, kw)) score += 1;
-    }
-    if (score > 0) scores.set(entry.aesthetic, score);
-  }
+  const rankedAesthetics = rankAestheticsFromText(idea);
 
   // Primary = aesthetic с макс. совпадениями (если есть).
   let primary = base.primary;
-  if (scores.size > 0) {
-    const sorted = Array.from(scores.entries()).sort((a, b) => b[1] - a[1]);
-    const topAesthetic = sorted[0][0];
+  if (rankedAesthetics.length > 0) {
+    const topAesthetic = rankedAesthetics[0];
 
     // TASK-1.7: dedup — primary не должен совпадать с secondary или tertiary.
     // Если совпадает, fallback к base.primary (genre-based).

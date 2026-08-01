@@ -82,6 +82,19 @@ describe("buildValidationReport — 5 core questions (TASK-1.4)", () => {
     expect(r.five_questions["What is the core verb?"]).toBe(true);
   });
 
+  it("recognizes inflected Russian core verbs through Unicode tokens", () => {
+    const r = buildValidationReport(
+      baseAesthetic,
+      baseMechanicSet,
+      baseUSP,
+      "Игрок исследует руины, собирает артефакты и защищает караван от врагов",
+      []
+    );
+
+    expect(r.five_questions["What is the core verb?"]).toBe(true);
+    expect(r.eight_filters.clarity.score).toBe(0.9);
+  });
+
   it("returns false for 'core verb' when idea has no action verb", () => {
     const r = buildValidationReport(baseAesthetic, baseMechanicSet, baseUSP, "A beautiful world full of wonder", []);
     expect(r.five_questions["What is the core verb?"]).toBe(false);

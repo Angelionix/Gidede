@@ -1,3 +1,10 @@
+import { hasCoreActionVerb } from "@/lib/concept/text-analysis";
+import {
+  hasAnyTokenPrefix,
+  hasAnyWordOrPhrase,
+  tokenizeUnicodeWords,
+} from "@/lib/text/unicode-tokenizer";
+
 /**
  * Gidede — Concept validation logic (Block 1, algorithm 3.1 stage 6).
  *
@@ -64,44 +71,32 @@ export function buildValidationReport(
   subgenres: string[]
 ): ValidationReport {
   // --- Анализ идеи для filters и questions ---
-  const ideaLower = idea.toLowerCase();
-  const wordCount = idea.split(/\s+/).filter((w) => w.length > 0).length;
+  const ideaTokens = tokenizeUnicodeWords(idea);
+  const wordCount = ideaTokens.length;
   const sentenceCount = (idea.match(/[.!?]+/g) || []).length || 1;
   void sentenceCount; // зарезервировано для будущих эвристик
 
   // Verb-noun structure detection: ищем глагол (action) + существительное (object).
-  const actionVerbs = [
-    "build", "survive", "explore", "fight", "collect", "escape", "defend", "conquer",
-    "solve", "race", "craft", "trade", "hunt", "protect", "destroy", "create",
-    "строить", "выживать", "исследовать", "сражаться", "собирать", "бежать", "защищать", "завоёвывать",
-    "решать", "гнать", "крафтить", "торговать", "охотиться", "уничтожать", "создавать",
-  ];
-  const hasActionVerb = actionVerbs.some((v) =>
-    new RegExp(`\\b${v}`, "i").test(ideaLower)
-  );
+  const hasActionVerb = hasCoreActionVerb(ideaTokens);
 
   // Novelty indicators.
-  const noveltyIndicators = [
-    /\b(never before|unique|novel|innovative|original|unprecedented)\b/i,
-    /\b(никогда|уникальн|новаторск|оригинальн|беспрецедентн)\b/i,
-  ];
-  const hasNoveltyKeyword = noveltyIndicators.some((r) => r.test(idea));
+  const hasNoveltyKeyword = hasAnyWordOrPhrase(ideaTokens, [
+    "never before", "unique", "novel", "innovative", "original", "unprecedented", "никогда",
+  ]) || hasAnyTokenPrefix(ideaTokens, ["уникальн", "новаторск", "оригинальн", "беспрецедентн"]);
   const hasMultiGenre = subgenres.length >= 2;
   const hasCrossGenre = (mechanicSet.cross_genre_mechanics?.length || 0) > 0;
 
   // Emotional keywords.
-  const emotionalKeywords = [
-    /\b(fear|love|hope|despair|joy|anger|sadness|wonder|awe|terror|triumph)\b/i,
-    /\b(страх|любовь|надежд|отчаян|радость|гнев|печаль|восторг|ужас|победа)\b/i,
-  ];
-  const hasEmotionalKeyword = emotionalKeywords.some((r) => r.test(idea));
+  const hasEmotionalKeyword = hasAnyWordOrPhrase(ideaTokens, [
+    "fear", "love", "hope", "despair", "joy", "anger", "sadness", "wonder", "awe", "terror", "triumph",
+    "страх", "любовь", "радость", "гнев", "печаль", "восторг", "ужас", "победа",
+  ]) || hasAnyTokenPrefix(ideaTokens, ["надежд", "отчаян"]);
 
   // Sustainability indicators.
-  const sustainabilityKeywords = [
-    /\b(replay|procedural|roguelike|multiplayer|endless|meta|live-ops|seasonal)\b/i,
-    /\b(повтор|процедурн|рогалик|мультиплеер|бесконечн|мета|сезон)\b/i,
-  ];
-  const hasSustainabilityKeyword = sustainabilityKeywords.some((r) => r.test(idea));
+  const hasSustainabilityKeyword = hasAnyWordOrPhrase(ideaTokens, [
+    "replay", "procedural", "roguelike", "multiplayer", "endless", "meta", "live-ops", "seasonal",
+    "рогалик", "мультиплеер", "мета",
+  ]) || hasAnyTokenPrefix(ideaTokens, ["повтор", "процедурн", "бесконечн", "сезон"]);
 
   // --- Triangle of Weirdness ---
   const weird = uspCandidates.some((c) => c.triangle_of_weirdness_check === "pass");

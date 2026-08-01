@@ -41,12 +41,12 @@
 | 1. Концепция | 18 | 4 | 11 | 3 | **18/18** ✅✅ | 30-70 |
 | 2. Core Loop | 20 | 6 | 11 | 4 | **20/20** ✅✅ | 50-95 |
 | 3. MDA | 20 | 6 | 11 | 4 | **20/20** ✅✅ | 55-100 |
-| 4. Баланс | 18 | 9 | 5 | 4 | **14/18** ✅ | 130-195 |
+| 4. Баланс | 18 | 9 | 5 | 4 | **18/18** ✅✅ | 130-195 |
 | 5a. Прогрессия | 17 | 0 | 13 | 4 | 0/17 | 35-65 |
 | 5b. Экономика | 18 | 11 | 5 | 2 | 0/18 | 156-190 |
 | 6. GDD | 20 | 9 | 8 | 3 | 0/20 | 175-275 |
 | 6b. Чек-лист | 17 | 12 | 3 | 2 | 0/17 | 150-210 |
-| **Итого** | **148** | **57** | **67** | **26** | **72/148** | **781-1200** |
+| **Итого** | **148** | **57** | **67** | **26** | **76/148** | **781-1200** |
 
 ---
 
@@ -178,11 +178,11 @@
 | TASK-4.9 | 8 balance pathologies (Bible 5.13) — `balance-pathologies.ts` | XL | 🔴 | ✅ | — |
 | TASK-4.10 | Persist `ai_insights` в БД — schema migration + вызов ДО persist | M | 🔴 | ✅ | — |
 | TASK-4.11 | Расширенный `enrichBalance` prompt | S | 🟡 | ✅ | — |
-| TASK-4.12 | Унифицировать DB persistence + правильные GET fallback типы | M | 🟡 | ⬜ | — |
-| TASK-4.13 | Fulcrum O(n) reference (Bible 5.5.2) | M | 🟡 | ⬜ | — |
-| TASK-4.14 | Markov chains + recursive EV (Bible 5.8) | L | 🟡 | ⬜ | — |
+| TASK-4.12 Унифицировать DB persistence + правильные GET fallback типы | M | 🟡 | ✅ | — | — |
+| TASK-4.13 Fulcrum O(n) reference (Bible 5.5.2) | M | 🟡 | ✅ | — | — |
+| TASK-4.14 Markov chains + recursive EV (Bible 5.8) | L | 🟡 | ✅ | — | — |
 | TASK-4.15 | Валидация objects (count bound 2-100, numeric attrs, unique IDs) | S | 🟡 | ✅ | — |
-| TASK-4.16 | 6 combinations sum × OS (Bible 5.6.2) | M | 🟢 | ⬜ | — |
+| TASK-4.16 6 combinations sum × OS (Bible 5.6.2) | M | 🟢 | ✅ | — | — |
 | TASK-4.17 | Убрать dead code + type bypasses | S | 🟢 | ✅ | — |
 | TASK-4.18 | Unit-тесты для balance модулей | L | 🟢 | ✅ | Все остальные |
 

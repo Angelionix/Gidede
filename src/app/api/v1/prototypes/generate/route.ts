@@ -19,6 +19,7 @@ import {
   generatePrototypeHtml,
 } from "@/lib/prototype-generator";
 import { generatePrototypeInsights, generateCustomMechanic } from "@/lib/ai-service";
+import { createPrototypeArtifact, PrototypeLineageError } from "@/lib/prototype-lineage";
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser(request);
@@ -48,6 +49,7 @@ export async function POST(request: NextRequest) {
       name: string;
       genre: string | null;
       description: string | null;
+      pipelineState: string | null;
       coreLoop?: {
         structuralType: string | null;
         steps: string | null;
@@ -70,7 +72,15 @@ export async function POST(request: NextRequest) {
       mode
     );
 
-    const html = generatePrototypeHtml(config);
+    const prototypeArtifact = createPrototypeArtifact(project.id, project.pipelineState, {
+      mode: config.mode,
+      type: config.type,
+      steps: config.steps,
+      resource: config.resourceName,
+      goal: config.goalText,
+      typeOverride,
+    });
+    const html = generatePrototypeHtml(config, prototypeArtifact.prototypeId);
 
     // Optional AI insights for the prototype
     let aiInsights: string | null = null;
@@ -106,10 +116,14 @@ export async function POST(request: NextRequest) {
       ai_insights: aiInsights,
       custom_mechanic: customMechanic,
       ai_generated: useAi && aiInsights !== null,
+      prototype_artifact: prototypeArtifact,
       project_id: project.id,
       project_name: project.name,
     });
   } catch (error) {
+    if (error instanceof PrototypeLineageError) {
+      return NextResponse.json({ detail: error.message, code: error.code }, { status: 409 });
+    }
     console.error("[prototypes/generate] error:", error);
     return SERVER_ERROR();
   }

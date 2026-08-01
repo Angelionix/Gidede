@@ -39,6 +39,7 @@ interface PrototypeConfig {
   resourceIcon: string;
   goalText: string;
   mode: PrototypeMode;
+  prototypeId?: string;
 }
 
 const RESOURCE_PRESETS: Record<string, { name: string; icon: string }> = {
@@ -208,7 +209,7 @@ const TOUCH_SNIPPET = `
 // ============================================================
 
 function generate2dHtml(config: PrototypeConfig): string {
-  const { type, steps, resourceName, resourceIcon, goalText } = config;
+  const { type, steps, resourceName, resourceIcon, goalText, prototypeId = "" } = config;
 
   const mechanics: Record<string, string> = {
     engine: `
@@ -541,7 +542,7 @@ function generate2dHtml(config: PrototypeConfig): string {
     }
 
     function notifyParent(outcome, score, duration) {
-      try { window.parent.postMessage({ type: 'gidede-playtest', outcome: outcome, score: score||null, duration: duration||30, prototypeType: '${type}', mode: '2d' }, '*'); } catch(e) {}
+      try { window.parent.postMessage({ type: 'gidede-playtest', outcome: outcome, score: score||null, duration: duration||30, prototypeType: '${type}', prototypeId: '${prototypeId}', mode: '2d' }, '*'); } catch(e) {}
     }
     function win(score) { running=false; resultText.textContent='🎉 Победа!'; overlay.classList.add('show'); notifyParent('win', score, Math.max(0, 30-timeLeft)); }
     function lose(score) { running=false; resultText.textContent='💀 Поражение'; overlay.classList.add('show'); notifyParent('lose', score, Math.max(0, 30-timeLeft)); }
@@ -595,7 +596,7 @@ function generate2dHtml(config: PrototypeConfig): string {
 // ============================================================
 
 function generate3dHtml(config: PrototypeConfig): string {
-  const { type, steps, resourceName, resourceIcon, goalText } = config;
+  const { type, steps, resourceName, resourceIcon, goalText, prototypeId = "" } = config;
 
   const mechanics3d: Record<string, string> = {
     engine: `
@@ -1082,7 +1083,7 @@ function generate3dHtml(config: PrototypeConfig): string {
     let timeLeft = 30;
     let running = true;
     function notifyParent(outcome, score, duration) {
-      try { window.parent.postMessage({ type: 'gidede-playtest', outcome: outcome, score: score||null, duration: duration||30, prototypeType: '${type}', mode: '3d' }, '*'); } catch(e) {}
+      try { window.parent.postMessage({ type: 'gidede-playtest', outcome: outcome, score: score||null, duration: duration||30, prototypeType: '${type}', prototypeId: '${prototypeId}', mode: '3d' }, '*'); } catch(e) {}
     }
     function win(score) { running=false; resultText.textContent='🎉 Победа!'; overlay.classList.add('show'); notifyParent('win', score, Math.max(0, 30-timeLeft)); }
     function lose(score) { running=false; resultText.textContent='💀 Поражение'; overlay.classList.add('show'); notifyParent('lose', score, Math.max(0, 30-timeLeft)); }
@@ -1124,8 +1125,9 @@ function generate3dHtml(config: PrototypeConfig): string {
  * mode="2d" → LittleJS, mode="3d" → Three.js.
  * Встраивается в <iframe srcDoc={html}> на странице /prototypes.
  */
-export function generatePrototypeHtml(config: PrototypeConfig): string {
+export function generatePrototypeHtml(config: PrototypeConfig, prototypeId = ""): string {
+  const versionedConfig = { ...config, prototypeId };
   return config.mode === "3d"
-    ? generate3dHtml(config)
-    : generate2dHtml(config);
+    ? generate3dHtml(versionedConfig)
+    : generate2dHtml(versionedConfig);
 }

@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R2-06` — связать generated prototype с artifact versions.
-- **Зависимости:** `R2-05` завершена; `fun_hypothesis` отделена от структурной валидации и до playtest имеет статус `unverified`.
-- **Ожидаемый результат:** каждый generated prototype хранит точные версии входных артефактов и становится stale при их изменении.
-- **После неё:** `R2-07` — добавить ingestion результатов playtest и evidence-based обновление гипотезы.
+- **Следующая задача:** `R2-07` — расширить PlaytestResult и ingestion evidence по версии прототипа.
+- **Зависимости:** `R2-06` завершена; generated prototype имеет собственный ID, input hash и точную lineage исходного Core Loop.
+- **Ожидаемый результат:** playtest хранит hypothesis/version, cohort, completion, confusion, retry и notes; доступны агрегаты по версии прототипа.
+- **После неё:** `R2-08` — добавить decision gate `go / iterate / stop / insufficient_data`.
 
 ## Правила ведения
 
@@ -49,9 +49,46 @@
 | R2-03 | DONE | Closedness доказана directed resource graph и last→first path | 339 tests, TypeScript, scoped ESLint |
 | R2-04 | DONE | Engine/Puzzle defaults проходят mandatory structural checks | 341 tests, TypeScript, scoped ESLint |
 | R2-05 | DONE | Вычисляемый fun заменён на `unverified` hypothesis и измеримый playtest protocol | 343 tests, TypeScript, scoped ESLint |
-| R2-06…R7 | TODO | См. активный roadmap | — |
+| R2-06 | DONE | PrototypeArtifact закрепляет прототип за accepted/fresh Core Loop lineage | 349 tests, TypeScript, scoped ESLint |
+| R2-07…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R2-06 — DONE
+
+Что сделано:
+
+- введён versioned `PrototypeArtifact` с `prototypeId`, `schemaVersion`, `projectId`, `sourceArtifactVersions`, `inputHash` и `generatedAt`;
+- генератор прототипа принимает только accepted/non-stale Core Loop и проверяет согласованность его upstream lineage;
+- snapshot источников содержит точные ссылки `artifactId@schemaVersion`, включая сам `core_loop`;
+- input hash зависит от lineage и фактической конфигурации прототипа: mode, type, steps, resource, goal и override;
+- реализована проверка freshness прототипа относительно текущего `pipelineState` с диагностикой отсутствующей, stale или изменившейся версии;
+- `prototype_artifact` возвращается API генерации, а `prototypeId` встраивается в 2D/3D `gidede-playtest` events;
+- страница прототипов показывает версию Core Loop и сопоставляет iframe event с правильным прототипом, включая compare mode;
+- playtest payload уже передаёт `prototype_artifact` для следующей задачи ingestion/persistence.
+
+Изменённые области:
+
+- `src/lib/prototype-lineage.ts` и тесты;
+- `src/lib/prototype-generator.ts`;
+- `src/app/api/v1/prototypes/generate/route.ts`;
+- `src/app/prototypes/page.tsx`.
+
+Проверки:
+
+- prototype-lineage/pipeline-stale targeted tests — 2 файла, 11 тестов пройдены;
+- `npm run test` — 25 файлов, 349 тестов пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- generated prototype содержит refs `concept-v1@1.0.0` и `core-v1@1.0.0`;
+- замена Core Loop на `core-v2` даёт freshness result `false` с точной причиной version mismatch;
+- stale или не accepted Core Loop блокирует генерацию с domain error;
+- 2D и 3D iframe events содержат тот же `prototypeId`, что API artifact;
+- следующей задачей назначена `R2-07`.
 
 ### 2026-08-01 — R2-05 — DONE
 

@@ -29,6 +29,14 @@ interface PrototypeResponse {
   ai_insights: string | null;
   custom_mechanic: { mechanicName: string; description: string; codeSnippet: string } | null;
   ai_generated: boolean;
+  prototype_artifact: {
+    prototypeId: string;
+    schemaVersion: string;
+    projectId: string;
+    sourceArtifactVersions: Record<string, string>;
+    inputHash: string;
+    generatedAt: string;
+  };
   project_id: string;
   project_name: string;
 }
@@ -95,6 +103,10 @@ export default function PrototypesPage() {
       const data = event.data;
       if (!data || data.type !== "gidede-playtest") return;
       if (!data.outcome || !prototype) return;
+      const sourcePrototype = [prototype, secondPrototype].find(
+        (candidate) => candidate?.prototype_artifact.prototypeId === data.prototypeId,
+      );
+      if (!sourcePrototype) return;
       if (autoSaved) return; // Prevent duplicates
       setAutoSaved(true);
       try {
@@ -102,13 +114,14 @@ export default function PrototypesPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            project_id: prototype.project_id,
-            prototype_type: data.prototypeType || prototype.config.type,
-            mode: data.mode || prototype.config.mode,
+            project_id: sourcePrototype.project_id,
+            prototype_type: data.prototypeType || sourcePrototype.config.type,
+            mode: data.mode || sourcePrototype.config.mode,
             outcome: data.outcome,
             score: data.score || null,
             duration_sec: Math.round(data.duration || 30),
-            ai_generated: prototype.ai_generated,
+            ai_generated: sourcePrototype.ai_generated,
+            prototype_artifact: sourcePrototype.prototype_artifact,
           }),
         });
         toast({
@@ -122,7 +135,7 @@ export default function PrototypesPage() {
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [prototype, apiFetch, toast, autoSaved]);
+  }, [prototype, secondPrototype, apiFetch, toast, autoSaved]);
 
   const handleGenerate = async () => {
     if (!selectedProject) {
@@ -421,6 +434,9 @@ export default function PrototypesPage() {
                   </Badge>
                   <Badge variant="outline" className="bg-primary/10 text-primary border-primary/20">
                     {prototype.config.mode?.toUpperCase()}
+                  </Badge>
+                  <Badge variant="outline" title={prototype.prototype_artifact.sourceArtifactVersions.core_loop}>
+                    Core Loop {prototype.prototype_artifact.sourceArtifactVersions.core_loop?.split("@")[0]?.slice(0, 8)}
                   </Badge>
                   <Button variant="outline" size="sm" onClick={handleRestart}>
                     <RotateCcw className="h-3.5 w-3.5 mr-1" /> Заново
@@ -870,6 +886,7 @@ export default function PrototypesPage() {
                               outcome: "win",
                               duration_sec: 30,
                               ai_generated: prototype.ai_generated,
+                              prototype_artifact: prototype.prototype_artifact,
                             }),
                           });
                           toast({ title: "Сохранено", description: "Победа записана в историю" });
@@ -897,6 +914,7 @@ export default function PrototypesPage() {
                               outcome: "lose",
                               duration_sec: 30,
                               ai_generated: prototype.ai_generated,
+                              prototype_artifact: prototype.prototype_artifact,
                             }),
                           });
                           toast({ title: "Сохранено", description: "Поражение записано в историю" });

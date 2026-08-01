@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R3-05` — добавить timeout, retry/backoff, TTL и circuit breaker для LLM providers.
-- **Зависимости:** `R3-01`–`R3-04` завершены; adapters и безопасное разрешение секретов работают через общий контракт.
-- **Ожидаемый результат:** transient init/request failure восстанавливается без рестарта, зависшие вызовы ограничены timeout, повторные ошибки временно размыкают circuit.
-- **После неё:** `R3-06` — добавить capability negotiation и model discovery.
+- **Следующая задача:** `R3-06` — добавить capability negotiation, health check и model discovery.
+- **Зависимости:** `R3-01`–`R3-05` завершены; adapters используют единый resilient client contract.
+- **Ожидаемый результат:** UI показывает фактические streaming/JSON/tools capabilities, health и доступные модели provider.
+- **После неё:** `R3-07` — добавить per-stage routing и fallback chain.
 
 ## Правила ведения
 
@@ -56,9 +56,60 @@
 | R3-02 | DONE | OpenAI-compatible router настраивается через UI, включая SSE и server secret ref | 365 tests, TypeScript, scoped ESLint, Prisma validate |
 | R3-03 | DONE | Generic HTTP dot-path mapping, SSE/NDJSON и Custom adapter SPI | 372 tests, TypeScript, scoped ESLint, Prisma validate |
 | R3-04 | DONE | AES-256-GCM encrypted API keys и client-safe secret status поверх `env:` refs | 376 tests, TypeScript, scoped ESLint |
-| R3-05…R7 | TODO | См. активный roadmap | — |
+| R3-05 | DONE | Timeout, transient retry/backoff, TTL cache, circuit breaker и recoverable init | 384 tests, TypeScript, scoped ESLint |
+| R3-06…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R3-05 — DONE
+
+Что сделано:
+
+- введена единая `ResilientLlmClient`-обёртка для built-in и пользовательских adapters;
+- request timeout реализован через `AbortController`/`AbortSignal` и применяется к fetch adapters;
+- для streaming тот же timeout ограничивает ожидание каждого следующего chunk;
+- network errors, timeout и HTTP `408/425/429/5xx` классифицированы как transient;
+- permanent HTTP `4xx` не повторяются и не открывают circuit;
+- transient requests получают до двух retries с exponential backoff, bounded jitter и configurable limits;
+- stream повторяется только до первого emitted chunk; после выдачи контента ошибка не создаёт повтор/дубликаты;
+- circuit breaker открывается после трёх failed logical requests, блокирует новые вызовы и допускает один half-open probe после cooldown;
+- polling открытого circuit не продлевает cooldown;
+- configured clients кэшируются по config ID/version на TTL, поэтому circuit state сохраняется между запросами и периодически обновляется;
+- rejected provider factory promise немедленно удаляется из registry, а следующий запрос повторяет initialization без рестарта;
+- permanent `initError` cache в default client удалён;
+- upstream error body не включается в exception/log message, status остаётся достаточным для классификации;
+- policy настраивается серверными environment variables и документирована.
+
+Изменённые области:
+
+- `src/lib/llm/resilience.ts` и тесты;
+- `src/lib/llm/errors.ts`;
+- `src/lib/llm/client-cache.ts` и тесты;
+- `src/lib/llm/registry.ts` и тесты;
+- `src/lib/llm/default-client.ts`;
+- `src/lib/llm/types.ts` (`AbortSignal`);
+- `src/lib/llm/providers/openai-compatible.ts` и тесты;
+- `src/lib/llm/providers/generic-http.ts`;
+- `docs/LLM_ADAPTERS.md`;
+- `docs/DEPLOYMENT.md`.
+
+Проверки:
+
+- targeted registry/cache/resilience/provider tests — 5 файлов, 20 тестов пройдены;
+- `npm run test` — 34 файла, 384 теста пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- unit test: первый provider factory call падает, второй успешно создаёт client в том же процессе;
+- hanging completion и idle stream завершаются typed timeout вместо бесконечного ожидания;
+- `503/429` проходят retry/backoff, `400` выполняется ровно один раз;
+- после threshold circuit блокирует вызов без обращения к provider и восстанавливается успешным half-open probe;
+- interrupted stream после первого chunk вызывает provider ровно один раз;
+- TTL fixture доказывает reuse до expiry и recreation после него;
+- следующей задачей назначена `R3-06`.
 
 ### 2026-08-01 — R3-04 — DONE
 

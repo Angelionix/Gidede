@@ -47,6 +47,11 @@ bun run dev
 DATABASE_URL="file:./db/custom.db"
 JWT_SECRET_KEY="your-secret-key-here"  # обязателен в production
 GIDEDE_LLM_SECRETS_KEY="base64-encoded-32-byte-key" # для шифрованного хранения LLM API-ключей
+GIDEDE_LLM_TIMEOUT_MS="30000"         # общий timeout запроса/chunk
+GIDEDE_LLM_MAX_RETRIES="2"            # transient retries
+GIDEDE_LLM_CIRCUIT_FAILURE_THRESHOLD="3"
+GIDEDE_LLM_CIRCUIT_COOLDOWN_MS="30000"
+GIDEDE_LLM_CLIENT_TTL_MS="300000"
 NEXT_PUBLIC_API_URL=""                 # пусто = относительные пути
 ZAI_API_KEY=""                         # опционально, AI работает и без него
 ```

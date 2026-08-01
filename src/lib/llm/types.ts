@@ -12,6 +12,7 @@ export interface LlmCompletionRequest {
   temperature?: number;
   maxTokens?: number;
   reasoning?: "enabled" | "disabled";
+  signal?: AbortSignal;
 }
 
 export interface LlmCompletionResponse {

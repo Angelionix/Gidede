@@ -41,4 +41,16 @@ describe("LlmRegistry — R3-01", () => {
     expect(() => registry.register("alpha", async () => fakeClient("other"))).toThrow(/already registered/);
     await expect(registry.get("missing")).rejects.toThrow(/Unknown LLM provider/);
   });
+
+  it("retries a transient factory failure without a process restart", async () => {
+    const registry = new LlmRegistry();
+    const factory = vi.fn()
+      .mockRejectedValueOnce(new Error("temporary init failure"))
+      .mockResolvedValueOnce(fakeClient("recovered"));
+    registry.register("recoverable", factory);
+
+    await expect(registry.get("recoverable")).rejects.toThrow("temporary init failure");
+    await expect(registry.get("recoverable")).resolves.toMatchObject({ providerId: "recovered" });
+    expect(factory).toHaveBeenCalledTimes(2);
+  });
 });

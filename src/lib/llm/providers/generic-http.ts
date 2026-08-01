@@ -1,4 +1,5 @@
 import { normalizeOpenAiBaseUrl, resolveServerSecret } from "@/lib/llm/config";
+import { LlmProviderError, isRetryableHttpStatus } from "@/lib/llm/errors";
 import type {
   LlmClient,
   LlmCompletionRequest,
@@ -294,9 +295,15 @@ export class GenericHttpLlmClient implements LlmClient {
     const response = await this.fetchImpl(this.endpoint, {
       method: "POST",
       headers,
+      signal: request.signal,
       body: JSON.stringify(body),
     });
-    if (!response.ok) throw new Error(`Generic LLM router returned ${response.status}`);
+    if (!response.ok) {
+      throw new LlmProviderError(`Generic LLM router returned ${response.status}`, {
+        status: response.status,
+        retryable: isRetryableHttpStatus(response.status),
+      });
+    }
 
     if (wireStream) {
       if (!response.body) throw new Error("Generic LLM router returned an empty stream");

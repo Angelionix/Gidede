@@ -1,4 +1,5 @@
 import { normalizeOpenAiBaseUrl, resolveServerSecret } from "@/lib/llm/config";
+import { LlmProviderError, isRetryableHttpStatus } from "@/lib/llm/errors";
 import type {
   LlmClient,
   LlmCompletionRequest,
@@ -20,22 +21,10 @@ function completionEndpoint(baseUrl: string): string {
     : `${baseUrl}/chat/completions`;
 }
 
-function errorDetail(payload: unknown): string | null {
-  if (!payload || typeof payload !== "object") return null;
-  const error = (payload as { error?: unknown }).error;
-  if (typeof error === "string") return error;
-  if (error && typeof error === "object") {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === "string") return message;
-  }
-  return null;
-}
-
 async function parseError(response: Response): Promise<Error> {
-  const payload = await response.json().catch(() => null);
-  const detail = errorDetail(payload);
-  return new Error(
-    `OpenAI-compatible router returned ${response.status}${detail ? `: ${detail}` : ""}`,
+  return new LlmProviderError(
+    `OpenAI-compatible router returned ${response.status}`,
+    { status: response.status, retryable: isRetryableHttpStatus(response.status) },
   );
 }
 
@@ -97,6 +86,7 @@ export class OpenAiCompatibleLlmClient implements LlmClient {
     const response = await this.fetchImpl(this.endpoint, {
       method: "POST",
       headers,
+      signal: request.signal,
       body: JSON.stringify({
         model: request.model || this.modelId,
         messages: request.messages,

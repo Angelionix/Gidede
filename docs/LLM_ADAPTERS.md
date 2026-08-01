@@ -55,6 +55,25 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
 Changing or losing the master key makes existing encrypted provider keys unreadable.
 Replace each provider key before rotating the master key.
 
+## Resilience policy
+
+Every configured and built-in client is wrapped by the same resilience policy:
+
+- 30-second request and stream-chunk timeout;
+- two retries with exponential backoff and bounded jitter;
+- retries only for network/timeout and HTTP `408`, `425`, `429`, `5xx` errors;
+- circuit opens after three failed logical requests and permits a half-open probe after 30 seconds;
+- configured client instances expire after a five-minute TTL;
+- a failed provider factory is evicted immediately and retried on the next request.
+
+A stream is retried only before its first emitted chunk. Once content reached the
+caller, an interruption is returned as an error instead of repeating already emitted text.
+
+The server defaults can be adjusted with `GIDEDE_LLM_TIMEOUT_MS`,
+`GIDEDE_LLM_MAX_RETRIES`, `GIDEDE_LLM_BACKOFF_BASE_MS`,
+`GIDEDE_LLM_BACKOFF_MAX_MS`, `GIDEDE_LLM_CIRCUIT_FAILURE_THRESHOLD`,
+`GIDEDE_LLM_CIRCUIT_COOLDOWN_MS` and `GIDEDE_LLM_CLIENT_TTL_MS`.
+
 ## Custom adapter SPI
 
 For protocols that cannot be represented by dot paths, implement `LlmClient` and

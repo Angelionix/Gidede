@@ -35,10 +35,20 @@ export class LlmRegistry {
     if (!factory) throw new Error(`Unknown LLM provider: ${providerId}`);
     let instance = this.instances.get(providerId);
     if (!instance) {
-      instance = factory();
+      const created = Promise.resolve().then(factory);
+      instance = created.catch((error) => {
+        if (this.instances.get(providerId) === instance) {
+          this.instances.delete(providerId);
+        }
+        throw error;
+      });
       this.instances.set(providerId, instance);
     }
     return instance;
+  }
+
+  invalidate(providerId: string): void {
+    this.instances.delete(providerId);
   }
 
   async getDefault(): Promise<LlmClient | null> {

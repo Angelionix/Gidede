@@ -105,7 +105,8 @@ describe("OpenAiCompatibleLlmClient — R3-02", () => {
     });
 
     const error = await client.createCompletion({ messages: [], stream: false }).catch((value) => value);
-    expect(error.message).toContain("404: model not found");
+    expect(error.message).toContain("404");
+    expect(error.message).not.toContain("model not found");
     expect(error.message).not.toContain("never-log-this");
   });
 });

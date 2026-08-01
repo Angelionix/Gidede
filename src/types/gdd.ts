@@ -3,6 +3,7 @@
 // ============================================================
 
 import type { AlgorithmMetadata } from "@/lib/algorithm-metadata";
+import type { STAGE_CONTRACT_VERSION } from "@/lib/contracts/stage-contracts";
 
 export interface GDDFormatSpec {
   format: string; // one_sheet | ten_pager | treatment | sketch_design | full_gdd | concept_doc | narrative_bible | modular
@@ -124,6 +125,7 @@ export interface GDDProfile {
   };
   assembled_document?: GDDAssembledDocument;
   formatted_document?: GDDFormattedDocument;
+  contract_version: typeof STAGE_CONTRACT_VERSION;
   algorithm_metadata: AlgorithmMetadata;
   stages_completed: number[];
   coverage_score: number;
@@ -175,6 +177,7 @@ export interface ChecklistValidationProfile {
     top_5_issues: Array<{ severity: string; issue_type: string; description: string }>;
     quick_wins: Array<{ description: string; effort: string }>;
   };
+  contract_version: typeof STAGE_CONTRACT_VERSION;
   algorithm_metadata: AlgorithmMetadata;
   stages_completed: number[];
   latency_ms: number;

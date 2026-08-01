@@ -34,6 +34,7 @@ import {
 } from "@/lib/api-helpers";
 import { enrichMda } from "@/lib/ai-service";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
+import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 
 // ============================================================
 // Constants
@@ -845,6 +846,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
+    const contractInput = validateStageInput("mda", body);
+    if (!contractInput.success) return VALIDATION_ERROR(contractInput.error);
     const projectId = body?.project_id?.toString().trim() || undefined;
     const useAi = body?.use_ai === true || body?.use_ai === "true";
     const conceptId = body?.concept_id?.toString().trim() || "standalone";
@@ -1029,6 +1032,7 @@ export async function POST(request: NextRequest) {
       genre,
       concept_id: conceptId,
       iterations_done: iterationsDone,
+      contract_version: STAGE_CONTRACT_VERSION,
       algorithm_metadata: getStageAlgorithmMetadata("mda"),
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,
@@ -1070,6 +1074,8 @@ export async function POST(request: NextRequest) {
         (result.models_used as string[]).push("glm-4.6 (ai-enrichment)");
       }
     }
+
+    assertStageOutput("mda", result);
 
     // --- Persist ---
     const inputData = JSON.stringify({

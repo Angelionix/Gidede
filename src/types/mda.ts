@@ -4,6 +4,7 @@
  */
 
 import type { AlgorithmMetadata } from "@/lib/algorithm-metadata";
+import type { STAGE_CONTRACT_VERSION } from "@/lib/contracts/stage-contracts";
 
 export interface MDAFormState {
   conceptId: string;
@@ -31,6 +32,7 @@ export interface MDAAnalysisResult {
   genre: string;
   concept_id: string;
   iterations_done: number;
+  contract_version: typeof STAGE_CONTRACT_VERSION;
   algorithm_metadata: AlgorithmMetadata;
   stages_completed: number[];
   latency_ms: number;

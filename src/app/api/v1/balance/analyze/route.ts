@@ -36,6 +36,7 @@ import {
 import { enrichBalance } from "@/lib/ai-service";
 import { detectBalancePathologies } from "@/lib/balance/pathologies";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
+import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 
 // ============================================================
 // Types
@@ -1082,6 +1083,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
+    const contractInput = validateStageInput("balance", body);
+    if (!contractInput.success) return VALIDATION_ERROR(contractInput.error);
     const projectId = body?.project_id?.toString().trim() || undefined;
     const useAi = body?.use_ai === true || body?.use_ai === "true";
     const objectsRaw: unknown = body?.objects;
@@ -1230,6 +1233,7 @@ export async function POST(request: NextRequest) {
       combinations_analysis: buildCombinationsAnalysis(objects, gameMode),
       monte_carlo_result: monteCarloResult,
       machinations_result: machinationsResult,
+      contract_version: STAGE_CONTRACT_VERSION,
       algorithm_metadata: getStageAlgorithmMetadata("balance"),
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,
@@ -1266,6 +1270,8 @@ export async function POST(request: NextRequest) {
         (result.models_used as string[]).push("glm-4.6 (ai-enrichment)");
       }
     }
+
+    assertStageOutput("balance", result);
 
     // --- Persist ---
     const inputData = JSON.stringify({

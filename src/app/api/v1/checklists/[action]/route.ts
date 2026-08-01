@@ -32,6 +32,7 @@ import {
   VALIDATION_ERROR,
 } from "@/lib/api-helpers";
 import { runChecklistValidation } from "@/lib/checklist-logic";
+import { validateStageInput } from "@/lib/contracts/stage-contracts";
 
 const VALID_ACTIONS = new Set([
   "validate",
@@ -63,6 +64,8 @@ export async function POST(
     }
 
     const body = await request.json().catch(() => ({}));
+    const contractInput = validateStageInput("validation", body);
+    if (!contractInput.success) return VALIDATION_ERROR(contractInput.error);
     const projectId = body?.project_id?.toString().trim() || undefined;
     const depth = body?.depth?.toString().trim() || "standard";
     const checklistTypes = Array.isArray(body?.checklist_types)

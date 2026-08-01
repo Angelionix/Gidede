@@ -29,6 +29,10 @@ export async function GET(
     subgenres?: string[];
     idea?: string;
   }>(c.inputData || "{}", {});
+  const generationMetadata = safeJsonParse<Record<string, unknown>>(
+    c.generationMetadata || "{}",
+    {},
+  );
 
   return NextResponse.json({
     id: c.id,
@@ -43,7 +47,9 @@ export async function GET(
     // TASK-1.11: возвращаем title, ai_insights, generation_metadata из БД.
     title: c.title,
     ai_insights: c.aiInsights,
-    generation_metadata: safeJsonParse(c.generationMetadata || "{}"),
+    contract_version: generationMetadata.contract_version,
+    algorithm_metadata: generationMetadata.algorithm_metadata,
+    generation_metadata: generationMetadata,
     one_pager: safeJsonParse(c.onePagerData || "{}"),
     aesthetic_profile: safeJsonParse(c.aestheticProfile || "{}"),
     dynamics_profile: safeJsonParse(c.dynamicsProfile || "{}"),

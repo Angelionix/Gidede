@@ -24,6 +24,7 @@ import { detectPathologies } from "@/lib/coreloop/pathologies";
 import { buildValidation } from "@/lib/coreloop/validation";
 import { buildLoopHierarchy, buildRecommendations } from "@/lib/coreloop/hierarchy";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
+import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 
 const GENRE_DEFAULT_LOOP_TYPE: Record<string, string> = {
   action: "engine", shooter: "engine", platformer: "engine", fighting: "engine",
@@ -43,6 +44,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
+    const contractInput = validateStageInput("core_loop", body);
+    if (!contractInput.success) return VALIDATION_ERROR(contractInput.error);
     const projectId = body?.project_id?.toString().trim() || undefined;
     const useAi = body?.use_ai === true || body?.use_ai === "true";
     const conceptId = body?.concept_id?.toString().trim() || "standalone";
@@ -130,6 +133,7 @@ export async function POST(request: NextRequest) {
       validation,
       loop_hierarchy: loopHierarchy,
       gary_five_questions: validation.gary_five_questions,
+      contract_version: STAGE_CONTRACT_VERSION,
       algorithm_metadata: getStageAlgorithmMetadata("core_loop"),
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,
@@ -155,6 +159,8 @@ export async function POST(request: NextRequest) {
         result.models_used = modelsUsed;
       }
     }
+
+    assertStageOutput("core_loop", result);
 
     // TASK-2.13: persist with new fields
     const inputData = JSON.stringify({

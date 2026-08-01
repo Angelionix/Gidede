@@ -4,6 +4,7 @@
  */
 
 import type { AlgorithmMetadata } from "@/lib/algorithm-metadata";
+import type { STAGE_CONTRACT_VERSION } from "@/lib/contracts/stage-contracts";
 
 export interface CoreLoopFormState {
   conceptId: string;
@@ -24,6 +25,7 @@ export interface CoreLoopDesignResult {
   recommendations: Record<string, unknown>[];
   validation: Record<string, unknown> | null;
   loop_hierarchy: Record<string, unknown> | null;
+  contract_version: typeof STAGE_CONTRACT_VERSION;
   algorithm_metadata: AlgorithmMetadata;
   stages_completed: number[];
   latency_ms: number;

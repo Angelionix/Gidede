@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R1-01` — versioned Zod schemas входов и выходов стадий.
-- **Зависимости:** Phase 0 завершена (`R0-01`…`R0-04`).
-- **Ожидаемый результат:** invalid payload не сохраняется, а контракт каждой стадии имеет явную версию.
-- **После неё:** `R1-02` — `ArtifactEnvelope` и трассировка upstream versions.
+- **Следующая задача:** `R1-02` — `ArtifactEnvelope` и трассировка upstream versions.
+- **Зависимости:** `R1-01` завершена; доступны versioned contracts `1.0.0`.
+- **Ожидаемый результат:** любой сохранённый результат трассируется до версии схемы и upstream-входов.
+- **После неё:** `R1-03` — runner передаёт output предыдущей стадии во вход следующей.
 
 ## Правила ведения
 
@@ -34,9 +34,56 @@
 | R0-02 | DONE | Scripts test/test:coverage/typecheck | 283 tests, coverage, TypeScript |
 | R0-03 | DONE | Taxonomy из 6 методов и score provenance для 8 стадий | 286 tests, TypeScript, ESLint |
 | R0-04 | DONE | Новый roadmap назначен активным; создан единый worklog и handoff | Проверка ссылок и `git diff --check` |
-| R1-01…R7 | TODO | См. активный roadmap | — |
+| R1-01 | DONE | Versioned Zod input/output contracts для 8 стадий | 289 tests, TypeScript, scoped ESLint |
+| R1-02 | TODO | `ArtifactEnvelope` и upstream tracing | — |
+| R1-03 | TODO | Реальная передача stage output → next input | — |
+| R1-04 | TODO | Реальная project idea вместо фиктивной UI-строки | — |
+| R1-05 | TODO | Aliases `full`/`full_gdd`, `total_levels`/`target_levels` | — |
+| R1-06 | TODO | Статусы success/partial/failed/blocked/needs_review | — |
+| R1-07 | TODO | Quality gates и stop/resume | — |
+| R1-08 | TODO | Stale propagation | — |
+| R1-09 | TODO | Completion по accepted/non-stale artifacts | — |
+| R1-10 | TODO | Version increment только для согласованного run | — |
+| R2…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R1-01 — DONE
+
+Что сделано:
+
+- создан единый реестр `STAGE_CONTRACTS_V1` для Concept, Core Loop, MDA, Balance, Progression, Economy, GDD и Validation;
+- input/output каждой стадии описаны Zod-схемой версии `1.0.0`;
+- все восемь API-входов валидируются сразу после JSON parsing;
+- каждый результат содержит `contract_version` и проверяется непосредственно перед первым `db.upsert`;
+- invalid output вызывает `StageOutputContractError` до persistence;
+- Concept сохраняет contract version и algorithm metadata в `generationMetadata` и возвращает их после перезагрузки;
+- публичные result-типы синхронизированы с versioned contract;
+- добавлены positive и negative contract tests, включая malformed input, отсутствующую и неверную output version.
+
+Изменённые области:
+
+- `src/lib/contracts/stage-contracts.ts`
+- `src/lib/contracts/stage-contracts.test.ts`
+- восемь stage API handlers и `src/lib/checklist-logic.ts`
+- `src/app/api/v1/concept/[id]/route.ts`
+- result-типы в `src/types`
+
+Проверки:
+
+- `npm run test -- src/lib/contracts/stage-contracts.test.ts` — 3 теста пройдены;
+- `npm run test` — 14 файлов, 289 тестов пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint всех затронутых TypeScript-файлов — ошибок нет;
+- `npm run lint` — остаются 12 существовавших до задачи React-hook ошибок в несвязанных UI-файлах; затронутые R1-01 файлы в ошибках отсутствуют;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- у каждой стадии есть явные input/output schema и contract version;
+- malformed Concept/Core Loop/Balance inputs отклоняются contract tests;
+- unversioned и wrong-version outputs отклоняются до кода persistence;
+- следующей задачей назначена `R1-02`.
 
 ### 2026-08-01 — R0-03 — DONE
 

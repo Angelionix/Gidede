@@ -28,6 +28,7 @@ import {
 } from "@/lib/api-helpers";
 import { enrichEconomy } from "@/lib/ai-service";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
+import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 
 const VALID_MONETIZATION = [
   "f2p",
@@ -687,6 +688,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
+    const contractInput = validateStageInput("economy", body);
+    if (!contractInput.success) return VALIDATION_ERROR(contractInput.error);
     const projectId = body?.project_id?.toString().trim() || undefined;
     const useAi = body?.use_ai === true || body?.use_ai === "true";
     const genre = body?.genre?.toString().trim() || "rpg";
@@ -925,6 +928,7 @@ export async function POST(request: NextRequest) {
       schreiber_types: schreiberTypes,
       // TASK-5b.14: genre-specific dominant loop.
       dominant_loop_type: dominantLoopType,
+      contract_version: STAGE_CONTRACT_VERSION,
       algorithm_metadata: getStageAlgorithmMetadata("economy"),
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,
@@ -935,6 +939,8 @@ export async function POST(request: NextRequest) {
         "monte-carlo-sim-v1",
       ],
     };
+
+    assertStageOutput("economy", result);
 
     // --- Persist ---
     await db.projectEconomy.upsert({

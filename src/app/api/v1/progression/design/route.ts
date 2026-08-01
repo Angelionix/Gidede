@@ -29,6 +29,7 @@ import {
 } from "@/lib/api-helpers";
 import { enrichProgression } from "@/lib/ai-service";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
+import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 
 // TASK-5a.1: Valid progression types — added logarithmic, triangular, obfuscation (Bible 6.7.3).
 const VALID_PROGRESSION_TYPES = [
@@ -252,6 +253,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
+    const contractInput = validateStageInput("progression", body);
+    if (!contractInput.success) return VALIDATION_ERROR(contractInput.error);
     const projectId = body?.project_id?.toString().trim() || undefined;
     const useAi = body?.use_ai === true || body?.use_ai === "true";
     const genre = body?.genre?.toString().trim() || "rpg";
@@ -708,6 +711,7 @@ export async function POST(request: NextRequest) {
       content_plan: contentPlan,
       validation,
       summary,
+      contract_version: STAGE_CONTRACT_VERSION,
       algorithm_metadata: getStageAlgorithmMetadata("progression"),
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,
@@ -727,6 +731,8 @@ export async function POST(request: NextRequest) {
         (result.models_used as string[]).push("glm-4.6 (ai-enrichment)");
       }
     }
+
+    assertStageOutput("progression", result);
 
     // --- Persist ---
     await db.projectProgression.upsert({

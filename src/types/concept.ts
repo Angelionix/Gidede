@@ -14,6 +14,7 @@ import type {
   USPCandidate,
 } from "../../shared/types/typescript/interfaces";
 import type { AlgorithmMetadata } from "@/lib/algorithm-metadata";
+import type { STAGE_CONTRACT_VERSION } from "@/lib/contracts/stage-contracts";
 
 export interface ConceptFormState {
   idea: string;
@@ -32,6 +33,7 @@ export interface ConceptFormState {
 }
 
 export interface ConceptGenerationMetadata {
+  contract_version: typeof STAGE_CONTRACT_VERSION;
   stages_completed: number[];
   latency_ms: number;
   models_used: string[];
@@ -65,6 +67,7 @@ export interface ConceptGenerationResult {
   usp_candidates: USPCandidate[] | Record<string, unknown>[];
   validation_report: ValidationReport | null;
   status: string;
+  contract_version: typeof STAGE_CONTRACT_VERSION;
   algorithm_metadata: AlgorithmMetadata;
   generation_metadata: ConceptGenerationMetadata;
 }

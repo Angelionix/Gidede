@@ -38,6 +38,7 @@ import { buildMechanicSetForGenres, type Mechanic } from "@/lib/mechanics-db";
 import { buildValidationReport } from "@/lib/concept/validation";
 import { validateConceptInput } from "@/lib/concept/validation-input";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
+import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 
 // ============================================================
 // Constants — valid enum values & static lookup tables
@@ -667,6 +668,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
+    const contractInput = validateStageInput("concept", body);
+    if (!contractInput.success) return VALIDATION_ERROR(contractInput.error);
 
     // TASK-1.15: централизованная валидация входных данных.
     // Проверяет: idea (10-2000 символов), genre (known list + aliases),
@@ -816,8 +819,10 @@ export async function POST(request: NextRequest) {
       usp_candidates: uspCandidates,
       validation_report: validationReport,
       status: "completed",
+      contract_version: STAGE_CONTRACT_VERSION,
       algorithm_metadata: algorithmMetadata,
       generation_metadata: {
+        contract_version: STAGE_CONTRACT_VERSION,
         stages_completed: stagesCompleted,
         latency_ms: latencyMs,
         models_used: useAi && aiEnrichment.enriched
@@ -827,6 +832,8 @@ export async function POST(request: NextRequest) {
         ai_insights: aiEnrichment.insights || undefined,
       },
     };
+
+    assertStageOutput("concept", result);
 
     // --- Persist ---
     const inputData = JSON.stringify({
@@ -857,6 +864,7 @@ export async function POST(request: NextRequest) {
     // Раньше эти данные возвращались в HTTP response, но НЕ сохранялись —
     // при перезагрузке проекта (GET /concept/[id]) они терялись.
     const generationMetadataJson = JSON.stringify({
+      contract_version: STAGE_CONTRACT_VERSION,
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,
       models_used: useAi && aiEnrichment.enriched

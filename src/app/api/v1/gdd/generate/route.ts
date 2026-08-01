@@ -28,9 +28,11 @@ import {
   updateProjectStage,
   UNAUTH,
   SERVER_ERROR,
+  VALIDATION_ERROR,
 } from "@/lib/api-helpers";
 import { enrichGdd } from "@/lib/ai-service";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
+import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 
 const VALID_FORMATS = [
   "one_sheet",
@@ -1000,6 +1002,8 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
+    const contractInput = validateStageInput("gdd", body);
+    if (!contractInput.success) return VALIDATION_ERROR(contractInput.error);
     const projectId = body?.project_id?.toString().trim() || undefined;
     const useAi = body?.use_ai === true || body?.use_ai === "true";
     // TASK-6.5 FIXED: accept both 'target_format' and 'format' (pipeline runner sends 'format').
@@ -1313,6 +1317,7 @@ export async function POST(request: NextRequest) {
       manual_skeletons: manualSkeletons,
       assembled_document: assembledDocument,
       formatted_document: formattedDocument,
+      contract_version: STAGE_CONTRACT_VERSION,
       algorithm_metadata: getStageAlgorithmMetadata("gdd"),
       stages_completed: stagesCompleted,
       coverage_score: Number(coverageScore.toFixed(3)),
@@ -1337,6 +1342,8 @@ export async function POST(request: NextRequest) {
         (profile.models_used as string[]).push("glm-4.6 (ai-enrichment)");
       }
     }
+
+    assertStageOutput("gdd", profile);
 
     // --- Persist ---
     await db.projectGDD.upsert({

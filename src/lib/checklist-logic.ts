@@ -16,6 +16,7 @@ import {
   updateProjectStage,
 } from "@/lib/api-helpers";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
+import { assertStageOutput, STAGE_CONTRACT_VERSION } from "@/lib/contracts/stage-contracts";
 
 export interface ChecklistIssue {
   severity: string; // error | warning | info
@@ -997,11 +998,14 @@ export async function runChecklistValidation(
     fullerton_check: fullertonCheck,
     narrative_types_check: narrativeTypesCheck,
     summary,
+    contract_version: STAGE_CONTRACT_VERSION,
     algorithm_metadata: getStageAlgorithmMetadata("validation"),
     // TASK-6b.12: dynamic stages_completed (was hardcoded [1,2,3,4,5,6]).
     stages_completed: activeChecklists.map((_, i) => i + 1),
     latency_ms: Date.now() - startedAt,
   };
+
+  assertStageOutput("validation", profile);
 
   // --- Persist ---
   await db.projectChecklist.upsert({

@@ -24,6 +24,12 @@ import {
   resolvePipelineInput,
 } from "@/lib/pipeline-context";
 import type { ContractStageId } from "@/lib/contracts/stage-contracts";
+import type { ArtifactStatus } from "@/lib/contracts/artifact-envelope";
+import {
+  derivePipelineRunStatus,
+  isSuccessfulRun,
+  stageFailureStatus,
+} from "@/lib/pipeline-run-status";
 import { db } from "@/lib/db";
 
 interface StageDef {
@@ -36,7 +42,7 @@ interface StageResult {
   stage: ContractStageId;
   block_id: number;
   block_name: string;
-  status: "completed" | "skipped" | "error";
+  status: ArtifactStatus;
   message: string;
   http_status?: number;
   latency_ms?: number;
@@ -64,18 +70,18 @@ function internalBaseUrl(request: NextRequest): string {
 
 function stageFailure(
   stage: StageDef,
-  status: number,
+  httpStatus: number,
   detail: string,
   latencyMs: number,
 ): StageResult {
-  const skipped = status === 422;
+  const status = stageFailureStatus(httpStatus);
   return {
     stage: stage.stage,
     block_id: stage.block_id,
     block_name: BLOCK_NAMES[stage.block_id] || `Block ${stage.block_id}`,
-    status: skipped ? "skipped" : "error",
-    message: `Стадия «${stage.stage}» ${skipped ? "пропущена" : "завершилась с ошибкой"}: ${detail}`,
-    http_status: status,
+    status,
+    message: `Стадия «${stage.stage}» получила статус ${status}: ${detail}`,
+    http_status: httpStatus,
     latency_ms: latencyMs,
   };
 }
@@ -137,8 +143,10 @@ export async function POST(
             stage: stage.stage,
             block_id: stage.block_id,
             block_name: BLOCK_NAMES[stage.block_id] || `Block ${stage.block_id}`,
-            status: "completed",
-            message: `Стадия «${stage.stage}» выполнена — output передан дальше и сохранён.`,
+            status: artifact.status,
+            message: artifact.status === "success"
+              ? `Стадия «${stage.stage}» выполнена — output передан дальше и сохранён.`
+              : `Стадия «${stage.stage}» создала артефакт со статусом ${artifact.status}.`,
             http_status: response.status,
             latency_ms: latencyMs,
             artifact_id: artifact.artifactId,
@@ -157,9 +165,18 @@ export async function POST(
         stages.push(stageFailure(stage, response.status, detail, latencyMs));
 
         if (stage.stage === "concept") {
+          stages.push(...STAGES.slice(1).map((blockedStage) => ({
+            stage: blockedStage.stage,
+            block_id: blockedStage.block_id,
+            block_name: BLOCK_NAMES[blockedStage.block_id] || `Block ${blockedStage.block_id}`,
+            status: "blocked" as const,
+            message: `Стадия «${blockedStage.stage}» заблокирована ошибкой Concept.`,
+          })));
+          const runStatus = derivePipelineRunStatus(stages.map((result) => result.status));
           return NextResponse.json(
             {
-              ok: false,
+              ok: isSuccessfulRun(runStatus),
+              status: runStatus,
               project_id: projectId,
               concept_idea: idea,
               stages,
@@ -168,7 +185,7 @@ export async function POST(
               latency_ms: Date.now() - startedAt,
               error: `Блок 1 (Концепция) не смог выполниться: ${detail}`,
             },
-            { status: 500 },
+            { status: response.status === 422 ? 422 : 500 },
           );
         }
       } catch (error) {
@@ -177,15 +194,24 @@ export async function POST(
           stage: stage.stage,
           block_id: stage.block_id,
           block_name: BLOCK_NAMES[stage.block_id] || `Block ${stage.block_id}`,
-          status: "error",
+          status: "failed",
           message: `Ошибка на стадии «${stage.stage}»: ${message}`,
           latency_ms: Date.now() - stageStartedAt,
         });
 
         if (stage.stage === "concept") {
+          stages.push(...STAGES.slice(1).map((blockedStage) => ({
+            stage: blockedStage.stage,
+            block_id: blockedStage.block_id,
+            block_name: BLOCK_NAMES[blockedStage.block_id] || `Block ${blockedStage.block_id}`,
+            status: "blocked" as const,
+            message: `Стадия «${blockedStage.stage}» заблокирована ошибкой Concept.`,
+          })));
+          const runStatus = derivePipelineRunStatus(stages.map((result) => result.status));
           return NextResponse.json(
             {
-              ok: false,
+              ok: isSuccessfulRun(runStatus),
+              status: runStatus,
               project_id: projectId,
               concept_idea: idea,
               stages,
@@ -201,7 +227,8 @@ export async function POST(
     }
 
     const finalSnapshot = await loadProjectPipelineSnapshot(user.id, projectId);
-    const completedCount = stages.filter((stage) => stage.status === "completed").length;
+    const completedCount = stages.filter((stage) => stage.artifact_id).length;
+    const runStatus = derivePipelineRunStatus(stages.map((stage) => stage.status));
 
     await db.project
       .update({
@@ -213,7 +240,8 @@ export async function POST(
       });
 
     return NextResponse.json({
-      ok: true,
+      ok: isSuccessfulRun(runStatus),
+      status: runStatus,
       project_id: projectId,
       concept_idea: idea,
       stages,
@@ -223,9 +251,9 @@ export async function POST(
       completion_percent: finalSnapshot?.completionPercent ?? 0,
       artifact_versions: context.upstreamVersions,
       note:
-        completedCount === STAGES.length
+        runStatus === "success"
           ? "Все 8 стадий выполнены успешно с передачей output и artifact lineage."
-          : `Пайплайн завершён с ${completedCount}/${STAGES.length} успешных стадий. См. stages[].status для деталей.`,
+          : `Пайплайн получил статус ${runStatus}; артефакты созданы для ${completedCount}/${STAGES.length} стадий. См. stages[].status.`,
     });
   } catch (error) {
     console.error("[pipeline/run-full-pipeline] error:", error);

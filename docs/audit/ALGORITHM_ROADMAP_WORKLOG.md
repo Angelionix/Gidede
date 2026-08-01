@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R1-06` — ввести честные статусы выполнения пайплайна.
-- **Зависимости:** `R1-05` завершена; pipeline inputs нормализуются до канонических полей до выполнения стадий.
-- **Ожидаемый результат:** downstream error не маскируется `ok: true`, а run/stage используют согласованные статусы `success`, `partial`, `failed`, `blocked`, `needs_review`.
-- **После неё:** `R1-07` — реализовать quality gates и stop/resume.
+- **Следующая задача:** `R1-07` — реализовать stage quality gates и stop/resume.
+- **Зависимости:** `R1-06` завершена; run/stage используют согласованные статусы `success`, `partial`, `failed`, `blocked`, `needs_review`.
+- **Ожидаемый результат:** critical gate останавливает зависимые стадии, причина остановки сохраняется, после исправления запуск можно продолжить с безопасной точки.
+- **После неё:** `R1-08` — реализовать stale propagation по dependency graph.
 
 ## Правила ведения
 
@@ -39,7 +39,7 @@
 | R1-03 | DONE | PipelineContext: stage output → next input + cumulative lineage | 300 tests, TypeScript, scoped ESLint |
 | R1-04 | DONE | Реальная project idea и persisted stage outputs без hardcoded inputs | 302 tests, TypeScript, scoped ESLint |
 | R1-05 | DONE | Aliases приводятся к `full_gdd`, `target_format` и `target_levels` на contract boundary | 305 tests, TypeScript, scoped ESLint |
-| R1-06 | TODO | Статусы success/partial/failed/blocked/needs_review | — |
+| R1-06 | DONE | Единые run/stage statuses; `ok` истинно только для полного success | 309 tests, TypeScript, scoped ESLint |
 | R1-07 | TODO | Quality gates и stop/resume | — |
 | R1-08 | TODO | Stale propagation | — |
 | R1-09 | TODO | Completion по accepted/non-stale artifacts | — |
@@ -47,6 +47,43 @@
 | R2…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R1-06 — DONE
+
+Что сделано:
+
+- введён единый доменный расчёт статусов `success`, `partial`, `failed`, `blocked`, `needs_review` для запусков пайплайна;
+- успешный HTTP response получает status из фактического `ArtifactEnvelope`, поэтому `partial` и `needs_review` не маскируются как completed;
+- HTTP 422 классифицируется как `needs_review`, HTTP 424 как `blocked`, остальные transport/server errors как `failed`;
+- `ok` обоих runner’ов вычисляется только как `status === "success"`;
+- full runner больше не возвращает `ok: true` после downstream failure: смесь готовых артефактов и ошибки получает `partial`;
+- ошибка Concept помечает корневую стадию как `failed`/`needs_review`, а все невыполненные downstream-стадии — как `blocked`;
+- `stages_completed` считает реально созданные артефакты, а не текстовые labels;
+- UI полного запуска понимает новые статусы и отдельно показывает success, review, blocked и failure.
+
+Изменённые области:
+
+- `src/lib/pipeline-run-status.ts`
+- `src/lib/pipeline-run-status.test.ts`
+- `src/app/api/v1/pipeline/run-full-pipeline/[projectId]/route.ts`
+- `src/app/api/v1/pipeline/run-pipeline/[projectId]/route.ts`
+- `src/app/pipeline/page.tsx`
+
+Проверки:
+
+- status unit tests — 4 теста пройдены;
+- `npm run test` — 17 файлов, 309 тестов пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых файлов — ошибок нет;
+- поиск старых stage statuses `completed/skipped/error` в runner/UI — совпадений нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- тест подтверждает: `success + failed + blocked → partial`, и `isSuccessfulRun("partial") === false`;
+- запуск без полезного output сохраняет корневую причину: `failed + blocked → failed`, `needs_review + blocked → needs_review`;
+- только набор из одних `success` возвращает общий `success` и `ok: true`;
+- следующей задачей назначена `R1-07`.
 
 ### 2026-08-01 — R1-05 — DONE
 

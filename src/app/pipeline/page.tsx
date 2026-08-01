@@ -91,6 +91,8 @@ export default function PipelinePage() {
     try {
       // Single server-side call runs all 8 blocks sequentially with persistence.
       const result = await apiFetch<{
+        ok: boolean;
+        status: "success" | "partial" | "failed" | "blocked" | "needs_review";
         stages_completed: number;
         stages_total: number;
         stages: Array<{ stage: string; block_name: string; status: string; message: string }>;
@@ -112,18 +114,19 @@ export default function PipelinePage() {
 
       // Report per-stage results.
       for (const stage of result.stages) {
-        const ok = stage.status === "completed";
+        const ok = stage.status === "success";
+        const review = stage.status === "needs_review";
         toast({
-          title: `${ok ? "✅" : stage.status === "skipped" ? "⏭️" : "⚠️"} ${stage.block_name} — ${stage.stage}`,
+          title: `${ok ? "✅" : review ? "🔎" : stage.status === "blocked" ? "⏸️" : "⚠️"} ${stage.block_name} — ${stage.stage}`,
           description: stage.message,
           variant: ok ? "default" : "destructive",
         });
       }
 
       toast({
-        title: result.stages_completed === result.stages_total
+        title: result.status === "success"
           ? "🎉 Пайплайн завершён"
-          : "⚠️ Пайплайн завершён с ошибками",
+          : `⚠️ Пайплайн: ${result.status}`,
         description: result.note || `Выполнено ${result.stages_completed}/${result.stages_total} стадий. Завершённость: ${result.completion_percent}%`,
       });
     } catch (err) {

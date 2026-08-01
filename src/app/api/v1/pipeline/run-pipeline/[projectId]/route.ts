@@ -25,6 +25,12 @@ import {
   seedStageOutput,
 } from "@/lib/pipeline-context";
 import type { ContractStageId } from "@/lib/contracts/stage-contracts";
+import type { ArtifactStatus } from "@/lib/contracts/artifact-envelope";
+import {
+  derivePipelineRunStatus,
+  isSuccessfulRun,
+  stageFailureStatus,
+} from "@/lib/pipeline-run-status";
 import { db } from "@/lib/db";
 
 interface StageDef {
@@ -157,7 +163,7 @@ export async function POST(
       stage: ContractStageId;
       block_id: number;
       block_name: string;
-      status: "completed" | "skipped" | "error";
+      status: ArtifactStatus;
       message: string;
       http_status?: number;
       latency_ms?: number;
@@ -195,8 +201,10 @@ export async function POST(
             stage: stage.stage,
             block_id: stage.block_id,
             block_name: BLOCK_NAMES[stage.block_id] || `Block ${stage.block_id}`,
-            status: "completed",
-            message: `Стадия «${stage.stage}» выполнена на реальных данных проекта.`,
+            status: artifact.status,
+            message: artifact.status === "success"
+              ? `Стадия «${stage.stage}» выполнена на реальных данных проекта.`
+              : `Стадия «${stage.stage}» создала артефакт со статусом ${artifact.status}.`,
             http_status: response.status,
             latency_ms: latencyMs,
             artifact_id: artifact.artifactId,
@@ -216,8 +224,8 @@ export async function POST(
           stage: stage.stage,
           block_id: stage.block_id,
           block_name: BLOCK_NAMES[stage.block_id] || `Block ${stage.block_id}`,
-          status: response.status === 422 ? "skipped" : "error",
-          message: `Стадия «${stage.stage}» завершилась с ошибкой: ${detail}`,
+          status: stageFailureStatus(response.status),
+          message: `Стадия «${stage.stage}» не завершена: ${detail}`,
           http_status: response.status,
           latency_ms: latencyMs,
         });
@@ -227,7 +235,7 @@ export async function POST(
           stage: stage.stage,
           block_id: stage.block_id,
           block_name: BLOCK_NAMES[stage.block_id] || `Block ${stage.block_id}`,
-          status: "error",
+          status: "failed",
           message: `Ошибка на стадии «${stage.stage}»: ${message}`,
           latency_ms: Date.now() - stageStartedAt,
         });
@@ -235,10 +243,12 @@ export async function POST(
     }
 
     const finalSnapshot = await loadProjectPipelineSnapshot(user.id, projectId);
-    const completedCount = stages.filter((stage) => stage.status === "completed").length;
+    const completedCount = stages.filter((stage) => stage.artifact_id).length;
+    const runStatus = derivePipelineRunStatus(stages.map((stage) => stage.status));
 
     return NextResponse.json({
-      ok: completedCount === stages.length,
+      ok: isSuccessfulRun(runStatus),
+      status: runStatus,
       project_id: projectId,
       concept_idea: idea,
       stages,
@@ -248,9 +258,9 @@ export async function POST(
       completion_percent: finalSnapshot?.completionPercent ?? 0,
       artifact_versions: context.upstreamVersions,
       note:
-        completedCount === stages.length
+        runStatus === "success"
           ? "Все запрошенные стадии выполнены на реальных данных проекта."
-          : `Выполнено ${completedCount}/${stages.length} стадий. См. stages[].status.`,
+          : `Запуск получил статус ${runStatus}; артефакты созданы для ${completedCount}/${stages.length} стадий.`,
     });
   } catch (error) {
     console.error("[pipeline/run-pipeline] error:", error);

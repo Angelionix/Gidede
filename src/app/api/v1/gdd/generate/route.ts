@@ -904,6 +904,81 @@ function buildConsistencyReport(
     }
   }
 
+  // TASK-6.16: Expanded to 8 check types (was 3: incomplete_section, short_content, consistency_drift).
+  // Check 3: Missing critical sections
+  const criticalSectionNames = ["title", "core_loop", "mechanics"];
+  for (const crit of criticalSectionNames) {
+    if (sectionOrder.includes(crit) && (!sections[crit] || !sections[crit].content)) {
+      issues.push({
+        severity: "error",
+        section_a: crit,
+        section_b: "missing",
+        issue_type: "missing_critical_section",
+        description: `Critical section "${crit}" is missing or empty.`,
+        suggestion: `Заполните секцию "${crit}" — она обязательна для всех форматов.`,
+      });
+    }
+  }
+  // Check 4: Duplicate content across sections
+  const contentMap = new Map<string, string[]>();
+  for (const key of sectionOrder) {
+    const sec = sections[key];
+    if (!sec || sec.content.length < 50) continue;
+    const hash = sec.content.slice(0, 100);
+    if (!contentMap.has(hash)) contentMap.set(hash, []);
+    contentMap.get(hash)!.push(key);
+  }
+  for (const [hash, keys] of contentMap) {
+    if (keys.length > 1) {
+      issues.push({
+        severity: "warning",
+        section_a: keys[0],
+        section_b: keys[1],
+        issue_type: "duplicate_content",
+        description: `Sections "${keys[0]}" and "${keys[1]}" have identical content.`,
+        suggestion: "Различите содержание секций.",
+      });
+    }
+  }
+  // Check 5: Source quality — too many manual sections
+  const manualCount = sectionOrder.filter((k) => sections[k]?.source === "manual").length;
+  if (manualCount > sectionOrder.length * 0.5) {
+    issues.push({
+      severity: "info",
+      section_a: "overall",
+      section_b: "source_quality",
+      issue_type: "low_automation",
+      description: `${manualCount} of ${sectionOrder.length} sections require manual input.`,
+      suggestion: "Запустите pipeline для авто-заполнения большего количества секций.",
+    });
+  }
+  // Check 6: Coverage threshold
+  const autoFilledCount = sectionOrder.filter((k) => sections[k]?.source === "auto_fill").length;
+  if (autoFilledCount / Math.max(1, sectionOrder.length) < 0.3) {
+    issues.push({
+      severity: "warning",
+      section_a: "overall",
+      section_b: "coverage",
+      issue_type: "low_coverage",
+      description: `Coverage ${Math.round((autoFilledCount / Math.max(1, sectionOrder.length)) * 100)}% — ниже 30%.`,
+      suggestion: "Сгенерируйте больше upstream-данных (concept, MDA, balance, etc.).",
+    });
+  }
+  // Check 7: AI-generated sections quality
+  const aiGenCount = sectionOrder.filter((k) => sections[k]?.source === "ai_generate").length;
+  if (aiGenCount > sectionOrder.length * 0.7) {
+    issues.push({
+      severity: "info",
+      section_a: "overall",
+      section_b: "ai_quality",
+      issue_type: "high_ai_dependency",
+      description: `${aiGenCount} of ${sectionOrder.length} sections are AI-generated — review needed.`,
+      suggestion: "Проверьте и дополните AI-сгенерированный контент вручную.",
+    });
+  }
+  // Check 8: Format compliance — section count vs expected
+  // (already handled by sectionOrder.length vs FORMAT_SECTIONS check, no extra logic needed)
+
   const errors = issues.filter((i) => i.severity === "error").length;
   const warnings = issues.filter((i) => i.severity === "warning").length;
   const infos = issues.filter((i) => i.severity === "info").length;
@@ -978,6 +1053,8 @@ export async function POST(request: NextRequest) {
     }
 
     // --- Section mappings / readiness ---
+    // TASK-6.10: Cache deriveSectionContent results to avoid O(2N) calls.
+    const sectionCache: Record<string, { content: string; source: string; requires_review: boolean }> = {};
     const activeMappings: Record<string, unknown> = {};
     const sectionReadiness: Record<string, unknown> = {};
     const autoFillable: string[] = [];
@@ -985,7 +1062,9 @@ export async function POST(request: NextRequest) {
     const aiGeneratable: string[] = [];
 
     for (const sectionName of sectionsList) {
+      // TASK-6.10: call deriveSectionContent once and cache result.
       const filled = deriveSectionContent(sectionName, proj, language);
+      sectionCache[sectionName] = filled;
       activeMappings[sectionName] = {
         source: filled.source,
         auto_fill: filled.source === "auto_fill",
@@ -1016,8 +1095,13 @@ export async function POST(request: NextRequest) {
       };
     }
 
+    // TASK-6.13: Real coverage_score — counts auto_fill AND ai_enrich (was only auto_fill).
     const detailFactor = DETAIL_FACTOR[detailLevel] || 1.0;
-    const coverageScore = autoFillable.length / Math.max(1, sectionsList.length);
+    const enrichedCount = sectionsList.filter((s) => {
+      const src = sectionCache[s]?.source;
+      return src === "auto_fill" || src === "ai_enrich";
+    }).length;
+    const coverageScore = enrichedCount / Math.max(1, sectionsList.length);
 
     const dataMapping = {
       active_mappings: activeMappings,
@@ -1039,7 +1123,8 @@ export async function POST(request: NextRequest) {
       requires_review: boolean;
     }> = {};
     for (const sectionName of sectionsList) {
-      const filled = deriveSectionContent(sectionName, proj, language);
+      // TASK-6.10: use cached result instead of calling deriveSectionContent again.
+      const filled = sectionCache[sectionName] || deriveSectionContent(sectionName, proj, language);
       // Adjust content length based on detail factor
       let content = filled.content;
       if (detailFactor > 1.5 && filled.source === "ai_generate") {

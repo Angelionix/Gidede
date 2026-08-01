@@ -288,19 +288,50 @@ function buildMachinations(
     }
   }
 
-  // Feedback loops: anchor→converter→consumable→anchor (reinforcing) and anchor→sink→anchor (balancing)
-  feedbackLoops.push({
-    nodes: [anchor, "converter", "consumable", anchor],
-    loop_type: "reinforcing",
-    strength: 0.7,
-    description: "Core production cycle: anchor fuels converters producing consumables",
-  });
-  feedbackLoops.push({
-    nodes: [anchor, "drain_sink", anchor],
-    loop_type: "balancing",
-    strength: 0.5,
-    description: "Anchor sink prevents runaway accumulation",
-  });
+  // TASK-5b.2 FIXED: feedback_loops nodes now use REAL resource names, not literals.
+  // Before: used "converter" and "consumable" which don't exist as node IDs.
+  // After: uses actual catalytic and consumable resource names from the resources array.
+  const catalyticNames = resources.filter((r) => r.is_catalytic).map((r) => r.name);
+  const consumableNames = resources.filter((r) => r.is_consumable).map((r) => r.name);
+
+  // Reinforcing loop: anchor → first catalytic → first consumable → anchor
+  if (catalyticNames.length > 0 && consumableNames.length > 0) {
+    feedbackLoops.push({
+      nodes: [anchor, catalyticNames[0], consumableNames[0], anchor],
+      loop_type: "reinforcing",
+      strength: 0.7,
+      description: "Core production cycle: anchor fuels converters producing consumables",
+    });
+  } else if (catalyticNames.length > 0) {
+    // Fallback: anchor → catalytic → anchor (no consumables in set)
+    feedbackLoops.push({
+      nodes: [anchor, catalyticNames[0], anchor],
+      loop_type: "reinforcing",
+      strength: 0.6,
+      description: "Production cycle: anchor fuels converter",
+    });
+  } else {
+    // Fallback: anchor → first subsidiary → anchor
+    const subNames = resources.filter((r) => r.resource_class === "subsidiary").map((r) => r.name);
+    if (subNames.length > 0) {
+      feedbackLoops.push({
+        nodes: [anchor, subNames[0], anchor],
+        loop_type: "reinforcing",
+        strength: 0.5,
+        description: "Basic production cycle: anchor to subsidiary and back",
+      });
+    }
+  }
+
+  // Balancing loop: anchor → drain_sink → anchor (if drain_sink exists)
+  if (nodes.find((n) => n.id === "drain_sink")) {
+    feedbackLoops.push({
+      nodes: [anchor, "drain_sink", anchor],
+      loop_type: "balancing",
+      strength: 0.5,
+      description: "Anchor sink prevents runaway accumulation",
+    });
+  }
 
   const patterns: string[] = [];
   patterns.push("source_pool_drain");
@@ -350,7 +381,17 @@ function findConversionChains(resources: ResourceDef[]): {
     const c = catalytic[i];
     const input = currencies[0] || resources[0];
     const output = outputs[i % outputs.length] || resources[resources.length - 1];
-    const profitability = Number((0.8 + Math.random() * 0.4).toFixed(2));
+    // TASK-5b.3 FIXED: deterministic profitability (Bible 6.9.1).
+    // Before: 0.8 + Math.random() * 0.4 — non-deterministic, unrelated to actual flows.
+    // After: Profitability = (output_value / input_value) × frequency − opportunity_cost
+    //   where frequency = c.initial_value / 10, opportunity_cost = 0.1 * (i + 1).
+    const outputValue = output.initial_value || 10;
+    const inputValue = input.initial_value || 50;
+    const frequency = c.initial_value / 10;
+    const opportunityCost = 0.1 * (i + 1);
+    const profitability = Number(
+      ((outputValue / Math.max(1, inputValue)) * frequency - opportunityCost).toFixed(2)
+    );
     chains.push({
       inputs: [input.name],
       outputs: [output.name],

@@ -45,26 +45,38 @@ describe("checkLoopClosedness — TASK-2.4", () => {
     const result = checkLoopClosedness(steps);
     expect(result.is_closed).toBe(true);
     expect(result.closing_resources).toContain("momentum");
+    expect(result.step_path).toEqual([2, 0]);
   });
 
-  it("returns closed when last action has return keyword", () => {
+  it("does not treat a return keyword as evidence without a directed resource path", () => {
     const steps = [
       makeStep({ action: "Start" }),
       makeStep({ action: "Mid" }),
       makeStep({ action: "Повторить цикл" }),
     ];
     const result = checkLoopClosedness(steps);
-    expect(result.is_closed).toBe(true);
+    expect(result.is_closed).toBe(false);
   });
 
-  it("returns closed when chain integrity intact (3+ steps)", () => {
+  it("does not treat a forward-only chain as closed", () => {
     const steps = [
       makeStep({ resources_produced: ["a"] }),
       makeStep({ resources_consumed: ["a"], resources_produced: ["b"] }),
       makeStep({ resources_consumed: ["b"], resources_produced: ["c"] }),
     ];
     const result = checkLoopClosedness(steps);
+    expect(result.is_closed).toBe(false);
+  });
+
+  it("returns closed for an indirect directed path from last to first", () => {
+    const steps = [
+      makeStep({ resources_consumed: ["ready"] }),
+      makeStep({ resources_consumed: ["signal"], resources_produced: ["ready"] }),
+      makeStep({ resources_produced: ["signal"] }),
+    ];
+    const result = checkLoopClosedness(steps);
     expect(result.is_closed).toBe(true);
+    expect(result.step_path).toEqual([2, 1, 0]);
   });
 
   it("returns NOT closed when no link between last and first", () => {
@@ -173,7 +185,7 @@ describe("checkResourceSufficiency", () => {
 describe("buildValidation — TASK-2.16: all-5-required threshold", () => {
   it("overall_passed = true only when all 5 criteria pass", () => {
     const steps = [
-      makeStep({ feedback_type: "positive", resources_produced: ["a"], mechanics: ["M1"] }),
+      makeStep({ feedback_type: "positive", resources_consumed: ["a"], resources_produced: ["a"], mechanics: ["M1"] }),
       makeStep({ feedback_type: "neutral", resources_consumed: ["a"], resources_produced: ["b"], mechanics: ["M2"] }),
       makeStep({ feedback_type: "positive", resources_consumed: ["b"], resources_produced: ["a"], mechanics: ["M3"] }),
     ];

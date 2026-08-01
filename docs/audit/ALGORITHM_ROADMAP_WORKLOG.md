@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R2-03` — заменить closure proxy на directed resource/state graph.
-- **Зависимости:** `R2-02` завершена; structural type выбирается до построения соответствующего step template.
-- **Ожидаемый результат:** loop считается closed только при существовании достижимого directed path от результата последнего шага к входу первого.
-- **После неё:** `R2-04` — исправить self-failing Engine/Puzzle templates.
+- **Следующая задача:** `R2-04` — исправить self-failing Engine/Puzzle templates.
+- **Зависимости:** `R2-03` завершена; closedness теперь доказывается directed resource path от последнего шага к первому.
+- **Ожидаемый результат:** default Engine/Puzzle templates проходят собственные обязательные structural checks и не создают неизбежный critical.
+- **После неё:** `R2-05` — заменить вычисляемый `fun` на `fun_hypothesis` и test protocol.
 
 ## Правила ведения
 
@@ -46,9 +46,46 @@
 | R1-10 | DONE | Version commit только для полного accepted/fresh snapshot с optimistic lock | 331 tests, TypeScript, scoped ESLint |
 | R2-01 | DONE | Concept mechanics/genre/aesthetic доходят до Core Loop без generic fallback | 334 tests, TypeScript, scoped ESLint |
 | R2-02 | DONE | Structural type выбирается до matching step template | 335 tests, TypeScript, scoped ESLint |
-| R2-03…R7 | TODO | См. активный roadmap | — |
+| R2-03 | DONE | Closedness доказана directed resource graph и last→first path | 339 tests, TypeScript, scoped ESLint |
+| R2-04 | TODO | Исправить self-failing Engine/Puzzle templates | — |
+| R2-05…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R2-03 — DONE
+
+Что сделано:
+
+- введён явный directed resource-flow graph: ребро `producer step → consumer step` существует только для фактически общего ресурса;
+- реализован BFS, возвращающий кратчайший достижимый path между шагами и ресурсы переходов;
+- `checkLoopClosedness` признаёт loop closed только при наличии path от последнего step index к первому;
+- результат closedness содержит проверяемый `step_path` и `closing_resources`;
+- удалены ложные proxies: return/repeat keywords больше не доказывают closure;
+- целая forward-only chain без обратного пути больше не считается closed;
+- comparison ресурсов нормализуется без потери display-value.
+
+Изменённые области:
+
+- `src/lib/coreloop/resource-graph.ts`
+- `src/lib/coreloop/resource-graph.test.ts`
+- `src/lib/coreloop/validation.ts`
+- `src/lib/coreloop/validation.test.ts`
+
+Проверки:
+
+- resource graph/validation tests — 2 файла, 27 тестов пройдены;
+- `npm run test` — 24 файла, 339 тестов пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- прямой path `last → first` по `momentum` возвращает `step_path: [last, first]`;
+- многошаговый path `last → bridge → first` корректно находится BFS;
+- balanced resource sets с направлением только `first → last` не дают closure;
+- последний action `Повторить цикл` без resource path возвращает `is_closed: false`;
+- следующей задачей назначена `R2-04`.
 
 ### 2026-08-01 — R2-02 — DONE
 

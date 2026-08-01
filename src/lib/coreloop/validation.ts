@@ -8,6 +8,7 @@
 
 import type { CoreStep } from "./steps";
 import type { PathologyReport } from "./pathologies";
+import { buildResourceFlowGraph, findResourceFlowPath } from "./resource-graph";
 
 export interface GaryFiveQuestions {
   is_loop: boolean;
@@ -22,6 +23,7 @@ export interface LoopClosedness {
   is_closed: boolean;
   connection_description: string;
   closing_resources: string[];
+  step_path: number[];
 }
 
 export interface ResourceSufficiency {
@@ -45,42 +47,27 @@ export interface ValidationResult {
 
 export function checkLoopClosedness(steps: CoreStep[]): LoopClosedness {
   if (steps.length < 2) {
-    return { is_closed: false, connection_description: "Недостаточно шагов (минимум 2)", closing_resources: [] };
+    return { is_closed: false, connection_description: "Недостаточно шагов (минимум 2)", closing_resources: [], step_path: [] };
   }
 
   const firstStep = steps[0];
   const lastStep = steps[steps.length - 1];
-
-  // Check 1: last produces resource consumed by first
-  const closingResources = lastStep.resources_produced.filter((r) => firstStep.resources_consumed.includes(r));
-  if (closingResources.length > 0) {
+  const graph = buildResourceFlowGraph(steps);
+  const path = findResourceFlowPath(graph, steps.length - 1, 0);
+  if (path) {
     return {
       is_closed: true,
-      connection_description: `Последний шаг "${lastStep.action}" производит [${closingResources.join(", ")}], потребляемые первым "${firstStep.action}"`,
-      closing_resources: closingResources,
+      connection_description: `Directed resource path ${path.steps.join(" → ")} возвращает "${lastStep.action}" к "${firstStep.action}" через [${path.resources.join(", ")}]`,
+      closing_resources: [...new Set(path.resources)],
+      step_path: path.steps,
     };
   }
-
-  // Check 2: return action keyword
-  const returnKeywords = ["повтор", "return", "repeat", "back", "loop", "continue", "продолж", "возврат", "цикл"];
-  const lastActionLower = lastStep.action.toLowerCase();
-  if (returnKeywords.some((kw) => lastActionLower.includes(kw))) {
-    return { is_closed: true, connection_description: `Последний шаг "${lastStep.action}" указывает на возврат к началу`, closing_resources: [] };
-  }
-
-  // Check 3: chain integrity
-  let chainIntact = true;
-  for (let i = 0; i < steps.length - 1; i++) {
-    const produced = steps[i].resources_produced;
-    const nextConsumed = steps[i + 1].resources_consumed;
-    const hasLink = produced.length === 0 || nextConsumed.length === 0 || produced.some((r) => nextConsumed.includes(r));
-    if (!hasLink) { chainIntact = false; break; }
-  }
-  if (chainIntact && steps.length >= 3) {
-    return { is_closed: true, connection_description: `Цепочка ресурсов цела через ${steps.length} шагов`, closing_resources: [] };
-  }
-
-  return { is_closed: false, connection_description: `Последний шаг "${lastStep.action}" не связан с первым "${firstStep.action}"`, closing_resources: [] };
+  return {
+    is_closed: false,
+    connection_description: `Нет directed resource path от последнего шага "${lastStep.action}" к первому "${firstStep.action}"`,
+    closing_resources: [],
+    step_path: [],
+  };
 }
 
 export function checkGaryFiveQuestions(steps: CoreStep[]): GaryFiveQuestions {

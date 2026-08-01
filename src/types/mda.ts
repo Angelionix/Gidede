@@ -3,6 +3,8 @@
  * SRP: извлечены из src/app/blocks/3/page.tsx
  */
 
+import type { AlgorithmMetadata } from "@/lib/algorithm-metadata";
+
 export interface MDAFormState {
   conceptId: string;
   genre: string;
@@ -29,6 +31,7 @@ export interface MDAAnalysisResult {
   genre: string;
   concept_id: string;
   iterations_done: number;
+  algorithm_metadata: AlgorithmMetadata;
   stages_completed: number[];
   latency_ms: number;
   models_used: string[];

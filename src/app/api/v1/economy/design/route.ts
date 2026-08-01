@@ -27,6 +27,7 @@ import {
   VALIDATION_ERROR,
 } from "@/lib/api-helpers";
 import { enrichEconomy } from "@/lib/ai-service";
+import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 
 const VALID_MONETIZATION = [
   "f2p",
@@ -924,6 +925,7 @@ export async function POST(request: NextRequest) {
       schreiber_types: schreiberTypes,
       // TASK-5b.14: genre-specific dominant loop.
       dominant_loop_type: dominantLoopType,
+      algorithm_metadata: getStageAlgorithmMetadata("economy"),
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,
       models_used: [

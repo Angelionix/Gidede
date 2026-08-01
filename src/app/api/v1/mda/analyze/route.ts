@@ -33,6 +33,7 @@ import {
   VALIDATION_ERROR,
 } from "@/lib/api-helpers";
 import { enrichMda } from "@/lib/ai-service";
+import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 
 // ============================================================
 // Constants
@@ -1028,6 +1029,7 @@ export async function POST(request: NextRequest) {
       genre,
       concept_id: conceptId,
       iterations_done: iterationsDone,
+      algorithm_metadata: getStageAlgorithmMetadata("mda"),
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,
       models_used: fullAnalysis

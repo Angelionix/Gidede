@@ -30,6 +30,7 @@ import {
   SERVER_ERROR,
 } from "@/lib/api-helpers";
 import { enrichGdd } from "@/lib/ai-service";
+import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 
 const VALID_FORMATS = [
   "one_sheet",
@@ -1312,6 +1313,7 @@ export async function POST(request: NextRequest) {
       manual_skeletons: manualSkeletons,
       assembled_document: assembledDocument,
       formatted_document: formattedDocument,
+      algorithm_metadata: getStageAlgorithmMetadata("gdd"),
       stages_completed: stagesCompleted,
       coverage_score: Number(coverageScore.toFixed(3)),
       latency_ms: latencyMs,

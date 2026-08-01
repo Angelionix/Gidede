@@ -3,6 +3,8 @@
  * SRP: извлечены из src/app/blocks/2/page.tsx
  */
 
+import type { AlgorithmMetadata } from "@/lib/algorithm-metadata";
+
 export interface CoreLoopFormState {
   conceptId: string;
   mechanics: string;
@@ -22,6 +24,7 @@ export interface CoreLoopDesignResult {
   recommendations: Record<string, unknown>[];
   validation: Record<string, unknown> | null;
   loop_hierarchy: Record<string, unknown> | null;
+  algorithm_metadata: AlgorithmMetadata;
   stages_completed: number[];
   latency_ms: number;
   models_used: string[];

@@ -13,6 +13,7 @@ import type {
   CoreLoopCandidate,
   USPCandidate,
 } from "../../shared/types/typescript/interfaces";
+import type { AlgorithmMetadata } from "@/lib/algorithm-metadata";
 
 export interface ConceptFormState {
   idea: string;
@@ -36,6 +37,7 @@ export interface ConceptGenerationMetadata {
   models_used: string[];
   ai_enriched: boolean;
   ai_insights?: string;
+  algorithm_metadata?: AlgorithmMetadata;
 }
 
 export interface ConceptGenerationResult {
@@ -63,5 +65,6 @@ export interface ConceptGenerationResult {
   usp_candidates: USPCandidate[] | Record<string, unknown>[];
   validation_report: ValidationReport | null;
   status: string;
+  algorithm_metadata: AlgorithmMetadata;
   generation_metadata: ConceptGenerationMetadata;
 }

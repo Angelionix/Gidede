@@ -28,6 +28,7 @@ import {
   VALIDATION_ERROR,
 } from "@/lib/api-helpers";
 import { enrichProgression } from "@/lib/ai-service";
+import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 
 // TASK-5a.1: Valid progression types — added logarithmic, triangular, obfuscation (Bible 6.7.3).
 const VALID_PROGRESSION_TYPES = [
@@ -707,6 +708,7 @@ export async function POST(request: NextRequest) {
       content_plan: contentPlan,
       validation,
       summary,
+      algorithm_metadata: getStageAlgorithmMetadata("progression"),
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,
       models_used: ["deterministic-progression-v1", "tier-archetype-v1", "curve-builder-v1"],

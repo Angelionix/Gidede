@@ -37,6 +37,7 @@ import { enrichConcept } from "@/lib/ai-service";
 import { buildMechanicSetForGenres, type Mechanic } from "@/lib/mechanics-db";
 import { buildValidationReport } from "@/lib/concept/validation";
 import { validateConceptInput } from "@/lib/concept/validation-input";
+import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 
 // ============================================================
 // Constants — valid enum values & static lookup tables
@@ -794,6 +795,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    const algorithmMetadata = getStageAlgorithmMetadata("concept");
     const result = {
       id: proj.id,
       title: `${proj.name || "Untitled"} — ${genre.toUpperCase()}${subgenres.length > 0 ? `+${subgenres.join("+")}` : ""} Concept`,
@@ -814,6 +816,7 @@ export async function POST(request: NextRequest) {
       usp_candidates: uspCandidates,
       validation_report: validationReport,
       status: "completed",
+      algorithm_metadata: algorithmMetadata,
       generation_metadata: {
         stages_completed: stagesCompleted,
         latency_ms: latencyMs,
@@ -860,6 +863,7 @@ export async function POST(request: NextRequest) {
         ? ["deterministic-concept-v1", "rule-based-mda", "shell-lens-lite", "glm-4.6 (ai-enrichment)"]
         : ["deterministic-concept-v1", "rule-based-mda", "shell-lens-lite"],
       ai_enriched: aiEnrichment.enriched,
+      algorithm_metadata: algorithmMetadata,
     });
 
     await db.projectConcept.upsert({

@@ -3,6 +3,8 @@
  * SRP: извлечены из src/app/blocks/4/page.tsx
  */
 
+import type { AlgorithmMetadata } from "@/lib/algorithm-metadata";
+
 export interface BalanceObject {
   id: string;
   name: string;
@@ -166,6 +168,7 @@ export interface FullBalanceResponse {
   };
   monte_carlo_result: MonteCarloResult;
   machinations_result: MachinationsResult;
+  algorithm_metadata: AlgorithmMetadata;
   stages_completed: number[];
   latency_ms: number;
   models_used: string[];

@@ -2,6 +2,8 @@
 // GDD Generator — TypeScript types (mirrors backend schemas)
 // ============================================================
 
+import type { AlgorithmMetadata } from "@/lib/algorithm-metadata";
+
 export interface GDDFormatSpec {
   format: string; // one_sheet | ten_pager | treatment | sketch_design | full_gdd | concept_doc | narrative_bible | modular
   detail_level: string; // overview | standard | detailed | exhaustive
@@ -122,6 +124,7 @@ export interface GDDProfile {
   };
   assembled_document?: GDDAssembledDocument;
   formatted_document?: GDDFormattedDocument;
+  algorithm_metadata: AlgorithmMetadata;
   stages_completed: number[];
   coverage_score: number;
   latency_ms: number;
@@ -172,6 +175,7 @@ export interface ChecklistValidationProfile {
     top_5_issues: Array<{ severity: string; issue_type: string; description: string }>;
     quick_wins: Array<{ description: string; effort: string }>;
   };
+  algorithm_metadata: AlgorithmMetadata;
   stages_completed: number[];
   latency_ms: number;
 }

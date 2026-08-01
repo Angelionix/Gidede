@@ -23,6 +23,7 @@ import { classifyStructuralType, VALID_LOOP_TYPES } from "@/lib/coreloop/classif
 import { detectPathologies } from "@/lib/coreloop/pathologies";
 import { buildValidation } from "@/lib/coreloop/validation";
 import { buildLoopHierarchy, buildRecommendations } from "@/lib/coreloop/hierarchy";
+import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 
 const GENRE_DEFAULT_LOOP_TYPE: Record<string, string> = {
   action: "engine", shooter: "engine", platformer: "engine", fighting: "engine",
@@ -129,6 +130,7 @@ export async function POST(request: NextRequest) {
       validation,
       loop_hierarchy: loopHierarchy,
       gary_five_questions: validation.gary_five_questions,
+      algorithm_metadata: getStageAlgorithmMetadata("core_loop"),
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,
       models_used: modelsUsed,

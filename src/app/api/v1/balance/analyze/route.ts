@@ -35,6 +35,7 @@ import {
 } from "@/lib/api-helpers";
 import { enrichBalance } from "@/lib/ai-service";
 import { detectBalancePathologies } from "@/lib/balance/pathologies";
+import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 
 // ============================================================
 // Types
@@ -1229,6 +1230,7 @@ export async function POST(request: NextRequest) {
       combinations_analysis: buildCombinationsAnalysis(objects, gameMode),
       monte_carlo_result: monteCarloResult,
       machinations_result: machinationsResult,
+      algorithm_metadata: getStageAlgorithmMetadata("balance"),
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,
       models_used: [

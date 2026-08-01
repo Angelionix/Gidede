@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R0-03` — taxonomy методов и metadata результатов.
-- **Зависимости:** отсутствуют.
-- **Ожидаемый результат:** каждый вычисляемый score сообщает method и assumptions, не выдавая эвристику за simulation/solver/playtest evidence.
-- **После неё:** `R1-01` — versioned Zod schemas входов и выходов стадий.
+- **Следующая задача:** `R1-01` — versioned Zod schemas входов и выходов стадий.
+- **Зависимости:** Phase 0 завершена (`R0-01`…`R0-04`).
+- **Ожидаемый результат:** invalid payload не сохраняется, а контракт каждой стадии имеет явную версию.
+- **После неё:** `R1-02` — `ArtifactEnvelope` и трассировка upstream versions.
 
 ## Правила ведения
 
@@ -32,11 +32,45 @@
 |---|---|---|---|
 | R0-01 | DONE | 6 жанров, 12 RU/EN inputs, invariants и версии 8 артефактов | 283 tests, TypeScript |
 | R0-02 | DONE | Scripts test/test:coverage/typecheck | 283 tests, coverage, TypeScript |
-| R0-03 | TODO | Taxonomy методов и metadata результатов | — |
+| R0-03 | DONE | Taxonomy из 6 методов и score provenance для 8 стадий | 286 tests, TypeScript, ESLint |
 | R0-04 | DONE | Новый roadmap назначен активным; создан единый worklog и handoff | Проверка ссылок и `git diff --check` |
 | R1-01…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R0-03 — DONE
+
+Что сделано:
+
+- введена закрытая taxonomy `template`, `heuristic`, `simulation`, `solver`, `playtest_evidence`, `llm_generated`;
+- создан общий контракт `AlgorithmMetadata` с versioned taxonomy и картой JSON-путей score → method/assumptions;
+- описаны фактические предположения текущих Concept, Core Loop, MDA, Balance, Progression, Economy, GDD и Checklist метрик;
+- `algorithm_metadata` добавлена в ответы всех восьми стадий и попадает в сохраняемые full profiles;
+- публичные TypeScript-типы результатов расширены новым контрактом без изменения существующих числовых полей;
+- добавлены тесты полноты taxonomy, непустых assumptions и честной классификации текущих методов.
+
+Изменённые области:
+
+- `src/lib/algorithm-metadata.ts`
+- `src/lib/algorithm-metadata.test.ts`
+- API generators в `src/app/api/v1/{concept,coreloop,mda,balance,progression,economy,gdd}`
+- `src/lib/checklist-logic.ts`
+- result-типы в `src/types`
+
+Проверки:
+
+- `npm run test -- src/lib/algorithm-metadata.test.ts` — 3 теста пройдены;
+- `npm run test` — 13 файлов, 286 тестов пройдены;
+- `npm run typecheck` — ошибок нет;
+- ESLint для всех затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- каждый известный score-путь стадий имеет method и как минимум одно явное assumption;
+- synthetic Monte Carlo/resource-flow результаты помечены `simulation`, а агрегаты и lookup-формулы — `heuristic`;
+- текущая реализация нигде не заявляет `solver`, `playtest_evidence` или `llm_generated` для score, которого эти методы не создавали;
+- Phase 0 завершена, следующей задачей назначена `R1-01`.
 
 ### 2026-08-01 — R0-02 — DONE
 

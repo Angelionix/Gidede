@@ -3,6 +3,8 @@
  * SRP: извлечены из src/app/blocks/5/page.tsx
  */
 
+import type { AlgorithmMetadata } from "@/lib/algorithm-metadata";
+
 export interface EconomyDesignResponse {
   id: string;
   inventory: {
@@ -77,6 +79,7 @@ export interface EconomyDesignResponse {
     };
     snapshots_count: number;
   };
+  algorithm_metadata: AlgorithmMetadata;
   stages_completed: number[];
   latency_ms: number;
 }

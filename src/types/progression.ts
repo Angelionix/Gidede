@@ -3,6 +3,8 @@
  * SRP: извлечены из src/app/blocks/5/page.tsx
  */
 
+import type { AlgorithmMetadata } from "@/lib/algorithm-metadata";
+
 export interface ProgressionDesignResponse {
   id: string;
   macro_model: {
@@ -69,6 +71,7 @@ export interface ProgressionDesignResponse {
     checks: Record<string, boolean>;
   };
   summary: Record<string, string>;
+  algorithm_metadata: AlgorithmMetadata;
   stages_completed: number[];
   latency_ms: number;
 }

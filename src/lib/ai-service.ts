@@ -301,60 +301,9 @@ export async function enrichConcept(
   }
 }
 
-// ============================================================
-// GDD section enrichment (use_ai flag for block 6)
-// ============================================================
-
-export interface GddEnrichmentInput {
-  sectionName: string;
-  projectName: string;
-  genre: string;
-  existingContent: string;
-}
-
-/**
- * AI-обогащение секции GDD: дополняет/переформулирует текст секции через LLM.
- */
-export async function enrichGddSection(
-  ctx: GddEnrichmentInput
-): Promise<string | null> {
-  const zai = await getZai();
-  if (!zai) return null;
-
-  try {
-    const prompt = `Ты — технический писатель GDD. Обогати и улучши секцию дизайн-документа.
-
-Проект: ${ctx.projectName}
-Жанр: ${ctx.genre}
-Секция: ${ctx.sectionName}
-Текущее содержание:
-${ctx.existingContent}
-
-Задача: перепиши и расширь эту секцию, сделай её более подробной и профессиональной (150-250 слов, на русском). Сохрани суть, добавь конкретики.`;
-
-    const response = await zai.chat.completions.create({
-      messages: [
-        {
-          role: "system",
-          content:
-            "Ты — AI-ассистент по геймдизайну, специализирующийся на написании GDD.",
-        },
-        { role: "user", content: prompt },
-      ],
-      stream: false,
-      thinking: { type: "disabled" },
-    });
-
-    const text = response.choices?.[0]?.message?.content?.trim();
-    return text && text.length > 20 ? text : null;
-  } catch (e) {
-    console.error(
-      "[ai-service] enrichGddSection failed:",
-      e instanceof Error ? e.message : e
-    );
-    return null;
-  }
-}
+// TASK-6.7: Removed dead code enrichGddSection + GddEnrichmentInput.
+// This function was declared but never called from any route.
+// Per-section AI enrichment will be implemented in a future sprint if needed.
 
 // ============================================================
 // AI-generated prototype code (use_ai flag for /prototypes/generate)

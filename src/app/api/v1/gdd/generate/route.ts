@@ -997,6 +997,20 @@ export async function POST(request: NextRequest) {
       ],
     };
 
+    // TASK-6.9 FIXED: AI enrichment moved BEFORE persist so ai_insights is saved in DB.
+    if (useAi) {
+      const aiInsights = await enrichGdd({
+        projectName: proj.name || "Untitled",
+        genre: proj.genre || "game",
+        format: targetFormat,
+        sectionCount: sectionsList.length,
+      });
+      if (aiInsights) {
+        profile.ai_insights = aiInsights;
+        (profile.models_used as string[]).push("glm-4.6 (ai-enrichment)");
+      }
+    }
+
     // --- Persist ---
     await db.projectGDD.upsert({
       where: { projectId: proj.id },
@@ -1053,19 +1067,7 @@ export async function POST(request: NextRequest) {
 
     await updateProjectStage(proj.id, "gdd");
 
-    // --- Optional AI enrichment ---
-    if (useAi) {
-      const aiInsights = await enrichGdd({
-        projectName: proj.name || "Untitled",
-        genre: proj.genre || "game",
-        format: targetFormat,
-        sectionCount: sectionsList.length,
-      });
-      if (aiInsights) {
-        profile.ai_insights = aiInsights;
-        (profile.models_used as string[]).push("glm-4.6 (ai-enrichment)");
-      }
-    }
+    // TASK-6.9: AI enrichment was already done above (before persist).
 
     return NextResponse.json(profile);
   } catch (error) {

@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
+import {
+  listConfiguredLlmAdapters,
+  normalizeConfiguredLlmOptions,
+} from "@/lib/llm/configured-adapters";
 import { parseOpenAiCompatibleConfig, resolveServerSecret } from "@/lib/llm/config";
 import { getCurrentUser } from "@/lib/server-auth";
 
@@ -9,6 +13,7 @@ function serialize(config: {
   baseUrl: string;
   model: string;
   secretRef: string | null;
+  configJson: string | null;
   enabled: boolean;
 }) {
   return {
@@ -17,6 +22,7 @@ function serialize(config: {
     base_url: config.baseUrl,
     model: config.model,
     secret_ref: config.secretRef,
+    config_json: config.configJson ? JSON.parse(config.configJson) : null,
     secret_available: !config.secretRef || resolveServerSecret(config.secretRef) !== null,
     enabled: config.enabled,
   };
@@ -27,7 +33,10 @@ export async function GET(request: NextRequest) {
   if (!user) return NextResponse.json({ detail: "Не авторизован" }, { status: 401 });
 
   const config = await db.userLlmConfig.findUnique({ where: { userId: user.id } });
-  return NextResponse.json({ config: config ? serialize(config) : null });
+  return NextResponse.json({
+    adapters: listConfiguredLlmAdapters(),
+    config: config ? serialize(config) : null,
+  });
 }
 
 export async function PUT(request: NextRequest) {
@@ -36,6 +45,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
+    const adapter = typeof body?.adapter === "string" ? body.adapter.trim() : "openai-compatible";
     const config = parseOpenAiCompatibleConfig({
       label: body?.label,
       baseUrl: body?.base_url,
@@ -43,16 +53,23 @@ export async function PUT(request: NextRequest) {
       secretRef: body?.secret_ref,
       enabled: body?.enabled,
     });
+    const normalizedOptions = normalizeConfiguredLlmOptions(adapter, body?.config_json);
+    const configJson = normalizedOptions == null ? null : JSON.stringify(normalizedOptions);
+    if (configJson && configJson.length > 20_000) {
+      throw new Error("config_json is too large");
+    }
 
     const saved = await db.userLlmConfig.upsert({
       where: { userId: user.id },
       create: {
         userId: user.id,
-        adapter: "openai-compatible",
+        adapter,
+        configJson,
         ...config,
       },
       update: {
-        adapter: "openai-compatible",
+        adapter,
+        configJson,
         ...config,
       },
     });

@@ -1,5 +1,5 @@
 import { getLlmRegistry } from "@/lib/llm/registry";
-import { createOpenAiCompatibleLlmClient } from "@/lib/llm/providers/openai-compatible";
+import { createConfiguredLlmClient } from "@/lib/llm/configured-adapters";
 import { createZaiLlmClient } from "@/lib/llm/providers/zai";
 import type { LlmClient } from "@/lib/llm/types";
 import { db } from "@/lib/db";
@@ -20,11 +20,13 @@ async function getConfiguredUserClient(): Promise<LlmClient | null> {
   const config = await db.userLlmConfig.findUnique({ where: { userId } });
   if (!config?.enabled) return null;
 
-  return createOpenAiCompatibleLlmClient({
-    providerId: `openai-compatible:${config.label}`,
+  return createConfiguredLlmClient({
+    adapterId: config.adapter,
+    label: config.label,
     baseUrl: config.baseUrl,
     model: config.model,
     secretRef: config.secretRef,
+    options: config.configJson ? JSON.parse(config.configJson) : null,
   });
 }
 

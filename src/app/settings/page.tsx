@@ -31,6 +31,7 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 
 const THEME_OPTIONS = [
@@ -38,6 +39,26 @@ const THEME_OPTIONS = [
   { value: "dark", label: "Тёмная", icon: Moon },
   { value: "system", label: "Системная", icon: Monitor },
 ] as const;
+
+const DEFAULT_GENERIC_MAPPING = JSON.stringify({
+  auth_header: "Authorization",
+  auth_scheme: "Bearer",
+  static_headers: {},
+  static_body: {},
+  request: {
+    model_path: "model",
+    messages_path: "messages",
+    messages_format: "messages",
+    stream_path: "stream",
+    temperature_path: "temperature",
+    max_tokens_path: "max_tokens",
+  },
+  response: {
+    content_path: "result.text",
+    model_path: "result.model",
+  },
+  stream: null,
+}, null, 2);
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
@@ -49,12 +70,18 @@ export default function SettingsPage() {
     email: false,
   });
   const [llmConfig, setLlmConfig] = useState({
+    adapter: "openai-compatible",
     label: "OpenAI-compatible router",
     baseUrl: "",
     model: "",
     secretRef: "",
+    mapping: DEFAULT_GENERIC_MAPPING,
     enabled: true,
   });
+  const [llmAdapters, setLlmAdapters] = useState<Array<{ id: string; label: string }>>([
+    { id: "openai-compatible", label: "OpenAI-compatible" },
+    { id: "generic-http", label: "Generic HTTP mapping" },
+  ]);
   const [llmSecretAvailable, setLlmSecretAvailable] = useState<boolean | null>(null);
   const [llmLoading, setLlmLoading] = useState(true);
   const [llmSaving, setLlmSaving] = useState(false);
@@ -63,22 +90,31 @@ export default function SettingsPage() {
     if (!user) return;
     let cancelled = false;
     apiFetch<{
+      adapters: Array<{ id: string; label: string }>;
       config: null | {
+        adapter: string;
         label: string;
         base_url: string;
         model: string;
         secret_ref: string | null;
+        config_json: unknown;
         secret_available: boolean;
         enabled: boolean;
       };
     }>("/settings/llm")
-      .then(({ config }) => {
-        if (cancelled || !config) return;
+      .then(({ adapters, config }) => {
+        if (cancelled) return;
+        if (adapters.length > 0) setLlmAdapters(adapters);
+        if (!config) return;
         setLlmConfig({
+          adapter: config.adapter,
           label: config.label,
           baseUrl: config.base_url,
           model: config.model,
           secretRef: config.secret_ref || "",
+          mapping: config.config_json
+            ? JSON.stringify(config.config_json, null, 2)
+            : DEFAULT_GENERIC_MAPPING,
           enabled: config.enabled,
         });
         setLlmSecretAvailable(config.secret_available);
@@ -103,15 +139,20 @@ export default function SettingsPage() {
   async function saveLlmConfig() {
     setLlmSaving(true);
     try {
+      const mapping = llmConfig.adapter !== "openai-compatible"
+        ? JSON.parse(llmConfig.mapping)
+        : null;
       const { config } = await apiFetch<{
         config: { secret_available: boolean };
       }>("/settings/llm", {
         method: "PUT",
         body: JSON.stringify({
+          adapter: llmConfig.adapter,
           label: llmConfig.label,
           base_url: llmConfig.baseUrl,
           model: llmConfig.model,
           secret_ref: llmConfig.secretRef || null,
+          config_json: mapping,
           enabled: llmConfig.enabled,
         }),
       });
@@ -133,10 +174,12 @@ export default function SettingsPage() {
     try {
       await apiFetch("/settings/llm", { method: "DELETE" });
       setLlmConfig({
+        adapter: "openai-compatible",
         label: "OpenAI-compatible router",
         baseUrl: "",
         model: "",
         secretRef: "",
+        mapping: DEFAULT_GENERIC_MAPPING,
         enabled: true,
       });
       setLlmSecretAvailable(null);
@@ -323,7 +366,7 @@ export default function SettingsPage() {
               LLM-router
             </CardTitle>
             <CardDescription>
-              Подключите любой API с OpenAI-совместимым endpoint <code>/chat/completions</code>
+              Подключите OpenAI-compatible, декларативный HTTP или специализированный adapter
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
@@ -336,6 +379,19 @@ export default function SettingsPage() {
               <>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
+                    <Label htmlFor="llm-adapter">Тип адаптера</Label>
+                    <select
+                      id="llm-adapter"
+                      value={llmConfig.adapter}
+                      onChange={(event) => setLlmConfig((value) => ({ ...value, adapter: event.target.value }))}
+                      className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                    >
+                      {llmAdapters.map((adapter) => (
+                        <option key={adapter.id} value={adapter.id}>{adapter.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-2">
                     <Label htmlFor="llm-label">Название</Label>
                     <Input
                       id="llm-label"
@@ -344,7 +400,7 @@ export default function SettingsPage() {
                       placeholder="OpenRouter"
                     />
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-2 md:col-span-2">
                     <Label htmlFor="llm-model">Модель</Label>
                     <Input
                       id="llm-model"
@@ -360,8 +416,15 @@ export default function SettingsPage() {
                     id="llm-base-url"
                     value={llmConfig.baseUrl}
                     onChange={(event) => setLlmConfig((value) => ({ ...value, baseUrl: event.target.value }))}
-                    placeholder="https://openrouter.ai/api/v1"
+                    placeholder={llmConfig.adapter === "generic-http"
+                      ? "https://router.example/generate"
+                      : "https://openrouter.ai/api/v1"}
                   />
+                  {llmConfig.adapter === "generic-http" && (
+                    <p className="text-xs text-muted-foreground">
+                      Для Generic HTTP укажите полный URL вызываемого endpoint.
+                    </p>
+                  )}
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="llm-secret-ref">Ссылка на серверный секрет</Label>
@@ -381,6 +444,24 @@ export default function SettingsPage() {
                     </Badge>
                   )}
                 </div>
+                {llmConfig.adapter !== "openai-compatible" && (
+                  <div className="space-y-2">
+                    <Label htmlFor="llm-mapping">Конфигурация адаптера (JSON)</Label>
+                    <Textarea
+                      id="llm-mapping"
+                      value={llmConfig.mapping}
+                      onChange={(event) => setLlmConfig((value) => ({ ...value, mapping: event.target.value }))}
+                      className="min-h-80 font-mono text-xs"
+                      spellCheck={false}
+                    />
+                    {llmConfig.adapter === "generic-http" && (
+                      <p className="text-xs text-muted-foreground">
+                        Dot paths задают поля request/response. Для потоков поддерживаются SSE и NDJSON;
+                        без секции <code>stream</code> ответ возвращается одним chunk.
+                      </p>
+                    )}
+                  </div>
+                )}
                 <div className="flex items-center justify-between rounded-lg border p-3">
                   <div>
                     <Label htmlFor="llm-enabled">Использовать этот router</Label>

@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R3-03` — добавить Generic HTTP mapping и Custom adapter SPI для нестандартных LLM API.
-- **Зависимости:** `R3-01` и `R3-02` завершены; общий контракт и OpenAI-compatible path работают.
-- **Ожидаемый результат:** нестандартный API подключается декларативным mapping или одним plugin adapter.
-- **После неё:** `R3-04` — добавить encrypted secrets/server secret references.
+- **Следующая задача:** `R3-04` — добавить encrypted secrets поверх уже работающих server secret references.
+- **Зависимости:** `R3-01`–`R3-03` завершены; adapter registry принимает единый `secretRef` без provider-specific payloads.
+- **Ожидаемый результат:** ключи отсутствуют в client payload, DB plaintext и logs; пользователь может безопасно задать ключ без ручной настройки environment.
+- **После неё:** `R3-05` — добавить timeout, retry/backoff, TTL и circuit breaker.
 
 ## Правила ведения
 
@@ -54,9 +54,57 @@
 | R2-08 | DONE | GDD требует `go` либо документированный override; доступны 4 decision outcome | 355 tests, TypeScript, scoped ESLint |
 | R3-01 | DONE | `LlmClient`, lazy registry и изолированный ZAI adapter отделены от `ai-service` | 358 tests, TypeScript, scoped ESLint |
 | R3-02 | DONE | OpenAI-compatible router настраивается через UI, включая SSE и server secret ref | 365 tests, TypeScript, scoped ESLint, Prisma validate |
-| R3-03…R7 | TODO | См. активный roadmap | — |
+| R3-03 | DONE | Generic HTTP dot-path mapping, SSE/NDJSON и Custom adapter SPI | 372 tests, TypeScript, scoped ESLint, Prisma validate |
+| R3-04…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R3-03 — DONE
+
+Что сделано:
+
+- реализован `LlmAdapterRegistry`, отделяющий тип/конфигурацию adapter от registry готовых provider instances;
+- adapter descriptor содержит стабильный ID, UI label, validator/normalizer options и factory общего `LlmClient`;
+- неизвестные, повторные и некорректные adapter IDs отклоняются до выполнения LLM-запроса;
+- встроенные OpenAI-compatible и Generic HTTP adapters регистрируются в едином bootstrap;
+- реализован Generic HTTP adapter с декларативным mapping request/response dot paths;
+- mapping поддерживает messages array или собранный prompt, model, stream flag, temperature, max tokens, static body и безопасные static headers;
+- ответы читаются из вложенных JSON paths, включая numeric array components;
+- streaming поддерживает SSE и NDJSON; non-streaming API адаптируется к streaming contract одним chunk;
+- секрет передаётся только через общий `secretRef` и выбранный `auth_header/auth_scheme`;
+- static `Authorization`, `x-api-key` и другие secret-bearing headers в JSON mapping запрещены;
+- настройки/API расширены выбором adapter и валидируемым adapter-specific `configJson` до 20 KB;
+- custom adapter после регистрации descriptor появляется в settings API/UI и не требует изменения `ai-service`;
+- добавлена документация настройки mapping и подключения custom adapter.
+
+Изменённые области:
+
+- `src/lib/llm/adapter-registry.ts` и тесты;
+- `src/lib/llm/configured-adapters.ts`;
+- `src/lib/llm/providers/generic-http.ts` и тесты;
+- `src/lib/llm/default-client.ts`;
+- `src/app/api/v1/settings/llm/route.ts`;
+- `src/app/settings/page.tsx`;
+- `prisma/schema.prisma` (`UserLlmConfig.configJson`);
+- `docs/LLM_ADAPTERS.md`.
+
+Проверки:
+
+- targeted adapter registry/Generic HTTP tests — 2 файла, 7 тестов пройдены;
+- `npm run test` — 31 файл, 372 теста пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript/TSX-файлов — ошибок нет;
+- `prisma validate` с test `DATABASE_URL` — schema valid;
+- `npm run db:generate` — Prisma Client успешно сгенерирован;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- нестандартный nested JSON API подключается только через UI mapping без правок TypeScript-кода;
+- API без native streaming остаётся совместимым с общим streaming call path;
+- isolated SPI test подключает vendor adapter одним descriptor и получает готовый `LlmClient`;
+- `default-client` выбирает adapter по persisted ID, а `ai-service` и алгоритмы стадий не изменены;
+- следующей задачей назначена `R3-04`.
 
 ### 2026-08-01 — R3-02 — DONE
 

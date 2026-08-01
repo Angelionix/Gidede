@@ -54,6 +54,7 @@ model UserLlmConfig {
   baseUrl       String
   model         String
   secretRef     String?  // Server-only reference, e.g. env:OPENROUTER_API_KEY. Never a plaintext key.
+  configJson    String?  // Validated adapter-specific declarative configuration. Never stores secret values.
   enabled       Boolean  @default(true)
   createdAt     DateTime @default(now())
   updatedAt     DateTime @updatedAt

@@ -30,6 +30,7 @@ import {
 import { enrichProgression } from "@/lib/ai-service";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
+import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
 
 // TASK-5a.1: Valid progression types — added logarithmic, triangular, obfuscation (Bible 6.7.3).
 const VALID_PROGRESSION_TYPES = [
@@ -712,6 +713,7 @@ export async function POST(request: NextRequest) {
       validation,
       summary,
       contract_version: STAGE_CONTRACT_VERSION,
+      artifact: createArtifactEnvelope("progression", body),
       algorithm_metadata: getStageAlgorithmMetadata("progression"),
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,

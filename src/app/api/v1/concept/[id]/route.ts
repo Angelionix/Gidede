@@ -48,6 +48,7 @@ export async function GET(
     title: c.title,
     ai_insights: c.aiInsights,
     contract_version: generationMetadata.contract_version,
+    artifact: generationMetadata.artifact,
     algorithm_metadata: generationMetadata.algorithm_metadata,
     generation_metadata: generationMetadata,
     one_pager: safeJsonParse(c.onePagerData || "{}"),

@@ -25,6 +25,7 @@ import { buildValidation } from "@/lib/coreloop/validation";
 import { buildLoopHierarchy, buildRecommendations } from "@/lib/coreloop/hierarchy";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
+import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
 
 const GENRE_DEFAULT_LOOP_TYPE: Record<string, string> = {
   action: "engine", shooter: "engine", platformer: "engine", fighting: "engine",
@@ -134,6 +135,7 @@ export async function POST(request: NextRequest) {
       loop_hierarchy: loopHierarchy,
       gary_five_questions: validation.gary_five_questions,
       contract_version: STAGE_CONTRACT_VERSION,
+      artifact: createArtifactEnvelope("core_loop", body),
       algorithm_metadata: getStageAlgorithmMetadata("core_loop"),
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,

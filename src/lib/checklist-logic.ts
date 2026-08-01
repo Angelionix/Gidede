@@ -17,6 +17,7 @@ import {
 } from "@/lib/api-helpers";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION } from "@/lib/contracts/stage-contracts";
+import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
 
 export interface ChecklistIssue {
   severity: string; // error | warning | info
@@ -169,6 +170,7 @@ export interface ChecklistResult {
 interface RunOptions {
   depth?: string;
   checklistTypes?: string[];
+  artifactInput?: unknown;
 }
 
 // TASK-6b.3-9: Extended checklist types.
@@ -999,6 +1001,11 @@ export async function runChecklistValidation(
     narrative_types_check: narrativeTypesCheck,
     summary,
     contract_version: STAGE_CONTRACT_VERSION,
+    artifact: createArtifactEnvelope("validation", options.artifactInput ?? {
+      action,
+      depth,
+      checklist_types: activeChecklists,
+    }),
     algorithm_metadata: getStageAlgorithmMetadata("validation"),
     // TASK-6b.12: dynamic stages_completed (was hardcoded [1,2,3,4,5,6]).
     stages_completed: activeChecklists.map((_, i) => i + 1),

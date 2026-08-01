@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { ALGORITHM_METHODS } from "@/lib/algorithm-metadata";
+import { artifactEnvelopeSchema } from "@/lib/contracts/artifact-envelope";
 
 export const STAGE_CONTRACT_VERSION = "1.0.0" as const;
 
@@ -20,6 +21,10 @@ const stringFlag = z.union([z.boolean(), z.literal("true"), z.literal("false")])
 const stringArray = z.array(z.string().trim().min(1));
 const optionalId = z.string().trim().min(1).optional();
 const numericInput = z.union([z.number().finite(), z.string().trim().min(1)]);
+const upstreamVersionsInput = z.record(
+  z.string().trim().min(1),
+  z.string().trim().min(1),
+).optional();
 
 const algorithmMetadataSchema = z.object({
   taxonomy_version: z.literal(1),
@@ -35,6 +40,7 @@ const algorithmMetadataSchema = z.object({
 const outputBase = {
   contract_version: z.literal(STAGE_CONTRACT_VERSION),
   algorithm_metadata: algorithmMetadataSchema,
+  artifact: artifactEnvelopeSchema,
 };
 
 const conceptInputV1 = z.object({
@@ -54,6 +60,7 @@ const conceptInputV1 = z.object({
   forbidden_mechanics: stringArray.max(20).optional(),
   use_ai: stringFlag.optional(),
   project_id: optionalId,
+  upstream_versions: upstreamVersionsInput,
 }).passthrough();
 
 const coreLoopInputV1 = z.object({
@@ -65,6 +72,7 @@ const coreLoopInputV1 = z.object({
   custom_steps: stringArray.max(50).optional(),
   use_ai: stringFlag.optional(),
   project_id: optionalId,
+  upstream_versions: upstreamVersionsInput,
 }).passthrough();
 
 const mdaInputV1 = z.object({
@@ -83,6 +91,7 @@ const mdaInputV1 = z.object({
   forbidden_mechanics: stringArray.max(100).optional(),
   use_ai: stringFlag.optional(),
   project_id: optionalId,
+  upstream_versions: upstreamVersionsInput,
 }).passthrough();
 
 const balanceObjectInputV1 = z.object({
@@ -110,6 +119,7 @@ const balanceInputV1 = z.object({
   run_machinations: z.boolean().optional(),
   use_ai: stringFlag.optional(),
   project_id: optionalId,
+  upstream_versions: upstreamVersionsInput,
 }).passthrough();
 
 const progressionInputV1 = z.object({
@@ -122,6 +132,7 @@ const progressionInputV1 = z.object({
   pacing: z.string().trim().min(1).optional(),
   use_ai: stringFlag.optional(),
   project_id: optionalId,
+  upstream_versions: upstreamVersionsInput,
 }).passthrough();
 
 const economyInputV1 = z.object({
@@ -130,6 +141,7 @@ const economyInputV1 = z.object({
   openness: z.string().trim().min(1).optional(),
   use_ai: stringFlag.optional(),
   project_id: optionalId,
+  upstream_versions: upstreamVersionsInput,
 }).passthrough();
 
 const gddInputV1 = z.object({
@@ -143,12 +155,14 @@ const gddInputV1 = z.object({
   language: z.string().trim().min(1).optional(),
   use_ai: stringFlag.optional(),
   project_id: optionalId,
+  upstream_versions: upstreamVersionsInput,
 }).passthrough();
 
 const validationInputV1 = z.object({
   depth: z.string().trim().min(1).optional(),
   checklist_types: stringArray.optional(),
   project_id: optionalId,
+  upstream_versions: upstreamVersionsInput,
 }).passthrough();
 
 const conceptOutputV1 = z.object({

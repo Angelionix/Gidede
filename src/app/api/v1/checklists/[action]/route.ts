@@ -79,6 +79,7 @@ export async function POST(
     const result = await runChecklistValidation(project, action, {
       depth,
       checklistTypes,
+      artifactInput: body,
     });
 
     return NextResponse.json(result.profile);

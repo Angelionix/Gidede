@@ -29,6 +29,7 @@ import {
 import { enrichEconomy } from "@/lib/ai-service";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
+import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
 
 const VALID_MONETIZATION = [
   "f2p",
@@ -929,6 +930,7 @@ export async function POST(request: NextRequest) {
       // TASK-5b.14: genre-specific dominant loop.
       dominant_loop_type: dominantLoopType,
       contract_version: STAGE_CONTRACT_VERSION,
+      artifact: createArtifactEnvelope("economy", body),
       algorithm_metadata: getStageAlgorithmMetadata("economy"),
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,

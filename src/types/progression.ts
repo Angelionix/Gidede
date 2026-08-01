@@ -5,6 +5,7 @@
 
 import type { AlgorithmMetadata } from "@/lib/algorithm-metadata";
 import type { STAGE_CONTRACT_VERSION } from "@/lib/contracts/stage-contracts";
+import type { ArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
 
 export interface ProgressionDesignResponse {
   id: string;
@@ -73,6 +74,7 @@ export interface ProgressionDesignResponse {
   };
   summary: Record<string, string>;
   contract_version: typeof STAGE_CONTRACT_VERSION;
+  artifact: ArtifactEnvelope;
   algorithm_metadata: AlgorithmMetadata;
   stages_completed: number[];
   latency_ms: number;

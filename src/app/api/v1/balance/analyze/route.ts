@@ -37,6 +37,7 @@ import { enrichBalance } from "@/lib/ai-service";
 import { detectBalancePathologies } from "@/lib/balance/pathologies";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
+import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
 
 // ============================================================
 // Types
@@ -1234,6 +1235,7 @@ export async function POST(request: NextRequest) {
       monte_carlo_result: monteCarloResult,
       machinations_result: machinationsResult,
       contract_version: STAGE_CONTRACT_VERSION,
+      artifact: createArtifactEnvelope("balance", body),
       algorithm_metadata: getStageAlgorithmMetadata("balance"),
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,

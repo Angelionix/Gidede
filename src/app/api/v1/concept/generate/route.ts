@@ -39,6 +39,7 @@ import { buildValidationReport } from "@/lib/concept/validation";
 import { validateConceptInput } from "@/lib/concept/validation-input";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
+import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
 
 // ============================================================
 // Constants — valid enum values & static lookup tables
@@ -820,6 +821,7 @@ export async function POST(request: NextRequest) {
       validation_report: validationReport,
       status: "completed",
       contract_version: STAGE_CONTRACT_VERSION,
+      artifact: createArtifactEnvelope("concept", body),
       algorithm_metadata: algorithmMetadata,
       generation_metadata: {
         contract_version: STAGE_CONTRACT_VERSION,
@@ -865,6 +867,7 @@ export async function POST(request: NextRequest) {
     // при перезагрузке проекта (GET /concept/[id]) они терялись.
     const generationMetadataJson = JSON.stringify({
       contract_version: STAGE_CONTRACT_VERSION,
+      artifact: result.artifact,
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,
       models_used: useAi && aiEnrichment.enriched

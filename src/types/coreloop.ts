@@ -5,6 +5,7 @@
 
 import type { AlgorithmMetadata } from "@/lib/algorithm-metadata";
 import type { STAGE_CONTRACT_VERSION } from "@/lib/contracts/stage-contracts";
+import type { ArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
 
 export interface CoreLoopFormState {
   conceptId: string;
@@ -26,6 +27,7 @@ export interface CoreLoopDesignResult {
   validation: Record<string, unknown> | null;
   loop_hierarchy: Record<string, unknown> | null;
   contract_version: typeof STAGE_CONTRACT_VERSION;
+  artifact: ArtifactEnvelope;
   algorithm_metadata: AlgorithmMetadata;
   stages_completed: number[];
   latency_ms: number;

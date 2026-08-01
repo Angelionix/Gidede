@@ -1,6 +1,11 @@
 import { describe, expect, it } from "vitest";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import {
+  ARTIFACT_SCHEMA_VERSION,
+  ARTIFACT_STAGE_IDS,
+  createArtifactEnvelope,
+} from "./artifact-envelope";
+import {
   assertStageOutput,
   CONTRACT_STAGE_IDS,
   STAGE_CONTRACTS_V1,
@@ -30,6 +35,7 @@ function output(stage: ContractStageId): Record<string, unknown> {
   const common = {
     contract_version: STAGE_CONTRACT_VERSION,
     algorithm_metadata: getStageAlgorithmMetadata(stage),
+    artifact: createArtifactEnvelope(stage, VALID_INPUTS[stage]),
   };
   const byStage: Record<ContractStageId, Record<string, unknown>> = {
     concept: { id: "p", genre: "rpg", mechanic_set: {}, validation_report: {}, status: "completed" },
@@ -47,6 +53,8 @@ function output(stage: ContractStageId): Record<string, unknown> {
 describe("stage contracts v1", () => {
   it("defines an explicit versioned input and output schema for every stage", () => {
     expect(Object.keys(STAGE_CONTRACTS_V1)).toEqual([...CONTRACT_STAGE_IDS]);
+    expect(ARTIFACT_STAGE_IDS).toEqual(CONTRACT_STAGE_IDS);
+    expect(ARTIFACT_SCHEMA_VERSION).toBe(STAGE_CONTRACT_VERSION);
     for (const stage of CONTRACT_STAGE_IDS) {
       expect(STAGE_CONTRACTS_V1[stage].version).toBe(STAGE_CONTRACT_VERSION);
       expect(validateStageInput(stage, VALID_INPUTS[stage])).toEqual({ success: true });
@@ -63,6 +71,12 @@ describe("stage contracts v1", () => {
         { name: "B", attributes: { power: 2 } },
       ],
     }).success).toBe(false);
+    expect(validateStageInput("mda", {
+      upstream_versions: { concept: 2 },
+    }).success).toBe(false);
+    expect(validateStageInput("mda", {
+      upstream_versions: { concept: "concept-artifact@2" },
+    })).toEqual({ success: true });
   });
 
   it("rejects an invalid or unversioned output before persistence", () => {

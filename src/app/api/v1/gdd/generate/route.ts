@@ -33,6 +33,7 @@ import {
 import { enrichGdd } from "@/lib/ai-service";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
+import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
 
 const VALID_FORMATS = [
   "one_sheet",
@@ -1318,6 +1319,7 @@ export async function POST(request: NextRequest) {
       assembled_document: assembledDocument,
       formatted_document: formattedDocument,
       contract_version: STAGE_CONTRACT_VERSION,
+      artifact: createArtifactEnvelope("gdd", body),
       algorithm_metadata: getStageAlgorithmMetadata("gdd"),
       stages_completed: stagesCompleted,
       coverage_score: Number(coverageScore.toFixed(3)),

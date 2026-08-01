@@ -5,6 +5,7 @@
 
 import type { AlgorithmMetadata } from "@/lib/algorithm-metadata";
 import type { STAGE_CONTRACT_VERSION } from "@/lib/contracts/stage-contracts";
+import type { ArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
 
 export interface BalanceObject {
   id: string;
@@ -170,6 +171,7 @@ export interface FullBalanceResponse {
   monte_carlo_result: MonteCarloResult;
   machinations_result: MachinationsResult;
   contract_version: typeof STAGE_CONTRACT_VERSION;
+  artifact: ArtifactEnvelope;
   algorithm_metadata: AlgorithmMetadata;
   stages_completed: number[];
   latency_ms: number;

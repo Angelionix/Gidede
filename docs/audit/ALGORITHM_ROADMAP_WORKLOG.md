@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R1-02` — `ArtifactEnvelope` и трассировка upstream versions.
-- **Зависимости:** `R1-01` завершена; доступны versioned contracts `1.0.0`.
-- **Ожидаемый результат:** любой сохранённый результат трассируется до версии схемы и upstream-входов.
-- **После неё:** `R1-03` — runner передаёт output предыдущей стадии во вход следующей.
+- **Следующая задача:** `R1-03` — runner передаёт output предыдущей стадии во вход следующей.
+- **Зависимости:** `R1-02` завершена; все результаты имеют `ArtifactEnvelope` и принимают `upstream_versions`.
+- **Ожидаемый результат:** выбранные mechanics, genre и artifact versions реально переходят между стадиями.
+- **После неё:** `R1-04` — убрать фиктивную project idea из UI/partial runner.
 
 ## Правила ведения
 
@@ -35,7 +35,7 @@
 | R0-03 | DONE | Taxonomy из 6 методов и score provenance для 8 стадий | 286 tests, TypeScript, ESLint |
 | R0-04 | DONE | Новый roadmap назначен активным; создан единый worklog и handoff | Проверка ссылок и `git diff --check` |
 | R1-01 | DONE | Versioned Zod input/output contracts для 8 стадий | 289 tests, TypeScript, scoped ESLint |
-| R1-02 | TODO | `ArtifactEnvelope` и upstream tracing | — |
+| R1-02 | DONE | `ArtifactEnvelope`, SHA-256 input hash и upstream tracing | 294 tests, TypeScript, scoped ESLint |
 | R1-03 | TODO | Реальная передача stage output → next input | — |
 | R1-04 | TODO | Реальная project idea вместо фиктивной UI-строки | — |
 | R1-05 | TODO | Aliases `full`/`full_gdd`, `total_levels`/`target_levels` | — |
@@ -47,6 +47,44 @@
 | R2…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R1-02 — DONE
+
+Что сделано:
+
+- введён тип и Zod-контракт `ArtifactEnvelope`;
+- envelope содержит обязательные `artifactId`, `artifactType`, `envelopeVersion`, `schemaVersion`, `upstreamVersions`, `inputHash`, `status`, `createdAt`;
+- `inputHash` вычисляется как SHA-256 канонического JSON с рекурсивной сортировкой object keys;
+- `artifactId` создаётся как UUID, успешный результат получает статус `success`;
+- все восемь input contracts принимают валидируемый `upstream_versions`;
+- все восемь output contracts требуют schema-valid envelope;
+- envelope добавлен в ответы и сохраняемые full profiles Concept, Core Loop, MDA, Balance, Progression, Economy, GDD и Validation;
+- Concept сохраняет envelope в `generationMetadata` и возвращает его после reload;
+- публичные result-типы расширены `ArtifactEnvelope`;
+- прямой вызов стадии без upstream остаётся допустимым и честно сохраняет пустую карту; заполнение реальной цепочки выполняется в `R1-03`.
+
+Изменённые области:
+
+- `src/lib/contracts/artifact-envelope.ts`
+- `src/lib/contracts/artifact-envelope.test.ts`
+- `src/lib/contracts/stage-contracts.ts`
+- восемь stage handlers, `src/lib/checklist-logic.ts` и result-типы
+
+Проверки:
+
+- contract tests — 2 файла, 8 тестов пройдены;
+- `npm run test` — 15 файлов, 294 теста пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint всех затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- одинаковый JSON с разным порядком ключей даёт одинаковый `inputHash`;
+- изменение значимого входа меняет hash;
+- malformed upstream versions, hash и status отклоняются Zod-контрактом;
+- каждый persisted full profile содержит версию схемы, hash входа и upstream map;
+- следующей задачей назначена `R1-03`.
 
 ### 2026-08-01 — R1-01 — DONE
 

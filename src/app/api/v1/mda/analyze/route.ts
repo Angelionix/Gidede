@@ -35,6 +35,7 @@ import {
 import { enrichMda } from "@/lib/ai-service";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
+import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
 
 // ============================================================
 // Constants
@@ -1033,6 +1034,7 @@ export async function POST(request: NextRequest) {
       concept_id: conceptId,
       iterations_done: iterationsDone,
       contract_version: STAGE_CONTRACT_VERSION,
+      artifact: createArtifactEnvelope("mda", body),
       algorithm_metadata: getStageAlgorithmMetadata("mda"),
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,

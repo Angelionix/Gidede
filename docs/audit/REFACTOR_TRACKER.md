@@ -43,10 +43,10 @@
 | 3. MDA | 20 | 6 | 11 | 4 | **20/20** ✅✅ | 55-100 |
 | 4. Баланс | 18 | 9 | 5 | 4 | **18/18** ✅✅ | 130-195 |
 | 5a. Прогрессия | 17 | 0 | 13 | 4 | **17/17** ✅✅ | 35-65 |
-| 5b. Экономика | 18 | 11 | 5 | 2 | 0/18 | 156-190 |
+| 5b. Экономика | 18 | 11 | 5 | 2 | **18/18** ✅✅ | 156-190 |
 | 6. GDD | 20 | 9 | 8 | 3 | 0/20 | 175-275 |
 | 6b. Чек-лист | 17 | 12 | 3 | 2 | 0/17 | 150-210 |
-| **Итого** | **148** | **57** | **67** | **26** | **93/148** | **781-1200** |
+| **Итого** | **148** | **57** | **67** | **26** | **111/148** | **781-1200** |
 
 ---
 
@@ -64,8 +64,8 @@
 | 6 | TASK-4.1 | 4 | Починить `run_pipeline_test.sh` (`elements` → `objects` с правильным shape) | S | ✅ |
 | 7 | TASK-4.2 | 4 | `run-full-pipeline` STAGES[3] derives objects from upstream (genre-based templates) | L | ✅ |
 | 8 | TASK-4.6 | 4 | Deterministic Monte Carlo (mulberry32 PRNG) | M | ✅ |
-| 9 | TASK-5b.1 | 5b | Создать `enrichEconomy` в ai-service.ts | L | ⬜ |
-| 10 | TASK-5b.3 | 5b | Заменить `Math.random` в profitability на формулу Bible 6.9.1 | M | ⬜ |
+| 9 | TASK-5b.1 | 5b | Создать `enrichEconomy` в ai-service.ts | L | ✅ |
+| 10 | TASK-5b.3 | 5b | Заменить `Math.random` в profitability на формулу Bible 6.9.1 | M | ✅ |
 | 11 | TASK-6.5 | 6 | Починить field name mismatch (`format` → `target_format`) | S | ⬜ |
 | 12 | TASK-6.6 | 6 | Заменить STUB `/gdd/checklist` на `lib/checklist-logic.ts` | M | ⬜ |
 | 13 | TASK-6b.1 | 6b | Унифицировать `/gdd/checklist` (заменить STUB) | M | ⬜ |
@@ -220,23 +220,23 @@
 
 | Task ID | Описание | Сложность | Приоритет | Статус | Dependencies |
 |---------|----------|:---------:|:---------:|:------:|--------------|
-| TASK-5b.1 | Создать `enrichEconomy` в ai-service.ts | L | 🔴 | ⬜ | — |
-| TASK-5b.2 | Починить feedback_loops nodes (real IDs, не литералы) | M | 🔴 | ⬜ | — |
-| TASK-5b.3 | Заменить `Math.random` в profitability на формулу Bible 6.9.1 | M | 🔴 | ⬜ | — |
-| TASK-5b.4 | Вывести faucet/drain из actual flows, не из class preset | L | 🔴 | ⬜ | — |
-| TASK-5b.5 | Починить stallCount threshold (relative change) | M | 🔴 | ⬜ | — |
-| TASK-5b.6 | Real Monte Carlo с N runs + mulberry32 PRNG | L | 🔴 | ⬜ | — |
-| TASK-5b.7 | Деривить economy params из upstream concept в pipeline runners | L | 🔴 | ⬜ | TASK-3.6 |
-| TASK-5b.8 | 6 патологий Bible 6.10 (добавить Арбитраж + Deadlock) | L | 🔴 | ⬜ | — |
-| TASK-5b.9 | 12-point validation checklist (Bible 6.13.4) | XL | 🔴 | ⬜ | — |
-| TASK-5b.10 | Расширить `GENRE_RESOURCE_PRESETS` до 15 жанров | L | 🔴 | ⬜ | — |
-| TASK-5b.11 | 16+ Machinations patterns (Bible 6.4.1) | L | 🟡 | ⬜ | — |
-| TASK-5b.12 | 8-мерный профиль петли ОС (Bible 6.8.2) | M | 🟡 | ⬜ | — |
-| TASK-5b.13 | 6 Schreiber economic system types (Bible 6.4.3) | M | 🟡 | ⬜ | — |
-| TASK-5b.14 | Genre-specific dominant loops (Bible 6.8.3) | M | 🟡 | ⬜ | — |
-| TASK-5b.15 | Перенести AI enrichment ДО persist + DB schema migration | S | 🔴 | ⬜ | TASK-5b.1 |
-| TASK-5b.16 | Унифицировать POST/GET response shape + dynamic `stages_completed` | M | 🟡 | ⬜ | — |
-| TASK-5b.17 | Починить `subsidiary_count`, `resource_type`, genre normalization | S | 🟢 | ⬜ | — |
+| TASK-5b.1 | Создать `enrichEconomy` в ai-service.ts | L | 🔴 | ✅ | — |
+| TASK-5b.2 | Починить feedback_loops nodes (real IDs, не литералы) | M | 🔴 | ✅ | — |
+| TASK-5b.3 | Заменить `Math.random` в profitability на формулу Bible 6.9.1 | M | 🔴 | ✅ | — |
+| TASK-5b.4 | Вывести faucet/drain из actual flows, не из class preset | L | 🔴 | ✅ | — |
+| TASK-5b.5 | Починить stallCount threshold (relative change) | M | 🔴 | ✅ | — |
+| TASK-5b.6 | Real Monte Carlo с N runs + mulberry32 PRNG | L | 🔴 | ✅ | — |
+| TASK-5b.7 | Деривить economy params из upstream concept в pipeline runners | L | 🔴 | ✅ | TASK-3.6 |
+| TASK-5b.8 | 6 патологий Bible 6.10 (добавить Арбитраж + Deadlock) | L | 🔴 | ✅ | — |
+| TASK-5b.9 | 12-point validation checklist (Bible 6.13.4) | XL | 🔴 | ✅ | — |
+| TASK-5b.10 | Расширить `GENRE_RESOURCE_PRESETS` до 15 жанров | L | 🔴 | ✅ | — |
+| TASK-5b.11 | 16+ Machinations patterns (Bible 6.4.1) | L | 🟡 | ✅ | — |
+| TASK-5b.12 | 8-мерный профиль петли ОС (Bible 6.8.2) | M | 🟡 | ✅ | — |
+| TASK-5b.13 | 6 Schreiber economic system types (Bible 6.4.3) | M | 🟡 | ✅ | — |
+| TASK-5b.14 | Genre-specific dominant loops (Bible 6.8.3) | M | 🟡 | ✅ | — |
+| TASK-5b.15 | Перенести AI enrichment ДО persist + DB schema migration | S | 🔴 | ✅ | TASK-5b.1 |
+| TASK-5b.16 | Унифицировать POST/GET response shape + dynamic `stages_completed` | M | 🟡 | ✅ | — |
+| TASK-5b.17 | Починить `subsidiary_count`, `resource_type`, genre normalization | S | 🟢 | ✅ | — |
 | TASK-5b.18 | Unit + integration тесты (coverage ≥ 80%) | L | 🟢 | ⬜ | Все остальные |
 
 ---
@@ -283,7 +283,7 @@
 | TASK-6b.5 | 7-point Rolling/Morris (Bible 11.5.3) | L | 🔴 | ⬜ | — |
 | TASK-6b.6 | 7 методов Бонд + Level 7 LD validator (Bible 11.5.5) | M | 🔴 | ⬜ | — |
 | TASK-6b.7 | 5 убийц Фуллертон + 4+3 цели Бонд + Level 8 Experience (Bible 11.5.6, 11.5.7) | M | 🔴 | ⬜ | — |
-| TASK-6b.8 | 12-point economy checklist (Bible 6.13.4) | L | 🔴 | ⬜ | TASK-5b.9 |
+| TASK-6b.8 | 12-point economy checklist (Bible 6.13.4) | L | 🔴 | ✅ | TASK-5b.9 |
 | TASK-6b.9 | 11 narrative document types (Bible 11.4.1) | L | 🔴 | ⬜ | — |
 | TASK-6b.10 | Universal Design Validator 10 уровней (Bible 11.6.1) | XL | 🔴 | ⬜ | TASK-6b.1 |
 | TASK-6b.11 | Adaptive prioritization по жанру (Bible 11.6.2) | M | 🔴 | ⬜ | — |

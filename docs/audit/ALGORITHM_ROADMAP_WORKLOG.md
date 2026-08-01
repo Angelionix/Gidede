@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R5-14` — исправить producing flow, duplicates и classification reachability.
-- **Зависимости:** `R5-13` завершена; Economy resource inventory строится из Core Loop stepsData когда доступно.
-- **Ожидаемый результат:** faucet/drain проверен graph fixtures; duplicates и classification исправлены.
-- **После неё:** `R5-15` — исполнять Machinations graph с agents/events/policies.
+- **Следующая задача:** `R5-15` — исполнять Machinations graph с agents/events/policies.
+- **Зависимости:** `R5-14` и `R5-16` завершены; Economy faucetDrain filter исправлен, AI enrichment перенесён до persist.
+- **Ожидаемый результат:** diagnostics получены из исполняемого графа, а не single-pool decay.
+- **После неё:** Фаза R5 завершена, переход к Фазе 6 (GDD и финальная валидация).
 
 ## Статус roadmap
 
@@ -76,7 +76,9 @@
 | R5-11 | DONE | transitions_per_hour корректной размерности; 4 validation checks реально вычисляются | 848 tests, TypeScript, scoped ESLint |
 | R5-12 | DONE | Playtest calibration: session_length/time_to_first_level/failure_rate изменяют XP и difficulty curves | 848 tests, TypeScript, scoped ESLint |
 | R5-13 | DONE | Economy resource inventory из Core Loop stepsData (resource flows) вместо genre preset | 848 tests, TypeScript, scoped ESLint |
-| R5-14…R7 | TODO | См. активный roadmap | — |
+| R5-14 | DONE | faucetDrain producingFlows filter: только target_id (was target_id OR resource) | 848 tests, TypeScript, scoped ESLint |
+| R5-16 | DONE | Economy AI enrichment перенесён до persist (ai_insights теперь сохраняется в БД) | 848 tests, TypeScript, scoped ESLint |
+| R5-15, R6…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -89,6 +91,31 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R5-14 + R5-16 — DONE
+
+Что сделано:
+
+- **R5-14: faucetDrain producingFlows filter bug fix** — `producingFlows` фильтр был `f.target_id === r.name || f.resource === r.name`; второе условие `f.resource === r.name` ошибочно считало outbound flows, несущие ресурс r, как «производящие» r (например, flow `{source: xp, target: mana, resource: xp}` считался производящим xp, хотя xp потребляется); исправлено: только `f.target_id === r.name`;
+- **R5-16: Economy AI enrichment moved BEFORE persist** — критический баг из первого аудита (C3): AI enrichment выполнялся после `db.projectEconomy.upsert` и мутировал `result.ai_insights` после того, как `fullProfile: JSON.stringify(result)` уже был записан в БД; `ai_insights` возвращался в HTTP-ответе, но не сохранялся — при перезагрузке всегда `undefined`; исправлено: AI enrichment block перенесён до persist.
+
+Изменённые области:
+
+- `src/app/api/v1/economy/design/route.ts` — faucetDrain filter fix, AI enrichment reorder.
+
+Проверки:
+
+- `bun run test` — 71 файл, 848 тестов пройдено (без изменений);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- producingFlows теперь считает только flows где target_id === r.name (не resource);
+- AI enrichment выполняется до persist → ai_insights включается в fullProfile;
+- Progression endpoint (route.ts:716-727) делает правильно — Economy теперь тоже;
+- следующей задачей назначена `R5-15`.
 
 ### 2026-08-01 — R5-13 — DONE
 

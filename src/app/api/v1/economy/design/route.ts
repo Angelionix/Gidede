@@ -848,9 +848,12 @@ export async function POST(request: NextRequest) {
     // After: count actual flows producing (faucet) and consuming (drain) each resource.
     const faucetDrain: Record<string, { faucet: number; drain: number; ratio: number }> = {};
     for (const r of resources) {
-      // Count flows that produce this resource (source_id → r.name means r receives).
+      // R5-14: fixed producingFlows filter. Was `f.target_id === r.name || f.resource === r.name`
+      // — the second clause incorrectly matched outbound flows carrying r.name as
+      // "producing" r (e.g. flow {source: xp, target: mana, resource: xp} was counted as
+      // producing xp, when xp is actually being consumed). Now only checks target_id.
       const producingFlows = machinations.resource_flows.filter(
-        (f) => f.target_id === r.name || f.resource === r.name
+        (f) => f.target_id === r.name
       );
       // Count flows that consume this resource (r.name → target means r gives away).
       const consumingFlows = machinations.resource_flows.filter(
@@ -987,7 +990,30 @@ export async function POST(request: NextRequest) {
 
     assertStageOutput("economy", result);
 
-    // --- Persist ---
+    // R5-16: AI enrichment moved BEFORE persist (was after). Before, ai_insights
+    // was mutated on `result` after `fullProfile: JSON.stringify(result)` was
+    // already written to DB, so ai_insights was lost on reload. Now it's
+    // included in the persisted fullProfile.
+    if (useAi) {
+      const aiInsights = await enrichEconomy({
+        projectName: proj.name || "Untitled",
+        genre: resolvedGenre,
+        systemType: classification.type,
+        resourceCount: resources.length,
+        monetizationType: resolvedMonetization,
+        openness: resolvedOpenness,
+        pathologies: pathologies.map((p) => p.name),
+        stabilityIndex: simResult.aggregated.stability_index,
+        avgProfitability: conversionGraph.avg_profitability,
+        dominantLoop: classification.dominant_loop,
+      });
+      if (aiInsights) {
+        result.ai_insights = aiInsights;
+        (result.models_used as string[]).push("glm-4.6 (ai-enrichment)");
+      }
+    }
+
+    // --- Persist --- (now includes ai_insights in fullProfile)
     await db.projectEconomy.upsert({
       where: { projectId: proj.id },
       create: {
@@ -1050,26 +1076,6 @@ export async function POST(request: NextRequest) {
     });
 
     await updateProjectStage(proj.id, "economy");
-
-    // TASK-5b.1 + 5b.15: Use enrichEconomy (not enrichProgression) and move BEFORE persist.
-    if (useAi) {
-      const aiInsights = await enrichEconomy({
-        projectName: proj.name || "Untitled",
-        genre: resolvedGenre,
-        systemType: classification.type,
-        resourceCount: resources.length,
-        monetizationType: resolvedMonetization,
-        openness: resolvedOpenness,
-        pathologies: pathologies.map((p) => p.name),
-        stabilityIndex: simResult.aggregated.stability_index,
-        avgProfitability: conversionGraph.avg_profitability,
-        dominantLoop: classification.dominant_loop,
-      });
-      if (aiInsights) {
-        result.ai_insights = aiInsights;
-        (result.models_used as string[]).push("glm-4.6 (ai-enrichment)");
-      }
-    }
 
     return NextResponse.json(result);
   } catch (error) {

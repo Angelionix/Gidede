@@ -291,9 +291,12 @@ function buildMechanicSet(
     };
   });
 
-  // Adams/Dormans patterns
+  // TASK-3.7 FIXED: Adams/Dormans patterns now check actual mechanics, not hardcoded.
+  // Before: Engine pattern was always `present: true` → compatibility_score always 82+.
+  // After: Engine pattern present when ≥5 mechanics exist; others check group sizes.
+  const allMechNames = [...base, ...combat, ...progression, ...spatial, ...social].map((m) => m.mechanic_name);
   const patterns = [
-    { name: "Engine pattern", pattern_type: "adams", present: true },
+    { name: "Engine pattern", pattern_type: "adams", present: allMechNames.length >= 5 },
     { name: "Converter chain", pattern_type: "dormans", present: combat.length > 0 && progression.length > 0 },
     {
       name: "Dynamic coupling (Björk)",
@@ -305,21 +308,16 @@ function buildMechanicSet(
     { name: "Feedback loop (balancing)", pattern_type: "dormans", present: combat.length > 0 },
   ];
 
-  const compatibilityScore = Math.min(
-    100,
-    Math.round(
-      50 +
-        patterns.filter((p) => p.present).length * 8 +
-        aestheticCoverage.filter((a) => a.sufficient).length * 2
-    )
+  // TASK-3.7 FIXED: compatibility_score based on actual patterns + coverage, not high baseline.
+  // Before: 50 + patterns*8 + coverage*2 (minimum 58, usually 82+) — always high.
+  // After: (patterns_present / total_patterns) * 60 + (coverage_sufficient / total_aesthetics) * 40.
+  const presentCount = patterns.filter((p) => p.present).length;
+  const sufficientCount = aestheticCoverage.filter((a) => a.sufficient).length;
+  const compatibilityScore = Math.round(
+    (presentCount / patterns.length) * 60 + (sufficientCount / aestheticCoverage.length) * 40
   );
-  const synergyScore = Math.min(
-    100,
-    Math.round(
-      40 +
-        patterns.filter((p) => p.present).length * 10 +
-        aestheticCoverage.filter((a) => a.sufficient).length * 3
-    )
+  const synergyScore = Math.round(
+    (presentCount / patterns.length) * 50 + (sufficientCount / aestheticCoverage.length) * 50
   );
 
   return {
@@ -631,29 +629,37 @@ function buildBondValidation(
     description: `${element} согласованно на всех трёх уровнях`,
   }));
 
+  // TASK-3.8 FIXED: compute ludonarrative result instead of hardcoding "Гармония".
+  // Before: always "Гармония" regardless of mechanic set.
+  // After: Гармония (compat≥75) / Ирония (compat≥50) / Диссонанс (compat<50).
+  const compatRatio = mechanicSet.compatibility_score / 100;
+  let ludonarrativeResult: string;
+  let ludonarrativeDescription: string;
+  let ludonarrativeCorrection: string;
+  if (compatRatio >= 0.75) {
+    ludonarrativeResult = "Гармония";
+    ludonarrativeDescription = `Механики и нарратив согласованно выражают эстетику "${aesthetics.primary}".`;
+    ludonarrativeCorrection = "Усилить нарративные отсылки в боевых эпизодах для закрепления эстетики";
+  } else if (compatRatio >= 0.5) {
+    ludonarrativeResult = "Ирония";
+    ludonarrativeDescription = `Механики и нарратив имеют некоторое напряжение — игровой тон не полностью соответствует заявленной эстетике "${aesthetics.primary}".`;
+    ludonarrativeCorrection = "Выровнять тон механик с нарративом: добавить механики, поддерживающие целевую эстетику";
+  } else {
+    ludonarrativeResult = "Диссонанс";
+    ludonarrativeDescription = `Механики и нарратив конфликтуют — игровой опыт противоречит заявленной эстетике "${aesthetics.primary}".`;
+    ludonarrativeCorrection = "Кардинально пересмотреть набор механик для соответствия целевой эстетике";
+  }
+
   // Ludonarrative analysis
   const ludonarrative = {
-    result: "Гармония",
-    description: `Механики и нарратив согласованно выражают эстетику "${aesthetics.primary}".`,
+    result: ludonarrativeResult,
+    description: ludonarrativeDescription,
     mechanic_narrative_pairs: [
-      {
-        mechanic: "combat",
-        narrative: "main_conflict",
-        consistency: 0.85,
-      },
-      {
-        mechanic: "progression",
-        narrative: "character_growth",
-        consistency: 0.78,
-      },
-      {
-        mechanic: "exploration",
-        narrative: "world_discovery",
-        consistency: 0.72,
-      },
+      { mechanic: "combat", narrative: "main_conflict", consistency: Number(Math.min(1, compatRatio + 0.1).toFixed(2)) },
+      { mechanic: "progression", narrative: "character_growth", consistency: Number(Math.min(1, compatRatio + 0.05).toFixed(2)) },
+      { mechanic: "exploration", narrative: "world_discovery", consistency: Number(compatRatio.toFixed(2)) },
     ],
-    correction:
-      "Усилить нарративные отсылки в боевых эпизодах для закрепления эстетики",
+    correction: ludonarrativeCorrection,
   };
 
   const overallConsistency = Number(
@@ -855,6 +861,21 @@ export async function POST(request: NextRequest) {
         : ["deterministic-mda-v1", "leblanc-aesthetics"],
     };
 
+    // TASK-3.12 FIXED: AI enrichment moved BEFORE persist so ai_insights is saved in DB.
+    // Before: enrichment was after db.upsert → ai_insights only in HTTP response, lost on reload.
+    // After: enrichment before fullProfile serialization → ai_insights included in fullProfile.
+    if (useAi) {
+      const aiInsights = await enrichMda({
+        projectName: proj.name || "Untitled",
+        genre,
+        aesthetics: [primaryAesthetic, secondaryAesthetic, tertiaryAesthetic],
+      });
+      if (aiInsights) {
+        result.ai_insights = aiInsights;
+        (result.models_used as string[]).push("glm-4.6 (ai-enrichment)");
+      }
+    }
+
     // --- Persist ---
     const inputData = JSON.stringify({
       concept_id: conceptId,
@@ -917,19 +938,6 @@ export async function POST(request: NextRequest) {
     await updateProjectStage(proj.id, "mda");
 
     // TASK-3.18: removed dead code (void safeJsonParse).
-
-    // --- Optional AI enrichment ---
-    if (useAi) {
-      const aiInsights = await enrichMda({
-        projectName: proj.name || "Untitled",
-        genre,
-        aesthetics: [primaryAesthetic, secondaryAesthetic, tertiaryAesthetic],
-      });
-      if (aiInsights) {
-        result.ai_insights = aiInsights;
-        (result.models_used as string[]).push("glm-4.6 (ai-enrichment)");
-      }
-    }
 
     return NextResponse.json(result);
   } catch (error) {

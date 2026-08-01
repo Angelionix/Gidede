@@ -533,10 +533,32 @@ function proposeAdjustments(
   return adjustments;
 }
 
+// TASK-5b.6: Deterministic PRNG (mulberry32) for reproducible economy simulation.
+function mulberry32(seed: number): () => number {
+  let a = seed;
+  return function () {
+    a |= 0;
+    a = (a + 0x6D2B79F5) | 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function hashString(s: string): number {
+  let h = 0;
+  for (let i = 0; i < s.length; i++) {
+    h = (Math.imul(31, h) + s.charCodeAt(i)) | 0;
+  }
+  return h >>> 0;
+}
+
 function simulate(
   resources: ResourceDef[],
   faucetDrain: Record<string, { faucet: number; drain: number; ratio: number }>,
-  ticks: number
+  ticks: number,
+  seed: number
 ): {
   config: Record<string, unknown>;
   aggregated: {
@@ -559,6 +581,8 @@ function simulate(
   };
   snapshots_count: number;
 } {
+  // TASK-5b.6: deterministic PRNG instead of Math.random().
+  const rng = mulberry32(seed);
   const curves: Record<string, number[]> = {};
   const ranges: Record<string, { min: number; max: number }> = {};
   let runawayCount = 0;
@@ -571,8 +595,8 @@ function simulate(
     let rMin = value;
     for (let t = 0; t < ticks; t++) {
       const d = faucetDrain[r.name] || { faucet: 0.3, drain: 0.3, ratio: 1 };
-      // Add some noise
-      const noise = (Math.random() - 0.5) * 0.2;
+      // TASK-5b.6: deterministic noise via mulberry32 (was Math.random).
+      const noise = (rng() - 0.5) * 0.2;
       value = value + d.faucet - d.drain + noise;
       value = Math.max(r.bounds.min, Math.min(r.bounds.max, value));
       series.push(Number(value.toFixed(2)));
@@ -581,8 +605,14 @@ function simulate(
     }
     curves[r.name] = series;
     ranges[r.name] = { min: Number(rMin.toFixed(2)), max: Number(rMax.toFixed(2)) };
+    // TASK-5b.5 FIXED: stallCount threshold — relative change, not absolute range.
+    // Before: rMax <= bounds.min + (bounds.max - bounds.min) * 0.05
+    //   For gold/hp with bounds.max=10000, threshold = 500. Values 50→55 → always stalled.
+    // After: stall = resource value changes < 5% of initial_value over the simulation.
+    const valueChange = Math.abs(rMax - rMin);
+    const relativeChange = r.initial_value > 0 ? valueChange / r.initial_value : 0;
     if (rMax >= r.bounds.max * 0.95) runawayCount++;
-    if (rMax <= r.bounds.min + (r.bounds.max - r.bounds.min) * 0.05) stallCount++;
+    if (relativeChange < 0.05) stallCount++;
   }
 
   const runawayFreq = runawayCount / Math.max(1, resources.length);
@@ -718,11 +748,27 @@ export async function POST(request: NextRequest) {
     // --- Conversion graph ---
     const conversionGraph = findConversionChains(resources);
 
-    // --- Faucet/drain ratios (derived) ---
+    // TASK-5b.4 FIXED: faucet/drain derived from actual resource flows in machinations graph.
+    // Before: hardcoded by class (catalytic=1.0, currency=0.8, etc.) — circulus vitiosus.
+    // After: count actual flows producing (faucet) and consuming (drain) each resource.
     const faucetDrain: Record<string, { faucet: number; drain: number; ratio: number }> = {};
     for (const r of resources) {
-      const faucet = r.is_catalytic ? 1.0 : r.resource_class === "currency" ? 0.8 : 0.4;
-      const drain = r.is_consumable ? 0.6 : r.resource_class === "currency" ? 0.7 : 0.3;
+      // Count flows that produce this resource (source_id → r.name means r receives).
+      const producingFlows = machinations.resource_flows.filter(
+        (f) => f.target_id === r.name || f.resource === r.name
+      );
+      // Count flows that consume this resource (r.name → target means r gives away).
+      const consumingFlows = machinations.resource_flows.filter(
+        (f) => f.source_id === r.name
+      );
+      // Faucet = sum of producing flow rates (or fallback to class-based if no flows).
+      const faucet = producingFlows.length > 0
+        ? Number(producingFlows.reduce((s, f) => s + f.rate, 0).toFixed(3))
+        : r.is_catalytic ? 0.8 : r.resource_class === "currency" ? 0.6 : 0.4;
+      // Drain = sum of consuming flow rates (or fallback).
+      const drain = consumingFlows.length > 0
+        ? Number(consumingFlows.reduce((s, f) => s + f.rate, 0).toFixed(3))
+        : r.is_consumable ? 0.5 : r.resource_class === "currency" ? 0.5 : 0.3;
       const ratio = drain > 0 ? Number((faucet / drain).toFixed(3)) : 0;
       faucetDrain[r.name] = { faucet, drain, ratio };
     }
@@ -753,7 +799,9 @@ export async function POST(request: NextRequest) {
     };
 
     // --- Simulation ---
-    const simResult = simulate(resources, faucetDrain, 50);
+    // TASK-5b.6: deterministic seed from projectId for reproducible results.
+    const simSeed = hashString(proj.id || "economy-default-seed");
+    const simResult = simulate(resources, faucetDrain, 50, simSeed);
 
     const stagesCompleted = [1, 2, 3, 4, 5];
     const latencyMs = Date.now() - startedAt;

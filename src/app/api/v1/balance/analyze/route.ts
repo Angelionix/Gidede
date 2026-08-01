@@ -42,6 +42,7 @@ import {
   findInvalidAttributes,
 } from "@/lib/balance/attribute-units";
 import { validateBalanceObjects, type BalanceObjectInput } from "@/lib/balance/input-validation";
+import { solveNash } from "@/lib/balance/nash-solver";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
@@ -361,12 +362,16 @@ function buildIntransitiveResult(objects: BalanceObject[], runIntransitive: bool
     }
   }
 
-  // TASK-4.5: Nash equilibrium — uniform for non-dominated strategies.
-  // Real Nash for symmetric zero-sum games is uniform over non-dominated strategies.
-  const nonDominatedCount = n - dominatedStrategies.length;
-  const nash: number[] = names.map((name) =>
-    dominatedStrategies.includes(name) ? 0 : 1 / Math.max(1, nonDominatedCount)
-  );
+  // R5-04: real Nash equilibrium for 2×2 games (closed-form), honest
+  // uniform-over-non-dominated fallback for larger matrices.
+  // Before: always uniform over non-dominated — not a real Nash for asymmetric games.
+  // After: 2×2 uses closed-form formula; larger matrices use uniform with
+  // explicit source="heuristic" label.
+  const dominatedIndices = names
+    .map((name, i) => (dominatedStrategies.includes(name) ? i : -1))
+    .filter((i) => i >= 0);
+  const nashResult = solveNash(payoffMatrix, dominatedIndices);
+  const nash = nashResult.strategy;
 
   // Strategy balance metrics
   const shares = nash.filter((p) => p > 0);
@@ -433,6 +438,11 @@ function buildIntransitiveResult(objects: BalanceObject[], runIntransitive: bool
     },
     rps_cycles: rpsCycles,
     has_dominant_strategy: hasDominant,
+    // R5-04: Nash equilibrium provenance — "solver" for 2×2 closed-form,
+    // "heuristic" for larger matrices (uniform over non-dominated).
+    nash_method: nashResult.method,
+    nash_source: nashResult.source,
+    nash_reason: nashResult.reason,
     warnings,
     suggestions,
   };

@@ -45,16 +45,19 @@ describe("algorithm score metadata", () => {
     }
   });
 
-  it("does not mislabel current heuristic stages as solver or playtest evidence", () => {
+  it("does not mislabel stages as playtest evidence or llm_generated", () => {
     const currentMethods = STAGES.flatMap((stage) =>
       Object.values(getStageAlgorithmMetadata(stage).scores).map((item) => item.method),
     );
 
-    expect(currentMethods).not.toContain("solver");
+    // R5-04 introduces a real solver for 2×2 Nash equilibrium, so "solver"
+    // is now a legitimate method. playtest_evidence and llm_generated remain
+    // absent until those capabilities are genuinely implemented.
     expect(currentMethods).not.toContain("playtest_evidence");
     expect(currentMethods).not.toContain("llm_generated");
     expect(currentMethods).toContain("template");
     expect(currentMethods).toContain("heuristic");
     expect(currentMethods).toContain("simulation");
+    expect(currentMethods).toContain("solver");
   });
 });

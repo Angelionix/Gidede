@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R5-04` — корректный solver для поддерживаемого класса игр или честное переименование поля.
-- **Зависимости:** `R5-03` завершена; Balance input validation отклоняет NaN/string/duplicate ID с 422.
-- **Ожидаемый результат:** поле `nash_equilibrium` проходит mathematical fixtures, либо переименовано в `uniform_over_non_dominated` с честным source.
-- **После неё:** `R5-05` — перебирать все RPS cycles.
+- **Следующая задача:** `R5-05` — перебирать все RPS cycles.
+- **Зависимости:** `R5-04` завершена; Nash equilibrium для 2×2 games вычисляется через closed-form formula, larger matrices честно помечены heuristic.
+- **Ожидаемый результат:** несоседний RPS цикл (например 0→2→4→0) обнаруживается.
+- **После неё:** `R5-06` — seed = hash(project + input + sim version).
 
 ## Статус roadmap
 
@@ -66,7 +66,8 @@
 | R5-01 | DONE | Typed attribute units + per-unit normalization для Balance transitive power | 713 tests, TypeScript, scoped ESLint |
 | R5-02 | DONE | Balance objects из MDA mechanic_set (domain model с typed weapon/armor/upgrade/unit/support) | 734 tests, TypeScript, scoped ESLint |
 | R5-03 | DONE | Strict input validation: NaN/string/duplicate ID/duplicate name → 422 | 762 tests, TypeScript, scoped ESLint |
-| R5-04…R7 | TODO | См. активный roadmap | — |
+| R5-04 | DONE | Real Nash solver для 2×2 (closed-form), honest heuristic fallback для larger matrices | 781 tests, TypeScript, scoped ESLint |
+| R5-05…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -79,6 +80,43 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R5-04 — DONE
+
+Что сделано:
+
+- создан модуль `src/lib/balance/nash-solver.ts` с real Nash equilibrium solver;
+- `solveNash2x2(payoffMatrix)` — closed-form mixed-strategy Nash для 2×2 zero-sum games: `p* = (d - c) / (a - b - c + d)` где row payoff matrix = `[[a, b], [c, d]]`; degenerate games (denominator ≈ 0) → uniform [0.5, 0.5];
+- `uniformOverNonDominated(payoffMatrix, dominatedStrategies)` — honest fallback для matrices > 2×2; возвращает uniform distribution над non-dominated strategies с `source: "heuristic"`;
+- `solveNash(payoffMatrix, dominatedStrategies)` — dispatcher: 2×2 → closed-form (source="solver"), larger → uniform fallback (source="heuristic");
+- каждый result содержит `method` ("closed_form_2x2" | "uniform_non_dominated"), `source` ("solver" | "heuristic"), `reason` (human-readable explanation);
+- `buildIntransitiveResult` в route.ts заменяет фейковый uniform-over-non-dominated на `solveNash`; return value получает новые поля `nash_method`, `nash_source`, `nash_reason` для provenance;
+- `algorithm-metadata` обновлён: `intransitive_result.nash_equilibrium` имеет provenance `solver` с assumptions о closed-form formula и heuristic fallback;
+- algorithm-metadata test обновлён: теперь разрешает "solver" method (раньше запрещал), так как R5-04 вводит реальный solver.
+
+Изменённые области:
+
+- `src/lib/balance/nash-solver.ts` (новый, 160 строк) и `nash-solver.test.ts` (новый, 19 тестов);
+- `src/app/api/v1/balance/analyze/route.ts` — `buildIntransitiveResult` использует `solveNash`;
+- `src/lib/algorithm-metadata.ts` — provenance для nash_equilibrium;
+- `src/lib/algorithm-metadata.test.ts` — обновлён для разрешения "solver".
+
+Проверки:
+
+- `bun run test` — 67 файлов, 781 тест пройдено (было 762; +19 nash-solver);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- 2×2 matching pennies [[1,-1],[-1,1]] → p*=0.5 (textbook Nash);
+- 2×2 asymmetric [[10,0],[0,1]] → p*≈0.0909 (textbook formula);
+- 2×2 degenerate [[1,1],[1,1]] → uniform [0.5, 0.5] с "degenerate" reason;
+- 3×3 RPS → uniform [1/3, 1/3, 1/3] с source="heuristic";
+- probabilities sum to 1 и clamped to [0, 1];
+- nash_method/nash_source/nash_reason persistируются для audit;
+- следующей задачей назначена `R5-05`.
 
 ### 2026-08-01 — R5-03 — DONE
 

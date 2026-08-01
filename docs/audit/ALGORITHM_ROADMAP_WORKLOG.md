@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R1-07` — реализовать stage quality gates и stop/resume.
-- **Зависимости:** `R1-06` завершена; run/stage используют согласованные статусы `success`, `partial`, `failed`, `blocked`, `needs_review`.
-- **Ожидаемый результат:** critical gate останавливает зависимые стадии, причина остановки сохраняется, после исправления запуск можно продолжить с безопасной точки.
-- **После неё:** `R1-08` — реализовать stale propagation по dependency graph.
+- **Следующая задача:** `R1-08` — реализовать stale propagation по dependency graph.
+- **Зависимости:** `R1-07` завершена; critical gate останавливает downstream, а resume перепроверяет сохранённые prerequisites.
+- **Ожидаемый результат:** изменение upstream artifact помечает все зависимые артефакты stale по явному графу зависимостей.
+- **После неё:** `R1-09` — считать completion только по accepted/non-stale artifacts.
 
 ## Правила ведения
 
@@ -40,13 +40,53 @@
 | R1-04 | DONE | Реальная project idea и persisted stage outputs без hardcoded inputs | 302 tests, TypeScript, scoped ESLint |
 | R1-05 | DONE | Aliases приводятся к `full_gdd`, `target_format` и `target_levels` на contract boundary | 305 tests, TypeScript, scoped ESLint |
 | R1-06 | DONE | Единые run/stage statuses; `ok` истинно только для полного success | 309 tests, TypeScript, scoped ESLint |
-| R1-07 | TODO | Quality gates и stop/resume | — |
+| R1-07 | DONE | Evidence-based gates, downstream blocking и безопасный `resume_from` | 316 tests, TypeScript, scoped ESLint |
 | R1-08 | TODO | Stale propagation | — |
 | R1-09 | TODO | Completion по accepted/non-stale artifacts | — |
 | R1-10 | TODO | Version increment только для согласованного run | — |
 | R2…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R1-07 — DONE
+
+Что сделано:
+
+- введён единый `evaluateStageQuality` для восьми стадий без новых произвольных score thresholds;
+- hard gates используют только фактические critical signals: `critical_count`, `critical_issues`, severity `critical/error` и GDD `error_count`;
+- мягкие сигналы validation/convergence/readiness переводят стадию в `needs_review`, но не блокируют downstream;
+- full и partial runners прекращают выполнение на critical gate или stage failure и маркируют зависимые стадии `blocked`;
+- ответы содержат `quality_gate`, `stopped_by` и resume metadata;
+- full runner принимает `resume_from`, загружает все предыдущие persisted outputs и разрешает продолжение только при совпадающем versioned artifact со статусом `success` и очищенном hard gate;
+- сохранённые pipeline outputs вынесены в общий parser; malformed legacy JSON не превращается в фиктивный output;
+- UI запоминает предложенную точку продолжения и показывает кнопку «Продолжить с …» после исправления блокирующей стадии.
+
+Изменённые области:
+
+- `src/lib/pipeline-quality-gates.ts`
+- `src/lib/pipeline-quality-gates.test.ts`
+- `src/lib/pipeline-persisted-outputs.ts`
+- `src/lib/pipeline-persisted-outputs.test.ts`
+- `src/lib/pipeline-context.ts`
+- `src/lib/pipeline-context.test.ts`
+- full/partial pipeline runners и pipeline UI
+
+Проверки:
+
+- gate/persistence/context/status tests — 4 файла, 20 тестов пройдены;
+- `npm run test` — 19 файлов, 316 тестов пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- тест подтверждает остановку Core Loop при explicit critical pathology;
+- Balance, Progression, Economy и GDD fixtures с critical signals закрывают hard gate;
+- soft MDA non-convergence даёт review без остановки;
+- resume отвергает legacy output без envelope и сохранённый output с неисправленным critical gate;
+- resume принимает только успешный versioned artifact после очистки hard gate;
+- следующей задачей назначена `R1-08`.
 
 ### 2026-08-01 — R1-06 — DONE
 

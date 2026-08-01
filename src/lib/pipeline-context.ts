@@ -105,15 +105,17 @@ export function seedStageOutput(
   context: PipelineContext,
   stage: ContractStageId,
   output: unknown,
-): void {
+): ArtifactEnvelope | null {
   const record = asRecord(output);
-  if (!record) return;
+  if (!record) return null;
   context.outputs[stage] = record;
 
   const artifact = artifactEnvelopeSchema.safeParse(record.artifact);
   if (artifact.success && artifact.data.artifactType === stage) {
     context.upstreamVersions[stage] = artifactRef(artifact.data);
+    return artifact.data;
   }
+  return null;
 }
 
 export function extractConceptMechanics(conceptOutput: unknown): string[] {

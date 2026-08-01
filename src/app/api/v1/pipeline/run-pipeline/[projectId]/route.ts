@@ -13,7 +13,6 @@ import {
   SERVER_ERROR,
   NOT_FOUND,
   VALIDATION_ERROR,
-  safeJsonParse,
 } from "@/lib/api-helpers";
 import { loadProjectPipelineSnapshot, BLOCK_NAMES } from "@/lib/pipeline-helpers";
 import {
@@ -31,6 +30,11 @@ import {
   isSuccessfulRun,
   stageFailureStatus,
 } from "@/lib/pipeline-run-status";
+import {
+  evaluateStageQuality,
+  type QualityGateResult,
+} from "@/lib/pipeline-quality-gates";
+import { buildPersistedPipelineOutputs } from "@/lib/pipeline-persisted-outputs";
 import { db } from "@/lib/db";
 
 interface StageDef {
@@ -115,46 +119,7 @@ export async function POST(
     const lastSelectedIndex = STAGES.findLastIndex((stage) => blockIds.includes(stage.block_id));
     const context = createPipelineContext();
 
-    const conceptMetadata = safeJsonParse<Record<string, unknown>>(
-      project.concept?.generationMetadata || "{}",
-      {},
-    );
-    const persistedOutputs: Partial<Record<ContractStageId, Record<string, unknown>>> = {
-      concept: project.concept
-        ? {
-            id: project.id,
-            genre: project.concept.genre,
-            primary_genre: safeJsonParse<Record<string, unknown>>(
-              project.concept.inputData || "{}",
-              {},
-            ).primary_genre ?? project.concept.genre,
-            aesthetic_profile: safeJsonParse(project.concept.aestheticProfile || "{}", {}),
-            mechanic_set: safeJsonParse(project.concept.mechanicSet || "{}", {}),
-            artifact: conceptMetadata.artifact,
-          }
-        : undefined,
-      core_loop: project.coreLoop
-        ? safeJsonParse(project.coreLoop.fullProfile || "{}", {})
-        : undefined,
-      mda: project.mdaProfile
-        ? safeJsonParse(project.mdaProfile.fullProfile || "{}", {})
-        : undefined,
-      balance: project.balanceResult
-        ? safeJsonParse(project.balanceResult.fullResult || "{}", {})
-        : undefined,
-      progression: project.progression
-        ? safeJsonParse(project.progression.fullProfile || "{}", {})
-        : undefined,
-      economy: project.economy
-        ? safeJsonParse(project.economy.fullProfile || "{}", {})
-        : undefined,
-      gdd: project.gdd
-        ? safeJsonParse(project.gdd.fullProfile || "{}", {})
-        : undefined,
-      validation: project.checklist
-        ? safeJsonParse(project.checklist.fullResults || "{}", {})
-        : undefined,
-    };
+    const persistedOutputs = buildPersistedPipelineOutputs(project);
 
     const internalToken = signAccessToken(user.id, user.email);
     const authHeader = `Bearer ${internalToken}`;
@@ -169,7 +134,10 @@ export async function POST(
       latency_ms?: number;
       artifact_id?: string;
       schema_version?: string;
+      quality_gate?: QualityGateResult;
     }> = [];
+    let stoppedBy: ContractStageId | null = null;
+    let resumeFrom: ContractStageId | null = null;
 
     for (let stageIndex = 0; stageIndex <= lastSelectedIndex; stageIndex += 1) {
       const stage = STAGES[stageIndex];
@@ -197,19 +165,38 @@ export async function POST(
         if (response.ok) {
           const stageOutput: unknown = await response.json();
           const artifact = recordStageOutput(context, stage.stage, stageOutput);
+          const qualityGate = evaluateStageQuality(stage.stage, stageOutput);
+          const stageStatus = artifact.status === "success" ? qualityGate.status : artifact.status;
           stages.push({
             stage: stage.stage,
             block_id: stage.block_id,
             block_name: BLOCK_NAMES[stage.block_id] || `Block ${stage.block_id}`,
-            status: artifact.status,
-            message: artifact.status === "success"
+            status: stageStatus,
+            message: stageStatus === "success"
               ? `Стадия «${stage.stage}» выполнена на реальных данных проекта.`
-              : `Стадия «${stage.stage}» создала артефакт со статусом ${artifact.status}.`,
+              : `Стадия «${stage.stage}» требует проверки: ${[...qualityGate.criticalIssues, ...qualityGate.reviewIssues].join("; ")}.`,
             http_status: response.status,
             latency_ms: latencyMs,
             artifact_id: artifact.artifactId,
             schema_version: artifact.schemaVersion,
+            quality_gate: qualityGate,
           });
+          if (qualityGate.shouldStop) {
+            stoppedBy = stage.stage;
+            resumeFrom = STAGES.slice(stageIndex + 1, lastSelectedIndex + 1)
+              .find((candidate) => blockIds.includes(candidate.block_id))?.stage ?? null;
+            for (const blockedStage of STAGES.slice(stageIndex + 1, lastSelectedIndex + 1)) {
+              if (!blockIds.includes(blockedStage.block_id)) continue;
+              stages.push({
+                stage: blockedStage.stage,
+                block_id: blockedStage.block_id,
+                block_name: BLOCK_NAMES[blockedStage.block_id] || `Block ${blockedStage.block_id}`,
+                status: "blocked",
+                message: `Стадия «${blockedStage.stage}» заблокирована critical gate стадии «${stage.stage}».`,
+              });
+            }
+            break;
+          }
           continue;
         }
 
@@ -229,6 +216,19 @@ export async function POST(
           http_status: response.status,
           latency_ms: latencyMs,
         });
+        stoppedBy = stage.stage;
+        resumeFrom = stage.stage;
+        for (const blockedStage of STAGES.slice(stageIndex + 1, lastSelectedIndex + 1)) {
+          if (!blockIds.includes(blockedStage.block_id)) continue;
+          stages.push({
+            stage: blockedStage.stage,
+            block_id: blockedStage.block_id,
+            block_name: BLOCK_NAMES[blockedStage.block_id] || `Block ${blockedStage.block_id}`,
+            status: "blocked",
+            message: `Стадия «${blockedStage.stage}» заблокирована ошибкой стадии «${stage.stage}».`,
+          });
+        }
+        break;
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         stages.push({
@@ -239,6 +239,19 @@ export async function POST(
           message: `Ошибка на стадии «${stage.stage}»: ${message}`,
           latency_ms: Date.now() - stageStartedAt,
         });
+        stoppedBy = stage.stage;
+        resumeFrom = stage.stage;
+        for (const blockedStage of STAGES.slice(stageIndex + 1, lastSelectedIndex + 1)) {
+          if (!blockIds.includes(blockedStage.block_id)) continue;
+          stages.push({
+            stage: blockedStage.stage,
+            block_id: blockedStage.block_id,
+            block_name: BLOCK_NAMES[blockedStage.block_id] || `Block ${blockedStage.block_id}`,
+            status: "blocked",
+            message: `Стадия «${blockedStage.stage}» заблокирована ошибкой стадии «${stage.stage}».`,
+          });
+        }
+        break;
       }
     }
 
@@ -257,6 +270,8 @@ export async function POST(
       latency_ms: Date.now() - startedAt,
       completion_percent: finalSnapshot?.completionPercent ?? 0,
       artifact_versions: context.upstreamVersions,
+      stopped_by: stoppedBy,
+      resume: resumeFrom ? { from_stage: resumeFrom, blocked_by: stoppedBy } : null,
       note:
         runStatus === "success"
           ? "Все запрошенные стадии выполнены на реальных данных проекта."

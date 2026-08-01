@@ -1,35 +1,36 @@
 /**
  * POST /api/v1/pipeline/run-full-pipeline/[projectId]
  *
- * Runs all eight design stages server-side. Each successful response is
- * recorded in PipelineContext before the next request is built, so downstream
- * stages receive the actual selected genre, mechanics, aesthetics and artifact
- * lineage instead of independent defaults.
+ * Runs the design stages in dependency order. Explicit critical quality
+ * signals stop the run and block downstream stages. A later request may pass
+ * `resume_from` after the blocking stage has been corrected and persisted.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser, signAccessToken } from "@/lib/server-auth";
-import {
-  UNAUTH,
-  SERVER_ERROR,
-  NOT_FOUND,
-  VALIDATION_ERROR,
-} from "@/lib/api-helpers";
-import { loadProjectPipelineSnapshot, BLOCK_NAMES } from "@/lib/pipeline-helpers";
+import { NOT_FOUND, SERVER_ERROR, UNAUTH, VALIDATION_ERROR } from "@/lib/api-helpers";
+import { BLOCK_NAMES, loadProjectPipelineSnapshot } from "@/lib/pipeline-helpers";
 import {
   buildStageRequestBody,
   createPipelineContext,
   recordStageOutput,
   resolvePipelineIdea,
   resolvePipelineInput,
+  seedStageOutput,
 } from "@/lib/pipeline-context";
-import type { ContractStageId } from "@/lib/contracts/stage-contracts";
 import type { ArtifactStatus } from "@/lib/contracts/artifact-envelope";
+import type { ContractStageId } from "@/lib/contracts/stage-contracts";
 import {
   derivePipelineRunStatus,
   isSuccessfulRun,
   stageFailureStatus,
 } from "@/lib/pipeline-run-status";
+import {
+  evaluateStageQuality,
+  validateResumePrerequisite,
+  type QualityGateResult,
+} from "@/lib/pipeline-quality-gates";
+import { buildPersistedPipelineOutputs } from "@/lib/pipeline-persisted-outputs";
 import { db } from "@/lib/db";
 
 interface StageDef {
@@ -48,6 +49,7 @@ interface StageResult {
   latency_ms?: number;
   artifact_id?: string;
   schema_version?: string;
+  quality_gate?: QualityGateResult;
 }
 
 const STAGES: readonly StageDef[] = [
@@ -68,7 +70,17 @@ function internalBaseUrl(request: NextRequest): string {
   return `${forwardedProtocol}://${host}`;
 }
 
-function stageFailure(
+function blockedStagesAfter(stageIndex: number, cause: string): StageResult[] {
+  return STAGES.slice(stageIndex + 1).map((stage) => ({
+    stage: stage.stage,
+    block_id: stage.block_id,
+    block_name: BLOCK_NAMES[stage.block_id] || `Block ${stage.block_id}`,
+    status: "blocked",
+    message: `Stage «${stage.stage}» is blocked by ${cause}.`,
+  }));
+}
+
+function failedStage(
   stage: StageDef,
   httpStatus: number,
   detail: string,
@@ -80,7 +92,7 @@ function stageFailure(
     block_id: stage.block_id,
     block_name: BLOCK_NAMES[stage.block_id] || `Block ${stage.block_id}`,
     status,
-    message: `Стадия «${stage.stage}» получила статус ${status}: ${detail}`,
+    message: `Stage «${stage.stage}» returned ${status}: ${detail}`,
     http_status: httpStatus,
     latency_ms: latencyMs,
   };
@@ -97,61 +109,121 @@ export async function POST(
   try {
     const { projectId } = await params;
     const requestBody = await request.json().catch(() => ({}));
-    const snapshot = await loadProjectPipelineSnapshot(user.id, projectId);
-    if (!snapshot) return NOT_FOUND();
-    const idea = resolvePipelineIdea(
-      requestBody?.idea,
-      snapshot.projectDescription,
-      snapshot.projectName,
-    );
+    const project = await db.project.findFirst({
+      where: { id: projectId, userId: user.id, deletedAt: null },
+      include: {
+        concept: true,
+        coreLoop: true,
+        mdaProfile: true,
+        balanceResult: true,
+        progression: true,
+        economy: true,
+        gdd: true,
+        checklist: true,
+      },
+    });
+    if (!project) return NOT_FOUND();
 
+    const idea = resolvePipelineIdea(requestBody?.idea, project.description, project.name);
     if (!idea) {
       return VALIDATION_ERROR(
         "Для запуска заполните описание проекта или передайте idea длиной не менее 10 символов",
       );
     }
 
-    const input = resolvePipelineInput(requestBody, idea, snapshot.projectGenre);
+    const requestedResumeStage = typeof requestBody?.resume_from === "string"
+      ? requestBody.resume_from.trim()
+      : "concept";
+    const startIndex = STAGES.findIndex((stage) => stage.stage === requestedResumeStage);
+    if (startIndex < 0) {
+      return VALIDATION_ERROR(`Неизвестная стадия resume_from: ${requestedResumeStage}`);
+    }
+
+    const input = resolvePipelineInput(requestBody, idea, project.genre);
+    const context = createPipelineContext();
+    const persistedOutputs = buildPersistedPipelineOutputs(project);
+
+    for (let index = 0; index < startIndex; index += 1) {
+      const stage = STAGES[index].stage;
+      const persistedOutput = persistedOutputs[stage];
+      const prerequisite = validateResumePrerequisite(stage, persistedOutput);
+      if (!prerequisite.ok) {
+        return VALIDATION_ERROR(
+          `Нельзя продолжить с ${requestedResumeStage}: ${prerequisite.reason}`,
+        );
+      }
+      seedStageOutput(context, stage, persistedOutput);
+    }
 
     const internalToken = signAccessToken(user.id, user.email);
     const authHeader = `Bearer ${internalToken}`;
     const baseUrl = internalBaseUrl(request);
-    const context = createPipelineContext();
     const stages: StageResult[] = [];
 
-    for (const stage of STAGES) {
+    for (let stageIndex = startIndex; stageIndex < STAGES.length; stageIndex += 1) {
+      const stage = STAGES[stageIndex];
       const stageStartedAt = Date.now();
       const stageBody = buildStageRequestBody(stage.stage, input, context);
-      const url = `${baseUrl}${stage.endpoint}`;
 
       try {
-        const response = await fetch(url, {
+        const response = await fetch(`${baseUrl}${stage.endpoint}`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: authHeader,
-          },
+          headers: { "Content-Type": "application/json", Authorization: authHeader },
           body: JSON.stringify({ project_id: projectId, ...stageBody }),
           redirect: "manual",
         });
-
         const latencyMs = Date.now() - stageStartedAt;
+
         if (response.ok) {
           const stageOutput: unknown = await response.json();
           const artifact = recordStageOutput(context, stage.stage, stageOutput);
+          const qualityGate = evaluateStageQuality(stage.stage, stageOutput);
+          const stageStatus = artifact.status === "success" ? qualityGate.status : artifact.status;
           stages.push({
             stage: stage.stage,
             block_id: stage.block_id,
             block_name: BLOCK_NAMES[stage.block_id] || `Block ${stage.block_id}`,
-            status: artifact.status,
-            message: artifact.status === "success"
-              ? `Стадия «${stage.stage}» выполнена — output передан дальше и сохранён.`
-              : `Стадия «${stage.stage}» создала артефакт со статусом ${artifact.status}.`,
+            status: stageStatus,
+            message: stageStatus === "success"
+              ? `Stage «${stage.stage}» completed and passed its quality gate.`
+              : `Stage «${stage.stage}» requires review: ${[...qualityGate.criticalIssues, ...qualityGate.reviewIssues].join("; ")}.`,
             http_status: response.status,
             latency_ms: latencyMs,
             artifact_id: artifact.artifactId,
             schema_version: artifact.schemaVersion,
+            quality_gate: qualityGate,
           });
+
+          if (qualityGate.shouldStop) {
+            stages.push(...blockedStagesAfter(stageIndex, `critical gate at ${stage.stage}`));
+            const runStatus = derivePipelineRunStatus(stages.map((result) => result.status));
+            const completedCount = stages.filter((result) => result.artifact_id).length;
+            const nextStage = STAGES[stageIndex + 1]?.stage ?? null;
+            const finalSnapshot = await loadProjectPipelineSnapshot(user.id, projectId);
+            return NextResponse.json({
+              ok: isSuccessfulRun(runStatus),
+              status: runStatus,
+              project_id: projectId,
+              concept_idea: idea,
+              resumed_from: requestedResumeStage,
+              stages,
+              stages_completed: completedCount,
+              stages_total: STAGES.length - startIndex,
+              latency_ms: Date.now() - startedAt,
+              completion_percent: finalSnapshot?.completionPercent ?? 0,
+              artifact_versions: context.upstreamVersions,
+              stopped_by: stage.stage,
+              quality_gate: qualityGate,
+              resume: nextStage
+                ? {
+                    from_stage: nextStage,
+                    blocked_by: stage.stage,
+                    required_artifact_id: artifact.artifactId,
+                  }
+                : null,
+              note: `Pipeline stopped at critical gate ${stage.stage}. Correct that stage before resuming.`,
+            });
+          }
           continue;
         }
 
@@ -160,34 +232,27 @@ export async function POST(
           const errorBody = await response.json();
           detail = errorBody?.detail || errorBody?.message || JSON.stringify(errorBody).slice(0, 200);
         } catch {
-          // Keep the HTTP fallback when the endpoint did not return JSON.
+          // Keep the HTTP fallback.
         }
-        stages.push(stageFailure(stage, response.status, detail, latencyMs));
-
-        if (stage.stage === "concept") {
-          stages.push(...STAGES.slice(1).map((blockedStage) => ({
-            stage: blockedStage.stage,
-            block_id: blockedStage.block_id,
-            block_name: BLOCK_NAMES[blockedStage.block_id] || `Block ${blockedStage.block_id}`,
-            status: "blocked" as const,
-            message: `Стадия «${blockedStage.stage}» заблокирована ошибкой Concept.`,
-          })));
-          const runStatus = derivePipelineRunStatus(stages.map((result) => result.status));
-          return NextResponse.json(
-            {
-              ok: isSuccessfulRun(runStatus),
-              status: runStatus,
-              project_id: projectId,
-              concept_idea: idea,
-              stages,
-              stages_completed: 0,
-              stages_total: STAGES.length,
-              latency_ms: Date.now() - startedAt,
-              error: `Блок 1 (Концепция) не смог выполниться: ${detail}`,
-            },
-            { status: response.status === 422 ? 422 : 500 },
-          );
-        }
+        stages.push(failedStage(stage, response.status, detail, latencyMs));
+        stages.push(...blockedStagesAfter(stageIndex, `failure at ${stage.stage}`));
+        const runStatus = derivePipelineRunStatus(stages.map((result) => result.status));
+        const completedCount = stages.filter((result) => result.artifact_id).length;
+        return NextResponse.json({
+          ok: isSuccessfulRun(runStatus),
+          status: runStatus,
+          project_id: projectId,
+          concept_idea: idea,
+          resumed_from: requestedResumeStage,
+          stages,
+          stages_completed: completedCount,
+          stages_total: STAGES.length - startIndex,
+          latency_ms: Date.now() - startedAt,
+          artifact_versions: context.upstreamVersions,
+          stopped_by: stage.stage,
+          resume: { from_stage: stage.stage, blocked_by: stage.stage },
+          error: detail,
+        }, { status: completedCount > 0 ? 200 : response.status === 422 ? 422 : 500 });
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error);
         stages.push({
@@ -195,34 +260,27 @@ export async function POST(
           block_id: stage.block_id,
           block_name: BLOCK_NAMES[stage.block_id] || `Block ${stage.block_id}`,
           status: "failed",
-          message: `Ошибка на стадии «${stage.stage}»: ${message}`,
+          message: `Stage «${stage.stage}» failed: ${message}`,
           latency_ms: Date.now() - stageStartedAt,
         });
-
-        if (stage.stage === "concept") {
-          stages.push(...STAGES.slice(1).map((blockedStage) => ({
-            stage: blockedStage.stage,
-            block_id: blockedStage.block_id,
-            block_name: BLOCK_NAMES[blockedStage.block_id] || `Block ${blockedStage.block_id}`,
-            status: "blocked" as const,
-            message: `Стадия «${blockedStage.stage}» заблокирована ошибкой Concept.`,
-          })));
-          const runStatus = derivePipelineRunStatus(stages.map((result) => result.status));
-          return NextResponse.json(
-            {
-              ok: isSuccessfulRun(runStatus),
-              status: runStatus,
-              project_id: projectId,
-              concept_idea: idea,
-              stages,
-              stages_completed: 0,
-              stages_total: STAGES.length,
-              latency_ms: Date.now() - startedAt,
-              error: `Блок 1 (Концепция) недоступен: ${message}`,
-            },
-            { status: 500 },
-          );
-        }
+        stages.push(...blockedStagesAfter(stageIndex, `failure at ${stage.stage}`));
+        const runStatus = derivePipelineRunStatus(stages.map((result) => result.status));
+        const completedCount = stages.filter((result) => result.artifact_id).length;
+        return NextResponse.json({
+          ok: isSuccessfulRun(runStatus),
+          status: runStatus,
+          project_id: projectId,
+          concept_idea: idea,
+          resumed_from: requestedResumeStage,
+          stages,
+          stages_completed: completedCount,
+          stages_total: STAGES.length - startIndex,
+          latency_ms: Date.now() - startedAt,
+          artifact_versions: context.upstreamVersions,
+          stopped_by: stage.stage,
+          resume: { from_stage: stage.stage, blocked_by: stage.stage },
+          error: message,
+        }, { status: completedCount > 0 ? 200 : 500 });
       }
     }
 
@@ -230,30 +288,29 @@ export async function POST(
     const completedCount = stages.filter((stage) => stage.artifact_id).length;
     const runStatus = derivePipelineRunStatus(stages.map((stage) => stage.status));
 
-    await db.project
-      .update({
-        where: { id: projectId },
-        data: { version: { increment: 1 } },
-      })
-      .catch(() => {
-        // Version consistency is handled by roadmap task R1-10.
-      });
+    await db.project.update({
+      where: { id: projectId },
+      data: { version: { increment: 1 } },
+    }).catch(() => {
+      // Version consistency is handled by roadmap task R1-10.
+    });
 
     return NextResponse.json({
       ok: isSuccessfulRun(runStatus),
       status: runStatus,
       project_id: projectId,
       concept_idea: idea,
+      resumed_from: requestedResumeStage,
       stages,
       stages_completed: completedCount,
-      stages_total: STAGES.length,
+      stages_total: STAGES.length - startIndex,
       latency_ms: Date.now() - startedAt,
       completion_percent: finalSnapshot?.completionPercent ?? 0,
       artifact_versions: context.upstreamVersions,
-      note:
-        runStatus === "success"
-          ? "Все 8 стадий выполнены успешно с передачей output и artifact lineage."
-          : `Пайплайн получил статус ${runStatus}; артефакты созданы для ${completedCount}/${STAGES.length} стадий. См. stages[].status.`,
+      resume: null,
+      note: runStatus === "success"
+        ? `All ${stages.length} requested stages completed and passed their quality gates.`
+        : `Pipeline completed with status ${runStatus}; review stages[].quality_gate.`,
     });
   } catch (error) {
     console.error("[pipeline/run-full-pipeline] error:", error);

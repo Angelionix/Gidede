@@ -127,10 +127,11 @@ describe("pipeline context", () => {
 
   it("seeds legacy persisted output without inventing an artifact version", () => {
     const context = createPipelineContext();
-    seedStageOutput(context, "concept", {
+    const artifact = seedStageOutput(context, "concept", {
       primary_genre: "rpg",
       mechanic_set: { base: ["Explore"] },
     });
+    expect(artifact).toBeNull();
     expect(context.outputs.concept).toBeDefined();
     expect(context.upstreamVersions).toEqual({});
   });

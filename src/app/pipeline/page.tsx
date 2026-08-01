@@ -55,6 +55,7 @@ export default function PipelinePage() {
   const [running, setRunning] = useState(false);
   const [runProgress, setRunProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState<string>("");
+  const [resumeFrom, setResumeFrom] = useState<string | null>(null);
 
   useEffect(() => {
     if (!authLoading && isAuthenticated) {
@@ -80,7 +81,7 @@ export default function PipelinePage() {
     }
   }, [selectedProject, loadPipeline]);
 
-  const runFullPipeline = async () => {
+  const runFullPipeline = async (resumeStage: string | null = null) => {
     if (!selectedProject) return;
     const project = projects.find((item) => item.id === selectedProject);
     if (!project) return;
@@ -98,6 +99,7 @@ export default function PipelinePage() {
         stages: Array<{ stage: string; block_name: string; status: string; message: string }>;
         completion_percent: number;
         note?: string;
+        resume?: { from_stage: string } | null;
       }>(`/pipeline/run-full-pipeline/${selectedProject}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -106,10 +108,12 @@ export default function PipelinePage() {
           genre: project.genre,
           target_format: "one_sheet",
           target_levels: 50,
+          ...(resumeStage ? { resume_from: resumeStage } : {}),
         }),
       });
 
       setRunProgress(100);
+      setResumeFrom(result.resume?.from_stage ?? null);
       setCurrentStep(`Готово: ${result.stages_completed}/${result.stages_total} стадий`);
 
       // Report per-stage results.
@@ -186,7 +190,10 @@ export default function PipelinePage() {
           <div className="flex flex-col sm:flex-row gap-3">
             <select
               value={selectedProject}
-              onChange={(e) => setSelectedProject(e.target.value)}
+              onChange={(e) => {
+                setSelectedProject(e.target.value);
+                setResumeFrom(null);
+              }}
               className="flex-1 h-10 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-2 focus:ring-ring"
             >
               <option value="">— Выберите проект —</option>
@@ -197,7 +204,7 @@ export default function PipelinePage() {
               ))}
             </select>
             <Button
-              onClick={runFullPipeline}
+              onClick={() => runFullPipeline(null)}
               disabled={!selectedProject || running}
               className="sm:w-auto"
               size="lg"
@@ -214,6 +221,17 @@ export default function PipelinePage() {
                 </>
               )}
             </Button>
+            {resumeFrom && !running && (
+              <Button
+                onClick={() => runFullPipeline(resumeFrom)}
+                disabled={!selectedProject}
+                variant="outline"
+                size="lg"
+              >
+                <ArrowRight className="h-4 w-4 mr-2" />
+                Продолжить с {resumeFrom}
+              </Button>
+            )}
           </div>
           {running && (
             <div className="mt-3">

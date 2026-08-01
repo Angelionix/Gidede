@@ -95,34 +95,28 @@ interface Adjustment {
   reason: string;
 }
 
+// TASK-5b.10: Expanded to 15 genres (was 5 + default).
 const GENRE_RESOURCE_PRESETS: Record<
   string,
   { core: string[]; subsidiary: string[] }
 > = {
-  rpg: {
-    core: ["xp", "gold", "hp"],
-    subsidiary: ["mana", "stamina", "materials"],
-  },
-  shooter: {
-    core: ["score", "ammo", "armor"],
-    subsidiary: ["credits", "scrap", "intel"],
-  },
-  strategy: {
-    core: ["wood", "food", "gold", "stone"],
-    subsidiary: ["population", "research", "favor"],
-  },
-  mmorpg: {
-    core: ["gold", "xp", "reputation"],
-    subsidiary: ["honor", "tokens", "crafting_mats"],
-  },
-  idle: {
-    core: ["coins", "gems", "energy"],
-    subsidiary: ["prestige_points", "automation", "research"],
-  },
-  default: {
-    core: ["score", "currency", "energy"],
-    subsidiary: ["materials", "tokens"],
-  },
+  rpg: { core: ["xp", "gold", "hp"], subsidiary: ["mana", "stamina", "materials"] },
+  shooter: { core: ["score", "ammo", "armor"], subsidiary: ["credits", "scrap", "intel"] },
+  strategy: { core: ["wood", "food", "gold", "stone"], subsidiary: ["population", "research", "favor"] },
+  mmorpg: { core: ["gold", "xp", "reputation"], subsidiary: ["honor", "tokens", "crafting_mats"] },
+  idle: { core: ["coins", "gems", "energy"], subsidiary: ["prestige_points", "automation", "research"] },
+  // TASK-5b.10: 10 new genre presets.
+  tower_defense: { core: ["gold", "lives", "waves"], subsidiary: ["gems", "tower_xp", "stars"] },
+  puzzle: { core: ["score", "moves", "time"], subsidiary: ["hints", "combos", "stars"] },
+  metroidvania: { core: ["hp", "energy", "map_percent"], subsidiary: ["missiles", "keys", "artifacts"] },
+  rhythm: { core: ["score", "combo", "accuracy"], subsidiary: ["stars", "coins", "unlocks"] },
+  sandbox: { core: ["blocks", "health", "materials"], subsidiary: ["fuel", "tools", "blueprints"] },
+  simulation: { core: ["money", "happiness", "population"], subsidiary: ["resources", "research", "influence"] },
+  racing: { core: ["credits", "nitro", "position"], subsidiary: ["blueprints", "upgrades", "rep"] },
+  roguelike: { core: ["gold", "relics", "hp"], subsidiary: ["potions", "keys", "soul_stones"] },
+  survival_horror: { core: ["hp", "hunger", "thirst"], subsidiary: ["wood", "stone", "fiber"] },
+  horror: { core: ["sanity", "hp", "items"], subsidiary: ["ammo", "keys", "clues"] },
+  default: { core: ["score", "currency", "energy"], subsidiary: ["materials", "tokens"] },
 };
 
 function pickResources(genre: string): {
@@ -856,6 +850,60 @@ export async function POST(request: NextRequest) {
     const simSeed = hashString(proj.id || "economy-default-seed");
     const simResult = simulate(resources, faucetDrain, 50, simSeed);
 
+    // TASK-5b.9: 12-point validation checklist (Bible 6.13.4).
+    const checklist = {
+      1: resources.length >= 2, // Минимум 2 ресурса
+      2: resources.some((r) => r.is_catalytic), // Есть конвертер
+      3: resources.some((r) => r.is_consumable), // Есть consumable
+      4: machinations.feedback_loops.length >= 1, // Есть feedback loop
+      5: machinations.feedback_loops.some((l) => l.loop_type === "reinforcing"), // Reinforcing loop
+      6: machinations.feedback_loops.some((l) => l.loop_type === "balancing"), // Balancing loop
+      7: pathologies.filter((p) => p.severity === "critical").length === 0, // No critical pathologies
+      8: simResult.aggregated.stability_index > 0.5, // Stability > 0.5
+      9: conversionGraph.chains.length > 0, // Есть conversion chains
+      10: conversionGraph.avg_profitability > 0, // Прибыльность > 0
+      11: !resources.some((r) => faucetDrain[r.name]?.faucet === 0 && faucetDrain[r.name]?.drain === 0), // No deadlock
+      12: simResult.aggregated.runaway_frequency < 0.5, // No runaway
+    };
+    const checklistPassed = Object.values(checklist).filter(Boolean).length;
+
+    // TASK-5b.12: 8-dimensional feedback loop profile (Bible 6.8.2).
+    const loopProfiles = machinations.feedback_loops.map((loop) => ({
+      nodes: loop.nodes,
+      type: loop.loop_type,
+      effect: loop.loop_type === "reinforcing" ? "amplification" : "dampening",
+      investment: loop.nodes.length > 2 ? "multi_step" : "single_step",
+      return_type: loop.loop_type === "reinforcing" ? "compounding" : "normalizing",
+      speed: loop.strength > 0.6 ? "fast" : loop.strength > 0.4 ? "medium" : "slow",
+      duration: "continuous", // All loops run continuously in economy
+      indirectness: loop.nodes.length > 3 ? "indirect" : "direct",
+      determinism: "deterministic", // Economy loops are deterministic (no RNG in feedback)
+      description: loop.description,
+    }));
+
+    // TASK-5b.13: 6 Schreiber economic system types (Bible 6.4.3).
+    const schreiberTypes = {
+      current: classification.type.toLowerCase(),
+      all_types: ["static_engine", "dynamic_engine", "engine_building", "static_friction", "dynamic_friction", "stopping_mechanism"],
+      description: classification.type === "Engine"
+        ? "Static/Dynamic Engine — accumulates resources over time"
+        : classification.type === "Ecology"
+        ? "Engine Building + Stopping Mechanism — balanced production and consumption"
+        : "Dynamic Friction + Converter — resource conversion with friction",
+    };
+
+    // TASK-5b.14: Genre-specific dominant loops (Bible 6.8.3).
+    const genreDominantLoops: Record<string, string> = {
+      rpg: "positive_constructive", // RPG: constructive growth loop
+      shooter: "negative_destructive", // Shooter: destructive combat loop
+      strategy: "positive_constructive", // Strategy: constructive building
+      horror: "negative_destructive", // Horror: destructive survival
+      mmorpg: "positive_constructive",
+      idle: "positive_constructive",
+      default: "mixed",
+    };
+    const dominantLoopType = genreDominantLoops[resolvedGenre] || genreDominantLoops.default;
+
     const stagesCompleted = [1, 2, 3, 4, 5];
     const latencyMs = Date.now() - startedAt;
 
@@ -868,6 +916,14 @@ export async function POST(request: NextRequest) {
       diagnostics,
       balance,
       sim_result: simResult,
+      // TASK-5b.9: 12-point validation checklist.
+      economy_checklist: { checks: checklist, passed: checklistPassed, total: 12 },
+      // TASK-5b.12: 8-dimensional feedback loop profiles.
+      loop_profiles: loopProfiles,
+      // TASK-5b.13: 6 Schreiber economic system types.
+      schreiber_types: schreiberTypes,
+      // TASK-5b.14: genre-specific dominant loop.
+      dominant_loop_type: dominantLoopType,
       stages_completed: stagesCompleted,
       latency_ms: latencyMs,
       models_used: [

@@ -317,8 +317,21 @@ export async function POST(request: NextRequest) {
       return "simple";
     })();
 
-    // TASK-5a.8: macro model with Bible 6.7.4 fields.
-    const transitionsPerHour = Math.round((targetLevels / Math.max(1, targetDuration)) * 60);
+    // R5-11: compute numTiers early so transitions_per_hour has correct dimension.
+    const numTiers =
+      targetLevels <= 3
+        ? 1
+        : targetLevels <= 10
+          ? 2
+          : targetLevels <= 25
+            ? 3
+            : targetLevels <= 60
+              ? 4
+              : 5;
+    // R5-11: fixed transitions_per_hour dimension. Was (levels / hours) * 60
+    // which computes levels-per-hour, not tier-transitions-per-hour. Now
+    // computes numTiers / duration (actual tier transitions per hour).
+    const transitionsPerHour = Math.round((numTiers / Math.max(1, targetDuration)) * 60);
     const contentStages = Math.max(1, Math.round(targetLevels / 2));
     const enemyConfigsMin = Math.max(3, Math.round(targetLevels / 2) * 3);
     const charPointsPerLevel = resolvedGenre === "rpg" ? 5 : resolvedGenre === "strategy" ? 3 : 2;
@@ -342,17 +355,7 @@ export async function POST(request: NextRequest) {
     };
 
     // --- Tier model ---
-    // Pick a tier count based on total levels (1-3 → 1, 4-10 → 2, 11-25 → 3, 26-60 → 4, 60+ → 5)
-    const numTiers =
-      targetLevels <= 3
-        ? 1
-        : targetLevels <= 10
-          ? 2
-          : targetLevels <= 25
-            ? 3
-            : targetLevels <= 60
-              ? 4
-              : 5;
+    // numTiers already computed above (R5-11).
     const tiersPerLevel = Math.ceil(targetLevels / numTiers);
     const tiers: Array<{
       index: number;
@@ -558,7 +561,9 @@ export async function POST(request: NextRequest) {
       perceived_difficulty_table: perceivedDifficultyTable,
     };
 
-    // TASK-5a.13: Real validation checks (were always true).
+    // R5-11: All validation flags now have real computing branches (were
+    // always true before). progression_defined, economic_phases_defined,
+    // no_deadlock and no_stall are computed from actual tier/curve data.
     const issues: Array<{ severity: string; description: string }> = [];
     const suggestions: string[] = [];
     const checks: Record<string, boolean> = {
@@ -568,12 +573,37 @@ export async function POST(request: NextRequest) {
       no_runaway: true,
       no_build_gaps: true,
       aesthetic_alignment: true,
-      progression_defined: true,
-      economic_phases_defined: true,
-      no_deadlock: true,
-      no_stall: true,
+      // R5-11: computed below from xpCurve points.
+      progression_defined: xpCurve.points.length > 0 && xpCurve.points.some((p) => p > 0),
+      // R5-11: computed from tier model — need ≥2 tiers for economic phases.
+      economic_phases_defined: numTiers >= 2,
+      // R5-11: computed from transition_map — no deadlock if all tiers have a transition.
+      no_deadlock: tiers.length > 0 && tiers.every((t) => {
+        const key = `tier_${t.index}`;
+        return tierModel.transition_map[key] !== undefined;
+      }),
+      // R5-11: computed from tier plans — no stall if every tier has >0 content.
+      no_stall: tierPlans.length > 0 && tierPlans.every((tp) => tp.enemies > 0 || tp.rewards > 0),
       inflation_controlled: true,
     };
+
+    // Flag issues for the newly-computed checks.
+    if (!checks.progression_defined) {
+      issues.push({ severity: "critical", description: "Progression not defined — XP curve is empty or all-zero" });
+      suggestions.push("Ensure progression_type produces non-zero XP values");
+    }
+    if (!checks.economic_phases_defined) {
+      issues.push({ severity: "warning", description: `Only ${numTiers} tier(s) — economic phases not differentiated` });
+      suggestions.push("Increase target_levels to enable at least 2 tiers");
+    }
+    if (!checks.no_deadlock) {
+      issues.push({ severity: "critical", description: "Tier transition deadlock — some tiers have no exit transition" });
+      suggestions.push("Check tier_model.transition_map for missing entries");
+    }
+    if (!checks.no_stall) {
+      issues.push({ severity: "warning", description: "Content stall detected — some tiers have 0 enemies and 0 rewards" });
+      suggestions.push("Increase target_levels or pacing to generate more content per tier");
+    }
 
     // XP-per-level scaling check (runaway if growth too steep)
     if (xpCurve.points.length >= 10) {

@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R5-11` — исправить aliases, units и constant checks Progression.
-- **Зависимости:** `R5-10` завершена; Progression level_to_cost curve traces to Balance artifact.
-- **Ожидаемый результат:** все validation flags имеют вычисляющую ветку; aliases и units корректны.
-- **После неё:** `R5-12` — калибровать progression через playtest targets.
+- **Следующая задача:** `R5-12` — калибровать progression через playtest targets.
+- **Зависимости:** `R5-11` завершена; transitions_per_hour имеет корректную размерность; 4 validation checks реально вычисляются.
+- **Ожидаемый результат:** session/time-to-level/failure inputs изменяют curves.
+- **После неё:** `R5-13` — Economy строится из Core resource graph + Progression link.
 
 ## Статус roadmap
 
@@ -73,7 +73,8 @@
 | R5-08 | DONE | Composite overallBalanceScore: stability + OP/UP + dominance + MC verdict, hard gate при critical issues | 827 tests, TypeScript, scoped ESLint |
 | R5-09 | DONE | Real multi-run Machinations (10 independent passes, confidence intervals на runaway/stall) | 848 tests, TypeScript, scoped ESLint |
 | R5-10 | DONE | Progression level_to_cost curve traces to Balance artifact (avg_cost, expected_cp) | 848 tests, TypeScript, scoped ESLint |
-| R5-11…R7 | TODO | См. активный roadmap | — |
+| R5-11 | DONE | transitions_per_hour корректной размерности; 4 validation checks реально вычисляются | 848 tests, TypeScript, scoped ESLint |
+| R5-12…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -86,6 +87,40 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R5-11 — DONE
+
+Что сделано:
+
+- **transitions_per_hour dimension fix**: было `(targetLevels / targetDuration) * 60` — вычисляло levels-per-hour, не tier-transitions-per-hour; исправлено на `(numTiers / targetDuration) * 60` — фактическое количество tier transitions per hour;
+- `numTiers` вычислен раньше (перед macroModel), чтобы `transitionsPerHour` имело правильное значение;
+- **4 validation checks перестали быть constant `true`**:
+  - `progression_defined`: `xpCurve.points.length > 0 && xpCurve.points.some(p => p > 0)` — false если XP curve пуста или all-zero;
+  - `economic_phases_defined`: `numTiers >= 2` — false если только 1 tier (нет экономических фаз);
+  - `no_deadlock`: `tiers.every(t => transition_map[tier_N] !== undefined)` — false если какой-либо tier не имеет exit transition;
+  - `no_stall`: `tierPlans.every(tp => tp.enemies > 0 || tp.rewards > 0)` — false если какой-либо tier имеет 0 content;
+- добавлены issues и suggestions для каждого нарушенного check.
+
+Изменённые области:
+
+- `src/app/api/v1/progression/design/route.ts` — transitionsPerHour fix, 4 real validation checks.
+
+Проверки:
+
+- `bun run test` — 71 файл, 848 тестов пройдено (без изменений);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- transitions_per_hour теперь вычисляет tier transitions/hour (не levels/hour);
+- progression_defined false когда XP curve пуста;
+- economic_phases_defined false когда numTiers < 2;
+- no_deadlock false когда tier missing transition;
+- no_stall false когда tier has 0 content;
+- каждая нарушенная проверка генерирует issue + suggestion;
+- следующей задачей назначена `R5-12`.
 
 ### 2026-08-01 — R5-10 — DONE
 

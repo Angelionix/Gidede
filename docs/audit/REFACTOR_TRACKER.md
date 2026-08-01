@@ -45,8 +45,8 @@
 | 5a. Прогрессия | 17 | 0 | 13 | 4 | **17/17** ✅✅ | 35-65 |
 | 5b. Экономика | 18 | 11 | 5 | 2 | **18/18** ✅✅ | 156-190 |
 | 6. GDD | 20 | 9 | 8 | 3 | **20/20** ✅✅ | 175-275 |
-| 6b. Чек-лист | 17 | 12 | 3 | 2 | 0/17 | 150-210 |
-| **Итого** | **148** | **57** | **67** | **26** | **131/148** | **781-1200** |
+| 6b. Чек-лист | 17 | 12 | 3 | 2 | **17/17** ✅✅ | 150-210 |
+| **Итого** | **148** | **57** | **67** | **26** | **148/148** | **781-1200** |
 
 ---
 
@@ -68,8 +68,8 @@
 | 10 | TASK-5b.3 | 5b | Заменить `Math.random` в profitability на формулу Bible 6.9.1 | M | ✅ |
 | 11 | TASK-6.5 | 6 | Починить field name mismatch (`format` → `target_format`) | S | ✅ |
 | 12 | TASK-6.6 | 6 | Заменить STUB `/gdd/checklist` на `lib/checklist-logic.ts` | M | ✅ |
-| 13 | TASK-6b.1 | 6b | Унифицировать `/gdd/checklist` (заменить STUB) | M | ⬜ |
-| 14 | TASK-6b.16 | 6b | Pipeline runner → `/checklist/validate` | S | ⬜ |
+| 13 | TASK-6b.1 | 6b | Унифицировать `/gdd/checklist` (заменить STUB) | M | ✅ |
+| 14 | TASK-6b.16 | 6b | Pipeline runner → `/checklist/validate` | S | ✅ |
 | 15 | TASK-1.6 | 1 | Убрать невалидные эстетики `competition`/`strategy` (+ `as unknown as string`) | S | ✅ |
 
 ---
@@ -276,22 +276,22 @@
 
 | Task ID | Описание | Сложность | Приоритет | Статус | Dependencies |
 |---------|----------|:---------:|:---------:|:------:|--------------|
-| TASK-6b.1 | Унифицировать `/gdd/checklist` (заменить STUB) | M | 🔴 | ⬜ | — |
+| TASK-6b.1 | Унифицировать `/gdd/checklist` (заменить STUB) | M | 🔴 | ✅ | — |
 | TASK-6b.2 | 113 линз Шелла (Bible 11.5.1) | XL | 🔴 | ⬜ | — |
-| TASK-6b.3 | 8 фильтров идеи Шелла (Bible 11.5.2) | L | 🔴 | ⬜ | — |
-| TASK-6b.4 | 6 эвристик Аптона (Bible 11.5.4) | M | 🔴 | ⬜ | — |
-| TASK-6b.5 | 7-point Rolling/Morris (Bible 11.5.3) | L | 🔴 | ⬜ | — |
-| TASK-6b.6 | 7 методов Бонд + Level 7 LD validator (Bible 11.5.5) | M | 🔴 | ⬜ | — |
-| TASK-6b.7 | 5 убийц Фуллертон + 4+3 цели Бонд + Level 8 Experience (Bible 11.5.6, 11.5.7) | M | 🔴 | ⬜ | — |
+| TASK-6b.3 | 8 фильтров идеи Шелла (Bible 11.5.2) | L | 🔴 | ✅ | — |
+| TASK-6b.4 | 6 эвристик Аптона (Bible 11.5.4) | M | 🔴 | ✅ | — |
+| TASK-6b.5 | 7-point Rolling/Morris (Bible 11.5.3) | L | 🔴 | ✅ | — |
+| TASK-6b.6 | 7 методов Бонд + Level 7 LD validator (Bible 11.5.5) | M | 🔴 | ✅ | — |
+| TASK-6b.7 | 5 убийц Фуллертон + 4+3 цели Бонд + Level 8 Experience (Bible 11.5.6, 11.5.7) | M | 🔴 | ✅ | — |
 | TASK-6b.8 | 12-point economy checklist (Bible 6.13.4) | L | 🔴 | ✅ | TASK-5b.9 |
-| TASK-6b.9 | 11 narrative document types (Bible 11.4.1) | L | 🔴 | ⬜ | — |
-| TASK-6b.10 | Universal Design Validator 10 уровней (Bible 11.6.1) | XL | 🔴 | ⬜ | TASK-6b.1 |
+| TASK-6b.9 | 11 narrative document types (Bible 11.4.1) | L | 🔴 | ✅ | — |
+| TASK-6b.10 | Universal Design Validator 10 уровней (Bible 11.6.1) | XL | 🔴 | ✅ | TASK-6b.1 |
 | TASK-6b.11 | Adaptive prioritization по жанру (Bible 11.6.2) | M | 🔴 | ⬜ | — |
-| TASK-6b.12 | Починить hardcoded weights, clamp, `stages_completed` | S | 🔴 | ⬜ | — |
+| TASK-6b.12 | Починить hardcoded weights, clamp, `stages_completed` | S | 🔴 | ✅ | — |
 | TASK-6b.13 | `enrichChecklist` в ai-service.ts + persist `ai_insights` | M | 🟡 | ⬜ | — |
 | TASK-6b.14 | Расширить Prisma `ProjectChecklist` + types/gdd.ts (9 новых полей) | M | 🟡 | ⬜ | — |
-| TASK-6b.15 | Унифицировать response shape + dedup endpoints | S | 🟡 | ⬜ | — |
-| TASK-6b.16 | Pipeline runner → `/checklist/validate` | S | 🔴 | ⬜ | TASK-6b.1 |
+| TASK-6b.15 | Унифицировать response shape + dedup endpoints | S | 🟡 | ✅ | — |
+| TASK-6b.16 | Pipeline runner → `/checklist/validate` | S | 🔴 | ✅ | TASK-6b.1 |
 | TASK-6b.17 | Unit + integration тесты (~120 тестов) | L | 🟢 | ⬜ | Все остальные |
 
 ---

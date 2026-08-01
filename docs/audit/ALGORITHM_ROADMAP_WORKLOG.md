@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R4-09` — Lens #41 получать из Balance dominance evidence.
-- **Зависимости:** `R4-08` завершена; MDA iteration loop реально выполняет итерации, меняет candidate set и сохраняет diffs.
-- **Ожидаемый результат:** Lens #41 (dominance) выводится из Balance intransitive dominance, а не из synergy proxy.
-- **После неё:** `R4-10` — Bond matrix строить из artifact evidence.
+- **Следующая задача:** `R4-10` — Bond matrix строить из artifact evidence.
+- **Зависимости:** `R4-09` завершена; Lens #41 (dominance) выводится из Balance intransitive dominance evidence когда доступно.
+- **Ожидаемый результат:** Bond matrix ячейки заполняются из реальных артефактов (mechanic set, narrative, technology); dissonance создаётся из конкретной несовместимой пары.
+- **После неё:** Фаза R4 завершена, переход к Фазе 5 (Balance, Progression, Economy).
 
 ## Правила ведения
 
@@ -71,9 +71,52 @@
 | R4-06 | DONE | compatibility_score: genre coverage + hybrid bonus; cross-genre mechanics не штрафуются | 579 tests, TypeScript, scoped ESLint |
 | R4-07 | DONE | Единый `MechanicRef` wire-тип со стабильным `id` + canonical `category` через Concept/Core/MDA | 624 tests, TypeScript, scoped ESLint |
 | R4-08 | DONE | MDA iteration loop: реальные итерации, меняют candidate set, сохраняют diffs | 641 tests, TypeScript, scoped ESLint |
-| R4-09…R7 | TODO | См. активный roadmap | — |
+| R4-09 | DONE | Lens #41 (dominance) из Balance intransitive dominance evidence, не synergy proxy | 662 tests, TypeScript, scoped ESLint |
+| R4-10…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R4-09 — DONE
+
+Что сделано:
+
+- создан модуль `src/lib/mda/dominance-lens.ts` с функцией `evaluateDominanceLens(evidence, synergyScore)`;
+- Lens #41 «Доминантная стратегия» теперь выводится из Balance intransitive dominance evidence, а не из synergy proxy:
+  - `has_dominant_strategy: true` → score 0.2 (critical);
+  - каждая dominated strategy → -0.15 (capped at -0.6);
+  - `max_share > 0.5` → penalty `(max_share - 0.5) * 2`;
+  - `gini > 0.7` → -0.1;
+  - clamp to [0, 1];
+- `extractBalanceDominanceEvidence(balanceOutput)` — извлекает evidence из Balance stage output record (intransitive_result → has_dominant_strategy, dominated_strategies, object_names, strategy_balance.max_share, strategy_balance.gini);
+- когда Balance evidence недоступен (first forward pass, MDA before Balance) → fallback к synergy proxy с `source: "heuristic"` и честным reason «Balance evidence unavailable»;
+- `buildLensValidation` принимает опциональный `balanceEvidence` параметр; Lens #41 использует `evaluateDominanceLens`, остальные lenses — прежнюю category-based эвристику;
+- каждый lens result теперь содержит `source` ("heuristic" | "balance_evidence") и `reason` для provenance transparency;
+- MDA route парсит `body.balance_dominance` и передаёт в `buildLensValidation`;
+- `pipeline-context.ts` `buildStageRequestBody("mda")` форвардит `context.outputs.balance` как `balance_dominance` когда Balance уже выполнен (stale propagation scenario);
+- `algorithm-metadata` обновлён: `lens_validation.results[41].score` имеет provenance о Balance-evidence derivation и fallback.
+
+Изменённые области:
+
+- `src/lib/mda/dominance-lens.ts` (новый, 170 строк) и `dominance-lens.test.ts` (новый, 21 тест);
+- `src/app/api/v1/mda/analyze/route.ts` — `buildLensValidation` с balanceEvidence, Lens #41 special-cased, body parsing;
+- `src/lib/pipeline-context.ts` — `balance_dominance` forwarding для MDA stage;
+- `src/lib/algorithm-metadata.ts` — provenance для Lens #41.
+
+Проверки:
+
+- `bun run test` — 62 файла, 662 теста пройдено (было 641; +21 dominance-lens);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- с Balance evidence `has_dominant_strategy: true` → score 0.2 (даже при synergy=100, который дал бы 1.0 через proxy);
+- без Balance evidence → synergy proxy, `source: "heuristic"`, reason содержит «Balance evidence unavailable»;
+- changing Balance evidence (no dominance vs has_dominant + dominated + high max_share) → разные scores;
+- `extractBalanceDominanceEvidence` читает реальный shape Balance output (intransitive_result с dominated_strategies, strategy_balance.max_share, gini);
+- Lens #41 result содержит `source` и `reason` для audit;
+- следующей задачей назначена `R4-10`.
 
 ### 2026-08-01 — R4-08 — DONE
 

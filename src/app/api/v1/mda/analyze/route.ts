@@ -37,6 +37,11 @@ import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
 import { runMdaIterationLoop } from "@/lib/mda/iteration-loop";
+import {
+  evaluateDominanceLens,
+  extractBalanceDominanceEvidence,
+  type BalanceDominanceEvidence,
+} from "@/lib/mda/dominance-lens";
 
 // ============================================================
 // Constants
@@ -603,7 +608,8 @@ function buildClassicMDA(
 function buildLensValidation(
   mechanicSet: { compatibility_score: number; synergy_score: number; [key: string]: unknown },
   dynamicsTarget: { emergence_level: string; [key: string]: unknown },
-  aesthetics: { primary: string; [key: string]: unknown }
+  aesthetics: { primary: string; [key: string]: unknown },
+  balanceEvidence?: BalanceDominanceEvidence | null,
 ) {
   // TASK-3.13: 9 priority lenses with Zubek 3-level categorization (Bible 3.6.3).
   // zubek_level: 1=foundational, 2=contextual, 3=optional.
@@ -622,6 +628,8 @@ function buildLensValidation(
   const results = lenses.map((lens) => {
     // Score depends on the lens category and mechanic set quality
     let score = 0.6;
+    let lensSource: "heuristic" | "balance_evidence" = "heuristic";
+    let lensReason = "";
     if (lens.category === "целостность")
       score = Math.min(1, mechanicSet.compatibility_score / 100);
     else if (lens.category === "эмерджентность")
@@ -631,9 +639,39 @@ function buildLensValidation(
           : dynamicsTarget.emergence_level === "moderate"
             ? 0.7
             : 0.45;
-    else if (lens.category === "баланс")
+    else if (lens.category === "баланс") {
+      if (lens.id === 41) {
+        // R4-09: Lens #41 «Доминантная стратегия» derived from Balance
+        // intransitive dominance evidence when available, NOT from synergy proxy.
+        const dominance = evaluateDominanceLens(balanceEvidence, mechanicSet.synergy_score);
+        score = dominance.score;
+        lensSource = dominance.source;
+        lensReason = dominance.reason;
+        // Issues & suggestions from the dominance evaluation.
+        const issuesFound: string[] = [];
+        const suggestions: string[] = [];
+        if (score < 0.5) {
+          issuesFound.push(`${lens.name}: low coherence — score ${score.toFixed(2)}`);
+          suggestions.push(`Improve ${lens.name.toLowerCase()} by adding supporting mechanics`);
+        }
+        issuesFound.push(...dominance.issues);
+        suggestions.push(...dominance.suggestions);
+        return {
+          lens_id: lens.id,
+          lens_name: lens.name,
+          category: lens.category,
+          zubek_level: lens.zubek_level,
+          score: Number(score.toFixed(3)),
+          source: lensSource,
+          reason: lensReason,
+          issues_found: issuesFound,
+          suggestions,
+          questions_asked: [`${lens.focus}?`],
+          answers: [score >= 0.7 ? "Yes" : score >= 0.4 ? "Partially" : "No"],
+        };
+      }
       score = Math.min(1, 0.5 + (mechanicSet.synergy_score / 100) * 0.5);
-    else if (lens.category === "интерес")
+    } else if (lens.category === "интерес")
       score = 0.65 + (lens.id % 3) * 0.1;
 
     // Issues & suggestions
@@ -643,13 +681,6 @@ function buildLensValidation(
       issuesFound.push(`${lens.name}: low coherence — score ${score.toFixed(2)}`);
       suggestions.push(`Improve ${lens.name.toLowerCase()} by adding supporting mechanics`);
     }
-    // TASK-3.5 FIXED: Lens #41 «Доминантная стратегия» logic inverted.
-    // Before: flagged when score > 0.7 (high score = good, but flagged as problem — backwards).
-    // After: flags when score < 0.5 (low score = dominant strategy present = bad).
-    if (lens.id === 41 && score < 0.5) {
-      issuesFound.push("Possible dominant strategy detected");
-      suggestions.push("Add a counter-balancing mechanic to break the dominant path");
-    }
 
     return {
       lens_id: lens.id,
@@ -658,6 +689,9 @@ function buildLensValidation(
       // TASK-3.13: Zubek priority level (1=foundational, 2=contextual, 3=optional).
       zubek_level: lens.zubek_level,
       score: Number(score.toFixed(3)),
+      // R4-09: source/reason for provenance transparency (balance_evidence vs heuristic).
+      source: lensSource,
+      reason: lensReason,
       issues_found: issuesFound,
       suggestions,
       questions_asked: [
@@ -1065,11 +1099,16 @@ export async function POST(request: NextRequest) {
     // --- Stage 6: Lens validation ---
     let lensValidation: ReturnType<typeof buildLensValidation> | null = null;
     if (fullAnalysis) {
-      // TASK-3.15: removed `as unknown as` cast — function signature now accepts broader type.
+      // R4-09: extract Balance dominance evidence from the request body
+      // (forwarded by the pipeline runner when Balance has already run).
+      // When absent (first forward pass, MDA before Balance), falls back to
+      // the synergy proxy with source="heuristic".
+      const balanceDominance = extractBalanceDominanceEvidence(body?.balance_dominance);
       lensValidation = buildLensValidation(
         mechanicSet,
         dynamicsTarget,
-        aestheticProfile
+        aestheticProfile,
+        balanceDominance,
       );
     }
 

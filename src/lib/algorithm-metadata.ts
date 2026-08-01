@@ -125,6 +125,11 @@ const SCORE_METADATA_BY_STAGE = {
       "heuristic",
       "Lens answers use compatibility-derived rules and fixed fallbacks rather than a complete Shell lens audit.",
     ),
+    "lens_validation.results[41].score": score(
+      "heuristic",
+      "Lens #41 (dominant strategy) is derived from Balance intransitive dominance evidence when available (source='balance_evidence'), falling back to the synergy proxy when Balance has not yet run (source='heuristic').",
+      "The Balance-evidence score penalises has_dominant_strategy, dominated_strategies count, max_share > 0.5 and gini > 0.7.",
+    ),
     "lens_validation.overall_score": score(
       "heuristic",
       "Overall lens score is the mean of heuristic lens results.",

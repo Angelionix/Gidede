@@ -311,6 +311,11 @@ export function buildStageRequestBody(
         // R4-07: forward structured refs so MDA reads category from the ref
         // instead of re-deriving it via name regex (which fails on Cyrillic).
         mechanic_refs: mechanicRefs,
+        // R4-09: forward Balance dominance evidence when Balance has already
+        // run (e.g. MDA re-run after stale propagation). When absent (first
+        // forward pass, MDA before Balance), MDA's Lens #41 falls back to the
+        // synergy proxy with source="heuristic".
+        ...(context.outputs.balance ? { balance_dominance: context.outputs.balance } : {}),
         use_ai: input.useAi,
         upstream_versions: upstreamVersions,
       };

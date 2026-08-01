@@ -43,6 +43,7 @@ import {
 } from "@/lib/balance/attribute-units";
 import { validateBalanceObjects, type BalanceObjectInput } from "@/lib/balance/input-validation";
 import { solveNash } from "@/lib/balance/nash-solver";
+import { findAllRpsCycles } from "@/lib/balance/rps-cycles";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
@@ -387,27 +388,15 @@ function buildIntransitiveResult(objects: BalanceObject[], runIntransitive: bool
       )
     : 0;
 
-  // RPS cycles: look for i → j → k → i cycles
-  const rpsCycles: Array<{ cycle: string[]; strength: number }> = [];
-  if (n >= 3 && !hasDominant) {
-    for (let i = 0; i < n; i++) {
-      const j = (i + 1) % n;
-      const k = (i + 2) % n;
-      if (
-        payoffMatrix[i][j] > 0.1 &&
-        payoffMatrix[j][k] > 0.1 &&
-        payoffMatrix[k][i] > 0.1
-      ) {
-        rpsCycles.push({
-          cycle: [names[i], names[j], names[k]],
-          strength: Number(
-            ((payoffMatrix[i][j] + payoffMatrix[j][k] + payoffMatrix[k][i]) / 3).toFixed(2)
-          ),
-        });
-        break;
-      }
-    }
-  }
+  // R5-05: enumerate ALL RPS cycles (not just consecutive triples), no early break.
+  // Before: only checked (i, i+1, i+2) and break-ed after first match — missed
+  // non-consecutive cycles like 0→2→4→0 and severely undercounted RPS structure.
+  // After: findAllRpsCycles enumerates all ordered triples with backtracking,
+  // deduplicates rotational equivalents, and returns all cycles sorted by strength.
+  const rpsCycles = hasDominant
+    ? []
+    : findAllRpsCycles(payoffMatrix, names, { maxLength: 3, threshold: 0.1, maxResults: 20 })
+        .map((c) => ({ cycle: c.cycle, strength: c.strength }));
 
   const is_intransitive = rpsCycles.length > 0;
 

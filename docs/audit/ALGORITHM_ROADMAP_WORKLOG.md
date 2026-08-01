@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R5-05` — перебирать все RPS cycles.
-- **Зависимости:** `R5-04` завершена; Nash equilibrium для 2×2 games вычисляется через closed-form formula, larger matrices честно помечены heuristic.
-- **Ожидаемый результат:** несоседний RPS цикл (например 0→2→4→0) обнаруживается.
-- **После неё:** `R5-06` — seed = hash(project + input + sim version).
+- **Следующая задача:** `R5-06` — seed = hash(project + input + sim version).
+- **Зависимости:** `R5-05` завершена; findAllRpsCycles перебирает все cycles (не только consecutive), без early break.
+- **Ожидаемый результат:** изменение objects меняет seed, повтор того же input воспроизводим.
+- **После неё:** `R5-07` — исправить buildGap, stall и runs metadata.
 
 ## Статус roadmap
 
@@ -67,7 +67,8 @@
 | R5-02 | DONE | Balance objects из MDA mechanic_set (domain model с typed weapon/armor/upgrade/unit/support) | 734 tests, TypeScript, scoped ESLint |
 | R5-03 | DONE | Strict input validation: NaN/string/duplicate ID/duplicate name → 422 | 762 tests, TypeScript, scoped ESLint |
 | R5-04 | DONE | Real Nash solver для 2×2 (closed-form), honest heuristic fallback для larger matrices | 781 tests, TypeScript, scoped ESLint |
-| R5-05…R7 | TODO | См. активный roadmap | — |
+| R5-05 | DONE | findAllRpsCycles: перебирает все cycles (не только consecutive), без early break, deduplicates rotations | 793 tests, TypeScript, scoped ESLint |
+| R5-06…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -80,6 +81,44 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R5-05 — DONE
+
+Что сделано:
+
+- создан модуль `src/lib/balance/rps-cycles.ts` с полным перебором всех RPS cycles;
+- `findAllRpsCycles(payoffMatrix, names, options)` — перебирает ALL ordered triples (i, j, k) с i≠j≠k (через backtracking), НЕ только consecutive;
+- НЕ break-ает после первого match — возвращает все cycles;
+- поддерживает cycles длиной 3..maxLength (опционально 4, 5);
+- deduplicates rotational equivalents (0→1→2→0 == 1→2→0→1);
+- возвращает cycles отсортированные по strength (average payoff) descending;
+- каждый cycle содержит `cycle` (names), `indices`, `strength`, `length`;
+- `buildIntransitiveResult` в route.ts заменяет consecutive-only + break logic на `findAllRpsCycles`;
+- **исправляет баг**: ранее non-consecutive cycles (0→2→4→0) пропускались; теперь обнаруживаются.
+
+Изменённые области:
+
+- `src/lib/balance/rps-cycles.ts` (новый, 170 строк) и `rps-cycles.test.ts` (новый, 12 тестов);
+- `src/app/api/v1/balance/analyze/route.ts` — `buildIntransitiveResult` использует `findAllRpsCycles`.
+
+Проверки:
+
+- `bun run test` — 68 файлов, 793 теста пройдено (было 781; +12 rps-cycles);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- classic RPS (rock/paper/scissors) → 1 cycle detected (deduplicated rotations);
+- non-consecutive 3-cycle (0→2→4→0 в 5-strategy matrix) → detected (was missed before R5-05);
+- two independent RPS cycles в 6-strategy matrix → both detected (no early break);
+- dominant strategy → 0 cycles;
+- cycles sorted by strength descending;
+- maxResults limit respected;
+- threshold filtering works;
+- 4-cycles detected when maxLength=4;
+- следующей задачей назначена `R5-06`.
 
 ### 2026-08-01 — R5-04 — DONE
 

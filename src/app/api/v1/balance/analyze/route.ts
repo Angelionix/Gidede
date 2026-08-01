@@ -44,6 +44,7 @@ import {
 import { validateBalanceObjects, type BalanceObjectInput } from "@/lib/balance/input-validation";
 import { solveNash } from "@/lib/balance/nash-solver";
 import { findAllRpsCycles } from "@/lib/balance/rps-cycles";
+import { computeBalanceSeed } from "@/lib/balance/sim-seed";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
@@ -1155,8 +1156,10 @@ export async function POST(request: NextRequest) {
     const qFactorResult = buildQFactorResult(objects, runQFactor);
 
     // --- Stage 5: Monte Carlo ---
-    // TASK-4.6: deterministic seed from projectId for reproducible results.
-    const mcSeed = hashString(proj.id || "default-seed");
+    // R5-06: seed incorporates projectId + objects + simVersion, so changing
+    // objects (e.g. rebalancing iteration) changes the seed, while the same
+    // input remains reproducible. Before: seed = hashString(proj.id) only.
+    const mcSeed = computeBalanceSeed(proj.id || "default-seed", objects);
     const monteCarloResult = buildMonteCarloResult(
       objects,
       intransitiveResult,

@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R5-06` — seed = hash(project + input + sim version).
-- **Зависимости:** `R5-05` завершена; findAllRpsCycles перебирает все cycles (не только consecutive), без early break.
-- **Ожидаемый результат:** изменение objects меняет seed, повтор того же input воспроизводим.
-- **После неё:** `R5-07` — исправить buildGap, stall и runs metadata.
+- **Следующая задача:** `R5-07` — исправить buildGap, stall и runs metadata.
+- **Зависимости:** `R5-06` завершена; Monte Carlo seed включает projectId + objects + simVersion.
+- **Ожидаемый результат:** метрика buildGap корректна; stall condition достижим; runs metadata соответствует выполненным прогонам.
+- **После неё:** `R5-08` — composite overall balance score + hard sub-gates.
 
 ## Статус roadmap
 
@@ -68,7 +68,8 @@
 | R5-03 | DONE | Strict input validation: NaN/string/duplicate ID/duplicate name → 422 | 762 tests, TypeScript, scoped ESLint |
 | R5-04 | DONE | Real Nash solver для 2×2 (closed-form), honest heuristic fallback для larger matrices | 781 tests, TypeScript, scoped ESLint |
 | R5-05 | DONE | findAllRpsCycles: перебирает все cycles (не только consecutive), без early break, deduplicates rotations | 793 tests, TypeScript, scoped ESLint |
-| R5-06…R7 | TODO | См. активный roadmap | — |
+| R5-06 | DONE | Monte Carlo seed = hash(projectId + objects + simVersion) — изменение objects меняет seed | 810 tests, TypeScript, scoped ESLint |
+| R5-07…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -81,6 +82,40 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R5-06 — DONE
+
+Что сделано:
+
+- создан модуль `src/lib/balance/sim-seed.ts` с proper seed computation;
+- `computeBalanceSeed(projectId, objects, simVersion)` — seed incorporates:
+  - projectId (как раньше);
+  - canonical objects representation (names + attributes + costs + tiers, attribute keys sorted);
+  - simVersion tag (default "balance-mc-v1");
+- `hashString(s)` — FNV-1a 32-bit unsigned hash (вынесен в модуль для переиспользования);
+- Balance route заменяет `hashString(proj.id)` на `computeBalanceSeed(proj.id, objects)`;
+- **исправляет баг**: ранее перебалансировка (изменение objects) при том же projectId давала тот же seed → невозможно было отличить genuine balance changes от RNG artifacts.
+
+Изменённые области:
+
+- `src/lib/balance/sim-seed.ts` (новый, 100 строк) и `sim-seed.test.ts` (новый, 17 тестов);
+- `src/app/api/v1/balance/analyze/route.ts` — `mcSeed` использует `computeBalanceSeed`.
+
+Проверки:
+
+- `bun run test` — 69 файлов, 810 тестов пройдено (было 793; +17 sim-seed);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- same projectId + same objects → same seed (reproducible);
+- same projectId + different objects → different seed (R5-06 fix);
+- changing object name/attribute/cost/order → different seed;
+- different simVersion → different seed;
+- attribute key order не влияет на seed (canonicalization);
+- следующей задачей назначена `R5-07`.
 
 ### 2026-08-01 — R5-05 — DONE
 

@@ -482,6 +482,39 @@ function detectPathologies(
     }
   }
 
+  // TASK-5b.8: Bible 6.10 — 2 missing pathologies (Arbitrage + Deadlock).
+
+  // 6.10.5: Arbitrage — conversion chain with profitability > 1.5 creates risk-free profit loop.
+  // Detected when a catalytic resource has very high faucet and low drain (ratio > 2).
+  for (const r of resources) {
+    if (r.is_catalytic) {
+      const d = faucetDrain[r.name];
+      if (d && d.ratio > 2.0) {
+        pathologies.push({
+          name: "Арбитраж",
+          severity: "warning",
+          description: `Катализатор «${r.name}» имеет ratio ${d.ratio.toFixed(2)} — безрисковый arbitrage loop`,
+          affected_resources: [r.name],
+          correction: "Снизьте прибыльность конверсии или увеличьте opportunity cost",
+        });
+      }
+    }
+  }
+
+  // 6.10.6: Deadlock — resource with both faucet and drain = 0 (completely disconnected).
+  for (const r of resources) {
+    const d = faucetDrain[r.name];
+    if (d && d.faucet === 0 && d.drain === 0) {
+      pathologies.push({
+        name: "Deadlock",
+        severity: "critical",
+        description: `Ресурс «${r.name}» полностью отключён от экономики (faucet=0, drain=0)`,
+        affected_resources: [r.name],
+        correction: "Подключите ресурс к активной цепочке конверсии или удалите его",
+      });
+    }
+  }
+
   return pathologies;
 }
 
@@ -675,10 +708,30 @@ export async function POST(request: NextRequest) {
 
     const owned = await getOwnedProject(user, projectId);
     if (owned instanceof NextResponse) return owned;
-    const proj = owned.project as { id: string; name: string; genre: string | null };
+    const proj = owned.project as {
+      id: string; name: string; genre: string | null;
+      concept?: { genre?: string | null; inputData?: string | null } | null;
+    };
+
+    // TASK-5b.7: Derive genre/monetization/openness from concept if not in body.
+    let resolvedGenre = genre;
+    if ((!resolvedGenre || resolvedGenre === "rpg") && proj.concept?.genre) {
+      resolvedGenre = proj.concept.genre;
+    }
+    // Try to load monetization from concept inputData.
+    let resolvedMonetization = monetizationType;
+    let resolvedOpenness = openness;
+    if (proj.concept?.inputData) {
+      try {
+        const conceptInput = JSON.parse(proj.concept.inputData);
+        if (conceptInput.monetization_model && !body?.monetization_type) {
+          resolvedMonetization = conceptInput.monetization_model;
+        }
+      } catch { /* ignore */ }
+    }
 
     // --- Build resource inventory ---
-    const preset = pickResources(genre);
+    const preset = pickResources(resolvedGenre);
     const resources: ResourceDef[] = [];
     const anchorName = preset.core[0] || "score";
 
@@ -711,7 +764,7 @@ export async function POST(request: NextRequest) {
       });
     }
     // Add a premium currency if F2P
-    if (monetizationType === "f2p" || monetizationType === "hybrid") {
+    if (resolvedMonetization === "f2p" || resolvedMonetization === "hybrid") {
       resources.push({
         name: "gems",
         resource_class: "currency",
@@ -738,9 +791,9 @@ export async function POST(request: NextRequest) {
     };
 
     // --- Classification ---
-    const classification = classifySystemType(resources, openness, monetizationType);
-    (classification as Record<string, unknown>).monetization_type = monetizationType;
-    (classification as Record<string, unknown>).genre = genre;
+    const classification = classifySystemType(resources, resolvedOpenness, resolvedMonetization);
+    (classification as Record<string, unknown>).monetization_type = resolvedMonetization;
+    (classification as Record<string, unknown>).genre = resolvedGenre;
 
     // --- Machinations model ---
     const machinations = buildMachinations(resources, anchor, classification);
@@ -834,8 +887,8 @@ export async function POST(request: NextRequest) {
         resourceCount: resources.length,
         hasPathology: pathologies.length > 0,
         inputData: JSON.stringify({
-          genre,
-          monetization_type: monetizationType,
+          genre: resolvedGenre,
+          monetization_type: resolvedMonetization,
           openness,
         }),
         resourceModel: JSON.stringify(inventory),
@@ -845,15 +898,15 @@ export async function POST(request: NextRequest) {
         corrections: JSON.stringify(adjustments),
         simulationResults: JSON.stringify(simResult),
         monetizationModel: JSON.stringify({
-          type: monetizationType,
+          type: resolvedMonetization,
           primary_revenue:
-            monetizationType === "f2p"
+            resolvedMonetization === "f2p"
               ? ["iap", "ads"]
-              : monetizationType === "subscription"
+              : resolvedMonetization === "subscription"
                 ? ["subscription"]
                 : ["purchase"],
           secondary_revenue: [],
-          ethical_concerns: monetizationType === "p2w" ? ["pay_to_win"] : [],
+          ethical_concerns: resolvedMonetization === "p2w" ? ["pay_to_win"] : [],
         }),
         fullProfile: JSON.stringify(result),
       },
@@ -862,8 +915,8 @@ export async function POST(request: NextRequest) {
         resourceCount: resources.length,
         hasPathology: pathologies.length > 0,
         inputData: JSON.stringify({
-          genre,
-          monetization_type: monetizationType,
+          genre: resolvedGenre,
+          monetization_type: resolvedMonetization,
           openness,
         }),
         resourceModel: JSON.stringify(inventory),
@@ -873,15 +926,15 @@ export async function POST(request: NextRequest) {
         corrections: JSON.stringify(adjustments),
         simulationResults: JSON.stringify(simResult),
         monetizationModel: JSON.stringify({
-          type: monetizationType,
+          type: resolvedMonetization,
           primary_revenue:
-            monetizationType === "f2p"
+            resolvedMonetization === "f2p"
               ? ["iap", "ads"]
-              : monetizationType === "subscription"
+              : resolvedMonetization === "subscription"
                 ? ["subscription"]
                 : ["purchase"],
           secondary_revenue: [],
-          ethical_concerns: monetizationType === "p2w" ? ["pay_to_win"] : [],
+          ethical_concerns: resolvedMonetization === "p2w" ? ["pay_to_win"] : [],
         }),
         fullProfile: JSON.stringify(result),
       },
@@ -893,11 +946,11 @@ export async function POST(request: NextRequest) {
     if (useAi) {
       const aiInsights = await enrichEconomy({
         projectName: proj.name || "Untitled",
-        genre,
+        genre: resolvedGenre,
         systemType: classification.type,
         resourceCount: resources.length,
-        monetizationType,
-        openness,
+        monetizationType: resolvedMonetization,
+        openness: resolvedOpenness,
         pathologies: pathologies.map((p) => p.name),
         stabilityIndex: simResult.aggregated.stability_index,
         avgProfitability: conversionGraph.avg_profitability,

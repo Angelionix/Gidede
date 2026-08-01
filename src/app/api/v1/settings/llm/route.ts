@@ -4,7 +4,12 @@ import {
   listConfiguredLlmAdapters,
   normalizeConfiguredLlmOptions,
 } from "@/lib/llm/configured-adapters";
-import { parseOpenAiCompatibleConfig, resolveServerSecret } from "@/lib/llm/config";
+import { parseOpenAiCompatibleConfig } from "@/lib/llm/config";
+import {
+  clientSafeLlmSecretStatus,
+  isLlmSecretEncryptionAvailable,
+  selectPersistedLlmSecret,
+} from "@/lib/llm/secret-storage";
 import { getCurrentUser } from "@/lib/server-auth";
 
 function serialize(config: {
@@ -21,9 +26,8 @@ function serialize(config: {
     label: config.label,
     base_url: config.baseUrl,
     model: config.model,
-    secret_ref: config.secretRef,
+    ...clientSafeLlmSecretStatus(config.secretRef),
     config_json: config.configJson ? JSON.parse(config.configJson) : null,
-    secret_available: !config.secretRef || resolveServerSecret(config.secretRef) !== null,
     enabled: config.enabled,
   };
 }
@@ -35,6 +39,7 @@ export async function GET(request: NextRequest) {
   const config = await db.userLlmConfig.findUnique({ where: { userId: user.id } });
   return NextResponse.json({
     adapters: listConfiguredLlmAdapters(),
+    secret_encryption_available: isLlmSecretEncryptionAvailable(),
     config: config ? serialize(config) : null,
   });
 }
@@ -58,6 +63,13 @@ export async function PUT(request: NextRequest) {
     if (configJson && configJson.length > 20_000) {
       throw new Error("config_json is too large");
     }
+    const existing = await db.userLlmConfig.findUnique({ where: { userId: user.id } });
+    const secretRef = selectPersistedLlmSecret({
+      existingSecretRef: existing?.secretRef ?? null,
+      environmentSecretRef: config.secretRef,
+      plaintextSecret: body?.api_key,
+      clearSecret: body?.clear_secret === true,
+    });
 
     const saved = await db.userLlmConfig.upsert({
       where: { userId: user.id },
@@ -66,11 +78,13 @@ export async function PUT(request: NextRequest) {
         adapter,
         configJson,
         ...config,
+        secretRef,
       },
       update: {
         adapter,
         configJson,
         ...config,
+        secretRef,
       },
     });
 

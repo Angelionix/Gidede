@@ -75,6 +75,9 @@ export default function SettingsPage() {
     baseUrl: "",
     model: "",
     secretRef: "",
+    apiKey: "",
+    secretSource: "none" as "none" | "environment" | "encrypted",
+    clearSecret: false,
     mapping: DEFAULT_GENERIC_MAPPING,
     enabled: true,
   });
@@ -83,6 +86,7 @@ export default function SettingsPage() {
     { id: "generic-http", label: "Generic HTTP mapping" },
   ]);
   const [llmSecretAvailable, setLlmSecretAvailable] = useState<boolean | null>(null);
+  const [llmEncryptionAvailable, setLlmEncryptionAvailable] = useState(false);
   const [llmLoading, setLlmLoading] = useState(true);
   const [llmSaving, setLlmSaving] = useState(false);
 
@@ -91,20 +95,23 @@ export default function SettingsPage() {
     let cancelled = false;
     apiFetch<{
       adapters: Array<{ id: string; label: string }>;
+      secret_encryption_available: boolean;
       config: null | {
         adapter: string;
         label: string;
         base_url: string;
         model: string;
         secret_ref: string | null;
+        secret_source: "none" | "environment" | "encrypted";
         config_json: unknown;
         secret_available: boolean;
         enabled: boolean;
       };
     }>("/settings/llm")
-      .then(({ adapters, config }) => {
+      .then(({ adapters, config, secret_encryption_available }) => {
         if (cancelled) return;
         if (adapters.length > 0) setLlmAdapters(adapters);
+        setLlmEncryptionAvailable(secret_encryption_available);
         if (!config) return;
         setLlmConfig({
           adapter: config.adapter,
@@ -112,6 +119,9 @@ export default function SettingsPage() {
           baseUrl: config.base_url,
           model: config.model,
           secretRef: config.secret_ref || "",
+          apiKey: "",
+          secretSource: config.secret_source,
+          clearSecret: false,
           mapping: config.config_json
             ? JSON.stringify(config.config_json, null, 2)
             : DEFAULT_GENERIC_MAPPING,
@@ -143,7 +153,10 @@ export default function SettingsPage() {
         ? JSON.parse(llmConfig.mapping)
         : null;
       const { config } = await apiFetch<{
-        config: { secret_available: boolean };
+        config: {
+          secret_available: boolean;
+          secret_source: "none" | "environment" | "encrypted";
+        };
       }>("/settings/llm", {
         method: "PUT",
         body: JSON.stringify({
@@ -152,11 +165,19 @@ export default function SettingsPage() {
           base_url: llmConfig.baseUrl,
           model: llmConfig.model,
           secret_ref: llmConfig.secretRef || null,
+          api_key: llmConfig.apiKey || undefined,
+          clear_secret: llmConfig.clearSecret,
           config_json: mapping,
           enabled: llmConfig.enabled,
         }),
       });
       setLlmSecretAvailable(config.secret_available);
+      setLlmConfig((value) => ({
+        ...value,
+        apiKey: "",
+        secretSource: config.secret_source,
+        clearSecret: false,
+      }));
       toast({ title: "LLM-router сохранён" });
     } catch (error) {
       toast({
@@ -179,6 +200,9 @@ export default function SettingsPage() {
         baseUrl: "",
         model: "",
         secretRef: "",
+        apiKey: "",
+        secretSource: "none",
+        clearSecret: false,
         mapping: DEFAULT_GENERIC_MAPPING,
         enabled: true,
       });
@@ -431,18 +455,72 @@ export default function SettingsPage() {
                   <Input
                     id="llm-secret-ref"
                     value={llmConfig.secretRef}
-                    onChange={(event) => setLlmConfig((value) => ({ ...value, secretRef: event.target.value }))}
+                    onChange={(event) => setLlmConfig((value) => ({
+                      ...value,
+                      secretRef: event.target.value,
+                      apiKey: "",
+                      clearSecret: false,
+                    }))}
                     placeholder="env:OPENROUTER_API_KEY"
                     autoComplete="off"
                   />
                   <p className="text-xs text-muted-foreground">
-                    Укажите имя переменной окружения. Сам API-ключ не отправляется в браузер и не хранится в базе.
+                    Вариант для deployment: укажите имя переменной окружения, не значение ключа.
                   </p>
-                  {llmSecretAvailable !== null && (
-                    <Badge variant={llmSecretAvailable ? "secondary" : "destructive"}>
-                      {llmSecretAvailable ? "Секрет доступен серверу" : "Переменная окружения не найдена"}
-                    </Badge>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="llm-api-key">API-ключ для шифрованного хранения</Label>
+                  <Input
+                    id="llm-api-key"
+                    type="password"
+                    value={llmConfig.apiKey}
+                    onChange={(event) => setLlmConfig((value) => ({
+                      ...value,
+                      apiKey: event.target.value,
+                      secretRef: "",
+                      clearSecret: false,
+                    }))}
+                    placeholder={llmConfig.secretSource === "encrypted"
+                      ? "Оставьте пустым, чтобы сохранить текущий ключ"
+                      : "Вставьте API-ключ"}
+                    autoComplete="new-password"
+                    disabled={!llmEncryptionAvailable}
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Ключ шифруется AES-256-GCM на сервере; обратно в интерфейс он не возвращается.
+                  </p>
+                  {!llmEncryptionAvailable && (
+                    <p className="text-xs text-destructive">
+                      Задайте серверную переменную <code>GIDEDE_LLM_SECRETS_KEY</code>, чтобы включить хранение ключей.
+                    </p>
                   )}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {llmConfig.clearSecret ? (
+                      <Badge variant="destructive">Секрет будет удалён после сохранения</Badge>
+                    ) : llmConfig.secretSource !== "none" && (
+                      <Badge variant={llmSecretAvailable ? "secondary" : "destructive"}>
+                        {llmConfig.secretSource === "encrypted"
+                          ? "Зашифрованный ключ сохранён"
+                          : "Используется environment reference"}
+                        {!llmSecretAvailable && " — недоступен"}
+                      </Badge>
+                    )}
+                    {(llmConfig.secretSource !== "none" || llmConfig.secretRef || llmConfig.apiKey) && (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setLlmConfig((value) => ({
+                          ...value,
+                          secretRef: "",
+                          apiKey: "",
+                          clearSecret: true,
+                        }))}
+                      >
+                        Очистить секрет
+                      </Button>
+                    )}
+                  </div>
                 </div>
                 {llmConfig.adapter !== "openai-compatible" && (
                   <div className="space-y-2">

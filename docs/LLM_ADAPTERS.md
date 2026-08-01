@@ -32,7 +32,28 @@ as one chunk. Numeric dot-path components can read array response values, for ex
 `candidates.0.content`.
 
 Secret-bearing static headers (`Authorization`, `x-api-key`, `api-key`) are rejected.
-Use `secret_ref` so the value remains outside the browser, database and adapter JSON.
+Use an environment reference or the encrypted key field so a secret never enters
+adapter JSON or a plaintext database column.
+
+## Secrets
+
+Two server-side secret sources are supported:
+
+- `env:VARIABLE_NAME` keeps the key entirely in deployment configuration;
+- the API-key field encrypts the value with AES-256-GCM before persistence.
+
+Encrypted storage requires `GIDEDE_LLM_SECRETS_KEY`, a base64-encoded 32-byte master
+key. The browser receives only `secret_source`, availability status and an environment
+reference when applicable. Stored ciphertext and plaintext keys are never returned.
+
+Generate the master key once, store it in the deployment secret manager and back it up:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+Changing or losing the master key makes existing encrypted provider keys unreadable.
+Replace each provider key before rotating the master key.
 
 ## Custom adapter SPI
 

@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R3-04` — добавить encrypted secrets поверх уже работающих server secret references.
-- **Зависимости:** `R3-01`–`R3-03` завершены; adapter registry принимает единый `secretRef` без provider-specific payloads.
-- **Ожидаемый результат:** ключи отсутствуют в client payload, DB plaintext и logs; пользователь может безопасно задать ключ без ручной настройки environment.
-- **После неё:** `R3-05` — добавить timeout, retry/backoff, TTL и circuit breaker.
+- **Следующая задача:** `R3-05` — добавить timeout, retry/backoff, TTL и circuit breaker для LLM providers.
+- **Зависимости:** `R3-01`–`R3-04` завершены; adapters и безопасное разрешение секретов работают через общий контракт.
+- **Ожидаемый результат:** transient init/request failure восстанавливается без рестарта, зависшие вызовы ограничены timeout, повторные ошибки временно размыкают circuit.
+- **После неё:** `R3-06` — добавить capability negotiation и model discovery.
 
 ## Правила ведения
 
@@ -55,9 +55,56 @@
 | R3-01 | DONE | `LlmClient`, lazy registry и изолированный ZAI adapter отделены от `ai-service` | 358 tests, TypeScript, scoped ESLint |
 | R3-02 | DONE | OpenAI-compatible router настраивается через UI, включая SSE и server secret ref | 365 tests, TypeScript, scoped ESLint, Prisma validate |
 | R3-03 | DONE | Generic HTTP dot-path mapping, SSE/NDJSON и Custom adapter SPI | 372 tests, TypeScript, scoped ESLint, Prisma validate |
-| R3-04…R7 | TODO | См. активный roadmap | — |
+| R3-04 | DONE | AES-256-GCM encrypted API keys и client-safe secret status поверх `env:` refs | 376 tests, TypeScript, scoped ESLint |
+| R3-05…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R3-04 — DONE
+
+Что сделано:
+
+- реализовано versioned envelope encryption `enc:v1` на AES-256-GCM с 96-bit IV, authentication tag и AAD;
+- master key загружается только из `GIDEDE_LLM_SECRETS_KEY` и обязан быть base64-encoded 32-byte value;
+- отсутствующий или некорректный master key не получает небезопасный fallback;
+- encrypted envelope хранится в существующем server-only `secretRef`; plaintext в Prisma не записывается;
+- существующие `env:VARIABLE_NAME` references сохранены и разрешаются тем же server-side resolver;
+- API settings никогда не возвращает encrypted envelope или plaintext: клиент получает только `secret_source`, safe environment ref и availability;
+- сохранение настроек без нового секрета сохраняет существующий ciphertext, новый ключ атомарно заменяет его, очистка требует `clear_secret`;
+- одновременная передача plaintext key и environment ref, а также clear+replacement отклоняются;
+- UI получил password-only поле, статус encrypted/environment source и явную операцию очистки;
+- после успешного сохранения plaintext удаляется из React state и никогда не возвращается сервером;
+- при недоступном master key encrypted input блокируется, а provider health возвращает unavailable без исключения и утечки;
+- tampered ciphertext и неверный master key дают обобщённую ошибку без secret/ciphertext contents;
+- deployment и adapter documentation дополнены генерацией, хранением и правилами ротации master key.
+
+Изменённые области:
+
+- `src/lib/llm/secret-storage.ts` и тесты;
+- `src/lib/llm/config.ts`;
+- `src/lib/llm/providers/openai-compatible.ts`;
+- `src/lib/llm/providers/generic-http.ts`;
+- `src/app/api/v1/settings/llm/route.ts`;
+- `src/app/settings/page.tsx`;
+- `docs/LLM_ADAPTERS.md`;
+- `docs/DEPLOYMENT.md`.
+
+Проверки:
+
+- targeted secret/config/provider tests — 4 файла, 16 тестов пройдены;
+- `npm run test` — 32 файла, 376 тестов пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript/TSX-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- ciphertext не содержит plaintext и успешно расшифровывается только тем же 256-bit master key;
+- изменение ciphertext обнаруживается GCM authentication и не раскрывает исходное значение в error;
+- client-safe serializer исключает весь encrypted envelope из JSON ответа;
+- DB field получает только `env:` reference, `enc:v1` envelope либо `null`;
+- static mapping secrets по-прежнему запрещены, а runtime adapter получает secret только через server resolver;
+- следующей задачей назначена `R3-05`.
 
 ### 2026-08-01 — R3-03 — DONE
 

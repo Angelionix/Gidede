@@ -1,3 +1,5 @@
+import { resolveLlmSecretReference } from "@/lib/llm/secret-storage";
+
 export interface OpenAiCompatibleConfigInput {
   label: unknown;
   baseUrl: unknown;
@@ -65,9 +67,5 @@ export function parseOpenAiCompatibleConfig(input: OpenAiCompatibleConfigInput):
 }
 
 export function resolveServerSecret(secretRef: string | null | undefined): string | null {
-  if (!secretRef) return null;
-  const match = ENV_SECRET_REF.exec(secretRef);
-  if (!match) throw new Error("Unsupported LLM secret reference");
-  const value = process.env[match[1]]?.trim();
-  return value || null;
+  return resolveLlmSecretReference(secretRef);
 }

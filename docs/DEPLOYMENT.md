@@ -46,9 +46,19 @@ bun run dev
 ```env
 DATABASE_URL="file:./db/custom.db"
 JWT_SECRET_KEY="your-secret-key-here"  # обязателен в production
+GIDEDE_LLM_SECRETS_KEY="base64-encoded-32-byte-key" # для шифрованного хранения LLM API-ключей
 NEXT_PUBLIC_API_URL=""                 # пусто = относительные пути
 ZAI_API_KEY=""                         # опционально, AI работает и без него
 ```
+
+`GIDEDE_LLM_SECRETS_KEY` должен храниться в secret manager окружения и оставаться
+стабильным между перезапусками. Сгенерировать значение можно командой:
+
+```bash
+node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+```
+
+Потеря или замена master key делает ранее сохранённые LLM API-ключи нечитаемыми.
 
 ---
 

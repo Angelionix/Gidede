@@ -118,7 +118,11 @@ export class OpenAiCompatibleLlmClient implements LlmClient {
   }
 
   async isAvailable(): Promise<boolean> {
-    return !this.secretRef || resolveServerSecret(this.secretRef) !== null;
+    try {
+      return !this.secretRef || resolveServerSecret(this.secretRef) !== null;
+    } catch {
+      return false;
+    }
   }
 }
 

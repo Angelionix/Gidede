@@ -19,7 +19,11 @@ import { getCurrentUser } from "@/lib/server-auth";
 import { getOwnedProject, updateProjectStage, UNAUTH, SERVER_ERROR, VALIDATION_ERROR } from "@/lib/api-helpers";
 import { enrichCoreLoop } from "@/lib/ai-service";
 import { buildSteps } from "@/lib/coreloop/steps";
-import { classifyStructuralType, VALID_LOOP_TYPES } from "@/lib/coreloop/classify";
+import {
+  classifyLoopType,
+  classifyStructuralType,
+  VALID_LOOP_TYPES,
+} from "@/lib/coreloop/classify";
 import { detectPathologies } from "@/lib/coreloop/pathologies";
 import { buildValidation } from "@/lib/coreloop/validation";
 import { buildLoopHierarchy, buildRecommendations } from "@/lib/coreloop/hierarchy";
@@ -27,17 +31,6 @@ import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
 import { resolveCoreLoopInput } from "@/lib/coreloop/input";
-
-const GENRE_DEFAULT_LOOP_TYPE: Record<string, string> = {
-  action: "engine", shooter: "engine", platformer: "engine", fighting: "engine",
-  rhythm: "rhythm", racing: "engine", rpg: "economy", action_rpg: "hybrid",
-  jrpg: "economy", tactical_rpg: "economy", mmorpg: "economy", strategy: "economy",
-  rts: "economy", tbs: "economy", tower_defense: "tower_defense",
-  simulation: "ecology", sandbox: "ecology", horror: "ecology",
-  survival_horror: "ecology", roguelike: "hybrid", adventure: "hybrid",
-  puzzle: "puzzle", metroidvania: "hybrid", idle: "engine",
-  visual_novel: "hybrid", stealth: "hybrid",
-};
 
 export async function POST(request: NextRequest) {
   const startedAt = Date.now();
@@ -86,8 +79,8 @@ export async function POST(request: NextRequest) {
     const contractInput = validateStageInput("core_loop", resolvedBody);
     if (!contractInput.success) return VALIDATION_ERROR(contractInput.error);
 
-    // Stage 1: Build steps + classify
-    const loopType = desiredLoopType || GENRE_DEFAULT_LOOP_TYPE[genre] || "hybrid";
+    // Stage 1: classify from Concept signals, then select the matching template.
+    const loopType = classifyLoopType(genre, resolvedAesthetic, desiredLoopType);
     const steps = buildSteps(mechanics, customSteps, loopType, genre);
     const structuralType = classifyStructuralType(mechanics, genre, resolvedAesthetic, desiredLoopType, steps);
 

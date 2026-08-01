@@ -49,6 +49,21 @@ export interface StructuralType {
   };
 }
 
+/** Select the structural type from Concept signals before any steps exist. */
+export function classifyLoopType(
+  genre: string,
+  primaryAesthetic: string | undefined,
+  desiredLoopType: string | undefined,
+): LoopType {
+  if (desiredLoopType && VALID_LOOP_TYPES.includes(desiredLoopType as LoopType)) {
+    return desiredLoopType as LoopType;
+  }
+  if (primaryAesthetic && AESTHETIC_TO_LOOP_TYPE[primaryAesthetic]) {
+    return AESTHETIC_TO_LOOP_TYPE[primaryAesthetic];
+  }
+  return GENRE_DEFAULT_LOOP_TYPE[genre] || "hybrid";
+}
+
 export function classifyStructuralType(
   mechanics: string[],
   genre: string,
@@ -56,14 +71,7 @@ export function classifyStructuralType(
   desiredLoopType: string | undefined,
   steps: CoreStep[]
 ): StructuralType {
-  let type: string;
-  if (desiredLoopType && VALID_LOOP_TYPES.includes(desiredLoopType as LoopType)) {
-    type = desiredLoopType;
-  } else if (primaryAesthetic && AESTHETIC_TO_LOOP_TYPE[primaryAesthetic]) {
-    type = AESTHETIC_TO_LOOP_TYPE[primaryAesthetic];
-  } else {
-    type = GENRE_DEFAULT_LOOP_TYPE[genre] || "hybrid";
-  }
+  const type = classifyLoopType(genre, primaryAesthetic, desiredLoopType);
 
   const subType = getSubType(type, steps, mechanics);
   const hasBraking = detectBraking(steps);

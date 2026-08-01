@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R2-02` — сначала определять structural type, затем строить steps.
-- **Зависимости:** `R2-01` завершена; Core Loop получает mechanics/genre/aesthetic из сохранённого Concept без generic fallback.
-- **Ожидаемый результат:** step template выбирается по фактически классифицированному structural type, а не по предварительному genre-default.
-- **После неё:** `R2-03` — заменить closure proxy на directed resource/state graph.
+- **Следующая задача:** `R2-03` — заменить closure proxy на directed resource/state graph.
+- **Зависимости:** `R2-02` завершена; structural type выбирается до построения соответствующего step template.
+- **Ожидаемый результат:** loop считается closed только при существовании достижимого directed path от результата последнего шага к входу первого.
+- **После неё:** `R2-04` — исправить self-failing Engine/Puzzle templates.
 
 ## Правила ведения
 
@@ -45,10 +45,43 @@
 | R1-09 | DONE | Completion и блоки учитывают только accepted/non-stale artifacts | 324 tests, TypeScript, scoped ESLint |
 | R1-10 | DONE | Version commit только для полного accepted/fresh snapshot с optimistic lock | 331 tests, TypeScript, scoped ESLint |
 | R2-01 | DONE | Concept mechanics/genre/aesthetic доходят до Core Loop без generic fallback | 334 tests, TypeScript, scoped ESLint |
-| R2-02 | TODO | Structural type определяется до построения steps | — |
+| R2-02 | DONE | Structural type выбирается до matching step template | 335 tests, TypeScript, scoped ESLint |
 | R2-03…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R2-02 — DONE
+
+Что сделано:
+
+- выделен чистый `classifyLoopType`, не зависящий от уже построенных steps;
+- сохранён явный порядок сигналов: valid user override → Concept primary aesthetic → genre default → hybrid;
+- Core Loop endpoint сначала классифицирует type, затем передаёт его в `buildSteps`;
+- удалена дублирующая genre→type таблица из endpoint: единственным источником классификации стал модуль `coreloop/classify`;
+- `classifyStructuralType` использует тот же классификатор для post-build diagnostics, subtype, braking, resources и risk assessment;
+- публичный `StructuralType` оставлен обратно совместимым для специальных diagnostic fixtures.
+
+Изменённые области:
+
+- `src/lib/coreloop/classify.ts`
+- `src/lib/coreloop/classify.test.ts`
+- `src/app/api/v1/coreloop/design/route.ts`
+
+Проверки:
+
+- classification/steps tests — 2 файла, 51 тест пройден;
+- `npm run test` — 23 файла, 335 тестов пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- fixture `genre=action + aesthetic=discovery` сначала классифицируется как `economy`;
+- для него строится economy template с цепью `raw_resource`, а не engine template жанрового default;
+- итоговый `structural_type.type` совпадает с type выбранного template;
+- existing tests подтверждают все 7 loop types и приоритет explicit override;
+- следующей задачей назначена `R2-03`.
 
 ### 2026-08-01 — R2-01 — DONE
 

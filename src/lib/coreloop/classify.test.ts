@@ -4,10 +4,27 @@
  */
 
 import { describe, it, expect } from "vitest";
-import { classifyStructuralType, VALID_LOOP_TYPES } from "./classify";
+import { classifyLoopType, classifyStructuralType, VALID_LOOP_TYPES } from "./classify";
 import { buildSteps } from "./steps";
 
 describe("classifyStructuralType — TASK-2.2: тип по эстетике", () => {
+  it("selects the template type before steps and keeps it aligned with the final classification", () => {
+    const loopType = classifyLoopType("action", "discovery", undefined);
+    const steps = buildSteps(["Gather", "Craft", "Trade"], undefined, loopType, "action");
+    const structural = classifyStructuralType(
+      ["Gather", "Craft", "Trade"],
+      "action",
+      "discovery",
+      undefined,
+      steps,
+    );
+
+    expect(loopType).toBe("economy");
+    expect(structural.type).toBe(loopType);
+    expect(steps[0].resources_produced).toContain("raw_resource");
+    expect(steps[1].resources_consumed).toContain("raw_resource");
+  });
+
   it("challenge → engine", () => {
     const steps = buildSteps(["M1"], undefined, "engine", "action");
     const st = classifyStructuralType(["M1"], "action", "challenge", undefined, steps);

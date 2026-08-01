@@ -2,18 +2,27 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 import type { LlmClient } from "@/lib/llm/types";
 
-const { getCurrentUserMock, getDefaultLlmClientMock } = vi.hoisted(() => ({
+const { getCurrentUserMock, getDefaultLlmClientMock, getConfiguredLlmClientMock } = vi.hoisted(() => ({
   getCurrentUserMock: vi.fn(),
   getDefaultLlmClientMock: vi.fn(),
+  getConfiguredLlmClientMock: vi.fn(),
 }));
 
 vi.mock("@/lib/server-auth", () => ({ getCurrentUser: getCurrentUserMock }));
-vi.mock("@/lib/llm/default-client", () => ({ getDefaultLlmClient: getDefaultLlmClientMock }));
+vi.mock("@/lib/llm/default-client", () => ({
+  getDefaultLlmClient: getDefaultLlmClientMock,
+  getConfiguredLlmClient: getConfiguredLlmClientMock,
+}));
 
 import { POST } from "./route";
 
-function request(): NextRequest {
-  return new NextRequest("http://localhost/api/v1/settings/llm/introspect", { method: "POST" });
+function request(body?: unknown): NextRequest {
+  return new NextRequest("http://localhost/api/v1/settings/llm/introspect", {
+    method: "POST",
+    ...(body === undefined
+      ? {}
+      : { body: JSON.stringify(body), headers: { "Content-Type": "application/json" } }),
+  });
 }
 
 function client(overrides: Partial<LlmClient> = {}): LlmClient {
@@ -74,5 +83,15 @@ describe("POST /settings/llm/introspect — R3-06", () => {
 
     await expect(response.json()).resolves.toMatchObject({ models: [], models_error: null });
     expect(listModels).not.toHaveBeenCalled();
+  });
+
+  it("inspects the explicitly selected provider config", async () => {
+    getConfiguredLlmClientMock.mockResolvedValue(client({ providerId: "generic-http:selected" }));
+
+    const response = await POST(request({ config_id: "config-2" }));
+
+    await expect(response.json()).resolves.toMatchObject({ provider: "generic-http:selected" });
+    expect(getConfiguredLlmClientMock).toHaveBeenCalledWith("config-2");
+    expect(getDefaultLlmClientMock).not.toHaveBeenCalled();
   });
 });

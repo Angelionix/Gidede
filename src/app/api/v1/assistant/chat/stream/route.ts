@@ -90,7 +90,7 @@ export async function POST(request: NextRequest) {
     .filter((m) => m.role === "user" || m.role === "assistant");
 
   const assistantMsgId = `a-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-  const llmStatus = await getDefaultLlmStatus();
+  const llmStatus = await getDefaultLlmStatus("assistant");
   const activeModel = llmStatus.modelId || "unknown";
   const activeProvider = llmStatus.providerId || "unknown";
 

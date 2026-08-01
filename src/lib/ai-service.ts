@@ -5,9 +5,9 @@
  * if the selected provider is unavailable or errors out.
  */
 
-import { getDefaultLlmClient } from "@/lib/llm/default-client";
+import { getLlmClientForStage } from "@/lib/llm/default-client";
 
-const getLlmClient = getDefaultLlmClient;
+const getLlmClient = getLlmClientForStage;
 
 export interface AiContext {
   message: string;
@@ -89,7 +89,7 @@ function buildUserPrompt(ctx: AiContext): string {
 export async function generateAiResponse(
   ctx: AiContext
 ): Promise<string | null> {
-  const zai = await getLlmClient();
+  const zai = await getLlmClient("assistant");
   if (!zai) return null;
 
   try {
@@ -134,7 +134,7 @@ export async function streamAiResponse(
   ctx: AiContext,
   onDelta: (chunk: string) => void
 ): Promise<string | null> {
-  const zai = await getLlmClient();
+  const zai = await getLlmClient("assistant");
   if (!zai) return null;
 
   try {
@@ -179,7 +179,7 @@ export async function streamAiResponse(
 
 /** Check if the selected LLM provider is available. */
 export async function isAiAvailable(): Promise<boolean> {
-  const zai = await getLlmClient();
+  const zai = await getLlmClient("assistant");
   return zai !== null;
 }
 
@@ -209,7 +209,7 @@ export interface ConceptEnrichment {
 export async function enrichConcept(
   ctx: ConceptEnrichmentInput
 ): Promise<ConceptEnrichment | null> {
-  const zai = await getLlmClient();
+  const zai = await getLlmClient("concept");
   if (!zai) return null;
 
   try {
@@ -314,7 +314,7 @@ export interface PrototypeAiInput {
 export async function generatePrototypeInsights(
   ctx: PrototypeAiInput
 ): Promise<string | null> {
-  const zai = await getLlmClient();
+  const zai = await getLlmClient("prototype");
   if (!zai) return null;
 
   try {
@@ -374,7 +374,7 @@ export interface CustomMechanicInput {
 export async function generateCustomMechanic(
   ctx: CustomMechanicInput
 ): Promise<{ mechanicName: string; description: string; codeSnippet: string } | null> {
-  const zai = await getLlmClient();
+  const zai = await getLlmClient("prototype");
   if (!zai) return null;
 
   try {
@@ -447,7 +447,7 @@ export interface CoreLoopAiInput {
 }
 
 export async function enrichCoreLoop(ctx: CoreLoopAiInput): Promise<string | null> {
-  const zai = await getLlmClient();
+  const zai = await getLlmClient("core_loop");
   if (!zai) return null;
   try {
     // TASK-2.18: расширенный prompt с реальным контекстом
@@ -515,7 +515,7 @@ export interface MdaAiInput {
 }
 
 export async function enrichMda(ctx: MdaAiInput): Promise<string | null> {
-  const zai = await getLlmClient();
+  const zai = await getLlmClient("mda");
   if (!zai) return null;
   try {
     // TASK-3.14: расширенный prompt с реальным контекстом MDA-анализа.
@@ -583,7 +583,7 @@ export interface BalanceAiInput {
 }
 
 export async function enrichBalance(ctx: BalanceAiInput): Promise<string | null> {
-  const zai = await getLlmClient();
+  const zai = await getLlmClient("balance");
   if (!zai) return null;
   try {
     // TASK-4.11: extended prompt with real balance analysis context.
@@ -648,7 +648,7 @@ export interface ProgressionAiInput {
 }
 
 export async function enrichProgression(ctx: ProgressionAiInput): Promise<string | null> {
-  const zai = await getLlmClient();
+  const zai = await getLlmClient("progression");
   if (!zai) return null;
   try {
     const prompt = `Ты — эксперт по прогрессии в играх. Дай рекомендации.
@@ -695,7 +695,7 @@ export interface EconomyAiInput {
 }
 
 export async function enrichEconomy(ctx: EconomyAiInput): Promise<string | null> {
-  const zai = await getLlmClient();
+  const zai = await getLlmClient("economy");
   if (!zai) return null;
   try {
     const pathologiesSection = ctx.pathologies && ctx.pathologies.length > 0
@@ -755,7 +755,7 @@ export interface GddAiInput {
 }
 
 export async function enrichGdd(ctx: GddAiInput): Promise<string | null> {
-  const zai = await getLlmClient();
+  const zai = await getLlmClient("gdd");
   if (!zai) return null;
   try {
     const prompt = `Ты — технический писатель GDD. Дай рекомендации по структуре дизайн-документа.
@@ -819,7 +819,7 @@ export interface AiGraphResult {
 export async function generateGraphFromText(
   ctx: AiGraphInput
 ): Promise<AiGraphResult | null> {
-  const zai = await getLlmClient();
+  const zai = await getLlmClient("prototype");
   if (!zai) return null;
 
   try {
@@ -914,7 +914,7 @@ export async function validateGraphWithAI(
   edgeCount: number,
   description?: string
 ): Promise<AiGraphSuggestion[] | null> {
-  const zai = await getLlmClient();
+  const zai = await getLlmClient("prototype");
   if (!zai) return null;
 
   try {
@@ -980,7 +980,7 @@ export interface GddToGraphInput {
 export async function generateGraphFromGdd(
   ctx: GddToGraphInput
 ): Promise<AiGraphResult | null> {
-  const zai = await getLlmClient();
+  const zai = await getLlmClient("prototype");
   if (!zai) return null;
 
   try {

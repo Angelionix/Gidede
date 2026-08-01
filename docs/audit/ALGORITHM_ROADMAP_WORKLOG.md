@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R3-07` — добавить per-stage routing и fallback chain.
-- **Зависимости:** `R3-01`–`R3-06` завершены; adapters имеют единые execution и introspection contracts.
-- **Ожидаемый результат:** Concept и GDD могут использовать разные providers/models с управляемым fallback.
-- **После неё:** `R3-08` — валидировать structured output схемой до записи в domain state.
+- **Следующая задача:** `R3-08` — валидировать structured output схемой до записи в domain state.
+- **Зависимости:** `R3-01`–`R3-07` завершены; stage router выбирает provider/model и transient fallback chain.
+- **Ожидаемый результат:** invalid JSON/structured output не попадает в domain state, repair retry ограничен.
+- **После неё:** `R3-09` — подключить Bible RAG к prompt builder.
 
 ## Правила ведения
 
@@ -58,9 +58,62 @@
 | R3-04 | DONE | AES-256-GCM encrypted API keys и client-safe secret status поверх `env:` refs | 376 tests, TypeScript, scoped ESLint |
 | R3-05 | DONE | Timeout, transient retry/backoff, TTL cache, circuit breaker и recoverable init | 384 tests, TypeScript, scoped ESLint |
 | R3-06 | DONE | Capability contract, health diagnostics и model discovery в adapters/UI | 391 tests, TypeScript, scoped ESLint |
-| R3-07…R7 | TODO | См. активный roadmap | — |
+| R3-07 | DONE | Несколько provider configs, per-stage model routing и transient-only fallback chain | 405 tests, TypeScript, scoped ESLint, Prisma validate |
+| R3-08…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R3-07 — DONE
+
+Что сделано:
+
+- one-to-one LLM config заменён на несколько user-owned provider connections;
+- добавлена отдельная `UserLlmRoute` policy с stage, ordered chain, model overrides, temperature и max output tokens;
+- route policy валидирует stage, 1–5 candidates, models, generation limits и отсутствие duplicate entries;
+- `RoutedLlmClient` применяет provider/model chain поверх существующего resilient client layer;
+- fallback выполняется только после исчерпания retries на transient network/timeout/`408/425/429/5xx` errors;
+- permanent request/auth/model errors немедленно возвращаются caller и не маскируются другим provider;
+- streaming переключается только до первого chunk; после emitted chunk fallback запрещён во избежание дублирования текста;
+- health route считается доступным, если primary недоступен, но настроенный fallback здоров;
+- все AI service calls получили явный stage ID: assistant, concept, prototype, core_loop, mda, balance, progression, economy или gdd;
+- exact stage policy наследует `default` route; без сохранённой policy первый enabled user provider получает built-in ZAI transient fallback;
+- settings API создаёт и редактирует несколько provider configs, проверяет ownership и очищает route references при удалении;
+- отдельный authenticated routes API атомарно сохраняет policies и отклоняет чужие provider config IDs;
+- settings UI позволяет переключать/создавать connections и задавать primary/fallback provider/model для каждой стадии;
+- diagnostics проверяет явно выбранное подключение, а не неявный default route;
+- документированы semantics маршрутизации и fallback.
+
+Изменённые области:
+
+- `prisma/schema.prisma`;
+- `src/lib/llm/routing.ts` и тесты;
+- `src/lib/llm/default-client.ts` и routing test;
+- `src/lib/ai-service.ts` и stage-routing test;
+- `src/app/api/v1/settings/llm/route.ts`;
+- `src/app/api/v1/settings/llm/routes/route.ts` и тесты;
+- `src/app/api/v1/settings/llm/introspect/route.ts` и тесты;
+- assistant chat/status routes;
+- `src/app/settings/page.tsx`;
+- `docs/LLM_ADAPTERS.md`.
+
+Проверки:
+
+- targeted routing/resolver/API/ai-service tests — 5 файлов, 17 тестов пройдены;
+- `npm run test` — 39 файлов, 405 тестов пройдено;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `prisma validate` с локальным SQLite URL — schema valid;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- resolver fixture назначает Concept и GDD разные provider configs и разные model overrides;
+- API fixture сохраняет независимые Concept/GDD chains и отклоняет provider другого пользователя;
+- transient `503` fixture вызывает fallback provider, permanent `400` — нет;
+- streaming fixtures подтверждают fallback до первого chunk и запрет после первого chunk;
+- model/temperature/max token fixture подтверждает применение stage policy к normalized request;
+- AI-service fixtures подтверждают передачу `concept` и `gdd` в stage resolver;
+- следующей задачей назначена `R3-08`.
 
 ### 2026-08-01 — R3-06 — DONE
 

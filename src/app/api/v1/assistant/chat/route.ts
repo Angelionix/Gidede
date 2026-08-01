@@ -89,7 +89,7 @@ export async function POST(request: NextRequest) {
     let modelUsed: string;
     let provider: string;
 
-    const llmStatus = await getDefaultLlmStatus();
+    const llmStatus = await getDefaultLlmStatus("assistant");
     const aiText = await generateAiResponse({
       message,
       projectName,

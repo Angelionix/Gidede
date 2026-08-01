@@ -1,16 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getDefaultLlmClient } from "@/lib/llm/default-client";
+import { getConfiguredLlmClient, getDefaultLlmClient } from "@/lib/llm/default-client";
 import { getCurrentUser } from "@/lib/server-auth";
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser(request);
   if (!user) return NextResponse.json({ detail: "Не авторизован" }, { status: 401 });
 
-  const client = await getDefaultLlmClient();
+  const body = await request.json().catch(() => ({})) as { config_id?: unknown };
+  const configId = typeof body.config_id === "string" ? body.config_id.trim() : "";
+  const client = configId ? await getConfiguredLlmClient(configId) : await getDefaultLlmClient();
   if (!client) {
     return NextResponse.json({
-      detail: "LLM provider не инициализирован",
-    }, { status: 503 });
+      detail: configId ? "LLM-router не найден или отключён" : "LLM provider не инициализирован",
+    }, { status: configId ? 404 : 503 });
   }
 
   const capabilities = client.getCapabilities();

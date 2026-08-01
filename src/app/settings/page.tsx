@@ -87,16 +87,46 @@ interface LlmIntrospectionResult {
   models_error: string | null;
 }
 
-export default function SettingsPage() {
-  const { theme, setTheme } = useTheme();
-  const { user, apiFetch } = useAuth();
-  const { toast } = useToast();
-  const [notifications, setNotifications] = useState({
-    pipeline: true,
-    aiAlerts: true,
-    email: false,
-  });
-  const [llmConfig, setLlmConfig] = useState({
+interface LlmConfigResponse {
+  id: string;
+  adapter: string;
+  label: string;
+  base_url: string;
+  model: string;
+  secret_ref: string | null;
+  secret_source: "none" | "environment" | "encrypted";
+  config_json: unknown;
+  secret_available: boolean;
+  enabled: boolean;
+}
+
+interface LlmRouteForm {
+  primaryId: string;
+  primaryModel: string;
+  fallbackId: string;
+  fallbackModel: string;
+  extraChain: Array<{ config_id: string; model: string | null }>;
+  temperature: number | null;
+  maxOutputTokens: number | null;
+}
+
+const LLM_ROUTE_STAGES = [
+  ["default", "По умолчанию"],
+  ["assistant", "AI-ассистент"],
+  ["concept", "Concept"],
+  ["core_loop", "Core Loop"],
+  ["mda", "MDA"],
+  ["balance", "Balance"],
+  ["progression", "Progression"],
+  ["economy", "Economy"],
+  ["gdd", "GDD"],
+  ["validation", "Validation"],
+  ["prototype", "Prototype"],
+] as const;
+
+function emptyLlmConfig() {
+  return {
+    id: "",
     adapter: "openai-compatible",
     label: "OpenAI-compatible router",
     baseUrl: "",
@@ -107,7 +137,38 @@ export default function SettingsPage() {
     clearSecret: false,
     mapping: DEFAULT_GENERIC_MAPPING,
     enabled: true,
+  };
+}
+
+function routeForm(primaryId = "builtin"): LlmRouteForm {
+  return {
+    primaryId,
+    primaryModel: "",
+    fallbackId: "none",
+    fallbackModel: "",
+    extraChain: [],
+    temperature: null,
+    maxOutputTokens: null,
+  };
+}
+
+function initialRouteForms(): Record<string, LlmRouteForm> {
+  return Object.fromEntries(LLM_ROUTE_STAGES.map(([stage]) => [stage, routeForm()])) as Record<string, LlmRouteForm>;
+}
+
+export default function SettingsPage() {
+  const { theme, setTheme } = useTheme();
+  const { user, apiFetch } = useAuth();
+  const { toast } = useToast();
+  const [notifications, setNotifications] = useState({
+    pipeline: true,
+    aiAlerts: true,
+    email: false,
   });
+  const [llmConfig, setLlmConfig] = useState(emptyLlmConfig);
+  const [llmConfigs, setLlmConfigs] = useState<LlmConfigResponse[]>([]);
+  const [llmRoutes, setLlmRoutes] = useState<Record<string, LlmRouteForm>>(initialRouteForms);
+  const [llmRoutesSaving, setLlmRoutesSaving] = useState(false);
   const [llmAdapters, setLlmAdapters] = useState<Array<{ id: string; label: string }>>([
     { id: "openai-compatible", label: "OpenAI-compatible" },
     { id: "generic-http", label: "Generic HTTP mapping" },
@@ -125,38 +186,66 @@ export default function SettingsPage() {
     apiFetch<{
       adapters: Array<{ id: string; label: string }>;
       secret_encryption_available: boolean;
-      config: null | {
-        adapter: string;
-        label: string;
-        base_url: string;
-        model: string;
-        secret_ref: string | null;
-        secret_source: "none" | "environment" | "encrypted";
-        config_json: unknown;
-        secret_available: boolean;
-        enabled: boolean;
-      };
+      configs?: LlmConfigResponse[];
+      config: LlmConfigResponse | null;
+      routes?: Array<{
+        stage: string;
+        chain: Array<{ config_id: string; model?: string | null }>;
+        temperature: number | null;
+        max_output_tokens: number | null;
+      }>;
     }>("/settings/llm")
-      .then(({ adapters, config, secret_encryption_available }) => {
+      .then(({ adapters, configs, config, routes, secret_encryption_available }) => {
         if (cancelled) return;
         if (adapters.length > 0) setLlmAdapters(adapters);
         setLlmEncryptionAvailable(secret_encryption_available);
-        if (!config) return;
+        const loadedConfigs = configs ?? (config ? [config] : []);
+        setLlmConfigs(loadedConfigs);
+        const firstConfig = loadedConfigs[0] ?? null;
+        const defaultPrimary = firstConfig?.id || "builtin";
+        const forms = Object.fromEntries(LLM_ROUTE_STAGES.map(([stage]) => [
+          stage,
+          {
+            ...routeForm(defaultPrimary),
+            fallbackId: defaultPrimary === "builtin" ? "none" : "builtin",
+          },
+        ])) as Record<string, LlmRouteForm>;
+        for (const route of routes ?? []) {
+          const primary = route.chain[0];
+          const fallback = route.chain[1];
+          if (!primary || !forms[route.stage]) continue;
+          forms[route.stage] = {
+            primaryId: primary.config_id,
+            primaryModel: primary.model || "",
+            fallbackId: fallback?.config_id || "none",
+            fallbackModel: fallback?.model || "",
+            extraChain: route.chain.slice(2).map((entry) => ({
+              config_id: entry.config_id,
+              model: entry.model || null,
+            })),
+            temperature: route.temperature,
+            maxOutputTokens: route.max_output_tokens,
+          };
+        }
+        setLlmRoutes(forms);
+        if (!firstConfig) return;
+        const selected = firstConfig;
         setLlmConfig({
-          adapter: config.adapter,
-          label: config.label,
-          baseUrl: config.base_url,
-          model: config.model,
-          secretRef: config.secret_ref || "",
+          id: selected.id,
+          adapter: selected.adapter,
+          label: selected.label,
+          baseUrl: selected.base_url,
+          model: selected.model,
+          secretRef: selected.secret_ref || "",
           apiKey: "",
-          secretSource: config.secret_source,
+          secretSource: selected.secret_source,
           clearSecret: false,
-          mapping: config.config_json
-            ? JSON.stringify(config.config_json, null, 2)
+          mapping: selected.config_json
+            ? JSON.stringify(selected.config_json, null, 2)
             : DEFAULT_GENERIC_MAPPING,
-          enabled: config.enabled,
+          enabled: selected.enabled,
         });
-        setLlmSecretAvailable(config.secret_available);
+        setLlmSecretAvailable(selected.secret_available);
       })
       .catch((error) => {
         if (!cancelled) {
@@ -175,6 +264,31 @@ export default function SettingsPage() {
     };
   }, [apiFetch, toast, user]);
 
+  function selectLlmConfig(configId: string) {
+    const config = llmConfigs.find((item) => item.id === configId);
+    if (!config) {
+      setLlmConfig(emptyLlmConfig());
+      setLlmSecretAvailable(null);
+      setLlmIntrospection(null);
+      return;
+    }
+    setLlmConfig({
+      id: config.id,
+      adapter: config.adapter,
+      label: config.label,
+      baseUrl: config.base_url,
+      model: config.model,
+      secretRef: config.secret_ref || "",
+      apiKey: "",
+      secretSource: config.secret_source,
+      clearSecret: false,
+      mapping: config.config_json ? JSON.stringify(config.config_json, null, 2) : DEFAULT_GENERIC_MAPPING,
+      enabled: config.enabled,
+    });
+    setLlmSecretAvailable(config.secret_available);
+    setLlmIntrospection(null);
+  }
+
   async function saveLlmConfig() {
     setLlmSaving(true);
     try {
@@ -182,13 +296,11 @@ export default function SettingsPage() {
         ? JSON.parse(llmConfig.mapping)
         : null;
       const { config } = await apiFetch<{
-        config: {
-          secret_available: boolean;
-          secret_source: "none" | "environment" | "encrypted";
-        };
+        config: LlmConfigResponse;
       }>("/settings/llm", {
         method: "PUT",
         body: JSON.stringify({
+          id: llmConfig.id || undefined,
           adapter: llmConfig.adapter,
           label: llmConfig.label,
           base_url: llmConfig.baseUrl,
@@ -200,9 +312,15 @@ export default function SettingsPage() {
           enabled: llmConfig.enabled,
         }),
       });
+      setLlmConfigs((values) => {
+        const existingIndex = values.findIndex((item) => item.id === config.id);
+        if (existingIndex < 0) return [...values, config];
+        return values.map((item) => item.id === config.id ? config : item);
+      });
       setLlmSecretAvailable(config.secret_available);
       setLlmConfig((value) => ({
         ...value,
+        id: config.id,
         apiKey: "",
         secretSource: config.secret_source,
         clearSecret: false,
@@ -221,24 +339,31 @@ export default function SettingsPage() {
   }
 
   async function removeLlmConfig() {
+    if (!llmConfig.id) return;
     setLlmSaving(true);
     try {
-      await apiFetch("/settings/llm", { method: "DELETE" });
-      setLlmConfig({
-        adapter: "openai-compatible",
-        label: "OpenAI-compatible router",
-        baseUrl: "",
-        model: "",
-        secretRef: "",
-        apiKey: "",
-        secretSource: "none",
-        clearSecret: false,
-        mapping: DEFAULT_GENERIC_MAPPING,
-        enabled: true,
-      });
-      setLlmSecretAvailable(null);
+      const removedId = llmConfig.id;
+      await apiFetch(`/settings/llm?id=${encodeURIComponent(removedId)}`, { method: "DELETE" });
+      const remaining = llmConfigs.filter((config) => config.id !== removedId);
+      setLlmConfigs(remaining);
+      setLlmRoutes((routes) => Object.fromEntries(Object.entries(routes).map(([stage, route]) => [
+        stage,
+        {
+          ...route,
+          primaryId: route.primaryId === removedId ? "builtin" : route.primaryId,
+          primaryModel: route.primaryId === removedId ? "" : route.primaryModel,
+          fallbackId: route.fallbackId === removedId ? "none" : route.fallbackId,
+          fallbackModel: route.fallbackId === removedId ? "" : route.fallbackModel,
+          extraChain: route.extraChain.filter((entry) => entry.config_id !== removedId),
+        },
+      ])) as Record<string, LlmRouteForm>);
+      if (remaining[0]) selectLlmConfig(remaining[0].id);
+      else {
+        setLlmConfig(emptyLlmConfig());
+        setLlmSecretAvailable(null);
+      }
       setLlmIntrospection(null);
-      toast({ title: "Пользовательский LLM-router отключён" });
+      toast({ title: "LLM-router удалён" });
     } catch (error) {
       toast({
         title: "Не удалось удалить LLM-router",
@@ -255,6 +380,7 @@ export default function SettingsPage() {
     try {
       const result = await apiFetch<LlmIntrospectionResult>("/settings/llm/introspect", {
         method: "POST",
+        body: JSON.stringify({ config_id: llmConfig.id || undefined }),
       });
       setLlmIntrospection(result);
       if (result.health.status === "unavailable") {
@@ -276,6 +402,46 @@ export default function SettingsPage() {
     } finally {
       setLlmInspecting(false);
     }
+  }
+
+  async function saveLlmRoutes() {
+    setLlmRoutesSaving(true);
+    try {
+      const routes = LLM_ROUTE_STAGES.map(([stage]) => {
+        const route = llmRoutes[stage];
+        const chain = [{ config_id: route.primaryId, model: route.primaryModel || null }];
+        if (route.fallbackId !== "none") {
+          chain.push({ config_id: route.fallbackId, model: route.fallbackModel || null });
+        }
+        chain.push(...route.extraChain);
+        return {
+          stage,
+          chain,
+          temperature: route.temperature,
+          max_output_tokens: route.maxOutputTokens,
+        };
+      });
+      await apiFetch("/settings/llm/routes", {
+        method: "PUT",
+        body: JSON.stringify({ routes }),
+      });
+      toast({ title: "Маршруты LLM сохранены" });
+    } catch (error) {
+      toast({
+        title: "Не удалось сохранить маршруты LLM",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setLlmRoutesSaving(false);
+    }
+  }
+
+  function updateLlmRoute(stage: string, patch: Partial<LlmRouteForm>) {
+    setLlmRoutes((routes) => ({
+      ...routes,
+      [stage]: { ...routes[stage], ...patch },
+    }));
   }
 
   const aiUsagePercent = user
@@ -460,6 +626,25 @@ export default function SettingsPage() {
               </div>
             ) : (
               <>
+                <div className="flex flex-wrap items-end gap-2 rounded-lg border p-3">
+                  <div className="min-w-64 flex-1 space-y-2">
+                    <Label htmlFor="llm-connection">Подключение</Label>
+                    <select
+                      id="llm-connection"
+                      value={llmConfig.id || "new"}
+                      onChange={(event) => selectLlmConfig(event.target.value)}
+                      className="border-input bg-background h-9 w-full rounded-md border px-3 text-sm shadow-xs outline-none focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
+                    >
+                      {!llmConfig.id && <option value="new">Новое подключение</option>}
+                      {llmConfigs.map((config) => (
+                        <option key={config.id} value={config.id}>{config.label} · {config.model}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <Button type="button" variant="outline" onClick={() => selectLlmConfig("new")}>
+                    Новое подключение
+                  </Button>
+                </div>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="llm-adapter">Тип адаптера</Label>
@@ -666,16 +851,97 @@ export default function SettingsPage() {
                   <Button
                     variant="outline"
                     onClick={inspectLlmConfig}
-                    disabled={llmSaving || llmInspecting || !llmConfig.baseUrl}
+                    disabled={llmSaving || llmInspecting || !llmConfig.id}
                   >
                     {llmInspecting
                       ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
                       : <RefreshCw className="mr-2 h-4 w-4" />}
                     Проверить сохранённый router
                   </Button>
-                  <Button variant="outline" onClick={removeLlmConfig} disabled={llmSaving || !llmConfig.baseUrl}>
+                  <Button variant="outline" onClick={removeLlmConfig} disabled={llmSaving || !llmConfig.id}>
                     <Trash2 className="mr-2 h-4 w-4" />
                     Удалить
+                  </Button>
+                </div>
+                <Separator />
+                <div className="space-y-3">
+                  <div>
+                    <h3 className="text-sm font-semibold">Маршрутизация по стадиям</h3>
+                    <p className="text-xs text-muted-foreground">
+                      Fallback используется только для временных network/timeout/429/5xx ошибок и только до первого stream chunk.
+                    </p>
+                  </div>
+                  <div className="space-y-2">
+                    {LLM_ROUTE_STAGES.map(([stage, label]) => {
+                      const route = llmRoutes[stage];
+                      return (
+                        <div key={stage} className="grid gap-2 rounded-lg border p-3 md:grid-cols-[9rem_1fr_1fr]">
+                          <div className="self-center text-sm font-medium">{label}</div>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <select
+                              aria-label={`${label}: primary provider`}
+                              value={route.primaryId}
+                              onChange={(event) => updateLlmRoute(stage, {
+                                primaryId: event.target.value,
+                                primaryModel: "",
+                              })}
+                              className="border-input bg-background h-9 rounded-md border px-2 text-xs"
+                            >
+                              <option value="builtin">Built-in ZAI</option>
+                              {llmConfigs.map((config) => (
+                                <option key={config.id} value={config.id}>
+                                  {config.label}{config.enabled ? "" : " (отключён)"}
+                                </option>
+                              ))}
+                            </select>
+                            <Input
+                              aria-label={`${label}: primary model`}
+                              value={route.primaryModel}
+                              onChange={(event) => updateLlmRoute(stage, { primaryModel: event.target.value })}
+                              placeholder={route.primaryId === "builtin"
+                                ? "glm-4.6"
+                                : llmConfigs.find((config) => config.id === route.primaryId)?.model || "model"}
+                              className="text-xs"
+                            />
+                          </div>
+                          <div className="grid gap-2 sm:grid-cols-2">
+                            <select
+                              aria-label={`${label}: fallback provider`}
+                              value={route.fallbackId}
+                              onChange={(event) => updateLlmRoute(stage, {
+                                fallbackId: event.target.value,
+                                fallbackModel: "",
+                              })}
+                              className="border-input bg-background h-9 rounded-md border px-2 text-xs"
+                            >
+                              <option value="none">Без fallback</option>
+                              <option value="builtin">Built-in ZAI</option>
+                              {llmConfigs.map((config) => (
+                                <option key={config.id} value={config.id}>
+                                  {config.label}{config.enabled ? "" : " (отключён)"}
+                                </option>
+                              ))}
+                            </select>
+                            <Input
+                              aria-label={`${label}: fallback model`}
+                              value={route.fallbackModel}
+                              onChange={(event) => updateLlmRoute(stage, { fallbackModel: event.target.value })}
+                              placeholder={route.fallbackId === "none"
+                                ? "—"
+                                : route.fallbackId === "builtin"
+                                  ? "glm-4.6"
+                                  : llmConfigs.find((config) => config.id === route.fallbackId)?.model || "model"}
+                              disabled={route.fallbackId === "none"}
+                              className="text-xs"
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <Button onClick={saveLlmRoutes} disabled={llmRoutesSaving}>
+                    {llmRoutesSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Сохранить маршруты
                   </Button>
                 </div>
               </>

@@ -13,6 +13,7 @@ import {
 import { getCurrentUser } from "@/lib/server-auth";
 
 function serialize(config: {
+  id: string;
   adapter: string;
   label: string;
   baseUrl: string;
@@ -22,6 +23,7 @@ function serialize(config: {
   enabled: boolean;
 }) {
   return {
+    id: config.id,
     adapter: config.adapter,
     label: config.label,
     base_url: config.baseUrl,
@@ -36,11 +38,22 @@ export async function GET(request: NextRequest) {
   const user = await getCurrentUser(request);
   if (!user) return NextResponse.json({ detail: "Не авторизован" }, { status: 401 });
 
-  const config = await db.userLlmConfig.findUnique({ where: { userId: user.id } });
+  const [configs, routes] = await Promise.all([
+    db.userLlmConfig.findMany({ where: { userId: user.id }, orderBy: { createdAt: "asc" } }),
+    db.userLlmRoute.findMany({ where: { userId: user.id }, orderBy: { stage: "asc" } }),
+  ]);
   return NextResponse.json({
     adapters: listConfiguredLlmAdapters(),
     secret_encryption_available: isLlmSecretEncryptionAvailable(),
-    config: config ? serialize(config) : null,
+    configs: configs.map(serialize),
+    routes: routes.map((route) => ({
+      stage: route.stage,
+      chain: JSON.parse(route.chainJson),
+      temperature: route.temperature,
+      max_output_tokens: route.maxOutputTokens,
+    })),
+    // Compatibility for clients created before multi-provider routing.
+    config: configs[0] ? serialize(configs[0]) : null,
   });
 }
 
@@ -50,6 +63,7 @@ export async function PUT(request: NextRequest) {
 
   try {
     const body = await request.json();
+    const configId = typeof body?.id === "string" && body.id.trim() ? body.id.trim() : null;
     const adapter = typeof body?.adapter === "string" ? body.adapter.trim() : "openai-compatible";
     const config = parseOpenAiCompatibleConfig({
       label: body?.label,
@@ -63,7 +77,12 @@ export async function PUT(request: NextRequest) {
     if (configJson && configJson.length > 20_000) {
       throw new Error("config_json is too large");
     }
-    const existing = await db.userLlmConfig.findUnique({ where: { userId: user.id } });
+    const existing = configId
+      ? await db.userLlmConfig.findFirst({ where: { id: configId, userId: user.id } })
+      : null;
+    if (configId && !existing) {
+      return NextResponse.json({ detail: "LLM-router не найден" }, { status: 404 });
+    }
     const secretRef = selectPersistedLlmSecret({
       existingSecretRef: existing?.secretRef ?? null,
       environmentSecretRef: config.secretRef,
@@ -71,22 +90,20 @@ export async function PUT(request: NextRequest) {
       clearSecret: body?.clear_secret === true,
     });
 
-    const saved = await db.userLlmConfig.upsert({
-      where: { userId: user.id },
-      create: {
-        userId: user.id,
-        adapter,
-        configJson,
-        ...config,
-        secretRef,
-      },
-      update: {
-        adapter,
-        configJson,
-        ...config,
-        secretRef,
-      },
-    });
+    const data = {
+      adapter,
+      configJson,
+      ...config,
+      secretRef,
+    };
+    const saved = existing
+      ? await db.userLlmConfig.update({ where: { id: existing.id }, data })
+      : await db.userLlmConfig.create({
+        data: {
+          userId: user.id,
+          ...data,
+        },
+      });
 
     return NextResponse.json({ config: serialize(saved) });
   } catch (error) {
@@ -99,6 +116,28 @@ export async function DELETE(request: NextRequest) {
   const user = await getCurrentUser(request);
   if (!user) return NextResponse.json({ detail: "Не авторизован" }, { status: 401 });
 
-  await db.userLlmConfig.deleteMany({ where: { userId: user.id } });
-  return NextResponse.json({ deleted: true });
+  const configId = new URL(request.url).searchParams.get("id")?.trim();
+  if (!configId) {
+    await db.$transaction([
+      db.userLlmRoute.deleteMany({ where: { userId: user.id } }),
+      db.userLlmConfig.deleteMany({ where: { userId: user.id } }),
+    ]);
+    return NextResponse.json({ deleted: true });
+  }
+
+  const config = await db.userLlmConfig.findFirst({ where: { id: configId, userId: user.id } });
+  if (!config) return NextResponse.json({ detail: "LLM-router не найден" }, { status: 404 });
+  const routes = await db.userLlmRoute.findMany({ where: { userId: user.id } });
+  const routeOperations = routes.map((route) => {
+    const chain = (JSON.parse(route.chainJson) as Array<{ config_id?: string; configId?: string }>)
+      .filter((entry) => (entry.config_id ?? entry.configId) !== configId);
+    return chain.length === 0
+      ? db.userLlmRoute.delete({ where: { id: route.id } })
+      : db.userLlmRoute.update({ where: { id: route.id }, data: { chainJson: JSON.stringify(chain) } });
+  });
+  await db.$transaction([
+    ...routeOperations,
+    db.userLlmConfig.delete({ where: { id: configId } }),
+  ]);
+  return NextResponse.json({ deleted: true, id: configId });
 }

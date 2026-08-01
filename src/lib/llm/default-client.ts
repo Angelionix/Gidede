@@ -6,6 +6,13 @@ import {
   withLlmResilience,
 } from "@/lib/llm/resilience";
 import { createZaiLlmClient } from "@/lib/llm/providers/zai";
+import {
+  parseLlmRoutePolicy,
+  RoutedLlmClient,
+  type LlmRouteCandidate,
+  type LlmRoutePolicy,
+  type LlmRouteStage,
+} from "@/lib/llm/routing";
 import type {
   LlmCapabilities,
   LlmClient,
@@ -32,13 +39,16 @@ function resilient(client: LlmClient): LlmClient {
   return wrapped;
 }
 
-async function getConfiguredUserClient(): Promise<LlmClient | null> {
-  const userId = await getAuthUserId();
-  if (!userId) return null;
-
-  const config = await db.userLlmConfig.findUnique({ where: { userId } });
-  if (!config?.enabled) return null;
-
+function configuredClient(config: {
+  id: string;
+  adapter: string;
+  label: string;
+  baseUrl: string;
+  model: string;
+  secretRef: string | null;
+  configJson: string | null;
+  updatedAt: Date;
+}): LlmClient {
   const cacheKey = `${config.id}:${config.updatedAt.getTime()}`;
   return configuredClients.getOrCreate(cacheKey, () => withLlmResilience(
     createConfiguredLlmClient({
@@ -53,17 +63,7 @@ async function getConfiguredUserClient(): Promise<LlmClient | null> {
   ));
 }
 
-export async function getDefaultLlmClient(): Promise<LlmClient | null> {
-  try {
-    const configuredClient = await getConfiguredUserClient();
-    if (configuredClient) return configuredClient;
-  } catch (error) {
-    console.error(
-      "[llm] user provider resolution failed:",
-      error instanceof Error ? error.message : String(error),
-    );
-  }
-
+async function getBuiltInClient(): Promise<LlmClient | null> {
   try {
     const client = await registry.getDefault();
     return client ? resilient(client) : null;
@@ -76,14 +76,90 @@ export async function getDefaultLlmClient(): Promise<LlmClient | null> {
   }
 }
 
-export async function getDefaultLlmStatus(): Promise<{
+export async function getConfiguredLlmClient(configId: string): Promise<LlmClient | null> {
+  const userId = await getAuthUserId();
+  if (!userId) return null;
+  try {
+    const config = await db.userLlmConfig.findFirst({ where: { id: configId, userId, enabled: true } });
+    return config ? configuredClient(config) : null;
+  } catch (error) {
+    console.error(
+      "[llm] configured provider resolution failed:",
+      error instanceof Error ? error.message : String(error),
+    );
+    return null;
+  }
+}
+
+function storedPolicy(route: {
+  stage: string;
+  chainJson: string;
+  temperature: number | null;
+  maxOutputTokens: number | null;
+}): LlmRoutePolicy {
+  return parseLlmRoutePolicy({
+    stage: route.stage,
+    chain: JSON.parse(route.chainJson),
+    temperature: route.temperature,
+    max_output_tokens: route.maxOutputTokens,
+  });
+}
+
+export async function getLlmClientForStage(stage: LlmRouteStage): Promise<LlmClient | null> {
+  const userId = await getAuthUserId();
+  if (!userId) return getBuiltInClient();
+
+  try {
+    const [configs, exactRoute, defaultRoute] = await Promise.all([
+      db.userLlmConfig.findMany({ where: { userId, enabled: true }, orderBy: { createdAt: "asc" } }),
+      db.userLlmRoute.findUnique({ where: { userId_stage: { userId, stage } } }),
+      stage === "default"
+        ? Promise.resolve(null)
+        : db.userLlmRoute.findUnique({ where: { userId_stage: { userId, stage: "default" } } }),
+    ]);
+    const routeRecord = exactRoute || defaultRoute;
+    const policy = routeRecord ? storedPolicy(routeRecord) : null;
+    const configById = new Map(configs.map((config) => [config.id, config]));
+    const entries = policy?.chain ?? [
+      ...configs.slice(0, 1).map((config) => ({ configId: config.id, model: null })),
+      { configId: "builtin" as const, model: null },
+    ];
+    const candidates: LlmRouteCandidate[] = [];
+    for (const entry of entries) {
+      if (entry.configId === "builtin") {
+        const client = await getBuiltInClient();
+        if (client) candidates.push({ client, model: entry.model });
+        continue;
+      }
+      const config = configById.get(entry.configId);
+      if (config) candidates.push({ client: configuredClient(config), model: entry.model });
+    }
+    if (candidates.length === 0) return null;
+    return new RoutedLlmClient(stage, candidates, {
+      temperature: policy?.temperature ?? null,
+      maxOutputTokens: policy?.maxOutputTokens ?? null,
+    });
+  } catch (error) {
+    console.error(
+      `[llm] route resolution failed for ${stage}:`,
+      error instanceof Error ? error.message : String(error),
+    );
+    return null;
+  }
+}
+
+export function getDefaultLlmClient(): Promise<LlmClient | null> {
+  return getLlmClientForStage("default");
+}
+
+export async function getDefaultLlmStatus(stage: LlmRouteStage = "default"): Promise<{
   available: boolean;
   providerId: string | null;
   modelId: string | null;
   capabilities: LlmCapabilities | null;
   health: LlmProviderHealth | null;
 }> {
-  const client = await getDefaultLlmClient();
+  const client = await getLlmClientForStage(stage);
   if (!client) {
     return {
       available: false,

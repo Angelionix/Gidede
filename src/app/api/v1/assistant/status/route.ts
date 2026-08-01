@@ -11,7 +11,7 @@ export async function GET(request: Request) {
   const user = await getCurrentUser(request);
   if (!user) return UNAUTH();
 
-  const status = await getDefaultLlmStatus();
+  const status = await getDefaultLlmStatus("assistant");
 
   return NextResponse.json({
     ai_available: status.available,

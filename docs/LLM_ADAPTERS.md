@@ -68,6 +68,31 @@ shows normalized health, latency, streaming/JSON/tools/model-discovery capabilit
 badges, and adds discovered model IDs to the model input suggestions. Provider error
 bodies and credentials are never returned by the diagnostics endpoint.
 
+## Per-stage routing and fallback
+
+One user can store multiple provider connections. The routing table in `/settings`
+selects an ordered provider/model chain independently for Assistant, Concept,
+Core Loop, MDA, Balance, Progression, Economy, GDD, Validation and Prototype tasks.
+The `default` route is inherited when a stage has no explicit policy.
+
+Each chain entry can override the connection's default model. Route policy also
+supports optional `temperature` and `max_output_tokens`; request-specific values take
+precedence. The settings UI exposes a primary and one fallback, while the validated
+server contract accepts up to five ordered entries.
+
+Fallback is intentionally narrow:
+
+- each provider first exhausts its own retry policy;
+- only classified network/timeout, HTTP `408`, `425`, `429` and `5xx` failures advance the chain;
+- permanent request/auth/model errors stop immediately;
+- a stream may advance only before its first emitted chunk;
+- after any chunk reaches the caller, an interruption is returned without replaying text.
+
+Without a saved route, the first enabled user connection is primary and built-in ZAI
+is the transient fallback. Deleting a connection also removes its references from
+saved route chains. Route entries can only reference provider configs owned by the
+authenticated user.
+
 ## Secrets
 
 Two server-side secret sources are supported:

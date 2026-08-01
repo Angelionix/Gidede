@@ -15,6 +15,7 @@ export default defineConfig({
       include: [
         "src/lib/concept/**/*.ts",
         "src/lib/coreloop/**/*.ts",
+        "src/lib/mda/**/*.ts",
         "src/lib/mechanics-db.ts",
         "src/lib/mechanics-taxonomy.ts",
       ],

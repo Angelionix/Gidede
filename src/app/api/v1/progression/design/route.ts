@@ -359,11 +359,13 @@ export async function POST(request: NextRequest) {
       };
     });
 
+    // TASK-5a.5 FIXED: removed leading space in " elemental_attack".
+    // Also: unlock names now cycle instead of capping on "prestige_reset" for levels > 100.
     const unlockNames = [
       "double_jump",
       "dash",
       "shield_block",
-      " elemental_attack",
+      "elemental_attack",
       "combo_finisher",
       "ranged_weapon",
       "stealth_mode",
@@ -380,11 +382,15 @@ export async function POST(request: NextRequest) {
     }> = [];
     const unlockEvery = Math.max(1, Math.floor(targetLevels / 10));
     for (let lvl = unlockEvery; lvl <= targetLevels; lvl += unlockEvery) {
-      const idx = Math.min(unlockNames.length - 1, Math.floor(lvl / unlockEvery) - 1);
+      // TASK-5a.5: cycle through names with suffix for levels > 10 unlocks.
+      const rawIdx = Math.floor(lvl / unlockEvery) - 1;
+      const idx = rawIdx % unlockNames.length; // Cycle instead of cap
+      const cycle = Math.floor(rawIdx / unlockNames.length);
+      const name = cycle > 0 ? `${unlockNames[idx]}_tier${cycle + 1}` : unlockNames[idx];
       const typeIdx = (idx + lvl) % unlockTypes.length;
       unlockTree.push({
         level: lvl,
-        unlock_name: unlockNames[idx] || `unlock_${lvl}`,
+        unlock_name: name,
         unlock_type: unlockTypes[typeIdx],
         description: `Открывается на уровне ${lvl}. Расширяет базовый геймплей.`,
       });
@@ -557,6 +563,20 @@ export async function POST(request: NextRequest) {
       models_used: ["deterministic-progression-v1", "tier-archetype-v1", "curve-builder-v1"],
     };
 
+    // TASK-5a.6 FIXED: AI enrichment moved BEFORE persist so ai_insights is saved in DB.
+    if (useAi) {
+      const aiInsights = await enrichProgression({
+        projectName: proj.name || "Untitled",
+        genre,
+        totalLevels: targetLevels,
+        targetDurationHours: targetDuration,
+      });
+      if (aiInsights) {
+        result.ai_insights = aiInsights;
+        (result.models_used as string[]).push("glm-4.6 (ai-enrichment)");
+      }
+    }
+
     // --- Persist ---
     await db.projectProgression.upsert({
       where: { projectId: proj.id },
@@ -620,20 +640,6 @@ export async function POST(request: NextRequest) {
     });
 
     await updateProjectStage(proj.id, "progression");
-
-    // --- Optional AI enrichment ---
-    if (useAi) {
-      const aiInsights = await enrichProgression({
-        projectName: proj.name || "Untitled",
-        genre,
-        totalLevels: targetLevels,
-        targetDurationHours: targetDuration,
-      });
-      if (aiInsights) {
-        result.ai_insights = aiInsights;
-        (result.models_used as string[]).push("glm-4.6 (ai-enrichment)");
-      }
-    }
 
     return NextResponse.json(result);
   } catch (error) {

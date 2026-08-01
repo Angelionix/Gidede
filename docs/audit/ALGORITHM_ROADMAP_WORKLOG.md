@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R4-06` — исправить mechanics affinity/cross-genre scoring.
-- **Зависимости:** `R4-05` завершена; USP candidates вычисляют Triangle of Weirdness из реальных свойств текста.
-- **Ожидаемый результат:** intentional hybrid не штрафуется автоматически; cross-genre mechanics не понижают compatibility_score.
-- **После неё:** `R4-07` — унифицировать mechanic namespace и taxonomy.
+- **Следующая задача:** `R4-07` — унифицировать mechanic namespace и taxonomy.
+- **Зависимости:** `R4-06` завершена; compatibility_score основан на genre coverage + hybrid bonus, cross-genre mechanics не штрафуются.
+- **Ожидаемый результат:** Concept/Core/MDA используют одни и те же mechanic IDs и namespace.
+- **После неё:** `R4-08` — реализовать реальную MDA iteration loop.
 
 ## Правила ведения
 
@@ -68,9 +68,46 @@
 | R4-03 | DONE | Composite feasibility из team/budget/platform/scope с per-factor breakdown | 510 tests, TypeScript, scoped ESLint |
 | R4-04 | DONE | market_fit разделяет heuristic prior и external evidence с confidence/source | 543 tests, TypeScript, scoped ESLint |
 | R4-05 | DONE | USP candidates вычисляют Triangle of Weirdness из реальных свойств текста | 577 tests, TypeScript, scoped ESLint |
-| R4-06…R7 | TODO | См. активный roadmap | — |
+| R4-06 | DONE | compatibility_score: genre coverage + hybrid bonus; cross-genre mechanics не штрафуются | 579 tests, TypeScript, scoped ESLint |
+| R4-07…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R4-06 — DONE
+
+Что сделано:
+
+- `compatibility_score` в `buildMechanicSetForGenres` переписан с legacy-формулы «primary-genre matches / total» на новую модель: `genre_coverage + hybrid_bonus`;
+- **genre_coverage**: доля запрошенных жанров (primary + subgenres), реально представленных в выбранном mechanic set, в [0, 1];
+- **hybrid_bonus**: небольшой бонус (до +15%) за intentional cross-genre additions, когда запрошено несколько жанров (hybrid design intent);
+- cross-genre mechanics **исключены из penalty-расчёта** — они отслеживаются отдельно как `cross_genre_mechanics` и вносят положительный вклад в hybrid design, а не снижают score (исправляет BUG-1.7 — раньше система добавляла cross-genre механики и сама же их штрафовала);
+- intentional hybrid (subgenre-only matches) больше не штрафуется: механика с genres=[roguelike] при primary=rpg, subgenres=[roguelike] теперь считается match и повышает coverage;
+- добавлены новые transparency-поля в return: `genre_coverage`, `hybrid_bonus`, `cross_genre_role` ("intentional_hybrid" | "none");
+- `buildMechanicSet` в route.ts пробрасывает новые поля downstream для UI/audit;
+- `algorithm-metadata` обновлён: `mechanic_set.compatibility_score` имеет обновлённые assumptions о coverage-based scoring, cross-genre exclusion и hybrid bonus.
+
+Изменённые области:
+
+- `src/lib/mechanics-db.ts` — новый compatibility_score, новые return-поля;
+- `src/lib/mechanics-db.test.ts` — обновлён тест legacy primary-only на coverage-based, добавлены 2 новых R4-06 теста (cross-genre не штрафует, intentional hybrid не штрафуется);
+- `src/app/api/v1/concept/generate/route.ts` — проброс новых полей;
+- `src/lib/algorithm-metadata.ts` — обновлённые assumptions.
+
+Проверки:
+
+- `bun run test` — 58 файлов, 579 тестов пройдено (было 577; +2 новых R4-06, 1 старый переписан, 1 обновлён);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- single-genre rpg → coverage=1, score=100 (раньше ~85% из-за primary-only + cross-genre penalty);
+- multi-genre [rpg, shooter] → coverage=1 (оба покрыты), score=100;
+- multi-genre [rpg, roguelike, strategy] + cross-genre additions → `cross_genre_role="intentional_hybrid"`, coverage=1, score=100 (capped);
+- hybrid [rpg, roguelike] score >= single [rpg] score — intentional hybrid не штрафуется;
+- unknown genre → coverage=0, score=0 (честный weak coverage);
+- следующей задачей назначена `R4-07`.
 
 ### 2026-08-01 — R4-05 — DONE
 

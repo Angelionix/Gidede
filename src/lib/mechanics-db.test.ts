@@ -134,10 +134,10 @@ describe("buildMechanicSetForGenre (backward compat, single genre)", () => {
     }
   });
 
-  it("falls back to full DB for unknown genre (compatibility=0)", () => {
+  it("falls back to full DB for unknown genre (compatibility=0, coverage=0)", () => {
     const r = buildMechanicSetForGenre("unknown_genre_xyz");
     expect(r.total_count).toBeGreaterThan(0);
-    // Compatibility = 0 because no mechanics match the unknown genre.
+    // No mechanics match the unknown genre → coverage=0 → compatibility=0.
     expect(r.compatibility_score).toBe(0);
   });
 });
@@ -212,12 +212,33 @@ describe("buildMechanicSetForGenres (multi-genre + cross-genre)", () => {
     expect(Object.keys(r.groups).length).toBeGreaterThanOrEqual(3);
   });
 
-  it("compatibility_score based on primary genre only", () => {
+  it("compatibility_score based on genre coverage (R4-06: not primary-only)", () => {
     const r = buildMechanicSetForGenres(["rpg", "shooter"], [], {});
-    // Compatibility = % of mechanics matching "rpg" (primary).
-    const allMechanics = Object.values(r.groups).flat();
-    const rpgMatches = allMechanics.filter((m) => m.genres.includes("rpg")).length;
-    const expected = Math.round((rpgMatches / allMechanics.length) * 100);
-    expect(r.compatibility_score).toBe(expected);
+    // R4-06: compatibility = genre_coverage + optional hybrid_bonus.
+    // Both rpg and shooter should be covered → coverage=1 → score=100 (capped).
+    expect(r.genre_coverage).toBe(1);
+    expect(r.compatibility_score).toBe(100);
+    // Cross-genre mechanics do NOT penalize the score.
+    expect(r.compatibility_score).toBeGreaterThanOrEqual(95);
+  });
+
+  it("R4-06: cross-genre mechanics do not penalize compatibility_score", () => {
+    // Concept with multiple genres + cross-genre additions should score
+    // as well as a single-genre concept with full coverage.
+    const r = buildMechanicSetForGenres(["rpg", "roguelike", "strategy"], [], {});
+    expect(r.cross_genre_mechanics.length).toBeGreaterThan(0);
+    expect(r.cross_genre_role).toBe("intentional_hybrid");
+    // All three genres covered → coverage=1; hybrid_bonus adds up to +15%.
+    expect(r.genre_coverage).toBe(1);
+    expect(r.compatibility_score).toBe(100); // capped at 100
+  });
+
+  it("R4-06: intentional hybrid (subgenres) is not penalized", () => {
+    // Subgenre-only matches (e.g. mechanic tagged "roguelike" but not "rpg")
+    // should count towards coverage, not lower the score.
+    const single = buildMechanicSetForGenres(["rpg"], [], {});
+    const hybrid = buildMechanicSetForGenres(["rpg", "roguelike"], [], {});
+    // Hybrid should score at least as well as single-genre (both have full coverage).
+    expect(hybrid.compatibility_score).toBeGreaterThanOrEqual(single.compatibility_score);
   });
 });

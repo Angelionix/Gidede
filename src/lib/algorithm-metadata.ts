@@ -46,8 +46,9 @@ const SCORE_METADATA_BY_STAGE = {
   concept: {
     "mechanic_set.compatibility_score": score(
       "heuristic",
-      "Compatibility is the percentage of selected mechanics whose genre tags overlap the requested genres.",
-      "MechanicsDB tags and the selected mechanic set are treated as complete.",
+      "Compatibility is based on genre coverage (fraction of requested genres represented in the selected set) plus an optional hybrid bonus for intentional cross-genre additions.",
+      "Cross-genre mechanics are excluded from the penalty calculation — they are tracked separately as cross_genre_mechanics and contribute positively to hybrid design.",
+      "Coverage thresholds and hybrid bonus cap are rule-of-thumb defaults, not measured production data.",
     ),
     "mechanic_set.synergies_detected[*].score": score(
       "template",

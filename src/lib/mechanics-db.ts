@@ -1527,6 +1527,12 @@ export function buildMechanicSetForGenres(
   compatibility_score: number;
   source: string;
   cross_genre_mechanics: Mechanic[];
+  /** Fraction of requested genres (primary + subgenres) covered by selected mechanics, in [0, 1]. */
+  genre_coverage: number;
+  /** Hybrid bonus for intentional cross-genre additions when multiple genres requested, in [0, 0.15]. */
+  hybrid_bonus: number;
+  /** Whether cross-genre mechanics were added as intentional hybrid design. */
+  cross_genre_role: "intentional_hybrid" | "none";
 } {
   const genreLowers = genres
     .map((g) => g.toLowerCase().replace(/\s+/g, "_"))
@@ -1643,16 +1649,50 @@ export function buildMechanicSetForGenres(
     }
   }
 
-  // --- 6. Compatibility score ---
-  // Считаем по primary жанру (как в оригинальной реализации).
-  // Cross-genre механики НЕ считаются "matching" по жанру (по определению).
+  // --- 6. Compatibility score (R4-06 fixed) ---
+  // Legacy behaviour counted only primary-genre matches and divided by the
+  // full selected set, which penalised both (a) intentional cross-genre
+  // additions (added by design with crossGenreRatio) and (b) subgenre-only
+  // matches (intentional hybrid concepts). The new score is based on:
+  //
+  //   - genre_coverage: fraction of requested genres (primary + subgenres)
+  //     actually represented in the selected set, in [0, 1].
+  //   - hybrid_bonus: small bonus for intentional cross-genre additions
+  //     when more than one genre was requested (intentional hybrid design
+  //     should not be penalised). Cross-genre mechanics are EXCLUDED from
+  //     the penalty calculation — they are tracked separately as
+  //     cross_genre_mechanics and contribute positively to hybrid design.
+  //   - fallback: when no in-genre mechanics exist (fallback pool was used),
+  //     score is a low but non-zero 30 to signal weak coverage.
   const finalSelected = Object.values(selected).flat();
-  const genreMatches = finalSelected.filter((m) =>
-    m.genres.includes(primaryGenre)
-  ).length;
-  const compatibilityScore = finalSelected.length > 0
-    ? Math.round((genreMatches / finalSelected.length) * 100)
-    : 50;
+
+  // In-genre mechanics: match at least one of the requested genres.
+  const inGenreMechanics = finalSelected.filter((m) =>
+    m.genres.some((g) => genreLowers.includes(g)),
+  );
+  const inGenreCount = inGenreMechanics.length;
+  const crossGenreCount = finalSelected.length - inGenreCount;
+
+  // Genre coverage: how many of the requested genres are actually represented.
+  const coveredGenres = new Set<string>();
+  for (const m of inGenreMechanics) {
+    for (const g of m.genres) {
+      if (genreLowers.includes(g)) coveredGenres.add(g);
+    }
+  }
+  const genreCoverage = genreLowers.length > 0
+    ? coveredGenres.size / genreLowers.length
+    : 1;
+
+  // Hybrid bonus: intentional cross-genre additions contribute positively
+  // when multiple genres were requested (hybrid design intent). Up to +15%.
+  const hybridBonus = crossGenreCount > 0 && genreLowers.length > 1
+    ? Math.min(0.15, crossGenreCount * 0.05)
+    : 0;
+
+  const compatibilityScore = inGenreCount === 0
+    ? 0  // no in-genre mechanics: coverage is genuinely 0
+    : Math.min(100, Math.round((genreCoverage + hybridBonus) * 100));
 
   return {
     groups: selected,
@@ -1660,6 +1700,12 @@ export function buildMechanicSetForGenres(
     compatibility_score: compatibilityScore,
     source: "MechanicsDB (SW.BAND, 128 механик)",
     cross_genre_mechanics: crossGenrePicks,
+    // R4-06: new transparency fields for honest scoring provenance.
+    genre_coverage: Number(genreCoverage.toFixed(2)),
+    hybrid_bonus: Number(hybridBonus.toFixed(2)),
+    cross_genre_role: crossGenreCount > 0 && genreLowers.length > 1
+      ? "intentional_hybrid" as const
+      : "none" as const,
   };
 }
 

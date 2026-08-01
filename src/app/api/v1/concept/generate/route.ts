@@ -367,6 +367,10 @@ function buildMechanicSet(
       matched_aesthetics: m.aesthetics,
     })),
     genres_searched: allGenres,
+    // R4-06: pass through honest scoring provenance fields.
+    genre_coverage: dbResult.genre_coverage,
+    hybrid_bonus: dbResult.hybrid_bonus,
+    cross_genre_role: dbResult.cross_genre_role,
   };
 }
 

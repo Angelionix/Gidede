@@ -2,6 +2,12 @@
 
 **Версия**: v0.51.0 (Next.js port, Phases 1-6 completed)
 
+> [!IMPORTANT]
+> Идёт устранение алгоритмических замечаний по [новому roadmap](docs/audit/FINAL_ALGORITHM_AUDIT_AND_REMEDIATION_ROADMAP.md).
+> Текущая задача, завершённые работы, проверки и инструкции для продолжения фиксируются в
+> [Algorithm Roadmap Worklog](docs/audit/ALGORITHM_ROADMAP_WORKLOG.md). Старый `REFACTOR_TRACKER.md`
+> сохранён только как исторический документ и не отражает актуальную готовность алгоритмов.
+
 AI-powered система для проектирования игр. 8 функциональных блоков покрывают полный пайплайн геймдизайна — от идеи до GDD. Включает node-based редактор прототипов с компиляцией в LittleJS (2D) и Three.js (3D).
 
 ## Технологии
@@ -65,6 +71,8 @@ docker compose up -d --build
 
 ## Документация
 
+- [Актуальный алгоритмический roadmap](docs/audit/FINAL_ALGORITHM_AUDIT_AND_REMEDIATION_ROADMAP.md) — план исправления результатов аудита
+- [Worklog нового roadmap](docs/audit/ALGORITHM_ROADMAP_WORKLOG.md) — текущий статус и точка продолжения
 - [Обзор проекта](docs/PROJECT_OVERVIEW.md) — архитектура, стек, 8 блоков, поток данных
 - [Node-редактор](docs/NODE_EDITOR.md) — руководство пользователя
 - [Справочник нод](docs/NODE_TYPES.md) — все 20 типов нод

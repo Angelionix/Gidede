@@ -1,5 +1,12 @@
 # Gidede — Трекер задач рефакторинга
 
+> [!WARNING]
+> Исторический документ. Заявленные здесь статусы завершения не являются подтверждением
+> алгоритмической готовности. Актуальная работа ведётся по
+> [`FINAL_ALGORITHM_AUDIT_AND_REMEDIATION_ROADMAP.md`](FINAL_ALGORITHM_AUDIT_AND_REMEDIATION_ROADMAP.md),
+> а единственным источником текущего статуса является
+> [`ALGORITHM_ROADMAP_WORKLOG.md`](ALGORITHM_ROADMAP_WORKLOG.md).
+
 **Версия**: 1.0  
 **Дата создания**: 2026-08-01  
 **Источник**: 8 планов рефакторинга (`docs/audit/REFACTOR_PLAN_block_*.md`)  

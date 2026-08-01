@@ -118,7 +118,7 @@ model ProjectConcept {
   mechanicSet         String?  // JSON: MechanicSet
   validationReport    String?  // JSON: ValidationReport
   uspCandidates       String?  // JSON: [{usp, triangle_check, differentiation}]
-  coreLoopCandidates  String?  // JSON: [{name, steps, loop_type, fun_check}]
+  coreLoopCandidates  String?  // JSON: [{name, steps, loop_type, fun_hypothesis}]
   // TASK-1.11: новые поля для persist ai_insights, title, generation_metadata.
   // Раньше эти данные возвращались в HTTP response, но НЕ сохранялись в БД —
   // при перезагрузке проекта они терялись.

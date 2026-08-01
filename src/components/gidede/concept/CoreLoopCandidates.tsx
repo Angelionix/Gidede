@@ -9,7 +9,7 @@ import {
   CardDescription,
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Check, Eye, Zap } from "lucide-react";
+import { AlertTriangle, Check, Zap } from "lucide-react";
 import { LOOP_TYPE_LABELS } from "@/constants/concept";
 // TASK-1.13: конкретный тип вместо Record<string, unknown>[].
 import type { CoreLoopCandidate } from "../../../../shared/types/typescript/interfaces";
@@ -36,7 +36,8 @@ export const CoreLoopCandidates = React.memo(function CoreLoopCandidates({
           const name = (candidate.name as string) || `Вариант ${i + 1}`;
           const steps = Array.isArray(candidate.steps) ? candidate.steps : [];
           const loopType = (candidate.loop_type as string) || "hybrid";
-          const funCheck = (candidate.fun_check as string) || (candidate.fun_check_reasoning as string) || "";
+          const funHypothesis = candidate.fun_hypothesis as Record<string, unknown> | undefined;
+          const funStatement = (funHypothesis?.statement as string) || "Гипотеза удовольствия ещё не сформирована";
           const duration = (candidate.estimated_duration_seconds as number) ?? 30;
           const isSelected = selectedIndex === i;
 
@@ -83,14 +84,12 @@ export const CoreLoopCandidates = React.memo(function CoreLoopCandidates({
                 </ol>
               )}
 
-              {/* Fun check & duration */}
-              <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                {funCheck && (
-                  <span className="flex items-center gap-1">
-                    <Eye className="h-3 w-3" />
-                    {funCheck}
-                  </span>
-                )}
+              {/* Unverified fun hypothesis & duration */}
+              <div className="flex items-start gap-4 text-xs text-muted-foreground">
+                <span className="flex items-start gap-1">
+                  <AlertTriangle className="h-3 w-3 mt-0.5 shrink-0 text-amber-600" />
+                  <span><span className="font-medium text-amber-700 dark:text-amber-300">Не проверено:</span> {funStatement}</span>
+                </span>
                 <span className="flex items-center gap-1">
                   <Zap className="h-3 w-3" />
                   ~{duration} сек/цикл

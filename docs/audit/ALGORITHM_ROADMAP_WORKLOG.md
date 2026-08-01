@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R2-05` — заменить вычисляемый `fun` на `fun_hypothesis` и test protocol.
-- **Зависимости:** `R2-04` завершена; default Engine/Puzzle templates больше не создают неизбежные critical failures.
-- **Ожидаемый результат:** до фактического playtest fun имеет статус `unverified`, а не синтетический passed/score.
-- **После неё:** `R2-06` — связать generated prototype с artifact versions.
+- **Следующая задача:** `R2-06` — связать generated prototype с artifact versions.
+- **Зависимости:** `R2-05` завершена; `fun_hypothesis` отделена от структурной валидации и до playtest имеет статус `unverified`.
+- **Ожидаемый результат:** каждый generated prototype хранит точные версии входных артефактов и становится stale при их изменении.
+- **После неё:** `R2-07` — добавить ingestion результатов playtest и evidence-based обновление гипотезы.
 
 ## Правила ведения
 
@@ -48,9 +48,49 @@
 | R2-02 | DONE | Structural type выбирается до matching step template | 335 tests, TypeScript, scoped ESLint |
 | R2-03 | DONE | Closedness доказана directed resource graph и last→first path | 339 tests, TypeScript, scoped ESLint |
 | R2-04 | DONE | Engine/Puzzle defaults проходят mandatory structural checks | 341 tests, TypeScript, scoped ESLint |
-| R2-05…R7 | TODO | См. активный roadmap | — |
+| R2-05 | DONE | Вычисляемый fun заменён на `unverified` hypothesis и измеримый playtest protocol | 343 tests, TypeScript, scoped ESLint |
+| R2-06…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R2-05 — DONE
+
+Что сделано:
+
+- удалён синтетический `fun_check` с `passed` и `score`, вычислявшийся по доле positive feedback и числу шагов;
+- введён общий контракт `fun_hypothesis` со статусами `unverified/supported/rejected`, утверждением, test protocol и evidence;
+- до появления результатов playtest гипотеза всегда имеет статус `unverified` и пустой evidence;
+- test protocol фиксирует 30 секунд, минимум 5 участников, задачу без подсказок, три наблюдаемые метрики и правило принятия решения;
+- структурная валидация отделена от fun и теперь содержит 4 явных `structural_checks`;
+- checklist сообщает `upton_fun_unverified` как info, а не выдаёт ложный failed test;
+- concept candidates и Core Loop UI показывают гипотезу как непроверенную и отображают протокол вместо фиктивной оценки;
+- удалён score provenance для несуществующего `validation.fun_check.score`; синхронизированы TypeScript/Python contracts и Prisma JSON comment.
+
+Изменённые области:
+
+- `src/lib/coreloop/validation.ts` и тесты;
+- `src/app/api/v1/concept/generate/route.ts`;
+- `src/lib/checklist-logic.ts`, `src/lib/algorithm-metadata.ts`;
+- `src/components/gidede/coreloop/ValidationPanel.tsx`;
+- `src/components/gidede/concept/CoreLoopCandidates.tsx`;
+- `shared/types/typescript/interfaces.ts`, `shared/types/python/models.py`;
+- `prisma/schema.prisma`.
+
+Проверки:
+
+- targeted Core Loop/metadata tests — 3 файла, 55 тестов пройдены;
+- `npm run test` — 24 файла, 343 теста пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript/TSX-файлов — ошибок нет;
+- `git diff --check` — ошибок нет;
+- исполняемый код и shared contracts больше не содержат `fun_check`/`fun_check_reasoning`.
+
+Acceptance evidence:
+
+- `fun_hypothesis.status=unverified`, `evidence=[]`, полей `score` и `passed` нет;
+- изменение количества positive-feedback шагов не является доказательством fun и не влияет на structural acceptance;
+- structural score считается только по closure, resource balance, critical pathologies и диапазону 3–7 шагов;
+- следующей задачей назначена `R2-06`.
 
 ### 2026-08-01 — R2-04 — DONE
 

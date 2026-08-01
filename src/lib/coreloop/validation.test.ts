@@ -1,10 +1,10 @@
 /**
  * TASK-2.20: Unit tests for Core Loop validation (Block 2).
- * Covers: TASK-2.4 (real closedness), TASK-2.6 (5 Gary questions), TASK-2.16 (all-5-required threshold).
+ * Covers: TASK-2.4 (real closedness), TASK-2.6 (5 Gary questions), TASK-2.16 (structural threshold), R2-05 (fun hypothesis).
  */
 
 import { describe, it, expect } from "vitest";
-import { buildValidation, checkLoopClosedness, checkGaryFiveQuestions, checkResourceSufficiency } from "./validation";
+import { buildFunHypothesis, buildValidation, checkLoopClosedness, checkGaryFiveQuestions, checkResourceSufficiency } from "./validation";
 import type { CoreStep } from "./steps";
 import type { PathologyReport } from "./pathologies";
 
@@ -182,8 +182,8 @@ describe("checkResourceSufficiency", () => {
   });
 });
 
-describe("buildValidation — TASK-2.16: all-5-required threshold", () => {
-  it("overall_passed = true only when all 5 criteria pass", () => {
+describe("buildValidation — TASK-2.16: structural threshold", () => {
+  it("overall_passed = true only when all 4 structural criteria pass", () => {
     const steps = [
       makeStep({ feedback_type: "positive", resources_consumed: ["a"], resources_produced: ["a"], mechanics: ["M1"] }),
       makeStep({ feedback_type: "neutral", resources_consumed: ["a"], resources_produced: ["b"], mechanics: ["M2"] }),
@@ -192,7 +192,8 @@ describe("buildValidation — TASK-2.16: all-5-required threshold", () => {
     const pathologies = makePathologyReport(0);
     const st = { type: "economy", has_braking: true };
     const result = buildValidation(steps, pathologies, st);
-    expect(result.checklist_passed).toBe(5);
+    expect(result.checklist_passed).toBe(4);
+    expect(result.checklist_total).toBe(4);
     expect(result.overall_passed).toBe(true);
   });
 
@@ -256,5 +257,37 @@ describe("buildValidation — TASK-2.16: all-5-required threshold", () => {
     const st = { type: "engine", has_braking: false };
     const result = buildValidation(steps, pathologies, st);
     expect(result.warnings.length).toBeGreaterThan(0);
+  });
+
+  it("does not use positive-feedback count as structural evidence of fun", () => {
+    const steps = [
+      makeStep({ feedback_type: "neutral", resources_consumed: ["a"], resources_produced: ["a"] }),
+      makeStep({ feedback_type: "neutral", resources_consumed: ["a"], resources_produced: ["b"] }),
+      makeStep({ feedback_type: "neutral", resources_consumed: ["b"], resources_produced: ["a"] }),
+    ];
+    const result = buildValidation(steps, makePathologyReport(0), { type: "economy", has_braking: true });
+
+    expect(result.overall_passed).toBe(true);
+    expect(result.fun_hypothesis.status).toBe("unverified");
+    expect(result.fun_hypothesis).not.toHaveProperty("score");
+    expect(result.fun_hypothesis).not.toHaveProperty("passed");
+  });
+});
+
+describe("buildFunHypothesis — R2-05", () => {
+  it("creates an unverified, measurable protocol without evidence", () => {
+    const hypothesis = buildFunHypothesis([
+      makeStep({ action: "Исследовать", feedback_type: "neutral" }),
+      makeStep({ action: "Получить награду", feedback_type: "positive" }),
+    ]);
+
+    expect(hypothesis.status).toBe("unverified");
+    expect(hypothesis.statement).toContain("Исследовать");
+    expect(hypothesis.statement).toContain("Получить награду");
+    expect(hypothesis.test_protocol.duration_seconds).toBe(30);
+    expect(hypothesis.test_protocol.minimum_participants).toBeGreaterThanOrEqual(5);
+    expect(hypothesis.test_protocol.metrics).toHaveLength(3);
+    expect(hypothesis.test_protocol.metrics.every((metric) => metric.target >= 0 && metric.target <= 1)).toBe(true);
+    expect(hypothesis.evidence).toEqual([]);
   });
 });

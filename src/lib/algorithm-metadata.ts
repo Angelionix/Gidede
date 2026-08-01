@@ -67,14 +67,10 @@ const SCORE_METADATA_BY_STAGE = {
     ),
   },
   core_loop: {
-    "validation.fun_check.score": score(
-      "heuristic",
-      "Positive verbs and loop length are proxies for fun; no player evidence is present.",
-    ),
     "validation.score": score(
       "heuristic",
-      "Validation score is the fraction of deterministic checklist conditions that pass.",
-      "Checklist conditions do not prove that the loop is enjoyable.",
+      "Validation score is the fraction of deterministic structural checklist conditions that pass.",
+      "Fun is a separate unverified hypothesis until playtest evidence is recorded.",
     ),
   },
   mda: {

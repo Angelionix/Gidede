@@ -574,10 +574,15 @@ function runUptonCheck(project: ProjectData): { skipped: boolean; issues: Checkl
   if (loopClosed && typeof loopClosed === "object" && "is_closed" in loopClosed && !(loopClosed as { is_closed: boolean }).is_closed) {
     issues.push({ severity: "warning", issue_type: "upton_loop_not_closed", description: "Core loop не замкнут", suggestion: "Свяжите последний шаг с первым" });
   }
-  // 4. Fun check passed
-  const funCheck = validation.fun_check;
-  if (funCheck && typeof funCheck === "object" && "passed" in funCheck && !(funCheck as { passed: boolean }).passed) {
-    issues.push({ severity: "warning", issue_type: "upton_fun_check_failed", description: "30-second fun test не пройден", suggestion: "Усильте positive feedback" });
+  // 4. Fun remains a hypothesis until player evidence is recorded.
+  const funHypothesis = validation.fun_hypothesis;
+  const funStatus = funHypothesis && typeof funHypothesis === "object" && "status" in funHypothesis
+    ? (funHypothesis as { status: unknown }).status
+    : "unverified";
+  if (funStatus === "rejected") {
+    issues.push({ severity: "warning", issue_type: "upton_fun_hypothesis_rejected", description: "Гипотеза fun отклонена плейтестом", suggestion: "Измените core loop и повторите протокол плейтеста" });
+  } else if (funStatus !== "supported") {
+    issues.push({ severity: "info", issue_type: "upton_fun_unverified", description: "Гипотеза fun ещё не проверена на игроках", suggestion: "Запустите 30-секундный прототип и запишите результаты протокола" });
   }
   // 5. Has braking
   const structuralType = coreLoop.structuralType;

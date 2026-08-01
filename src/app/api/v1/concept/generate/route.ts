@@ -40,6 +40,7 @@ import { validateConceptInput } from "@/lib/concept/validation-input";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
+import type { FunHypothesis } from "../../../../../../shared/types/typescript/interfaces";
 
 // ============================================================
 // Constants — valid enum values & static lookup tables
@@ -506,6 +507,25 @@ function buildMechanicSet(
  * Если у механики нет русского имени (legacy fallback), используем английский
  * глагол-заглушку ("исследование", "сражение", "прокачка").
  */
+function buildUnverifiedFunHypothesis(statement: string): FunHypothesis {
+  return {
+    status: "unverified",
+    statement,
+    test_protocol: {
+      duration_seconds: 30,
+      minimum_participants: 5,
+      task: "Без подсказок выполнить один полный цикл и затем выбрать — повторить его или остановиться.",
+      metrics: [
+        { id: "loop_completion_rate", description: "Цикл завершён без подсказки.", comparator: ">=", target: 0.8 },
+        { id: "voluntary_replay_rate", description: "Участник добровольно начал второй цикл.", comparator: ">=", target: 0.6 },
+        { id: "critical_confusion_rate", description: "Участник не понимал следующее действие более 5 секунд.", comparator: "<=", target: 0.2 },
+      ],
+      decision_rule: "Гипотеза поддержана только если достигнуты пороги всех метрик; иначе она отклонена.",
+    },
+    evidence: [],
+  };
+}
+
 function buildCoreLoopCandidates(genre: string, mechanicSet: {
   base: Array<{ name: string }>;
   combat: Array<{ name: string }>;
@@ -568,8 +588,9 @@ function buildCoreLoopCandidates(genre: string, mechanicSet: {
         `Улучшить через «${progName}»`,
       ],
       loop_type: loopType,
-      fun_check_reasoning:
-        "Тест на 30 секунд веселья: каждый шаг даёт немедленную обратную связь и видимый прогресс.",
+      fun_hypothesis: buildUnverifiedFunHypothesis(
+        "Игрок поймёт связь исследования, столкновения, награды и улучшения за 30 секунд и захочет повторить цикл.",
+      ),
       estimated_duration_seconds: 45,
     },
     {
@@ -582,8 +603,9 @@ function buildCoreLoopCandidates(genre: string, mechanicSet: {
         `Вернуться на базу`,
       ],
       loop_type: loopType === "ecology" ? "hybrid" : "engine",
-      fun_check_reasoning:
-        "Боевой цикл вознаграждает агрессивную игру немедленным лутом.",
+      fun_hypothesis: buildUnverifiedFunHypothesis(
+        "Немедленная добыча после боевого действия побудит игрока добровольно выбрать следующую цель.",
+      ),
       estimated_duration_seconds: 30,
     },
     {
@@ -596,8 +618,9 @@ function buildCoreLoopCandidates(genre: string, mechanicSet: {
         `Открыть следующий уровень`,
       ],
       loop_type: loopType === "engine" ? "hybrid" : loopType,
-      fun_check_reasoning:
-        "Цикл прогрессии акцентирует долгосрочные цели с краткосрочным вовлечением.",
+      fun_hypothesis: buildUnverifiedFunHypothesis(
+        "Видимый прирост прогресса после короткой задачи побудит игрока начать следующий цикл.",
+      ),
       estimated_duration_seconds: 60,
     },
   ];

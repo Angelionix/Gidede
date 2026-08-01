@@ -7,7 +7,7 @@ Pydantic-модели, синхронизированные с TypeScript-инт
 """
 
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Literal, Optional
 from datetime import datetime
 
 from .enums import *
@@ -82,11 +82,40 @@ class MechanicSet(BaseModel):
     compatibility_score: float = 0.0
 
 
+class FunTestMetric(BaseModel):
+    id: Literal["loop_completion_rate", "voluntary_replay_rate", "critical_confusion_rate"]
+    description: str = ""
+    comparator: Literal[">=", "<="]
+    target: float = 0.0
+
+
+class FunTestProtocol(BaseModel):
+    duration_seconds: int = 30
+    minimum_participants: int = 5
+    task: str = ""
+    metrics: list[FunTestMetric] = Field(default_factory=list)
+    decision_rule: str = ""
+
+
+class FunHypothesisEvidence(BaseModel):
+    playtest_id: str = ""
+    recorded_at: str = ""
+    participant_count: int = 0
+    metric_results: dict[str, float] = Field(default_factory=dict)
+
+
+class FunHypothesis(BaseModel):
+    status: Literal["unverified", "supported", "rejected"] = "unverified"
+    statement: str = ""
+    test_protocol: FunTestProtocol = Field(default_factory=FunTestProtocol)
+    evidence: list[FunHypothesisEvidence] = Field(default_factory=list)
+
+
 class CoreLoopCandidate(BaseModel):
     name: str = ""
     steps: list[str] = Field(default_factory=list)
     loop_type: LoopStructuralType = LoopStructuralType.ENGINE
-    fun_check_reasoning: str = ""
+    fun_hypothesis: FunHypothesis = Field(default_factory=FunHypothesis)
     estimated_duration_seconds: int = 30
 
 

@@ -9,6 +9,7 @@
 import type { CoreStep } from "./steps";
 import type { PathologyReport } from "./pathologies";
 import { buildResourceFlowGraph, findResourceFlowPath } from "./resource-graph";
+import type { FunHypothesis } from "../../../shared/types/typescript/interfaces";
 
 export interface GaryFiveQuestions {
   is_loop: boolean;
@@ -34,15 +35,60 @@ export interface ResourceSufficiency {
 }
 
 export interface ValidationResult {
-  fun_check: { passed: boolean; score: number; reasoning: string };
+  fun_hypothesis: FunHypothesis;
   loop_closedness: LoopClosedness;
   resource_sufficiency: ResourceSufficiency;
   gary_five_questions: GaryFiveQuestions;
+  structural_checks: {
+    loop_closed: boolean;
+    resources_balanced: boolean;
+    no_critical_pathologies: boolean;
+    step_count_in_range: boolean;
+  };
   checklist_passed: number;
   checklist_total: number;
   overall_passed: boolean;
   score: number;
   warnings: string[];
+}
+
+export function buildFunHypothesis(steps: CoreStep[]): FunHypothesis {
+  const firstAction = steps[0]?.action || "первый шаг цикла";
+  const payoffAction = steps.find((step) => step.feedback_type === "positive")?.action
+    || steps.at(-1)?.action
+    || "завершение цикла";
+
+  return {
+    status: "unverified",
+    statement: `Игрок понимает связь «${firstAction} → ${payoffAction}» за 30 секунд и хочет добровольно повторить цикл.`,
+    test_protocol: {
+      duration_seconds: 30,
+      minimum_participants: 5,
+      task: "Без подсказок фасилитатора выполнить один полный цикл, затем выбрать — повторить его или остановиться.",
+      metrics: [
+        {
+          id: "loop_completion_rate",
+          description: "Доля участников, завершивших цикл без подсказки.",
+          comparator: ">=",
+          target: 0.8,
+        },
+        {
+          id: "voluntary_replay_rate",
+          description: "Доля участников, добровольно начавших второй цикл.",
+          comparator: ">=",
+          target: 0.6,
+        },
+        {
+          id: "critical_confusion_rate",
+          description: "Доля участников, не понявших следующее действие более 5 секунд.",
+          comparator: "<=",
+          target: 0.2,
+        },
+      ],
+      decision_rule: "Гипотеза поддержана только если достигнуты пороги всех метрик; иначе она отклонена.",
+    },
+    evidence: [],
+  };
 }
 
 export function checkLoopClosedness(steps: CoreStep[]): LoopClosedness {
@@ -111,24 +157,20 @@ export function buildValidation(
   pathologies: PathologyReport,
   structuralType: { type: string; has_braking: boolean }
 ): ValidationResult {
-  const positiveCount = steps.filter((s) => s.feedback_type === "positive").length;
-  const funCheckScore = Math.min(1, (positiveCount / Math.max(1, steps.length)) * 0.5 + (steps.length >= 3 && steps.length <= 7 ? 0.5 : 0.2));
-  const funCheckPassed = funCheckScore >= 0.5;
-
   const loopClosedness = checkLoopClosedness(steps);
   const resourceSufficiency = checkResourceSufficiency(steps);
   const garyFiveQuestions = checkGaryFiveQuestions(steps);
 
-  const checklistItems = [
-    funCheckPassed,
-    loopClosedness.is_closed,
-    !resourceSufficiency.has_dead_resources && !resourceSufficiency.has_unsourced_consumables,
-    pathologies.critical_count === 0,
-    steps.length >= 3 && steps.length <= 7,
-  ];
+  const structuralChecks = {
+    loop_closed: loopClosedness.is_closed,
+    resources_balanced: !resourceSufficiency.has_dead_resources && !resourceSufficiency.has_unsourced_consumables,
+    no_critical_pathologies: pathologies.critical_count === 0,
+    step_count_in_range: steps.length >= 3 && steps.length <= 7,
+  };
+  const checklistItems = Object.values(structuralChecks);
   const checklistPassed = checklistItems.filter(Boolean).length;
-  const checklistTotal = 5;
-  // TASK-2.16: all 5 required
+  const checklistTotal = checklistItems.length;
+  // Structural acceptance is separate from player-evidence validation.
   const overallPassed = checklistPassed === checklistTotal;
   const score = Number((checklistPassed / checklistTotal).toFixed(3));
 
@@ -142,10 +184,11 @@ export function buildValidation(
   if (!garyFiveQuestions.has_goal) warnings.push("Gary Q5: нет цели");
 
   return {
-    fun_check: { passed: funCheckPassed, score: Number(funCheckScore.toFixed(3)), reasoning: `${positiveCount}/${steps.length} positive; ${steps.length} шагов` },
+    fun_hypothesis: buildFunHypothesis(steps),
     loop_closedness: loopClosedness,
     resource_sufficiency: resourceSufficiency,
     gary_five_questions: garyFiveQuestions,
+    structural_checks: structuralChecks,
     checklist_passed: checklistPassed,
     checklist_total: checklistTotal,
     overall_passed: overallPassed,

@@ -137,8 +137,39 @@ export interface CoreLoopCandidate {
   name: string;
   steps: string[];
   loop_type: LoopStructuralType;
-  fun_check_reasoning: string;
+  fun_hypothesis: FunHypothesis;
   estimated_duration_seconds: number;
+}
+
+export type FunHypothesisStatus = 'unverified' | 'supported' | 'rejected';
+
+export interface FunTestMetric {
+  id: 'loop_completion_rate' | 'voluntary_replay_rate' | 'critical_confusion_rate';
+  description: string;
+  comparator: '>=' | '<=';
+  target: number;
+}
+
+export interface FunTestProtocol {
+  duration_seconds: number;
+  minimum_participants: number;
+  task: string;
+  metrics: FunTestMetric[];
+  decision_rule: string;
+}
+
+export interface FunHypothesisEvidence {
+  playtest_id: string;
+  recorded_at: string;
+  participant_count: number;
+  metric_results: Record<string, number>;
+}
+
+export interface FunHypothesis {
+  status: FunHypothesisStatus;
+  statement: string;
+  test_protocol: FunTestProtocol;
+  evidence: FunHypothesisEvidence[];
 }
 
 export interface USPCandidate {
@@ -249,7 +280,7 @@ export interface InnerLoop {
   level: 'inner';
   parent_step: string;
   actions: string[];
-  fun_check: boolean;
+  fun_hypothesis?: FunHypothesis;
   time_scale: string;
 }
 

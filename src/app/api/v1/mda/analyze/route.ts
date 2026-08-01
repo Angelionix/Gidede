@@ -341,6 +341,49 @@ function buildMechanicSet(
   };
 }
 
+// TASK-3.10: Genre-specific gameplay sequence templates.
+function buildGameplaySequence(
+  genre: string,
+  baseMech: string,
+  combatMech: string,
+  progMech: string,
+  spatialMech: string,
+  socialMech: string
+) {
+  const templates: Record<string, Array<{ action: string; mechanics_used: string[]; resources_consumed: string[]; resources_produced: string[] }>> = {
+    rpg: [
+      { action: `Исследовать мир (${spatialMech})`, mechanics_used: [spatialMech], resources_consumed: [], resources_produced: ["discovery"] },
+      { action: `Сразиться с врагом (${combatMech})`, mechanics_used: [combatMech], resources_consumed: ["health", "mana"], resources_produced: ["loot"] },
+      { action: `Собрать награду (${baseMech})`, mechanics_used: [baseMech], resources_consumed: [], resources_produced: ["xp", "gold"] },
+      { action: `Улучшить персонажа (${progMech})`, mechanics_used: [progMech], resources_consumed: ["xp", "gold"], resources_produced: ["power"] },
+    ],
+    shooter: [
+      { action: `Продвинуться к цели (${spatialMech})`, mechanics_used: [spatialMech], resources_consumed: [], resources_produced: ["position"] },
+      { action: `Атаковать противника (${combatMech})`, mechanics_used: [combatMech], resources_consumed: ["ammo"], resources_produced: ["kills"] },
+      { action: `Собрать лут (${baseMech})`, mechanics_used: [baseMech], resources_consumed: [], resources_produced: ["ammo", "armor"] },
+      { action: `Открыть улучшение (${progMech})`, mechanics_used: [progMech], resources_consumed: ["score"], resources_produced: ["perk"] },
+    ],
+    strategy: [
+      { action: `Собрать ресурсы (${baseMech})`, mechanics_used: [baseMech], resources_consumed: [], resources_produced: ["raw_materials"] },
+      { action: `Построить юнитов (${spatialMech})`, mechanics_used: [spatialMech], resources_consumed: ["raw_materials"], resources_produced: ["units"] },
+      { action: `Атаковать врага (${combatMech})`, mechanics_used: [combatMech], resources_consumed: ["units"], resources_produced: ["territory"] },
+      { action: `Исследовать технологии (${progMech})`, mechanics_used: [progMech], resources_consumed: ["raw_materials"], resources_produced: ["tech"] },
+    ],
+    puzzle: [
+      { action: `Сканировать доску (${spatialMech})`, mechanics_used: [spatialMech], resources_consumed: [], resources_produced: ["pattern"] },
+      { action: `Разместить элемент (${baseMech})`, mechanics_used: [baseMech], resources_consumed: ["pattern"], resources_produced: ["placement"] },
+      { action: `Проверить совпадение (${combatMech})`, mechanics_used: [combatMech], resources_consumed: ["placement"], resources_produced: ["match"] },
+      { action: `Очистить линию (${progMech})`, mechanics_used: [progMech], resources_consumed: ["match"], resources_produced: ["score"] },
+    ],
+    default: [
+      { action: `Взаимодействовать (${baseMech})`, mechanics_used: [baseMech], resources_consumed: [], resources_produced: ["signal"] },
+      { action: `Атаковать (${combatMech})`, mechanics_used: [combatMech], resources_consumed: ["energy"], resources_produced: [] },
+      { action: `Прогрессировать (${progMech})`, mechanics_used: [progMech], resources_consumed: [], resources_produced: ["xp", "score"] },
+    ],
+  };
+  return templates[genre] || templates.default;
+}
+
 function buildClassicMDA(
   mechanicSet: {
     base: Array<{ mechanic_name: string }>;
@@ -351,35 +394,31 @@ function buildClassicMDA(
   },
   dynamicsTarget: { core_dynamics: string[]; supporting_dynamics: string[] },
   aesthetics: { primary: string; secondary: string; tertiary: string },
+  genre: string,
   convergenceThreshold: number
 ) {
   // Simulate forward: mechanics → gameplay sequence → observed dynamics → predicted aesthetics
   const baseMech = mechanicSet.base[0]?.mechanic_name || "explore";
   const combatMech = mechanicSet.combat[0]?.mechanic_name || "combat";
   const progMech = mechanicSet.progression[0]?.mechanic_name || "progress";
+  const spatialMech = mechanicSet.spatial[0]?.mechanic_name || "explore";
+  const socialMech = mechanicSet.social[0]?.mechanic_name || "interact";
 
-  const gameplaySequence = [
-    {
-      action: `Engage ${baseMech}`,
-      mechanics_used: [baseMech],
-      resources_consumed: [],
-      resources_produced: ["signal"],
-    },
-    {
-      action: `Execute ${combatMech}`,
-      mechanics_used: [combatMech],
-      resources_consumed: ["energy"],
-      resources_produced: [],
-    },
-    {
-      action: `Use ${progMech}`,
-      mechanics_used: [progMech],
-      resources_consumed: [],
-      resources_produced: ["xp", "gold"],
-    },
-  ];
+  // TASK-3.10 FIXED: genre-specific gameplay sequence templates (was hardcoded 3-step).
+  const gameplaySequence = buildGameplaySequence(genre, baseMech, combatMech, progMech, spatialMech, socialMech);
 
-  const observedDynamics = dynamicsTarget.core_dynamics.slice(0, 3);
+  // TASK-3.9 FIXED: derive observed_dynamics from actual mechanic set, not just copy target.
+  // Before: `dynamicsTarget.core_dynamics.slice(0, 3)` — always copies target, ignores actual mechanics.
+  // After: checks which dynamics are actually covered by mechanics in the set.
+  const allMechsInSet = [
+    ...mechanicSet.base, ...mechanicSet.combat, ...mechanicSet.progression,
+    ...mechanicSet.spatial, ...mechanicSet.social,
+  ].map((m) => m.mechanic_name);
+  const allTargetDynamics = [...dynamicsTarget.core_dynamics, ...dynamicsTarget.supporting_dynamics];
+  const observedDynamics = allTargetDynamics.filter((dyn) => {
+    const mechs = DYNAMICS_TO_MECHANICS[dyn] || [];
+    return mechs.some((m) => allMechsInSet.includes(m));
+  });
 
   const feedbackLoops = [
     {
@@ -810,6 +849,24 @@ export async function POST(request: NextRequest) {
       maxMechanics
     );
 
+    // TASK-3.17 FIXED: recompute uncovered_dynamics based on actual mechanic set.
+    // Before: buildMechanicCandidateSet marked all dynamics as "covered" because
+    // DYNAMICS_TO_MECHANICS has entries for all dynamics → uncovered always empty.
+    // After: check which dynamics have NO mechanics in the actual structured mechanic set.
+    {
+      const allMechsInSet = [
+        ...mechanicSet.base, ...mechanicSet.combat, ...mechanicSet.progression,
+        ...mechanicSet.spatial, ...mechanicSet.social,
+      ].map((m) => (m as { mechanic_name: string }).mechanic_name);
+      const allTargetDynamics = [...dynamicsTarget.core_dynamics, ...dynamicsTarget.supporting_dynamics];
+      const realUncovered = allTargetDynamics.filter((dyn) => {
+        const mechs = DYNAMICS_TO_MECHANICS[dyn] || [];
+        return !mechs.some((m) => allMechsInSet.includes(m));
+      });
+      // Override the empty uncovered_dynamics from buildMechanicCandidateSet.
+      (mechanicCandidateSet as { uncovered_dynamics: string[] }).uncovered_dynamics = realUncovered;
+    }
+
     // --- Stage 5: Classic MDA (forward simulation) ---
     let classicMdaResult: ReturnType<typeof buildClassicMDA> | null = null;
     if (fullAnalysis) {
@@ -817,6 +874,7 @@ export async function POST(request: NextRequest) {
         mechanicSet,
         dynamicsTarget,
         aestheticProfile,
+        genre,
         convergenceThreshold
       );
     }

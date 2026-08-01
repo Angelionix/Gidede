@@ -1,12 +1,20 @@
 /**
  * POST /api/v1/gdd/checklist
- * Запуск чек-листа валидации GDD.
+ *
+ * TASK-6.6 FIXED: Replaced STUB with real checklist-logic.ts.
+ *
+ * Before: hardcoded scores (80/0/40/70/75), no real validation.
+ * After: delegates to runChecklistValidation() from lib/checklist-logic.ts,
+ * which runs 5 real check functions (MDA, Balance, Narrative, Economy, Lens)
+ * with actual issue detection and remediation plans.
+ *
  * Body: { project_id }
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/server-auth";
 import { db } from "@/lib/db";
-import { UNAUTH, SERVER_ERROR, VALIDATION_ERROR, safeJsonParse } from "@/lib/api-helpers";
+import { UNAUTH, SERVER_ERROR, VALIDATION_ERROR } from "@/lib/api-helpers";
+import { runChecklistValidation } from "@/lib/checklist-logic";
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser(request);
@@ -18,102 +26,40 @@ export async function POST(request: NextRequest) {
 
     const project = await db.project.findFirst({
       where: { id: projectId, userId: user.id },
-      include: { concept: true, coreLoop: true, mdaProfile: true, balanceResult: true, progression: true, economy: true, gdd: true, checklist: true },
+      include: {
+        concept: true,
+        coreLoop: true,
+        mdaProfile: true,
+        balanceResult: true,
+        progression: true,
+        economy: true,
+        gdd: true,
+        checklist: true,
+      },
     });
     if (!project) return NextResponse.json({ detail: "Проект не найден" }, { status: 404 });
 
-    // Run 5 checks
-    const checks: any = {};
-
-    // MDA check
-    checks.mda_check = {
-      passed: !!project.mdaProfile,
-      score: project.mdaProfile ? 80 : 0,
-      message: project.mdaProfile ? "MDA-профиль сгенерирован" : "MDA-профиль отсутствует",
-    };
-
-    // Balance check
-    checks.balance_check = {
-      passed: !!project.balanceResult && (project.balanceResult.overallBalanceScore || 0) >= 60,
-      score: project.balanceResult?.overallBalanceScore || 0,
-      message: project.balanceResult ? `Score: ${project.balanceResult.overallBalanceScore}%` : "Баланс не сгенерирован",
-    };
-
-    // Economy check
-    checks.economy_check = {
-      passed: !!project.economy && !project.economy.hasPathology,
-      score: project.economy ? (project.economy.hasPathology ? 40 : 80) : 0,
-      message: project.economy ? (project.economy.hasPathology ? "Обнаружены патологии" : "Без патологий") : "Экономика не сгенерирована",
-    };
-
-    // Narrative check
-    checks.narrative_check = {
-      passed: !!project.concept,
-      score: project.concept ? 70 : 0,
-      message: project.concept ? "Концепция сгенерирована" : "Концепция отсутствует",
-    };
-
-    // Lens check (Schell)
-    checks.lens_check = {
-      passed: !!project.mdaProfile,
-      score: project.mdaProfile ? 75 : 0,
-      message: "Линзы Шелла применены через MDA",
-    };
-
-    const scores = Object.values(checks).map((c: any) => c.score);
-    const overallScore = Math.round(scores.reduce((a: number, b: number) => a + b, 0) / scores.length);
-
-    const issues: any[] = [];
-    for (const [key, check] of Object.entries(checks)) {
-      if (!(check as any).passed) {
-        issues.push({ check: key, severity: "warning", message: (check as any).message });
-      }
-    }
-
-    const readiness = overallScore >= 75 ? "ready" : overallScore >= 50 ? "review" : "draft";
-
-    const result = {
-      overall_score: overallScore,
-      readiness_level: readiness,
-      checks,
-      issues,
-      critical_issue_count: issues.filter(i => i.severity === "critical").length,
-      total_issue_count: issues.length,
-    };
-
-    // Persist checklist
-    await db.projectChecklist.upsert({
-      where: { projectId },
-      create: {
-        projectId,
-        overallScore: overallScore,
-        readinessLevel: readiness,
-        criticalIssueCount: issues.filter(i => i.severity === "critical").length,
-        totalIssueCount: issues.length,
-        mdaCheck: JSON.stringify(checks.mda_check),
-        balanceCheck: JSON.stringify(checks.balance_check),
-        economyCheck: JSON.stringify(checks.economy_check),
-        narrativeCheck: JSON.stringify(checks.narrative_check),
-        lensCheck: JSON.stringify(checks.lens_check),
-        issues: JSON.stringify(issues),
-        fullResults: JSON.stringify(result),
-      },
-      update: {
-        overallScore: overallScore,
-        readinessLevel: readiness,
-        criticalIssueCount: issues.filter(i => i.severity === "critical").length,
-        totalIssueCount: issues.length,
-        mdaCheck: JSON.stringify(checks.mda_check),
-        balanceCheck: JSON.stringify(checks.balance_check),
-        economyCheck: JSON.stringify(checks.economy_check),
-        narrativeCheck: JSON.stringify(checks.narrative_check),
-        lensCheck: JSON.stringify(checks.lens_check),
-        issues: JSON.stringify(issues),
-        fullResults: JSON.stringify(result),
-      },
+    // TASK-6.6: Use real checklist-logic.ts instead of STUB.
+    const result = await runChecklistValidation(project, "validate", {
+      depth: "standard",
     });
 
-    return NextResponse.json(result);
+    return NextResponse.json({
+      overall_score: result.overallScore,
+      readiness_level: result.readinessLevel,
+      checks: {
+        mda_check: result.mdaCheck,
+        balance_check: result.balanceCheck,
+        economy_check: result.economyCheck,
+        narrative_check: result.narrativeCheck,
+        lens_check: result.lensCheck,
+      },
+      issues: result.issues,
+      remediation_plan: result.remediationPlan,
+      critical_issue_count: result.criticalIssueCount,
+      total_issue_count: result.totalIssueCount,
+      profile: result.profile,
+    });
   } catch (error) {
     console.error("[gdd/checklist] error:", error);
     return SERVER_ERROR();

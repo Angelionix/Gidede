@@ -10,7 +10,21 @@ import type {
 } from "@/lib/llm/types";
 import { normalizeLlmTokenUsage } from "@/lib/llm/telemetry";
 
-type ZaiInstance = Awaited<ReturnType<typeof ZAI.create>>;
+export interface ZaiSdkLike {
+  chat: {
+    completions: {
+      create(payload: Record<string, unknown>): Promise<unknown>;
+    };
+  };
+}
+
+export type ZaiFactory = () => Promise<ZaiSdkLike>;
+
+export interface ZaiLlmClientOptions {
+  providerId?: string;
+  model?: string;
+  createSdk?: ZaiFactory;
+}
 
 function normalizeResponse(response: LlmCompletionResponse): LlmCompletionResponse {
   const usage = normalizeLlmTokenUsage(response.usage);
@@ -27,10 +41,27 @@ async function* normalizeStream(
 }
 
 export class ZaiLlmClient implements LlmClient {
-  readonly providerId = "zai-sdk";
-  readonly modelId = "glm-4.6";
+  readonly providerId: string;
+  readonly modelId: string;
+  private readonly createSdk: ZaiFactory;
+  private sdkPromise: Promise<ZaiSdkLike> | null = null;
 
-  constructor(private readonly client: ZaiInstance) {}
+  constructor(options: ZaiLlmClientOptions = {}) {
+    this.providerId = options.providerId?.trim() || "zai-sdk";
+    this.modelId = options.model?.trim() || "glm-4.6";
+    this.createSdk = options.createSdk ?? (async () => await ZAI.create() as unknown as ZaiSdkLike);
+  }
+
+  private getSdk(): Promise<ZaiSdkLike> {
+    if (this.sdkPromise) return this.sdkPromise;
+    const created = Promise.resolve().then(this.createSdk);
+    const recoverable = created.catch((error) => {
+      if (this.sdkPromise === recoverable) this.sdkPromise = null;
+      throw error;
+    });
+    this.sdkPromise = recoverable;
+    return recoverable;
+  }
 
   createCompletion(request: LlmCompletionRequest & { stream: false }): Promise<LlmCompletionResponse>;
   createCompletion(request: LlmCompletionRequest & { stream: true }): Promise<AsyncIterable<LlmStreamChunk>>;
@@ -43,7 +74,8 @@ export class ZaiLlmClient implements LlmClient {
       ...(request.maxTokens != null ? { max_tokens: request.maxTokens } : {}),
       ...(request.model ? { model: request.model } : {}),
     };
-    const result = await this.client.chat.completions.create(payload) as unknown as
+    const client = await this.getSdk();
+    const result = await client.chat.completions.create(payload) as
       LlmCompletionResponse | AsyncIterable<LlmStreamChunk>;
     return request.stream
       ? normalizeStream(result as AsyncIterable<LlmStreamChunk>)
@@ -51,7 +83,12 @@ export class ZaiLlmClient implements LlmClient {
   }
 
   async isAvailable(): Promise<boolean> {
-    return true;
+    try {
+      await this.getSdk();
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   getCapabilities(): LlmCapabilities {
@@ -64,11 +101,13 @@ export class ZaiLlmClient implements LlmClient {
   }
 
   async healthCheck(): Promise<LlmProviderHealth> {
+    const startedAt = Date.now();
+    const available = await this.isAvailable();
     return {
-      status: "healthy",
-      latencyMs: 0,
+      status: available ? "healthy" : "unavailable",
+      latencyMs: Date.now() - startedAt,
       checkedAt: new Date().toISOString(),
-      reason: "ok",
+      reason: available ? "ok" : "request_failed",
     };
   }
 
@@ -77,6 +116,6 @@ export class ZaiLlmClient implements LlmClient {
   }
 }
 
-export async function createZaiLlmClient(): Promise<LlmClient> {
-  return new ZaiLlmClient(await ZAI.create());
+export function createZaiLlmClient(options: ZaiLlmClientOptions = {}): LlmClient {
+  return new ZaiLlmClient(options);
 }

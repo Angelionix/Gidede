@@ -1,11 +1,13 @@
-import { getLlmRegistry } from "@/lib/llm/registry";
 import { TtlCache } from "@/lib/llm/client-cache";
 import { createConfiguredLlmClient } from "@/lib/llm/configured-adapters";
+import {
+  getBuiltInLlmProviderId,
+  getRegisteredBuiltInLlmClient,
+} from "@/lib/llm/built-in-client";
 import {
   llmResiliencePolicyFromEnv,
   withLlmResilience,
 } from "@/lib/llm/resilience";
-import { createZaiLlmClient } from "@/lib/llm/providers/zai";
 import {
   parseLlmRoutePolicy,
   RoutedLlmClient,
@@ -21,12 +23,6 @@ import type {
 import { db } from "@/lib/db";
 import { getAuthUserId } from "@/lib/server-auth";
 import { createLlmTelemetryStore } from "@/lib/llm/telemetry-store";
-
-const DEFAULT_PROVIDER_ID = "zai-sdk";
-const registry = getLlmRegistry();
-if (!registry.has(DEFAULT_PROVIDER_ID)) {
-  registry.register(DEFAULT_PROVIDER_ID, createZaiLlmClient, { default: true });
-}
 
 const resiliencePolicy = llmResiliencePolicyFromEnv();
 const configuredClients = new TtlCache<LlmClient>(resiliencePolicy.clientTtlMs);
@@ -66,7 +62,7 @@ function configuredClient(config: {
 
 async function getBuiltInClient(): Promise<LlmClient | null> {
   try {
-    const client = await registry.getDefault();
+    const client = await getRegisteredBuiltInLlmClient();
     return client ? resilient(client) : null;
   } catch (error) {
     console.error(
@@ -164,7 +160,7 @@ export async function getDefaultLlmStatus(stage: LlmRouteStage = "default"): Pro
   if (!client) {
     return {
       available: false,
-      providerId: registry.getDefaultProviderId(),
+      providerId: getBuiltInLlmProviderId(),
       modelId: null,
       capabilities: null,
       health: null,

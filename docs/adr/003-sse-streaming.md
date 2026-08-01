@@ -44,7 +44,7 @@ return new Response(stream, {
 });
 ```
 
-`streamAiResponse()` (`src/lib/ai-service.ts`) использует `zai.chat.completions.create({ messages, stream: true, thinking: { type: "disabled" } })` и вызывает `onDelta(chunk)` для каждого токена. События: `start` (message_id) → многократно `message` (полный накопленный текст) → финальный `done` (метаданные модели/latency). Фронтенд читает `event.type === "message"` и заменяет контент целиком, затем финализирует по `done`.
+`streamAiResponse()` (`src/lib/ai-service.ts`) получает provider-agnostic `LlmClient` для стадии Assistant и вызывает `createCompletion({ messages, stream: true, reasoning: "disabled" })`. Конкретный adapter (включая built-in ZAI) переводит нормализованный запрос в свой wire format. События: `start` (message_id) → многократно `message` (полный накопленный текст) → финальный `done` (фактические provider/model, latency, sources и call telemetry). Фронтенд читает `event.type === "message"` и заменяет контент целиком, затем финализирует по `done`.
 
 ## Последствия
 
@@ -68,6 +68,7 @@ return new Response(stream, {
 ## Связанные файлы
 
 - `src/app/api/v1/assistant/chat/stream/route.ts` — SSE-эндпоинт.
-- `src/lib/ai-service.ts` — `streamAiResponse()` (обёртка над `zai.chat.completions.create({ stream: true })`).
+- `src/lib/ai-service.ts` — provider-agnostic orchestration и `streamAiResponse()`.
+- `src/lib/llm/providers/zai.ts` — конкретный built-in ZAI adapter общего `LlmClient`.
 - `src/app/blocks/7/page.tsx` — клиентский consumer (читает `Authorization: Bearer` из localStorage для SSE).
 - `docs/DEPLOYMENT.md` — заметки о `proxy_buffering off` для Nginx.

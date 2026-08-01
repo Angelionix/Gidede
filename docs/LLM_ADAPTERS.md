@@ -3,6 +3,20 @@
 Gidede routes all model calls through `LlmClient`. Stage algorithms and `ai-service`
 must not import provider SDKs or know provider-specific payloads.
 
+## Built-in ZAI adapter
+
+The built-in fallback is registered as the non-configurable `zai-sdk` descriptor in the
+same `LlmAdapterRegistry` as OpenAI-compatible, Generic HTTP and custom adapters.
+`default-client` resolves only the abstract built-in registry entry and does not import the
+ZAI SDK or its concrete client.
+
+SDK creation is lazy on the first availability check or completion. A failed initialization
+is removed from the adapter's internal cache, so the next call can recover without a process
+restart. Requests, non-streaming responses, streams, model overrides, capabilities, health,
+usage and telemetry all cross the common `LlmClient` contract. The built-in descriptor is
+intentionally omitted from the user-configurable HTTP connection list; routing continues to
+expose it as **Built-in ZAI** and existing rules-engine fallback behavior is unchanged.
+
 ## OpenAI-compatible API
 
 Select **OpenAI-compatible** in `/settings` and provide:

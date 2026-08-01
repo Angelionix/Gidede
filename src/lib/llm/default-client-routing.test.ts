@@ -7,6 +7,8 @@ const mocks = vi.hoisted(() => ({
   findRoute: vi.fn(),
   createConfigured: vi.fn(),
   createTelemetry: vi.fn(),
+  getBuiltIn: vi.fn(),
+  getBuiltInProviderId: vi.fn(),
 }));
 
 vi.mock("@/lib/server-auth", () => ({ getAuthUserId: mocks.getAuthUserId }));
@@ -19,6 +21,10 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/lib/llm/configured-adapters", () => ({
   createConfiguredLlmClient: mocks.createConfigured,
+}));
+vi.mock("@/lib/llm/built-in-client", () => ({
+  getRegisteredBuiltInLlmClient: mocks.getBuiltIn,
+  getBuiltInLlmProviderId: mocks.getBuiltInProviderId,
 }));
 
 import { getLlmClientForStage } from "@/lib/llm/default-client";
@@ -78,6 +84,8 @@ describe("getLlmClientForStage — R3-07", () => {
     vi.clearAllMocks();
     mocks.getAuthUserId.mockResolvedValue("user-1");
     mocks.createTelemetry.mockResolvedValue({ id: "call-1" });
+    mocks.getBuiltIn.mockResolvedValue(provider("zai-sdk", "glm-4.6"));
+    mocks.getBuiltInProviderId.mockReturnValue("zai-sdk");
     mocks.findConfigs.mockResolvedValue(configs);
     mocks.findRoute.mockImplementation(({ where }) => {
       const stage = where.userId_stage.stage;
@@ -128,6 +136,21 @@ describe("getLlmClientForStage — R3-07", () => {
         totalTokens: 3,
         usageSource: "provider",
       }),
+    });
+  });
+
+  it("keeps built-in behavior available through the common LlmClient contract", async () => {
+    mocks.getAuthUserId.mockResolvedValue(null);
+
+    const builtIn = await getLlmClientForStage("assistant");
+
+    expect(builtIn).toMatchObject({ providerId: "zai-sdk", modelId: "glm-4.6" });
+    await expect(builtIn!.createCompletion({
+      messages: [{ role: "user", content: "hello" }],
+      stream: false,
+    })).resolves.toMatchObject({
+      model: "glm-4.6",
+      choices: [{ message: { content: "ok" } }],
     });
   });
 });

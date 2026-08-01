@@ -51,4 +51,30 @@ describe("LlmAdapterRegistry — R3-03", () => {
       options: null,
     })).toThrow(/Unknown LLM adapter/);
   });
+
+  it("keeps built-in adapters in the same registry but outside user configuration", () => {
+    const registry = new LlmAdapterRegistry();
+    registry.register({
+      id: "built-in",
+      label: "Built in",
+      configurable: false,
+      create: (config) => client(config.providerId),
+    });
+    registry.register({
+      id: "external",
+      label: "External",
+      create: (config) => client(config.providerId),
+    });
+
+    expect(registry.list()).toEqual([
+      { id: "built-in", label: "Built in" },
+      { id: "external", label: "External" },
+    ]);
+    expect(registry.list({ configurableOnly: true })).toEqual([
+      { id: "external", label: "External" },
+    ]);
+    expect(() => registry.normalizeOptions("built-in", null, {
+      configurable: true,
+    })).toThrow(/built-in/);
+  });
 });

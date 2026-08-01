@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R3-11` — завершить миграцию ZAI как одного из adapters.
-- **Зависимости:** `R3-01`–`R3-10` завершены; routed calls имеют persistent metadata-only telemetry.
-- **Ожидаемый результат:** встроенное ZAI-поведение полностью доступно через общий `LlmClient`/registry без специального пути в domain-коде.
-- **После неё:** `R4-01` — Unicode tokenization/`Intl.Segmenter` для RU/EN.
+- **Следующая задача:** `R4-01` — Unicode tokenization/`Intl.Segmenter` для RU/EN.
+- **Зависимости:** фазы R0–R3 завершены; весь LLM-слой проходит через общий adapter/routing contract.
+- **Ожидаемый результат:** русские и английские genre/aesthetic/core verbs устойчиво распознаются unit tests.
+- **После неё:** `R4-02` — word-level genre classifier с evidence.
 
 ## Правила ведения
 
@@ -62,9 +62,57 @@
 | R3-08 | DONE | Strict Zod structured boundary и один bounded repair для всех JSON-задач | 419 tests, TypeScript, scoped ESLint |
 | R3-09 | DONE | Bounded Bible RAG context и server-owned source provenance в assistant API/UI | 427 tests, TypeScript, scoped ESLint |
 | R3-10 | DONE | Actual provider/model, latency, provider tokens и safe error class для каждого routed attempt | 438 tests, TypeScript, scoped ESLint, Prisma validate |
-| R3-11…R7 | TODO | См. активный roadmap | — |
+| R3-11 | DONE | Built-in ZAI зарегистрирован общим adapter descriptor с lazy/recoverable lifecycle | 445 tests, TypeScript, scoped ESLint |
+| R4-01…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R3-11 — DONE
+
+Что сделано:
+
+- built-in ZAI зарегистрирован non-configurable descriptor в том же `LlmAdapterRegistry`, что OpenAI-compatible, Generic HTTP и custom adapters;
+- adapter registry различает built-in и user-configurable descriptors, но создаёт их через один `LlmAdapterConfig → LlmClient` contract;
+- built-in descriptor намеренно не показывается как HTTP connection в settings и отклоняется на configured-options boundary;
+- concrete ZAI import и factory находятся только на provider/adapter bootstrap boundary;
+- `default-client` больше не импортирует ZAI provider, SDK, concrete factory или hardcoded ZAI ID/model;
+- отдельный built-in resolver связывает общий adapter registry с lazy provider instance registry;
+- SDK создаётся только при первом health/completion вызове, а не во время импорта или построения route;
+- rejected SDK initialization удаляется из внутреннего promise cache, поэтому следующий вызов повторяет init без рестарта процесса;
+- model override, reasoning, temperature и max tokens передаются из общего request contract в ZAI payload;
+- completion и streaming responses, actual model и usage возвращаются через общие normalized contracts;
+- capabilities/health/listModels реализуются тем же `LlmClient`, что используется routing, resilience и telemetry;
+- прежнее поведение built-in fallback и deterministic rules fallback сохранено;
+- устаревший ADR обновлён и больше не описывает прямой вызов ZAI из `ai-service`.
+
+Изменённые области:
+
+- `src/lib/llm/adapter-registry.ts` и тест;
+- `src/lib/llm/configured-adapters.ts` и новый integration test;
+- `src/lib/llm/built-in-client.ts`;
+- `src/lib/llm/default-client.ts` и routing test;
+- `src/lib/llm/providers/zai.ts` и новый adapter test;
+- `docs/LLM_ADAPTERS.md`;
+- `docs/adr/003-sse-streaming.md`.
+
+Проверки:
+
+- targeted adapter/bootstrap/ZAI/routing tests — 6 файлов, 26 тестов пройдено;
+- `npm run test` — 52 файла, 445 тестов пройдено;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет;
+- source audit — `z-ai-web-dev-sdk` импортируется только concrete ZAI adapter, domain API и `default-client` не содержат ZAI references.
+
+Acceptance evidence:
+
+- unified registry fixture создаёт built-in ZAI через тот же descriptor contract и исключает его только из configurable UI list;
+- built-in compatibility fixture выполняет completion через общий `LlmClient` с прежними provider/model IDs;
+- payload fixture подтверждает передачу route model override и normalized generation options;
+- completion fixture нормализует фактическую model и token usage;
+- stream fixture нормализует content, actual model и final usage chunk;
+- init fixture: первый SDK factory call падает, второй без рестарта успешно выполняет completion;
+- фаза R3 завершена, следующей задачей назначена `R4-01`.
 
 ### 2026-08-01 — R3-10 — DONE
 

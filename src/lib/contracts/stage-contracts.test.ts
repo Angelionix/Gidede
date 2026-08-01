@@ -38,7 +38,22 @@ function output(stage: ContractStageId): Record<string, unknown> {
     artifact: createArtifactEnvelope(stage, VALID_INPUTS[stage]),
   };
   const byStage: Record<ContractStageId, Record<string, unknown>> = {
-    concept: { id: "p", genre: "rpg", mechanic_set: {}, validation_report: {}, status: "completed" },
+    concept: {
+      id: "p",
+      genre: "rpg",
+      primary_genre: "rpg",
+      subgenres: [],
+      genre_classification: {
+        classifier_version: "1.0.0",
+        selection_source: "keyword_match",
+        selected_primary: "rpg",
+        selected_subgenres: [],
+        candidates: [{ genre: "rpg", score: 1, matched_keywords: ["rpg"] }],
+      },
+      mechanic_set: {},
+      validation_report: {},
+      status: "completed",
+    },
     core_loop: { id: "p", structural_type: {}, steps: [{}], validation: {} },
     mda: { aesthetic_profile: {}, dynamics_target: {}, mechanic_set: {} },
     balance: { id: "p", balance_map: {}, transitive_result: {}, stability: {} },
@@ -118,5 +133,18 @@ describe("stage contracts v1", () => {
 
     const wrongVersion = { ...output("gdd"), contract_version: "2.0.0" };
     expect(() => assertStageOutput("gdd", wrongVersion)).toThrow(/gdd@1\.0\.0/);
+  });
+
+  it("rejects internally inconsistent genre evidence", () => {
+    const invalid = output("concept");
+    invalid.genre_classification = {
+      classifier_version: "1.0.0",
+      selection_source: "keyword_match",
+      selected_primary: "rpg",
+      selected_subgenres: ["rpg"],
+      candidates: [{ genre: "shooter", score: 2, matched_keywords: ["shooter"] }],
+    };
+
+    expect(() => assertStageOutput("concept", invalid)).toThrow(StageOutputContractError);
   });
 });

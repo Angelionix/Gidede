@@ -38,8 +38,8 @@ import { buildMechanicSetForGenres, type Mechanic } from "@/lib/mechanics-db";
 import { buildValidationReport } from "@/lib/concept/validation";
 import { validateConceptInput } from "@/lib/concept/validation-input";
 import {
-  inferGenresFromText,
   rankAestheticsFromText,
+  resolveGenreClassification,
 } from "@/lib/concept/text-analysis";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
@@ -167,24 +167,6 @@ const GENRE_COMPETITORS: Record<string, string[]> = {
 // ============================================================
 // Helper functions
 // ============================================================
-
-/**
- * TASK-1.17: Infer primary genre + subgenres from idea keywords.
- *
- * Поддержка primary + subgenres: "Action RPG with roguelike elements" →
- *   { primary: "action", subgenres: ["rpg", "roguelike"] }
- *
- * Алгоритм:
- *   1. Считаем keyword-совпадения для каждого жанра.
- *   2. Primary = жанр с макс. совпадениями.
- *   3. Subgenres = остальные жанры с совпадениями (отсортированы по убыванию score).
- *   4. Если ничего не совпало — primary="action", subgenres=[].
- *
- * Limit: максимум 3 subgenres (чтобы не раздувать набор механик).
- */
-function inferGenres(idea: string): { primary: string; subgenres: string[] } {
-  return inferGenresFromText(idea);
-}
 
 /**
  * TASK-1.7 + R4-01: pickAesthetics с Unicode word boundaries и dedup.
@@ -608,20 +590,14 @@ export async function POST(request: NextRequest) {
     const useAi = input.use_ai || false;
     const explicitSubgenres = input.subgenres!.length > 0 ? input.subgenres : null;
 
-    // --- Stage 1: Genre inference (primary + subgenres) ---
-    // TASK-1.17: inferGenres возвращает { primary, subgenres }.
-    // Если explicitGenre указан — используем его как primary, subgenres из explicit или inferred.
-    let primaryGenre: string;
-    let subgenres: string[];
-    if (explicitGenre) {
-      primaryGenre = explicitGenre;
-      subgenres = explicitSubgenres ?? inferGenres(idea).subgenres;
-    } else {
-      const inferred = inferGenres(idea);
-      primaryGenre = inferred.primary;
-      subgenres = explicitSubgenres ?? inferred.subgenres;
-    }
-    // Backward compat: `genre` используется в后续 stages.
+    // --- Stage 1: Evidence-backed genre selection (primary + subgenres) ---
+    const genreClassification = resolveGenreClassification(idea, {
+      primaryGenre: explicitGenre,
+      subgenres: explicitSubgenres,
+    });
+    const primaryGenre = genreClassification.selected_primary;
+    const subgenres = genreClassification.selected_subgenres;
+    // Backward compat: `genre` используется в последующих stages.
     const genre = primaryGenre;
 
     // --- Resolve project (auto-select most recent) ---
@@ -724,6 +700,7 @@ export async function POST(request: NextRequest) {
       // TASK-1.17: primary + subgenres в response.
       primary_genre: primaryGenre,
       subgenres,
+      genre_classification: genreClassification,
       target_audience: targetAudienceStr,
       story_synopsis: storySynopsis,
       gameplay_description: gameplayDescription,
@@ -749,6 +726,7 @@ export async function POST(request: NextRequest) {
           : ["deterministic-concept-v1", "rule-based-mda", "shell-lens-lite"],
         ai_enriched: aiEnrichment.enriched,
         ai_insights: aiEnrichment.insights || undefined,
+        genre_classification: genreClassification,
       },
     };
 
@@ -792,6 +770,7 @@ export async function POST(request: NextRequest) {
         : ["deterministic-concept-v1", "rule-based-mda", "shell-lens-lite"],
       ai_enriched: aiEnrichment.enriched,
       algorithm_metadata: algorithmMetadata,
+      genre_classification: genreClassification,
     });
 
     await db.projectConcept.upsert({

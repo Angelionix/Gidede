@@ -13,7 +13,15 @@ import { Separator } from "@/components/ui/separator";
 import { Sparkles, Star } from "lucide-react";
 import type { ConceptGenerationResult } from "@/types/concept";
 
+const GENRE_SOURCE_LABELS = {
+  keyword_match: "авто: совпадения",
+  explicit: "выбран вручную",
+  fallback_default: "fallback без сигналов",
+} as const;
+
 export const OnePagerCard = React.memo(function OnePagerCard({ result }: { result: ConceptGenerationResult }) {
+  const genreEvidence = result.genre_classification;
+
   return (
     <Card>
       <CardHeader>
@@ -38,6 +46,16 @@ export const OnePagerCard = React.memo(function OnePagerCard({ result }: { resul
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1">Жанр</p>
             <Badge variant="secondary" className="text-sm">{result.genre || "—"}</Badge>
+            {genreEvidence && (
+              <div className="mt-1 space-y-0.5 text-xs text-muted-foreground">
+                <p>{GENRE_SOURCE_LABELS[genreEvidence.selection_source]}</p>
+                {genreEvidence.candidates[0]?.matched_keywords.length > 0 && (
+                  <p>
+                    Evidence {genreEvidence.candidates[0].genre}: {genreEvidence.candidates[0].matched_keywords.join(", ")}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
           <div>
             <p className="text-xs font-medium text-muted-foreground mb-1">Целевая аудитория</p>

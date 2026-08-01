@@ -16,6 +16,7 @@ import type {
 import type { AlgorithmMetadata } from "@/lib/algorithm-metadata";
 import type { STAGE_CONTRACT_VERSION } from "@/lib/contracts/stage-contracts";
 import type { ArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
+import type { GenreClassificationEvidence } from "@/lib/concept/text-analysis";
 
 export interface ConceptFormState {
   idea: string;
@@ -42,6 +43,7 @@ export interface ConceptGenerationMetadata {
   ai_enriched: boolean;
   ai_insights?: string;
   algorithm_metadata?: AlgorithmMetadata;
+  genre_classification: GenreClassificationEvidence;
 }
 
 export interface ConceptGenerationResult {
@@ -51,6 +53,7 @@ export interface ConceptGenerationResult {
   // TASK-1.17: primary + subgenres в response.
   primary_genre: string;
   subgenres: string[];
+  genre_classification: GenreClassificationEvidence;
   target_audience: string;
   story_synopsis: string;
   gameplay_description: string;

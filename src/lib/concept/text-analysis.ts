@@ -1,12 +1,35 @@
 import {
+  containsTokenSequence,
   countWordOrPhraseMatches,
   hasAnyWordOrPhrase,
   tokenizeUnicodeWords,
 } from "@/lib/text/unicode-tokenizer";
 
+export const GENRE_CLASSIFIER_VERSION = "1.0.0" as const;
+
 export interface GenreInference {
   primary: string;
   subgenres: string[];
+}
+
+export interface GenreCandidateEvidence {
+  genre: string;
+  score: number;
+  matched_keywords: string[];
+}
+
+export interface GenreClassificationEvidence {
+  classifier_version: typeof GENRE_CLASSIFIER_VERSION;
+  selection_source: "keyword_match" | "explicit" | "fallback_default";
+  selected_primary: string;
+  selected_subgenres: string[];
+  candidates: GenreCandidateEvidence[];
+  fallback_reason?: "no_keyword_matches";
+}
+
+export interface GenreSelectionOverrides {
+  primaryGenre?: string | null;
+  subgenres?: readonly string[] | null;
 }
 
 const GENRE_KEYWORDS: Array<{ keywords: string[]; genre: string }> = [
@@ -57,21 +80,75 @@ const CORE_ACTION_VERBS = [
   "экономить", "экономит", "экономят", "менять", "меняет", "меняют", "захватывать", "захватывает", "захватывают",
 ];
 
-export function inferGenresFromText(idea: string): GenreInference {
+export function classifyGenresFromText(idea: string): GenreClassificationEvidence {
   const tokens = tokenizeUnicodeWords(idea);
-  const scores = new Map<string, number>();
+  const candidates = GENRE_KEYWORDS
+    .map((entry, order) => {
+      const matchedKeywords = entry.keywords.filter((keyword) =>
+        containsTokenSequence(tokens, keyword)
+      );
+      return {
+        genre: entry.genre,
+        score: matchedKeywords.length,
+        matched_keywords: matchedKeywords,
+        order,
+      };
+    })
+    .filter((candidate) => candidate.score > 0)
+    .sort((a, b) => b.score - a.score || a.order - b.order)
+    .map(({ order: _order, ...candidate }) => candidate);
 
-  for (const entry of GENRE_KEYWORDS) {
-    const matches = countWordOrPhraseMatches(tokens, entry.keywords);
-    if (matches > 0) scores.set(entry.genre, (scores.get(entry.genre) ?? 0) + matches);
+  if (candidates.length === 0) {
+    return {
+      classifier_version: GENRE_CLASSIFIER_VERSION,
+      selection_source: "fallback_default",
+      selected_primary: "action",
+      selected_subgenres: [],
+      candidates: [],
+      fallback_reason: "no_keyword_matches",
+    };
   }
 
-  if (scores.size === 0) return { primary: "action", subgenres: [] };
-
-  const sorted = Array.from(scores.entries()).sort((a, b) => b[1] - a[1]);
   return {
-    primary: sorted[0][0],
-    subgenres: sorted.slice(1, 4).map(([genre]) => genre),
+    classifier_version: GENRE_CLASSIFIER_VERSION,
+    selection_source: "keyword_match",
+    selected_primary: candidates[0].genre,
+    selected_subgenres: candidates.slice(1, 4).map(({ genre }) => genre),
+    candidates,
+  };
+}
+
+export function resolveGenreClassification(
+  idea: string,
+  overrides: GenreSelectionOverrides = {}
+): GenreClassificationEvidence {
+  const classification = classifyGenresFromText(idea);
+  const explicitPrimary = overrides.primaryGenre || null;
+  const selectedPrimary = explicitPrimary ?? classification.selected_primary;
+  const inferredGenres = classification.candidates.map(({ genre }) => genre);
+  const requestedSubgenres = overrides.subgenres
+    ? [...overrides.subgenres]
+    : explicitPrimary
+      ? inferredGenres
+      : classification.selected_subgenres;
+  const selectedSubgenres = Array.from(new Set(requestedSubgenres))
+    .filter((genre) => genre !== selectedPrimary)
+    .slice(0, 3);
+
+  return {
+    ...classification,
+    selection_source: explicitPrimary ? "explicit" : classification.selection_source,
+    selected_primary: selectedPrimary,
+    selected_subgenres: selectedSubgenres,
+    fallback_reason: explicitPrimary ? undefined : classification.fallback_reason,
+  };
+}
+
+export function inferGenresFromText(idea: string): GenreInference {
+  const classification = classifyGenresFromText(idea);
+  return {
+    primary: classification.selected_primary,
+    subgenres: classification.selected_subgenres,
   };
 }
 

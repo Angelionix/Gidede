@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R4-02` — word-level genre classifier с evidence.
-- **Зависимости:** `R4-01` завершена; genre/aesthetic/core-verb эвристики используют общий Unicode tokenizer.
-- **Ожидаемый результат:** classifier возвращает evidence и не даёт substring false positives.
-- **После неё:** `R4-03` — feasibility из team/budget/platform/scope.
+- **Следующая задача:** `R4-03` — feasibility из team/budget/platform/scope.
+- **Зависимости:** `R4-02` завершена; genre selection возвращает и сохраняет проверяемое word-level evidence.
+- **Ожидаемый результат:** изменение constraints объяснимо изменяет feasibility.
+- **После неё:** `R4-04` — разделить market evidence и heuristic prior.
 
 ## Правила ведения
 
@@ -64,9 +64,48 @@
 | R3-10 | DONE | Actual provider/model, latency, provider tokens и safe error class для каждого routed attempt | 438 tests, TypeScript, scoped ESLint, Prisma validate |
 | R3-11 | DONE | Built-in ZAI зарегистрирован общим adapter descriptor с lazy/recoverable lifecycle | 445 tests, TypeScript, scoped ESLint |
 | R4-01 | DONE | Общий `Intl.Segmenter`/Unicode tokenizer для RU/EN genre, aesthetics и core verbs | 453 tests, TypeScript, scoped ESLint |
-| R4-02…R7 | TODO | См. активный roadmap | — |
+| R4-02 | DONE | Word-level genre candidates, exact matched-keyword evidence и честный fallback | 458 tests, TypeScript, scoped ESLint |
+| R4-03…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R4-02 — DONE
+
+Что сделано:
+
+- genre inference оформлен как versioned classifier result с selected primary/subgenres и полным ordered candidate list;
+- каждый candidate содержит целочисленный score и точный список matched words/phrases, из которых этот score получен;
+- источник решения различает `keyword_match`, `explicit` и `fallback_default`;
+- отсутствие совпадений возвращает пустое evidence, default `action` и явную причину `no_keyword_matches`, без выдуманного confidence;
+- explicit primary сохраняет inferred candidates как evidence и корректно использует их как subgenres, не теряя верхний inferred candidate;
+- explicit subgenres дедуплицируются, исключают primary и ограничиваются тремя значениями;
+- Concept output contract проверяет внутреннюю согласованность genre/primary/subgenres/evidence до persistence;
+- evidence сохраняется в generation metadata, возвращается после загрузки Concept и кратко показывается в one-pager UI.
+
+Изменённые области:
+
+- `src/lib/concept/text-analysis.ts` и тест;
+- `src/lib/contracts/stage-contracts.ts` и тест;
+- `src/app/api/v1/concept/generate/route.ts`;
+- `src/app/api/v1/concept/[id]/route.ts`;
+- `src/types/concept.ts`;
+- `src/components/gidede/concept/OnePagerCard.tsx`.
+
+Проверки:
+
+- targeted classifier/contract tests — 2 файла, 13 тестов пройдено;
+- `npm run test` — 54 файла, 458 тестов пройдено;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript/TSX-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- positive fixture возвращает `sandbox` из четырёх exact signals и ordered evidence для `roguelike`/`strategy`;
+- negative fixture с `history`, `gunship`, `carpet` и `rebuilds` не принимает substrings `story`, `gun`, `car`, `build` и честно уходит в fallback;
+- explicit fixture маркируется `explicit`, сохраняет отдельный inferred candidate list и не смешивает его с выбранным primary;
+- contract fixture отклоняет внутренне противоречивое evidence со score/keywords, primary/subgenre и top-candidate mismatch;
+- следующей задачей назначена `R4-03`.
 
 ### 2026-08-01 — R4-01 — DONE
 

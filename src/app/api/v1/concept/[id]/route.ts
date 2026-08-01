@@ -50,6 +50,7 @@ export async function GET(
     contract_version: generationMetadata.contract_version,
     artifact: generationMetadata.artifact,
     algorithm_metadata: generationMetadata.algorithm_metadata,
+    genre_classification: generationMetadata.genre_classification,
     generation_metadata: generationMetadata,
     one_pager: safeJsonParse(c.onePagerData || "{}"),
     aesthetic_profile: safeJsonParse(c.aestheticProfile || "{}"),

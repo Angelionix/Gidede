@@ -213,14 +213,70 @@ const validationInputV1 = z.object({
   upstream_versions: upstreamVersionsInput,
 }).passthrough();
 
+const genreClassificationEvidenceV1 = z.object({
+  classifier_version: z.literal("1.0.0"),
+  selection_source: z.enum(["keyword_match", "explicit", "fallback_default"]),
+  selected_primary: z.string().min(1),
+  selected_subgenres: stringArray.max(3),
+  candidates: z.array(z.object({
+    genre: z.string().min(1),
+    score: z.number().int().positive(),
+    matched_keywords: stringArray.min(1),
+  }).strict().refine(
+    (candidate) => candidate.score === candidate.matched_keywords.length,
+    { message: "candidate score must equal matched keyword count" }
+  )),
+  fallback_reason: z.literal("no_keyword_matches").optional(),
+}).strict().superRefine((classification, ctx) => {
+  const candidateGenres = classification.candidates.map(({ genre }) => genre);
+  if (new Set(candidateGenres).size !== candidateGenres.length) {
+    ctx.addIssue({ code: "custom", path: ["candidates"], message: "candidate genres must be unique" });
+  }
+  if (new Set(classification.selected_subgenres).size !== classification.selected_subgenres.length) {
+    ctx.addIssue({ code: "custom", path: ["selected_subgenres"], message: "subgenres must be unique" });
+  }
+  if (classification.selected_subgenres.includes(classification.selected_primary)) {
+    ctx.addIssue({ code: "custom", path: ["selected_subgenres"], message: "primary genre cannot be a subgenre" });
+  }
+
+  if (classification.selection_source === "fallback_default") {
+    if (classification.candidates.length > 0 || classification.fallback_reason !== "no_keyword_matches") {
+      ctx.addIssue({ code: "custom", message: "fallback requires no candidates and an explicit reason" });
+    }
+  } else if (classification.fallback_reason !== undefined) {
+    ctx.addIssue({ code: "custom", path: ["fallback_reason"], message: "reason is only valid for fallback" });
+  }
+
+  if (classification.selection_source === "keyword_match") {
+    if (classification.candidates.length === 0) {
+      ctx.addIssue({ code: "custom", path: ["candidates"], message: "keyword selection requires evidence" });
+    } else if (classification.selected_primary !== classification.candidates[0].genre) {
+      ctx.addIssue({ code: "custom", path: ["selected_primary"], message: "primary must be the top candidate" });
+    }
+  }
+});
+
 const conceptOutputV1 = z.object({
   ...outputBase,
   id: z.string().min(1),
   genre: z.string().min(1),
+  primary_genre: z.string().min(1),
+  subgenres: stringArray.max(3),
+  genre_classification: genreClassificationEvidenceV1,
   mechanic_set: z.record(z.string(), z.unknown()),
   validation_report: z.record(z.string(), z.unknown()),
   status: z.literal("completed"),
-}).passthrough();
+}).passthrough().superRefine((output, ctx) => {
+  if (output.genre !== output.primary_genre
+    || output.genre !== output.genre_classification.selected_primary) {
+    ctx.addIssue({ code: "custom", path: ["genre"], message: "genre selection fields must agree" });
+  }
+  if (output.subgenres.length !== output.genre_classification.selected_subgenres.length
+    || output.subgenres.some((genre, index) =>
+      genre !== output.genre_classification.selected_subgenres[index])) {
+    ctx.addIssue({ code: "custom", path: ["subgenres"], message: "subgenre evidence must match output" });
+  }
+});
 
 const coreLoopOutputV1 = z.object({
   ...outputBase,

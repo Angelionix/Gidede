@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R0-01` — golden fixtures для шести контрастных жанров и RU/EN идей.
+- **Следующая задача:** `R0-02` — единые scripts `test`, `test:coverage`, `typecheck`.
 - **Зависимости:** отсутствуют.
-- **Ожидаемый результат:** воспроизводимый baseline с входами, ожидаемыми инвариантами и версиями артефактов.
-- **После неё:** `R0-02` — единые scripts `test`, `test:coverage`, `typecheck`.
+- **Ожидаемый результат:** команды работают в clean checkout и используют зафиксированный тестовый стек проекта.
+- **После неё:** `R0-03` — taxonomy методов и metadata результатов.
 
 ## Правила ведения
 
@@ -30,13 +30,41 @@
 
 | ID | Статус | Краткий результат | Проверка |
 |---|---|---|---|
-| R0-01 | TODO | Golden fixtures для 6 жанров и RU/EN идей | — |
+| R0-01 | DONE | 6 жанров, 12 RU/EN inputs, invariants и версии 8 артефактов | 283 tests, TypeScript |
 | R0-02 | TODO | Scripts test/coverage/typecheck | — |
 | R0-03 | TODO | Taxonomy методов и metadata результатов | — |
 | R0-04 | DONE | Новый roadmap назначен активным; создан единый worklog и handoff | Проверка ссылок и `git diff --check` |
 | R1-01…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R0-01 — DONE
+
+Что сделано:
+
+- добавлены шесть golden fixtures для контрастных жанров `shooter`, `tbs`, `puzzle`, `visual_novel`, `idle`, `survival_horror`;
+- каждый fixture содержит семантически парные RU/EN идеи, полный Concept input и ожидаемые продуктовые инварианты;
+- для всех восьми стадий зафиксированы положительные artifact versions и ожидаемый порядок;
+- baseline не зависит от LLM (`use_ai: false`) и не закрепляет нестабильный сгенерированный текст;
+- исполняемый тест прогоняет все 12 локализованных входов через действующий `validateConceptInput`.
+
+Изменённые области:
+
+- `src/lib/golden-fixtures/pipeline-golden.ts`
+- `src/lib/golden-fixtures/pipeline-golden.test.ts`
+
+Проверки:
+
+- `vitest run src/lib/golden-fixtures/pipeline-golden.test.ts` — 1 файл, 4 теста пройдены;
+- `vitest run` — 12 файлов, 283 теста пройдены;
+- `tsc --noEmit` — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- fixtures содержат inputs, expected invariants и версии всех pipeline artifacts;
+- ID и жанры уникальны, обе локали обязательны и проходят текущий входной контракт;
+- следующей задачей назначена `R0-02`.
 
 ### 2026-08-01 — R0-04 — DONE
 

@@ -361,6 +361,84 @@ describe("buildValidationReport — 8 idea filters (TASK-1.3)", () => {
     );
   });
 
+  // --- R4-04: market_fit separates heuristic prior from external evidence ---
+
+  it("market_fit: heuristic_prior mode by default (no reference games)", () => {
+    const r = buildValidationReport(baseAesthetic, baseMechanicSet, baseUSP, "Build a castle", []);
+    const market = r.eight_filters.market_fit as {
+      source?: string;
+      confidence?: string;
+      evidence?: unknown[];
+      prior?: { score: number; weight: number };
+    };
+    expect(market.source).toBe("heuristic_prior");
+    expect(market.confidence).toBe("low");
+    expect(market.evidence).toEqual([]);
+    expect(market.prior?.weight).toBe(1);
+  });
+
+  it("market_fit: reference games activate evidence_weighted mode", () => {
+    const r = buildValidationReport(
+      baseAesthetic,
+      baseMechanicSet,
+      baseUSP,
+      "Build a castle",
+      [],
+      {},
+      { referenceGames: ["Skyrim", "Witcher 3"] }
+    );
+    const market = r.eight_filters.market_fit as {
+      source?: string;
+      evidence?: Array<{ source: string; references: string[]; confidence: string }>;
+      evidence_score?: number;
+      prior?: { weight: number };
+    };
+    expect(market.source).toBe("evidence_weighted");
+    expect(market.evidence).toHaveLength(1);
+    expect(market.evidence![0].source).toBe("reference_games");
+    expect(market.evidence![0].references).toEqual(["Skyrim", "Witcher 3"]);
+    expect(market.evidence_score).toBeDefined();
+    expect(market.prior?.weight).toBe(0.7);
+  });
+
+  it("market_fit: stronger evidence raises confidence", () => {
+    const r = buildValidationReport(
+      baseAesthetic,
+      baseMechanicSet,
+      baseUSP,
+      "Build a castle",
+      [],
+      {},
+      {
+        extraEvidence: [{
+          source: "market_research",
+          references: ["newzoo-2026-rpg-report"],
+          confidence: "high",
+        }],
+      }
+    );
+    const market = r.eight_filters.market_fit as { confidence?: string };
+    expect(market.confidence).toBe("high");
+  });
+
+  it("market_fit: reason changes when evidence is added", () => {
+    const without = buildValidationReport(baseAesthetic, baseMechanicSet, baseUSP, "Build a castle", []);
+    const withRef = buildValidationReport(
+      baseAesthetic,
+      baseMechanicSet,
+      baseUSP,
+      "Build a castle",
+      [],
+      {},
+      { referenceGames: ["Skyrim"] }
+    );
+    expect(without.eight_filters.market_fit.reason).not.toBe(
+      withRef.eight_filters.market_fit.reason
+    );
+    expect(without.eight_filters.market_fit.reason).toContain("Heuristic prior only");
+    expect(withRef.eight_filters.market_fit.reason).toContain("evidence");
+  });
+
   it("audience_fit: challenge = 0.9 (wide audience)", () => {
     const r = buildValidationReport(
       { primary: "challenge", secondary: "fantasy", tertiary: "narrative" },

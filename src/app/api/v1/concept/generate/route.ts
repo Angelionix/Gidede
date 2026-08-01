@@ -633,6 +633,8 @@ export async function POST(request: NextRequest) {
     // TASK-1.3 + TASK-1.4: передаём idea и subgenres для реального анализа.
     // R4-03: передаём team_size/budget/platform constraints, чтобы feasibility
     // вычислялась композитной моделью с per-factor breakdown.
+    // R4-04: передаём reference_games как evidence для market_fit, чтобы score
+    // был evidence-weighted с честным confidence вместо псевдоточного heuristic.
     const validationReport = buildValidationReport(
       aestheticProfile,
       mechanicSet,
@@ -643,6 +645,9 @@ export async function POST(request: NextRequest) {
         team_size: constraints?.team_size,
         budget: constraints?.budget,
         platform: platforms ?? undefined,
+      },
+      {
+        referenceGames: referenceGames ?? undefined,
       }
     );
 

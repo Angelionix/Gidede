@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R4-04` — разделить market evidence и heuristic prior.
-- **Зависимости:** `R4-03` завершена; feasibility вычисляется композитной моделью из team/budget/platform/scope с per-factor breakdown.
-- **Ожидаемый результат:** без внешних данных нет псевдоточного market score; market score явно маркируется `heuristic` prior или `evidence` с источником.
-- **После неё:** `R4-05` — генерировать USP candidates без hardcoded Triangle result.
+- **Следующая задача:** `R4-05` — генерировать USP candidates без hardcoded Triangle result.
+- **Зависимости:** `R4-04` завершена; market_fit разделяет heuristic prior и external evidence с честным confidence/source.
+- **Ожидаемый результат:** Triangle зависит от фактических свойств кандидата, а не от hardcoded `"pass"|"warn"|"pass"`.
+- **После неё:** `R4-06` — исправить mechanics affinity/cross-genre scoring.
 
 ## Правила ведения
 
@@ -66,9 +66,50 @@
 | R4-01 | DONE | Общий `Intl.Segmenter`/Unicode tokenizer для RU/EN genre, aesthetics и core verbs | 453 tests, TypeScript, scoped ESLint |
 | R4-02 | DONE | Word-level genre candidates, exact matched-keyword evidence и честный fallback | 458 tests, TypeScript, scoped ESLint |
 | R4-03 | DONE | Composite feasibility из team/budget/platform/scope с per-factor breakdown | 510 tests, TypeScript, scoped ESLint |
-| R4-04…R7 | TODO | См. активный roadmap | — |
+| R4-04 | DONE | market_fit разделяет heuristic prior и external evidence с confidence/source | 543 tests, TypeScript, scoped ESLint |
+| R4-05…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R4-04 — DONE
+
+Что сделано:
+
+- market_fit переведён с однозначного genre-lookup на двухслойную модель: heuristic prior (genre-based, всегда присутствует) + external evidence (reference games / competitor analysis / market research / playtest);
+- новый тестируемый модуль `src/lib/concept/market-fit.ts` с функциями `computeMarketFit` и `MarketEvidence` type;
+- без внешних данных score честно маркируется `source: "heuristic_prior"`, `confidence: "low"`, `evidence: []` — больше не выдаётся за псевдоточное market measurement;
+- reason явно говорит «Heuristic prior only … not a measurement, no external evidence» вместо прежнего «Жанр имеет устоявшуюся аудиторию»;
+- когда пользователь передаёт `reference_games`, они становятся low-confidence evidence (indirect signal, not verified market data); score становится evidence-weighted (70% prior + 30% evidence) с повышенным lift;
+- stronger evidence (competitor_analysis medium/high, market_research medium/high, playtest high) дают больший lift и поднимают overall confidence до medium/high;
+- improvement нацеливается на текущий уровень: no evidence → «attach reference games / market research»; low → «strengthen with competitor/playtest»; medium/high → «add market_research for high confidence»;
+- `buildValidationReport` получил опциональный параметр `marketFit` (backward compatible);
+- `/api/v1/concept/generate` передаёт реальные `reference_games` в validation;
+- `algorithm-metadata` обновлён: `validation_report.eight_filters.market_fit.score` имеет отдельные assumptions о prior/evidence separation, low-confidence default и user-supplied reference games treatment.
+
+Изменённые области:
+
+- `src/lib/concept/market-fit.ts` (новый) и `market-fit.test.ts` (новый, 29 тестов);
+- `src/lib/concept/validation.ts` и `validation.test.ts` (+4 integration теста для market_fit path);
+- `src/app/api/v1/concept/generate/route.ts` — передача referenceGames в `buildValidationReport`;
+- `src/lib/algorithm-metadata.ts` — отдельная provenance-запись для market_fit.
+
+Проверки:
+
+- targeted market-fit/validation tests — 2 файла, 84 теста пройдено (29 новых market-fit + 51 существующий validation включая 4 новых integration);
+- `bun run test` — 56 файлов, 543 теста пройдено (было 510);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- no-evidence fixture: `source="heuristic_prior"`, `confidence="low"`, `evidence=[]`, `prior.weight=1.0`, reason содержит «Heuristic prior only» и «not a measurement» — нет псевдоточного market score;
+- reference-games fixture: `source="evidence_weighted"`, evidence содержит 1 entry с `source="reference_games"`, `confidence="low"`, `evidence_score > prior.score`, `prior.weight=0.7`;
+- market_research high evidence: overall `confidence="high"`, larger lift чем reference_games;
+- changing evidence (none → ref → research) даёт разные score, reason и improvement по всем трём;
+- changing genre (rpg vs visual_novel) даёт разный prior score (0.85 vs 0.45) и разный final score;
+- составной fixture (reference_games + competitor_analysis) создаёт 2 evidence entries, overall confidence = max = medium;
+- следующей задачей назначена `R4-05`.
 
 ### 2026-08-01 — R4-03 — DONE
 

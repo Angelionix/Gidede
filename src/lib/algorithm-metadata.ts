@@ -63,6 +63,12 @@ const SCORE_METADATA_BY_STAGE = {
       "When no constraints are supplied, falls back to compatibility-only legacy score for backward compatibility.",
       "Budget and team-size thresholds are rule-of-thumb defaults, not measured production data.",
     ),
+    "validation_report.eight_filters.market_fit.score": score(
+      "heuristic",
+      "Market fit is a genre-based heuristic prior blended with any supplied external evidence (reference games, competitor analysis, market research, playtest).",
+      "Without external evidence, the score is a rule-of-thumb prior labelled with confidence 'low' and source 'heuristic_prior', not a market measurement.",
+      "Reference games supplied by the user are treated as low-confidence indirect evidence, not verified market data.",
+    ),
     "validation_report.triangle_check.score": score(
       "heuristic",
       "The current Triangle of Weirdness dimensions are rule-derived and not user-validated.",

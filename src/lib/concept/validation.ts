@@ -1,4 +1,5 @@
 import { computeFeasibility, type FeasibilityConstraints } from "@/lib/concept/feasibility";
+import { computeMarketFit, type MarketEvidence } from "@/lib/concept/market-fit";
 import { hasCoreActionVerb } from "@/lib/concept/text-analysis";
 import {
   hasAnyTokenPrefix,
@@ -58,6 +59,40 @@ export interface FeasibilityFilterView {
   composite?: boolean;
 }
 
+export interface MarketEvidenceView {
+  source: "reference_games" | "competitor_analysis" | "market_research" | "playtest";
+  references: string[];
+  confidence: "low" | "medium" | "high";
+  notes?: string;
+}
+
+export interface MarketFitFilterView {
+  score: number;
+  reason: string;
+  improvement: string;
+  /** Heuristic prior breakdown (genre-based, always present). */
+  prior: {
+    score: number;
+    weight: number;
+    reason: string;
+  };
+  /** External evidence entries (empty when none supplied). */
+  evidence: MarketEvidenceView[];
+  /** Weighted evidence score; absent when no evidence is present. */
+  evidence_score?: number;
+  /** Overall confidence label. */
+  confidence: "low" | "medium" | "high";
+  /** Whether the final score is heuristic-only or evidence-weighted. */
+  source: "heuristic_prior" | "evidence_weighted";
+}
+
+export interface MarketFitInput {
+  /** Reference game titles supplied by the user (becomes low-confidence evidence). */
+  referenceGames?: string[];
+  /** Additional evidence entries (competitor analysis, market research, playtest). */
+  extraEvidence?: MarketEvidence[];
+}
+
 export interface ValidationReport {
   triangle_check: {
     passed: boolean;
@@ -85,6 +120,10 @@ export interface ValidationReport {
  * @param constraints — опциональные проектные ограничения (team_size, budget, platform).
  *   Когда передан хотя бы один constraint, feasibility вычисляется композитной моделью
  *   с per-factor breakdown; иначе используется legacy compat-only оценка (backward compat).
+ * @param marketFit — опциональные внешние evidence для market_fit (reference games,
+ *   competitor analysis, market research, playtest). Когда evidence есть, score
+ *   становится evidence-weighted с повышенным confidence; иначе остаётся честным
+ *   heuristic prior с `confidence: "low"` и `source: "heuristic_prior"`.
  */
 export function buildValidationReport(
   aestheticProfile: AestheticProfileInput,
@@ -93,6 +132,7 @@ export function buildValidationReport(
   idea: string,
   subgenres: string[],
   constraints: FeasibilityConstraints = {},
+  marketFit: MarketFitInput = {},
 ): ValidationReport {
   // --- Анализ идеи для filters и questions ---
   const ideaTokens = tokenizeUnicodeWords(idea);
@@ -208,24 +248,29 @@ export function buildValidationReport(
   };
   const audienceFitScore = audienceFitByAesthetic[aestheticProfile.primary] ?? 0.5;
 
-  // 5. Market fit
-  // TASK-1.3 FIXED: market_fit теперь вычисляется по primary genre (из genres_searched),
-  // а не по aesthetic (который раньше ошибочно использовался как genre lookup).
-  const marketFitByGenre: Record<string, number> = {
-    rpg: 0.85, shooter: 0.85, strategy: 0.8, mmorpg: 0.75,
-    action: 0.8, adventure: 0.75, puzzle: 0.7, platformer: 0.7,
-    roguelike: 0.65, horror: 0.65, sandbox: 0.65,
-    racing: 0.6, fighting: 0.6, tower_defense: 0.55,
-    rhythm: 0.5, metroidvania: 0.5, visual_novel: 0.45,
-    idle: 0.55, stealth: 0.5, survival_horror: 0.6,
-    action_rpg: 0.82, jrpg: 0.78, tactical_rpg: 0.7,
-    rts: 0.72, tbs: 0.68, simulation: 0.62,
-    party: 0.55, educational: 0.5, sports: 0.65,
+  // 5. Market fit — R4-04: separate heuristic prior from external evidence.
+  //    Without evidence, score is an honest heuristic prior with low confidence.
+  //    With reference games or stronger evidence, score becomes evidence-weighted.
+  const primaryGenreForMarket = mechanicSet.genres_searched?.[0] || "action";
+  const marketFitResult = computeMarketFit(
+    primaryGenreForMarket,
+    hasMultiGenre,
+    marketFit.referenceGames ?? [],
+    marketFit.extraEvidence ?? [],
+  );
+  const marketFitFinal = marketFitResult.score;
+  const marketFitView: MarketFitFilterView = {
+    score: marketFitResult.score,
+    reason: marketFitResult.reason,
+    improvement: marketFitResult.improvement,
+    prior: marketFitResult.prior,
+    evidence: marketFitResult.evidence,
+    confidence: marketFitResult.confidence,
+    source: marketFitResult.source,
   };
-  // TASK-1.3: используем primary genre из genres_searched (первый элемент = primary).
-  const primaryGenreFromSearch = mechanicSet.genres_searched?.[0] || "action";
-  const marketFitScore = marketFitByGenre[primaryGenreFromSearch] ?? 0.6;
-  const marketFitFinal = Math.min(0.95, marketFitScore + (hasMultiGenre ? 0.1 : 0));
+  if (marketFitResult.evidence_score !== undefined) {
+    marketFitView.evidence_score = marketFitResult.evidence_score;
+  }
 
   // 6. Differentiation
   let differentiationScore = 0.4;
@@ -293,15 +338,7 @@ export function buildValidationReport(
         ? "Пересмотрите primary aesthetic для более широкой аудитории"
         : "Подтвердите target audience через reference games",
     },
-    market_fit: {
-      score: Number(marketFitFinal.toFixed(2)),
-      reason: hasMultiGenre
-        ? "Мульти-жанровость расширяет потенциальный рынок"
-        : marketFitFinal >= 0.75
-        ? "Жанр имеет устоявшуюся аудиторию"
-        : "Нишевый жанр с ограниченным рынком",
-      improvement: "Идентифицируйте 2-3 прямых конкурента и сформулируйте одну конкретную дифференциацию",
-    },
+    market_fit: marketFitView,
     differentiation: {
       score: Number(differentiationScore.toFixed(2)),
       reason: differentiationScore >= 0.7

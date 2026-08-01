@@ -29,13 +29,16 @@ import {
 } from "@/lib/api-helpers";
 import { enrichProgression } from "@/lib/ai-service";
 
-// Valid enum values
+// TASK-5a.1: Valid progression types — added logarithmic, triangular, obfuscation (Bible 6.7.3).
 const VALID_PROGRESSION_TYPES = [
   "linear",
   "exponential",
   "diminishing",
   "s_curve",
   "intermittent",
+  "logarithmic",
+  "triangular",
+  "obfuscation",
   "custom",
 ];
 const VALID_MONETIZATION = [
@@ -170,6 +173,30 @@ function buildCurve(
         const base = baseValue * lvl;
         const jump = lvl % 5 === 0 ? base * 0.2 : 0;
         points.push(Number((base + jump).toFixed(2)));
+      }
+      break;
+    // TASK-5a.1: Added logarithmic, triangular, obfuscation curves (Bible 6.7.3).
+    case "logarithmic":
+      formula = "y = base * log(level + 1)";
+      for (let lvl = 1; lvl <= levels; lvl++) {
+        points.push(Number((baseValue * Math.log(lvl + 1)).toFixed(2)));
+      }
+      break;
+    case "triangular":
+      // Bible 6.7.3: y = (x² − x) / 2 — Schreiber's most-used curve.
+      formula = "y = (level² − level) / 2 * base";
+      for (let lvl = 1; lvl <= levels; lvl++) {
+        points.push(Number((((lvl * lvl - lvl) / 2) * baseValue).toFixed(2)));
+      }
+      break;
+    case "obfuscation":
+      // Bible 6.7.3: hidden curve — looks linear but has hidden multipliers.
+      formula = "y = base * level + hidden_multiplier * sin(level)";
+      params.hidden_multiplier = 0.1 * baseValue;
+      for (let lvl = 1; lvl <= levels; lvl++) {
+        const visible = baseValue * lvl;
+        const hidden = params.hidden_multiplier * Math.sin(lvl);
+        points.push(Number((visible + hidden).toFixed(2)));
       }
       break;
     case "custom":
@@ -396,23 +423,45 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // TASK-5a.2 FIXED: perceived difficulty formula (Bible 6.7.1): (Cv + Cs) − (Pv + Ps)
+    // Cv = variability challenge (enemy variety, increases with level)
+    // Cs = strategic challenge (mechanic complexity, increases with tier)
+    // Pv = player variability (player skill range, decreases with level as skill stabilizes)
+    // Ps = player skill (increases with level as player masters mechanics)
     const perceivedDifficultyTable: Array<{
       level: number;
       target_perceived_difficulty: number;
       recommended_enemy_power: number;
       is_tier_boundary: boolean;
+      cv: number; // variability challenge
+      cs: number; // strategic challenge
+      pv: number; // player variability
+      ps: number; // player skill
+      formula: string;
     }> = [];
     for (let lvl = 1; lvl <= targetLevels; lvl++) {
       const isTierBoundary = tiers.some((t) => t.level_range[1] === lvl);
-      // Difficulty target (0..1)
-      const target = Math.min(1, 0.2 + (lvl / targetLevels) * 0.7);
+      const levelRatio = lvl / targetLevels;
+      // Cv: increases with level (more enemy types, more complex encounters)
+      const cv = Number((0.2 + levelRatio * 0.3).toFixed(2));
+      // Cs: increases with tier depth (more mechanics to manage)
+      const tierIdx = tiers.findIndex((t) => lvl >= t.level_range[0] && lvl <= t.level_range[1]);
+      const cs = Number((0.1 + (tierIdx >= 0 ? tierIdx * 0.1 : 0) + levelRatio * 0.2).toFixed(2));
+      // Pv: decreases with level (player skill stabilizes)
+      const pv = Number(Math.max(0, 0.3 - levelRatio * 0.2).toFixed(2));
+      // Ps: increases with level (player mastery grows)
+      const ps = Number((0.1 + levelRatio * 0.4).toFixed(2));
+      // Perceived difficulty = (Cv + Cs) − (Pv + Ps), clamped to [0, 1]
+      const perceivedDiff = Number(Math.max(0, Math.min(1, (cv + cs) - (pv + ps))).toFixed(2));
       // Enemy power: should match curve a bit above player power
       const enemyPower = Number((powerCurve.points[lvl - 1] || 10) * 1.1);
       perceivedDifficultyTable.push({
         level: lvl,
-        target_perceived_difficulty: Number(target.toFixed(2)),
+        target_perceived_difficulty: perceivedDiff,
         recommended_enemy_power: Math.round(enemyPower),
         is_tier_boundary: isTierBoundary,
+        cv, cs, pv, ps,
+        formula: `(Cv=${cv} + Cs=${cs}) − (Pv=${pv} + Ps=${ps}) = ${perceivedDiff}`,
       });
     }
 

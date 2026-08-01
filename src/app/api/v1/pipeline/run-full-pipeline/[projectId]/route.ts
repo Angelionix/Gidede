@@ -20,6 +20,7 @@ import {
   buildStageRequestBody,
   createPipelineContext,
   recordStageOutput,
+  resolvePipelineIdea,
   type PipelineInput,
 } from "@/lib/pipeline-context";
 import type { ContractStageId } from "@/lib/contracts/stage-contracts";
@@ -90,18 +91,23 @@ export async function POST(
   try {
     const { projectId } = await params;
     const requestBody = await request.json().catch(() => ({}));
-    const idea = requestBody?.idea?.toString().trim();
-
-    if (!idea) {
-      return VALIDATION_ERROR("Поле idea обязательно для запуска пайплайна");
-    }
-
     const snapshot = await loadProjectPipelineSnapshot(user.id, projectId);
     if (!snapshot) return NOT_FOUND();
+    const idea = resolvePipelineIdea(
+      requestBody?.idea,
+      snapshot.projectDescription,
+      snapshot.projectName,
+    );
+
+    if (!idea) {
+      return VALIDATION_ERROR(
+        "Для запуска заполните описание проекта или передайте idea длиной не менее 10 символов",
+      );
+    }
 
     const input: PipelineInput = {
       idea,
-      genre: requestBody?.genre ?? null,
+      genre: requestBody?.genre ?? snapshot.projectGenre,
       useAi: requestBody?.use_ai === true || requestBody?.use_ai === "true",
       targetAesthetics: Array.isArray(requestBody?.target_aesthetics)
         ? requestBody.target_aesthetics.filter((aesthetic: unknown) => typeof aesthetic === "string")

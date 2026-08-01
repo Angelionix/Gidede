@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R1-04` — убрать фиктивную project idea из UI/partial runner.
-- **Зависимости:** `R1-03` завершена; full runner использует `PipelineContext`.
-- **Ожидаемый результат:** RU/EN project idea без подмены доходит до Concept и partial run не использует hardcoded inputs.
-- **После неё:** `R1-05` — нормализовать aliases формата GDD и количества уровней.
+- **Следующая задача:** `R1-05` — нормализовать aliases формата GDD и количества уровней.
+- **Зависимости:** `R1-04` завершена; full и partial runners используют реальные данные проекта и `PipelineContext`.
+- **Ожидаемый результат:** `full`/`full_gdd` и `total_levels`/`target_levels` имеют единое каноническое представление и проходят E2E.
+- **После неё:** `R1-06` — ввести честные статусы выполнения пайплайна.
 
 ## Правила ведения
 
@@ -37,7 +37,7 @@
 | R1-01 | DONE | Versioned Zod input/output contracts для 8 стадий | 289 tests, TypeScript, scoped ESLint |
 | R1-02 | DONE | `ArtifactEnvelope`, SHA-256 input hash и upstream tracing | 294 tests, TypeScript, scoped ESLint |
 | R1-03 | DONE | PipelineContext: stage output → next input + cumulative lineage | 300 tests, TypeScript, scoped ESLint |
-| R1-04 | TODO | Реальная project idea вместо фиктивной UI-строки | — |
+| R1-04 | DONE | Реальная project idea и persisted stage outputs без hardcoded inputs | 302 tests, TypeScript, scoped ESLint |
 | R1-05 | TODO | Aliases `full`/`full_gdd`, `total_levels`/`target_levels` | — |
 | R1-06 | TODO | Статусы success/partial/failed/blocked/needs_review | — |
 | R1-07 | TODO | Quality gates и stop/resume | — |
@@ -47,6 +47,45 @@
 | R2…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R1-04 — DONE
+
+Что сделано:
+
+- UI запуска пайплайна передаёт точные `description` и `genre` выбранного проекта вместо фиктивной строки;
+- full runner серверно выбирает idea в порядке request → project description → project name и отклоняет запуск, если ни одно реальное значение не удовлетворяет минимальной длине;
+- partial runner больше не содержит canned idea, RPG-набор объектов, `explore/combat/reward` или фиксированный aesthetic;
+- partial runner исполняет стадии в каноническом порядке через общий `PipelineContext` и строит каждый request из фактических upstream outputs;
+- сохранённые результаты всех пропущенных upstream-стадий до последнего выбранного блока используются как контекст, включая несмежный выбор блоков;
+- legacy outputs без `ArtifactEnvelope` разрешено использовать как данные, но для них не изобретается ложная lineage-версия;
+- endpoint Validation унифицирован с каноническим `/api/v1/checklists/validate`;
+- full и partial runners возвращают фактически использованную `concept_idea`, а partial runner также возвращает накопленные `artifact_versions`.
+
+Изменённые области:
+
+- `src/lib/pipeline-context.ts`
+- `src/lib/pipeline-context.test.ts`
+- `src/lib/pipeline-helpers.ts`
+- `src/app/api/v1/pipeline/run-full-pipeline/[projectId]/route.ts`
+- `src/app/api/v1/pipeline/run-pipeline/[projectId]/route.ts`
+- `src/app/pipeline/page.tsx`
+
+Проверки:
+
+- `npm run test -- src/lib/pipeline-context.test.ts` — 8 тестов пройдены;
+- `npm run test` — 16 файлов, 302 теста пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых файлов — ошибок нет;
+- поиск прежних hardcoded pipeline inputs — совпадений нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- тест подтверждает неизменную передачу RU и EN idea без подмены canned-текстом;
+- request idea имеет приоритет над project description, а project description — над достаточно длинным project name;
+- короткий project name без description не превращается в выдуманную концепцию и приводит к validation error;
+- тест legacy seed подтверждает: persisted output доступен downstream-стадии, но `upstreamVersions` остаётся пустым без валидного envelope;
+- следующей задачей назначена `R1-05`.
 
 ### 2026-08-01 — R1-03 — DONE
 

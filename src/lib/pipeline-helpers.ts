@@ -33,6 +33,8 @@ export interface PipelineNotification {
 export interface ProjectPipelineSnapshot {
   projectId: string;
   projectName: string;
+  projectDescription: string | null;
+  projectGenre: string | null;
   hasConcept: boolean;
   hasCoreLoop: boolean;
   hasMda: boolean;
@@ -146,6 +148,8 @@ export async function loadProjectPipelineSnapshot(
   return {
     projectId: project.id,
     projectName: project.name,
+    projectDescription: project.description,
+    projectGenre: project.genre,
     hasConcept,
     hasCoreLoop,
     hasMda,

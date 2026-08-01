@@ -9,6 +9,8 @@ import {
   createPipelineContext,
   extractConceptMechanics,
   recordStageOutput,
+  resolvePipelineIdea,
+  seedStageOutput,
   type PipelineInput,
 } from "./pipeline-context";
 
@@ -38,6 +40,14 @@ function conceptOutput() {
 }
 
 describe("pipeline context", () => {
+  it("preserves real RU/EN project ideas without substituting canned text", () => {
+    const ru = "Головоломка о двух роботах и перенаправлении света";
+    const en = "A strategy game about flooded-world caravans";
+    expect(resolvePipelineIdea(undefined, ru, "Проект")).toBe(ru);
+    expect(resolvePipelineIdea(en, ru, "Проект")).toBe(en);
+    expect(resolvePipelineIdea(undefined, null, "Short")).toBeNull();
+  });
+
   it("extracts the mechanics selected by Concept without generic fallbacks", () => {
     expect(extractConceptMechanics(conceptOutput())).toEqual([
       "Rotate Rooms",
@@ -112,6 +122,16 @@ describe("pipeline context", () => {
       "mda",
       { artifact: createArtifactEnvelope("concept", {}) },
     )).toThrow(/artifact type concept/);
+  });
+
+  it("seeds legacy persisted output without inventing an artifact version", () => {
+    const context = createPipelineContext();
+    seedStageOutput(context, "concept", {
+      primary_genre: "rpg",
+      mechanic_set: { base: ["Explore"] },
+    });
+    expect(context.outputs.concept).toBeDefined();
+    expect(context.upstreamVersions).toEqual({});
   });
 
   it("builds contract-valid requests for all eight stages with cumulative lineage", () => {

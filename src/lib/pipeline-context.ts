@@ -24,6 +24,20 @@ export function createPipelineContext(): PipelineContext {
   return { outputs: {}, upstreamVersions: {} };
 }
 
+export function resolvePipelineIdea(
+  requestedIdea: unknown,
+  projectDescription: string | null | undefined,
+  projectName: string,
+): string | null {
+  const candidates = [requestedIdea, projectDescription, projectName];
+  for (const candidate of candidates) {
+    if (typeof candidate !== "string") continue;
+    const normalized = candidate.trim();
+    if (normalized.length >= 10) return normalized;
+  }
+  return null;
+}
+
 function asRecord(value: unknown): Record<string, unknown> | null {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -50,6 +64,21 @@ export function recordStageOutput(
   context.outputs[stage] = record;
   context.upstreamVersions[stage] = artifactRef(artifact);
   return artifact;
+}
+
+export function seedStageOutput(
+  context: PipelineContext,
+  stage: ContractStageId,
+  output: unknown,
+): void {
+  const record = asRecord(output);
+  if (!record) return;
+  context.outputs[stage] = record;
+
+  const artifact = artifactEnvelopeSchema.safeParse(record.artifact);
+  if (artifact.success && artifact.data.artifactType === stage) {
+    context.upstreamVersions[stage] = artifactRef(artifact.data);
+  }
 }
 
 export function extractConceptMechanics(conceptOutput: unknown): string[] {

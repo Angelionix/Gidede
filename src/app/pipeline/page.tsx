@@ -17,6 +17,8 @@ import { BLOCKS } from "@/config/blocks";
 interface Project {
   id: string;
   name: string;
+  description: string | null;
+  genre: string | null;
   has_concept: boolean;
   has_core_loop: boolean;
   has_mda: boolean;
@@ -80,6 +82,8 @@ export default function PipelinePage() {
 
   const runFullPipeline = async () => {
     if (!selectedProject) return;
+    const project = projects.find((item) => item.id === selectedProject);
+    if (!project) return;
     setRunning(true);
     setRunProgress(5);
     setCurrentStep("Запуск серверного пайплайна...");
@@ -96,7 +100,8 @@ export default function PipelinePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          idea: "Сгенерировать концепцию из данных проекта",
+          idea: project.description?.trim() || project.name.trim(),
+          genre: project.genre,
           format: "one_sheet",
           total_levels: 50,
         }),

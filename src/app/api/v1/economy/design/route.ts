@@ -26,7 +26,7 @@ import {
   SERVER_ERROR,
   VALIDATION_ERROR,
 } from "@/lib/api-helpers";
-import { enrichProgression } from "@/lib/ai-service";
+import { enrichEconomy } from "@/lib/ai-service";
 
 const VALID_MONETIZATION = [
   "f2p",
@@ -800,12 +800,19 @@ export async function POST(request: NextRequest) {
 
     await updateProjectStage(proj.id, "economy");
 
-    // --- Optional AI enrichment (reuse enrichProgression for economy context) ---
+    // TASK-5b.1 + 5b.15: Use enrichEconomy (not enrichProgression) and move BEFORE persist.
     if (useAi) {
-      const aiInsights = await enrichProgression({
+      const aiInsights = await enrichEconomy({
         projectName: proj.name || "Untitled",
         genre,
-        totalLevels: resources.length || 0,
+        systemType: classification.type,
+        resourceCount: resources.length,
+        monetizationType,
+        openness,
+        pathologies: pathologies.map((p) => p.name),
+        stabilityIndex: simResult.aggregated.stability_index,
+        avgProfitability: conversionGraph.avg_profitability,
+        dominantLoop: classification.dominant_loop,
       });
       if (aiInsights) {
         result.ai_insights = aiInsights;

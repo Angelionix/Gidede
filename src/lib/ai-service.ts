@@ -746,6 +746,69 @@ export async function enrichProgression(ctx: ProgressionAiInput): Promise<string
   }
 }
 
+// TASK-5b.1: New enrichEconomy function (was missing — route used enrichProgression).
+export interface EconomyAiInput {
+  projectName: string;
+  genre: string;
+  systemType: string; // Engine | Economy | Ecology
+  resourceCount: number;
+  monetizationType: string;
+  openness: string;
+  pathologies?: string[];
+  stabilityIndex?: number;
+  avgProfitability?: number;
+  dominantLoop?: string;
+}
+
+export async function enrichEconomy(ctx: EconomyAiInput): Promise<string | null> {
+  const zai = await getZai();
+  if (!zai) return null;
+  try {
+    const pathologiesSection = ctx.pathologies && ctx.pathologies.length > 0
+      ? `\nОбнаруженные патологии: ${ctx.pathologies.join(", ")}`
+      : "\nПатологии не обнаружены.";
+    const stabilitySection = ctx.stabilityIndex !== undefined
+      ? `\nStability index: ${ctx.stabilityIndex}`
+      : "";
+    const profitabilitySection = ctx.avgProfitability !== undefined
+      ? `\nСредняя прибыльность: ${ctx.avgProfitability}`
+      : "";
+    const dominantLoopSection = ctx.dominantLoop
+      ? `\nДоминантная петля: ${ctx.dominantLoop}`
+      : "";
+
+    const prompt = `Ты — эксперт по игровой экономике. Дай рекомендации.
+
+Проект: ${ctx.projectName}
+Жанр: ${ctx.genre}
+Тип системы: ${ctx.systemType}
+Ресурсов: ${ctx.resourceCount}
+Монетизация: ${ctx.monetizationType}
+Открытость: ${ctx.openness}${pathologiesSection}${stabilitySection}${profitabilitySection}${dominantLoopSection}
+
+Дай 4 совета (на русском, каждый 1-2 предложения):
+1. Какие корректировки faucet/drain нужны (учти обнаруженные патологии)
+2. Как улучшить стабильность экономики (учти stability index)
+3. Какие конверсионные цепочки добавить или убрать (учти прибыльность)
+4. Как монетизация влияет на баланс экономики (учти тип монетизации и открытость)
+
+Ответ — обычный текст с нумерованными пунктами.`;
+    const response = await zai.chat.completions.create({
+      messages: [
+        { role: "system", content: "Ты — AI-ассистент по геймдизайну, эксперт по игровой экономике (Machinations, Schreiber, Adams/Dormans)." },
+        { role: "user", content: prompt },
+      ],
+      stream: false,
+      thinking: { type: "disabled" },
+    });
+    const text = response.choices?.[0]?.message?.content?.trim();
+    return text && text.length > 30 ? text : null;
+  } catch (e) {
+    console.error("[ai-service] enrichEconomy failed:", e instanceof Error ? e.message : e);
+    return null;
+  }
+}
+
 // ============================================================
 // AI enrichment for Block 6 (GDD)
 // ============================================================

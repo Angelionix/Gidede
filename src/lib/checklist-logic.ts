@@ -496,7 +496,9 @@ function buildSummary(
   mdaScore: number,
   balanceScore: number,
   narrativeScore: number,
-  allIssues: ChecklistIssue[]
+  allIssues: ChecklistIssue[],
+  economyScore: number,
+  lensScore: number
 ): {
   overall_score: number;
   readiness: string;
@@ -507,9 +509,11 @@ function buildSummary(
   }>;
   quick_wins: Array<{ description: string; effort: string }>;
 } {
-  // Weighted average of check scores
+  // TASK-6b.12 FIXED: removed hardcoded +0.1 baseline boost and fixed weights.
+  // Before: mdaScore*0.3 + balanceScore*0.3 + narrativeScore*0.3 + 0.1 (always ≥ 0.1)
+  // After: equal weights across all 5 checks, no baseline boost.
   const overall = Number(
-    clamp(mdaScore * 0.3 + balanceScore * 0.3 + narrativeScore * 0.3 + 0.1).toFixed(3)
+    clamp((mdaScore + balanceScore + narrativeScore + economyScore + lensScore) / 5).toFixed(3)
   );
 
   const readiness =
@@ -625,11 +629,17 @@ export async function runChecklistValidation(
     ...(lensCheck.skipped ? [] : lensCheck.issues),
   ];
 
+  // TASK-6b.12: compute economy and lens scores for buildSummary.
+  const economyScore = economyCheck.skipped ? 0.5 : (economyCheck.issues.length === 0 ? 0.9 : economyCheck.issues.some((i) => i.severity === "error") ? 0.2 : 0.6);
+  const lensScore = lensCheck.skipped ? 0.5 : (lensCheck.issues.length === 0 ? 0.9 : lensCheck.issues.some((i) => i.severity === "error") ? 0.2 : 0.6);
+
   const summary = buildSummary(
     mdaCheck.overall_mda_score,
     balanceCheck.overall_balance_score,
     narrativeCheck.overall_narrative_score,
-    allIssues
+    allIssues,
+    economyScore,
+    lensScore
   );
 
   // Build the persisted issues list (with id + remediation)
@@ -676,7 +686,8 @@ export async function runChecklistValidation(
     economy_check: economyCheck,
     lens_check: lensCheck,
     summary,
-    stages_completed: [1, 2, 3, 4, 5, 6],
+    // TASK-6b.12: dynamic stages_completed (was hardcoded [1,2,3,4,5,6]).
+    stages_completed: activeChecklists.map((_, i) => i + 1),
     latency_ms: Date.now() - startedAt,
   };
 

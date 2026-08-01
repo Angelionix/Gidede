@@ -187,7 +187,9 @@ const STAGES: StageDef[] = [
   {
     stage: "validation",
     block_id: 6,
-    endpoint: "/api/v1/gdd/checklist",
+    // TASK-6b.16 FIXED: use /checklists/validate (rich impl) instead of /gdd/checklist (was STUB, now also fixed).
+    // Both work after TASK-6.6, but /checklists/validate is the canonical endpoint.
+    endpoint: "/api/v1/checklists/validate",
     buildBody: () => ({}),
   },
 ];

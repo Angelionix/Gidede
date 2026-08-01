@@ -115,6 +115,12 @@ const SCORE_METADATA_BY_STAGE = {
       "heuristic",
       "Overall match aggregates synthetic aesthetic match scores.",
     ),
+    "classic_mda_result.iterations": score(
+      "simulation",
+      "iterations_done reflects the real number of MDA iteration loop passes (R4-08): each iteration evaluates the mechanic set, adds a mechanic for the weakest target aesthetic if below threshold, and records a diff.",
+      "The loop terminates on convergence, max_iterations (5), or no_candidates — not a hardcoded constant.",
+      "Iteration diffs are persisted in classic_mda_result.iteration_diffs for audit.",
+    ),
     "lens_validation.results[*].score": score(
       "heuristic",
       "Lens answers use compatibility-derived rules and fixed fallbacks rather than a complete Shell lens audit.",

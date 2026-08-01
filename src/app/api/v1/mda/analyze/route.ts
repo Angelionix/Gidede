@@ -36,6 +36,7 @@ import { enrichMda } from "@/lib/ai-service";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
+import { runMdaIterationLoop } from "@/lib/mda/iteration-loop";
 
 // ============================================================
 // Constants
@@ -546,8 +547,25 @@ function buildClassicMDA(
     (primaryMatch * 0.6 + secondaryMatch * 0.4).toFixed(3)
   );
 
-  const converged = overallMatch >= convergenceThreshold;
-  const iterations = converged ? 1 : 3;
+  // R4-08: real iteration loop — replaces the fake `iterations = converged ? 1 : 3`.
+  // The loop evaluates the current set, and if overall_match < threshold, adds
+  // a mechanic for the weakest target aesthetic, re-evaluates, and records a
+  // diff. iterations_done now reflects the real number of passes performed.
+  const iterationLoop = runMdaIterationLoop(
+    mechanicSet,
+    aesthetics,
+    convergenceThreshold,
+    5, // maxIterations
+  );
+
+  // Use the iteration loop's final results (which may have an improved mechanic
+  // set with higher overall_match than the initial single-pass evaluation).
+  const finalOverallMatch = iterationLoop.overall_match;
+  const finalConverged = iterationLoop.converged;
+  const finalIterations = iterationLoop.iterations;
+  const finalPredictedAesthetics = iterationLoop.predicted_aesthetics;
+  const finalMatchScores = iterationLoop.match_scores;
+  const finalObservedDynamics = iterationLoop.observed_dynamics;
 
   const stability = {
     stable: true,
@@ -560,21 +578,24 @@ function buildClassicMDA(
   return {
     gameplay_sequence: gameplaySequence,
     feedback_loops: feedbackLoops,
-    observed_dynamics: observedDynamics,
-    predicted_aesthetics: predictedAesthetics,
-    match_scores: matchScores,
-    overall_match: overallMatch,
-    converged,
+    observed_dynamics: finalObservedDynamics,
+    predicted_aesthetics: finalPredictedAesthetics,
+    match_scores: finalMatchScores,
+    overall_match: finalOverallMatch,
+    converged: finalConverged,
     stability,
-    iterations,
+    iterations: finalIterations,
+    iteration_diffs: iterationLoop.iteration_diffs,
+    termination_reason: iterationLoop.termination_reason,
+    final_mechanic_set: iterationLoop.final_mechanic_set,
     gameplay_script: gameplayScript,
     suggestions: [
       "Increase mechanic coverage for under-matched aesthetics",
       "Add a context dynamic to strengthen emergence",
     ],
-    warnings: converged
+    warnings: finalConverged
       ? []
-      : [`Overall match ${overallMatch.toFixed(2)} below threshold ${convergenceThreshold} — consider adding mechanics for ${aesthetics.primary}`],
+      : [`Overall match ${finalOverallMatch.toFixed(2)} below threshold ${convergenceThreshold} after ${finalIterations} iterations — consider adding mechanics for ${aesthetics.primary}`],
   };
 }
 

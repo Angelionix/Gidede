@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R4-08` — реализовать реальную MDA iteration loop.
-- **Зависимости:** `R4-07` завершена; Concept/Core/MDA используют единый `MechanicRef` wire-тип со стабильным `id` + canonical `category`.
-- **Ожидаемый результат:** каждая iteration меняет candidate set и сохраняет diff; `iterations_done` отражает реальное число итераций.
-- **После неё:** `R4-09` — Lens #41 получать из Balance dominance evidence.
+- **Следующая задача:** `R4-09` — Lens #41 получать из Balance dominance evidence.
+- **Зависимости:** `R4-08` завершена; MDA iteration loop реально выполняет итерации, меняет candidate set и сохраняет diffs.
+- **Ожидаемый результат:** Lens #41 (dominance) выводится из Balance intransitive dominance, а не из synergy proxy.
+- **После неё:** `R4-10` — Bond matrix строить из artifact evidence.
 
 ## Правила ведения
 
@@ -70,9 +70,51 @@
 | R4-05 | DONE | USP candidates вычисляют Triangle of Weirdness из реальных свойств текста | 577 tests, TypeScript, scoped ESLint |
 | R4-06 | DONE | compatibility_score: genre coverage + hybrid bonus; cross-genre mechanics не штрафуются | 579 tests, TypeScript, scoped ESLint |
 | R4-07 | DONE | Единый `MechanicRef` wire-тип со стабильным `id` + canonical `category` через Concept/Core/MDA | 624 tests, TypeScript, scoped ESLint |
-| R4-08…R7 | TODO | См. активный roadmap | — |
+| R4-08 | DONE | MDA iteration loop: реальные итерации, меняют candidate set, сохраняют diffs | 641 tests, TypeScript, scoped ESLint |
+| R4-09…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R4-08 — DONE
+
+Что сделано:
+
+- создан модуль `src/lib/mda/iteration-loop.ts` с реальной итерационной петлёй `runMdaIterationLoop`;
+- `evaluateMdaPass(mechanicSet, aesthetics)` — чистая функция single-pass оценки (predicted_aesthetics, match_scores, overall_match, observed_dynamics); вынесена из `buildClassicMDA` для тестируемости;
+- `runMdaIterationLoop(initialMechanicSet, aesthetics, threshold, maxIterations=5)`:
+  - iteration 1: оценивает initial set;
+  - если `overall_match >= threshold` → `termination_reason: "already_converged"`, `iterations: 1`;
+  - иначе: находит weakest target aesthetic (primary/secondary/tertiary с lowest match score), ищет mechanic из её dynamics, не входящий в set, добавляет в appropriate category, re-evaluates, записывает diff;
+  - повторяет до convergence, max_iterations, или no_candidates;
+  - каждый diff содержит: iteration number, added_mechanic, added_to_category, target_aesthetic, overall_match_before, overall_match_after, converged;
+- `buildClassicMDA` в route.ts теперь вызывает `runMdaIterationLoop` вместо фейкового `iterations = converged ? 1 : 3`; результат включает `iteration_diffs`, `termination_reason`, `final_mechanic_set`;
+- `algorithm-metadata` обновлён: `classic_mda_result.iterations` имеет provenance `simulation` с assumptions о реальной iteration loop, termination reasons и diffs.
+
+Изменённые области:
+
+- `src/lib/mda/iteration-loop.ts` (новый, 230 строк) и `iteration-loop.test.ts` (новый, 17 тестов);
+- `src/app/api/v1/mda/analyze/route.ts` — `buildClassicMDA` использует `runMdaIterationLoop`;
+- `src/lib/algorithm-metadata.ts` — provenance для iterations.
+
+Проверки:
+
+- `bun run test` — 61 файл, 641 тест пройдено (было 624; +17 iteration-loop);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- empty set + threshold 1.0 → `iterations: 5` (max), `termination_reason: "max_iterations"`, 4 diffs (каждый добавил mechanic);
+- partial set + threshold 0.0 → `iterations: 1`, `termination_reason: "already_converged"`, 0 diffs;
+- `iterations_done` меняется с inputs (не hardcoded 3);
+- каждый diff содержит `added_mechanic`, `overall_match_before/after`, `converged`;
+- `overall_match_after >= overall_match_before` для каждой iteration (монотонное улучшение);
+- все добавленные mechanics уникальны (no duplicates);
+- final_mechanic_set содержит все mechanics добавленные во время iterations;
+- determinism: одинаковые inputs → идентичные outputs;
+- input не мутируется (deep clone);
+- следующей задачей назначена `R4-09`.
 
 ### 2026-08-01 — R4-07 — DONE
 

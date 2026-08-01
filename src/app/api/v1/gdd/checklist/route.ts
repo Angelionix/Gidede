@@ -1,14 +1,14 @@
 /**
  * POST /api/v1/gdd/checklist
  *
- * TASK-6.6 FIXED: Replaced STUB with real checklist-logic.ts.
- *
- * Before: hardcoded scores (80/0/40/70/75), no real validation.
- * After: delegates to runChecklistValidation() from lib/checklist-logic.ts,
- * which runs 5 real check functions (MDA, Balance, Narrative, Economy, Lens)
- * with actual issue detection and remediation plans.
+ * TASK-6b.1 + 6b.15: Unified with /checklists/validate.
+ * This endpoint now delegates to the same runChecklistValidation() as /checklists/validate.
+ * Both endpoints return identical response shape.
  *
  * Body: { project_id }
+ *
+ * NOTE: /checklists/validate is the canonical endpoint (used by pipeline runner).
+ * This endpoint is kept for backward compatibility with frontend that calls /gdd/checklist.
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/server-auth";
@@ -39,27 +39,13 @@ export async function POST(request: NextRequest) {
     });
     if (!project) return NextResponse.json({ detail: "Проект не найден" }, { status: 404 });
 
-    // TASK-6.6: Use real checklist-logic.ts instead of STUB.
+    // TASK-6b.1: Same call as /checklists/validate — unified response shape.
     const result = await runChecklistValidation(project, "validate", {
       depth: "standard",
     });
 
-    return NextResponse.json({
-      overall_score: result.overallScore,
-      readiness_level: result.readinessLevel,
-      checks: {
-        mda_check: result.mdaCheck,
-        balance_check: result.balanceCheck,
-        economy_check: result.economyCheck,
-        narrative_check: result.narrativeCheck,
-        lens_check: result.lensCheck,
-      },
-      issues: result.issues,
-      remediation_plan: result.remediationPlan,
-      critical_issue_count: result.criticalIssueCount,
-      total_issue_count: result.totalIssueCount,
-      profile: result.profile,
-    });
+    // TASK-6b.15: Return same shape as /checklists/validate (result.profile).
+    return NextResponse.json(result.profile);
   } catch (error) {
     console.error("[gdd/checklist] error:", error);
     return SERVER_ERROR();

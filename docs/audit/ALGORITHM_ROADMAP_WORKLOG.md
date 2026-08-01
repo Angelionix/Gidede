@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R5-02` — строить balance objects из MDA/Core domain model.
-- **Зависимости:** `R5-01` завершена; Balance transitive power вычисляется из per-unit-normalized attributes.
-- **Ожидаемый результат:** hardcoded genre object sets используются только как explicit demo fixtures; Balance получает objects из MDA/Core артефактов.
-- **После неё:** `R5-03` — валидация finite numeric attributes и unique IDs.
+- **Следующая задача:** `R5-03` — валидация finite numeric attributes и unique IDs.
+- **Зависимости:** `R5-02` завершена; Balance objects строятся из MDA mechanic_set (domain model) с typed weapon/armor/upgrade/unit/support.
+- **Ожидаемый результат:** NaN/string/duplicate ID возвращают 422 на contract boundary.
+- **После неё:** `R5-04` — корректный solver для поддерживаемого класса игр или честное переименование поля.
 
 ## Статус roadmap
 
@@ -64,7 +64,8 @@
 | R4-09 | DONE | Lens #41 (dominance) из Balance intransitive dominance evidence, не synergy proxy | 662 tests, TypeScript, scoped ESLint |
 | R4-10 | DONE | Bond matrix из artifact evidence; dissonances из конкретных несовместимых пар | 685 tests, TypeScript, scoped ESLint |
 | R5-01 | DONE | Typed attribute units + per-unit normalization для Balance transitive power | 713 tests, TypeScript, scoped ESLint |
-| R5-02…R7 | TODO | См. активный roadmap | — |
+| R5-02 | DONE | Balance objects из MDA mechanic_set (domain model с typed weapon/armor/upgrade/unit/support) | 734 tests, TypeScript, scoped ESLint |
+| R5-03…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -77,6 +78,48 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R5-02 — DONE
+
+Что сделано:
+
+- создан модуль `src/lib/balance/object-builder.ts` с функциями `buildBalanceObjectsFromDomain`, `buildBalanceObjectsLegacy`, `buildBalanceObjects`;
+- `buildBalanceObjectsFromDomain(mechanicSet, refs, maxObjects)` — строит Balance objects из MDA mechanic_set's 5 categories:
+  - combat → type="weapon", attributes {power, speed}, cost ~200, tier 2;
+  - base → type="armor", attributes {defense, mobility}, cost ~150, tier 1;
+  - progression → type="upgrade", attributes {power, utility}, cost ~300, tier 2;
+  - spatial → type="unit", attributes {power, speed, range}, cost ~120, tier 1;
+  - social → type="support", attributes {utility, mobility}, cost ~180, tier 1;
+- attributes derive from category schema + deterministic hash of mechanic name (same mechanic → same attributes, different mechanics → different attributes);
+- каждый object содержит `source: "mda_domain"` и `derived_from_category` для provenance;
+- priority order: combat > progression > base > spatial > social (combat-critical objects first);
+- `buildBalanceObjectsLegacy` — fallback для случая когда MDA ещё не выполнился (hash-based, как раньше);
+- `buildBalanceObjects` dispatcher: предпочитает domain builder когда MDA доступен и даёт ≥2 objects, иначе fallback к legacy;
+- `pipeline-context.ts` `balanceObjects` теперь принимает `mdaMechanicSet` параметр и использует `buildBalanceObjects`;
+- `extractMdaMechanicSet(mdaOutput)` — извлекает 5-category mechanic_set из MDA stage output record (поддерживает {mechanic_name} и {name} форматы);
+- `buildStageRequestBody("balance")` передаёт `extractMdaMechanicSet(context.outputs.mda)` в `balanceObjects`.
+
+Изменённые области:
+
+- `src/lib/balance/object-builder.ts` (новый, 200 строк) и `object-builder.test.ts` (новый, 21 тест);
+- `src/lib/pipeline-context.ts` — `balanceObjects` с domain builder, `extractMdaMechanicSet` helper.
+
+Проверки:
+
+- `bun run test` — 65 файлов, 734 теста пройдено (было 713; +21 object-builder);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- objects из MDA domain имеют typed {weapon/armor/upgrade/unit/support} вместо generic "mechanic";
+- combat objects имеют {power, speed}; base objects имеют {defense, mobility} (не random);
+- разные mechanics дают разные attributes (deterministic hash);
+- dispatcher предпочитает domain model над legacy hash когда MDA доступен;
+- legacy fallback когда MDA null или даёт <2 objects;
+- priority order combat > progression > base > spatial > social (verified);
+- следующей задачей назначена `R5-03`.
 
 ### 2026-08-01 — R5-01 — DONE
 

@@ -13,6 +13,10 @@ import {
   coerceToMechanicRef,
   type MechanicRef,
 } from "@/lib/mechanic-ref";
+import {
+  buildBalanceObjects,
+  type MdaMechanicSet,
+} from "@/lib/balance/object-builder";
 
 export interface PipelineInput {
   idea: string;
@@ -243,30 +247,55 @@ function hashText(value: string): number {
   return hash >>> 0;
 }
 
-function balanceObjects(mechanics: string[], refs: MechanicRef[]): Array<Record<string, unknown>> {
-  const source = mechanics.length >= 2 ? mechanics : [...mechanics, "secondary mechanic"];
-  return source.slice(0, 8).map((name, index) => {
-    const hash = hashText(name);
-    // R4-07: use the stable mechanic id from the ref when available, instead
-    // of a synthetic 'mechanic_N' that isn't traceable to MechanicsDB.
-    const ref = refs[index];
-    return {
-      id: ref?.id ?? `mechanic_${index + 1}`,
-      name,
-      type: "mechanic",
-      attributes: {
-        power: 20 + (hash % 61),
-        speed: 1 + ((hash >>> 8) % 10),
-        utility: 10 + ((hash >>> 16) % 51),
-      },
-      cost: 50 + (hash % 451),
-      tier: 1 + (index % 3),
-    };
-  });
+function balanceObjects(
+  mechanics: string[],
+  refs: MechanicRef[],
+  mdaMechanicSet: MdaMechanicSet | null | undefined,
+): Array<Record<string, unknown>> {
+  // R5-02: prefer domain-based builder (from MDA mechanic_set) over legacy
+  // name-hash builder. Domain objects have meaningful types (weapon/armor/
+  // upgrade/unit/support) and attributes derived from category semantics.
+  return buildBalanceObjects(mdaMechanicSet, mechanics, refs, 8) as unknown as Array<Record<string, unknown>>;
 }
 
 function lineage(context: PipelineContext): Record<string, string> {
   return { ...context.upstreamVersions };
+}
+
+/**
+ * R5-02: extract the MDA structured mechanic_set (5 categories) from the
+ * MDA stage output record, so the Balance stage can build typed objects
+ * from the domain model instead of hashing mechanic names.
+ *
+ * Returns null when MDA has not yet run or the mechanic_set is missing.
+ */
+function extractMdaMechanicSet(mdaOutput: unknown): MdaMechanicSet | null {
+  const mda = asRecord(mdaOutput);
+  if (!mda) return null;
+  const mechanicSet = asRecord(mda?.mechanic_set);
+  if (!mechanicSet) return null;
+
+  const extractCategory = (key: string): Array<{ mechanic_name: string }> => {
+    const arr = mechanicSet[key];
+    if (!Array.isArray(arr)) return [];
+    return arr
+      .map((m) => {
+        if (typeof m === "string") return { mechanic_name: m };
+        const obj = asRecord(m);
+        if (typeof obj?.mechanic_name === "string") return { mechanic_name: obj.mechanic_name };
+        if (typeof obj?.name === "string") return { mechanic_name: obj.name };
+        return null;
+      })
+      .filter((m): m is { mechanic_name: string } => m !== null);
+  };
+
+  return {
+    base: extractCategory("base"),
+    combat: extractCategory("combat"),
+    progression: extractCategory("progression"),
+    spatial: extractCategory("spatial"),
+    social: extractCategory("social"),
+  };
 }
 
 export function buildStageRequestBody(
@@ -321,7 +350,10 @@ export function buildStageRequestBody(
       };
     case "balance":
       return {
-        objects: balanceObjects(mechanics, mechanicRefs),
+        // R5-02: build objects from MDA mechanic_set when available (domain
+        // model with typed weapon/armor/upgrade/unit/support), falling back
+        // to legacy name-hash builder when MDA has not yet run.
+        objects: balanceObjects(mechanics, mechanicRefs, extractMdaMechanicSet(context.outputs.mda)),
         game_mode: genre === "fighting" ? "PvP" : "PvE",
         genre,
         use_ai: input.useAi,

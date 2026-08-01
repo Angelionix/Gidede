@@ -857,9 +857,75 @@ function buildMachinationsResult(
   };
 }
 
+// TASK-4.16: 6 combinations of sum × operating system (Bible 5.6.2).
+// Bible 5.6.2 defines 6 ways to combine damage summation with OS scheduling:
+//   1. Additive + Real-time (e.g., FPS: damage stacks, real-time processing)
+//   2. Additive + Turn-based (e.g., JRPG: damage adds up, processed per turn)
+//   3. Multiplicative + Real-time (e.g., ARPG: crit multipliers, real-time)
+//   4. Multiplicative + Turn-based (e.g., Strategy: production multipliers per turn)
+//   5. Conditional + Real-time (e.g., Fighting: conditional combos, real-time)
+//   6. Conditional + Turn-based (e.g., Tactics: conditional bonuses per turn)
+function buildCombinationsAnalysis(objects: BalanceObject[], gameMode: string) {
+  const combinations = [
+    {
+      id: "additive_realtime",
+      sum_type: "additive",
+      os_type: "realtime",
+      description: "Урон складывается аддитивно, обработка в реальном времени (FPS, shooter)",
+      applicable: gameMode === "pvp" || gameMode === "PvP",
+      example_objects: objects.filter((o) => o.type === "weapon").map((o) => o.name).slice(0, 2),
+    },
+    {
+      id: "additive_turnbased",
+      sum_type: "additive",
+      os_type: "turn_based",
+      description: "Урон складывается, обработка пошагово (JRPG, tactics)",
+      applicable: gameMode === "pve" || gameMode === "PvE",
+      example_objects: objects.filter((o) => o.type === "unit" || o.type === "fighter").map((o) => o.name).slice(0, 2),
+    },
+    {
+      id: "multiplicative_realtime",
+      sum_type: "multiplicative",
+      os_type: "realtime",
+      description: "Мультипликативные множители, реальное время (ARPG, loot shooters)",
+      applicable: true, // Generally applicable
+      example_objects: objects.filter((o) => o.attributes.crit || o.attributes.multiplier).map((o) => o.name).slice(0, 2),
+    },
+    {
+      id: "multiplicative_turnbased",
+      sum_type: "multiplicative",
+      os_type: "turn_based",
+      description: "Мультипликативные множители, пошагово (strategy, 4X)",
+      applicable: gameMode === "pve" || gameMode === "PvE",
+      example_objects: objects.filter((o) => o.type === "unit").map((o) => o.name).slice(0, 2),
+    },
+    {
+      id: "conditional_realtime",
+      sum_type: "conditional",
+      os_type: "realtime",
+      description: "Условные комбо, реальное время (fighting, character action)",
+      applicable: gameMode === "pvp" || gameMode === "PvP",
+      example_objects: objects.filter((o) => o.type === "fighter").map((o) => o.name).slice(0, 2),
+    },
+    {
+      id: "conditional_turnbased",
+      sum_type: "conditional",
+      os_type: "turn_based",
+      description: "Условные бонусы, пошагово (tactics RPG, card games)",
+      applicable: gameMode === "pve" || gameMode === "PvE",
+      example_objects: objects.filter((o) => o.type === "card" || o.type === "unit").map((o) => o.name).slice(0, 2),
+    },
+  ];
+
+  return {
+    combinations,
+    applicable_count: combinations.filter((c) => c.applicable).length,
+    bible_ref: "Bible 5.6.2",
+    warnings: [],
+  };
+}
+
 // TASK-4.14: Markov chain analysis + recursive EV (Bible 5.8).
-// Models state transitions between "winning", "losing", and "neutral" states
-// to compute steady-state probabilities and expected value of each object.
 function buildMarkovAnalysis(
   objects: BalanceObject[],
   monteCarloResult: { win_rates?: Record<string, number>; matchup_matrix?: Record<string, Record<string, number>> }
@@ -1159,6 +1225,8 @@ export async function POST(request: NextRequest) {
       balance_pathologies: balancePathologies,
       // TASK-4.14: Markov chain analysis + recursive EV (Bible 5.8).
       markov_analysis: buildMarkovAnalysis(objects, monteCarloResult),
+      // TASK-4.16: 6 combinations of sum × OS (Bible 5.6.2).
+      combinations_analysis: buildCombinationsAnalysis(objects, gameMode),
       monte_carlo_result: monteCarloResult,
       machinations_result: machinationsResult,
       stages_completed: stagesCompleted,

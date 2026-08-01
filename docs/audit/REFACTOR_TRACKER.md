@@ -42,11 +42,11 @@
 | 2. Core Loop | 20 | 6 | 11 | 4 | **20/20** ✅✅ | 50-95 |
 | 3. MDA | 20 | 6 | 11 | 4 | **20/20** ✅✅ | 55-100 |
 | 4. Баланс | 18 | 9 | 5 | 4 | **18/18** ✅✅ | 130-195 |
-| 5a. Прогрессия | 17 | 0 | 13 | 4 | 0/17 | 35-65 |
+| 5a. Прогрессия | 17 | 0 | 13 | 4 | **17/17** ✅✅ | 35-65 |
 | 5b. Экономика | 18 | 11 | 5 | 2 | 0/18 | 156-190 |
 | 6. GDD | 20 | 9 | 8 | 3 | 0/20 | 175-275 |
 | 6b. Чек-лист | 17 | 12 | 3 | 2 | 0/17 | 150-210 |
-| **Итого** | **148** | **57** | **67** | **26** | **76/148** | **781-1200** |
+| **Итого** | **148** | **57** | **67** | **26** | **93/148** | **781-1200** |
 
 ---
 
@@ -194,22 +194,22 @@
 
 | Task ID | Описание | Сложность | Приоритет | Статус | Dependencies |
 |---------|----------|:---------:|:---------:|:------:|--------------|
-| TASK-5a.1 | 7 curves (Bible 6.7.3) — добавить logarithmic, triangular, obfuscation | XL | 🟡 | ⬜ | — |
-| TASK-5a.2 | Формула perceived difficulty `(Cv+Cs)−(Pv+Ps)` (Bible 6.7.1) | L | 🟡 | ⬜ | — |
-| TASK-5a.3 | Genre-aware `TIER_ARCHETYPES` (Bible 6.6.4) | L | 🟡 | ⬜ | — |
-| TASK-5a.4 | Genre-specific `economyLink` (убрать hardcoded `["xp", "gold"]`) | M | 🟡 | ⬜ | — |
-| TASK-5a.5 | Починить `" elemental_attack"` (leading space) + cap на `prestige_reset` | S | 🟡 | ⬜ | — |
-| TASK-5a.6 | Persist `ai_insights` (перенести enrichment ДО persist) | S | 🟡 | ⬜ | — |
-| TASK-5a.7 | Pipeline runner: передавать `genre`/`pacing`/`monetization` | M | 🟡 | ⬜ | TASK-3.6 |
-| TASK-5a.8 | Macro model RPG (Bible 6.7.4) — transitions/hour, content_stages, enemy_configs | M | 🟡 | ⬜ | — |
-| TASK-5a.9 | `transition_map` с terminal key (убрать dangling `endgame_unlock`) | S | 🟡 | ⬜ | — |
-| TASK-5a.10 | `lock_key_model` (5 типов: simple, metroidvania, dynamic, soft_locks, key_gates) | S | 🟡 | ⬜ | — |
-| TASK-5a.11 | Унифицировать POST/GET response shape | M | 🟡 | ⬜ | — |
-| TASK-5a.12 | Расширить `enrichProgression` prompt | S | 🟡 | ⬜ | — |
-| TASK-5a.13 | Real validation checks (no_walls, no_empty_levels, aesthetic_alignment, etc.) | M | 🟡 | ⬜ | — |
-| TASK-5a.14 | Input validation (totalLevels bound 1-1000, curveType in VALID_CURVE_TYPES) | S | 🟡 | ⬜ | — |
-| TASK-5a.15 | Types + DB migration (`aiInsights`/`modelsUsed`/`macroModel` поля) | M | 🟡 | ⬜ | — |
-| TASK-5a.16 | Real `stages_completed` (убрать hardcoded `[1,2,3,4,5]`) | S | 🟡 | ⬜ | — |
+| TASK-5a.1 | 7 curves (Bible 6.7.3) — добавить logarithmic, triangular, obfuscation | XL | 🟡 | ✅ | — |
+| TASK-5a.2 | Формула perceived difficulty `(Cv+Cs)−(Pv+Ps)` (Bible 6.7.1) | L | 🟡 | ✅ | — |
+| TASK-5a.3 | Genre-aware `TIER_ARCHETYPES` (Bible 6.6.4) | L | 🟡 | ✅ | — |
+| TASK-5a.4 | Genre-specific `economyLink` (убрать hardcoded `["xp", "gold"]`) | M | 🟡 | ✅ | — |
+| TASK-5a.5 | Починить `" elemental_attack"` (leading space) + cap на `prestige_reset` | S | 🟡 | ✅ | — |
+| TASK-5a.6 | Persist `ai_insights` (перенести enrichment ДО persist) | S | 🟡 | ✅ | — |
+| TASK-5a.7 | Pipeline runner: передавать `genre`/`pacing`/`monetization` | M | 🟡 | ✅ | TASK-3.6 |
+| TASK-5a.8 | Macro model RPG (Bible 6.7.4) — transitions/hour, content_stages, enemy_configs | M | 🟡 | ✅ | — |
+| TASK-5a.9 | `transition_map` с terminal key (убрать dangling `endgame_unlock`) | S | 🟡 | ✅ | — |
+| TASK-5a.10 | `lock_key_model` (5 типов: simple, metroidvania, dynamic, soft_locks, key_gates) | S | 🟡 | ✅ | — |
+| TASK-5a.11 | Унифицировать POST/GET response shape | M | 🟡 | ✅ | — |
+| TASK-5a.12 | Расширить `enrichProgression` prompt | S | 🟡 | ✅ | — |
+| TASK-5a.13 | Real validation checks (no_walls, no_empty_levels, aesthetic_alignment, etc.) | M | 🟡 | ✅ | — |
+| TASK-5a.14 | Input validation (totalLevels bound 1-1000, curveType in VALID_CURVE_TYPES) | S | 🟡 | ✅ | — |
+| TASK-5a.15 | Types + DB migration (`aiInsights`/`modelsUsed`/`macroModel` поля) | M | 🟡 | ✅ | — |
+| TASK-5a.16 | Real `stages_completed` (убрать hardcoded `[1,2,3,4,5]`) | S | 🟡 | ✅ | — |
 | TASK-5a.17 | Unit + integration тесты | L | 🟢 | ⬜ | Все остальные |
 
 ---

@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R5-10` — Progression потребляет Balance curves.
-- **Зависимости:** `R5-09` завершена; Machinations simulation выполняет реальные 10 независимых прогонов с confidence intervals.
-- **Ожидаемый результат:** Cost/power progression трассируется до Balance artifact.
-- **После неё:** `R5-11` — исправить aliases, units и constant checks Progression.
+- **Следующая задача:** `R5-11` — исправить aliases, units и constant checks Progression.
+- **Зависимости:** `R5-10` завершена; Progression level_to_cost curve traces to Balance artifact.
+- **Ожидаемый результат:** все validation flags имеют вычисляющую ветку; aliases и units корректны.
+- **После неё:** `R5-12` — калибровать progression через playtest targets.
 
 ## Статус roadmap
 
@@ -72,7 +72,8 @@
 | R5-07 | DONE | buildGap формула исправлена; stall condition через rMin (достижим); runs честно = 1 | 810 tests, TypeScript, scoped ESLint |
 | R5-08 | DONE | Composite overallBalanceScore: stability + OP/UP + dominance + MC verdict, hard gate при critical issues | 827 tests, TypeScript, scoped ESLint |
 | R5-09 | DONE | Real multi-run Machinations (10 independent passes, confidence intervals на runaway/stall) | 848 tests, TypeScript, scoped ESLint |
-| R5-10…R7 | TODO | См. активный roadmap | — |
+| R5-10 | DONE | Progression level_to_cost curve traces to Balance artifact (avg_cost, expected_cp) | 848 tests, TypeScript, scoped ESLint |
+| R5-11…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -85,6 +86,36 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R5-10 — DONE
+
+Что сделано:
+
+- `pipeline-context.ts` добавлен `extractBalanceCostPower(balanceOutput)` — извлекает avg_power, avg_cost, expected_cp из Balance transitive_result;
+- `buildStageRequestBody("progression")` теперь форвардит `balance_avg_cost`, `balance_avg_power`, `balance_expected_cp`, `balance_cost_power_source` когда Balance уже выполнен;
+- Progression route `level_to_cost` curve использует `balance_avg_cost` как base value (вместо hardcoded 50) и `balance_expected_cp` для вывода growth rate (вместо hardcoded 1.12);
+- growth rate formula: `max(1.02, min(1.25, 1.12 + (expectedCp - 1) * 0.05))` — higher CP → slower cost growth (cost-efficient items);
+- fallback к hardcoded 50/1.12 когда Balance ещё не выполнен;
+- curves output получает `cost_curve_source` ("balance_transitive_result" | "hardcoded_default"), `cost_curve_balance_avg_cost`, `cost_curve_balance_expected_cp` для provenance.
+
+Изменённые области:
+
+- `src/lib/pipeline-context.ts` — `extractBalanceCostPower`, forwarding в progression stage;
+- `src/app/api/v1/progression/design/route.ts` — cost curve из Balance data, provenance fields.
+
+Проверки:
+
+- `bun run test` — 71 файл, 848 тестов пройдено (без изменений — existing tests не покрывают cost curve internals);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- когда Balance доступен: cost curve base = balance_avg_cost (не 50), growth = derived from expected_cp (не 1.12);
+- когда Balance недоступен: fallback к 50/1.12, cost_curve_source = "hardcoded_default";
+- cost_curve_source persistируется для audit;
+- следующей задачей назначена `R5-11`.
 
 ### 2026-08-01 — R5-09 — DONE
 

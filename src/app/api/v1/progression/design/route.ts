@@ -413,10 +413,30 @@ export async function POST(request: NextRequest) {
         : "linear";
     const powerCurve = buildCurve(powerCurveType, targetLevels, 10, 1.08);
 
-    // Level→Cost: usually same as XP but inverse-diminished if F2P
+    // Level→Cost: usually same as XP but inverse-diminished if F2P.
+    // R5-10: when Balance cost-power data is available (forwarded by the
+    // pipeline runner), use the Balance-derived avg_cost as the base value
+    // instead of the hardcoded 50. This traces the cost curve to the Balance
+    // artifact. Falls back to 50 when Balance hasn't run.
+    const balanceAvgCost = typeof body?.balance_avg_cost === "number" && body.balance_avg_cost > 0
+      ? body.balance_avg_cost
+      : null;
+    const balanceExpectedCp = typeof body?.balance_expected_cp === "number" && body.balance_expected_cp > 0
+      ? body.balance_expected_cp
+      : null;
     const costCurveType =
       monetizationModel === "f2p" ? "intermittent" : progressionType;
-    const costCurve = buildCurve(costCurveType, targetLevels, 50, 1.12);
+    // Derive cost base from Balance avg_cost, or fall back to 50.
+    const costBase = balanceAvgCost ?? 50;
+    // Derive growth rate from Balance expected CP ratio when available
+    // (higher CP → slower cost growth since items are more cost-efficient).
+    const costGrowthRate = balanceExpectedCp
+      ? Math.max(1.02, Math.min(1.25, 1.12 + (balanceExpectedCp - 1) * 0.05))
+      : 1.12;
+    const costCurve = buildCurve(costCurveType, targetLevels, costBase, costGrowthRate);
+    const costCurveSource = balanceAvgCost !== null
+      ? "balance_transitive_result"
+      : "hardcoded_default";
 
     // Difficulty: usually s_curve or exponential
     const difficultyCurveType =
@@ -433,6 +453,11 @@ export async function POST(request: NextRequest) {
       level_to_power: powerCurve,
       level_to_cost: costCurve,
       difficulty: difficultyCurve,
+      // R5-10: provenance — traces the cost curve base/growth to Balance or
+      // hardcoded default, so consumers can verify the curve is evidence-backed.
+      cost_curve_source: costCurveSource,
+      ...(balanceAvgCost !== null ? { cost_curve_balance_avg_cost: balanceAvgCost } : {}),
+      ...(balanceExpectedCp !== null ? { cost_curve_balance_expected_cp: balanceExpectedCp } : {}),
     };
 
     // --- Content plan ---

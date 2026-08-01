@@ -263,6 +263,59 @@ function lineage(context: PipelineContext): Record<string, string> {
 }
 
 /**
+ * R5-10: extract cost-power data from Balance stage output so Progression's
+ * level_to_cost curve can trace to the Balance artifact.
+ *
+ * Returns null when Balance has not yet run or the transitive result is
+ * missing. When available, returns { balance_avg_power, balance_avg_cost,
+ * balance_expected_cp, balance_cost_power_source }.
+ */
+function extractBalanceCostPower(balanceOutput: unknown): Record<string, unknown> | null {
+  const balance = asRecord(balanceOutput);
+  if (!balance) return null;
+  const transitive = asRecord(balance?.transitive_result);
+  if (!transitive) return null;
+
+  // Extract avg power and avg cost from the transitive result.
+  const powers = transitive.powers;
+  const expectedCp = typeof transitive.expected_cp === "number" ? transitive.expected_cp : null;
+
+  let avgPower: number | null = null;
+  let avgCost: number | null = null;
+
+  if (Array.isArray(powers)) {
+    const powerValues = powers
+      .map((p) => {
+        const obj = asRecord(p);
+        return typeof obj?.power === "number" ? obj.power : null;
+      })
+      .filter((v): v is number => v !== null);
+    if (powerValues.length > 0) {
+      avgPower = powerValues.reduce((s, v) => s + v, 0) / powerValues.length;
+    }
+
+    const costValues = powers
+      .map((p) => {
+        const obj = asRecord(p);
+        return typeof obj?.cost === "number" ? obj.cost : (typeof obj?.effective_cost === "number" ? obj.effective_cost : null);
+      })
+      .filter((v): v is number => v !== null);
+    if (costValues.length > 0) {
+      avgCost = costValues.reduce((s, v) => s + v, 0) / costValues.length;
+    }
+  }
+
+  if (avgPower === null && avgCost === null && expectedCp === null) return null;
+
+  return {
+    balance_avg_power: avgPower,
+    balance_avg_cost: avgCost,
+    balance_expected_cp: expectedCp,
+    balance_cost_power_source: "balance_transitive_result",
+  };
+}
+
+/**
  * R5-02: extract the MDA structured mechanic_set (5 categories) from the
  * MDA stage output record, so the Balance stage can build typed objects
  * from the domain model instead of hashing mechanic names.
@@ -365,6 +418,9 @@ export function buildStageRequestBody(
         target_levels: input.totalLevels,
         use_ai: input.useAi,
         upstream_versions: upstreamVersions,
+        // R5-10: forward Balance cost-power data so Progression's level_to_cost
+        // curve traces to the Balance artifact instead of hardcoded base=50.
+        ...(extractBalanceCostPower(context.outputs.balance) ?? {}),
       };
     case "economy":
       return {

@@ -261,10 +261,27 @@ function buildTransitiveResult(objects: BalanceObject[], balanceType: string) {
     suggestions.push("Transitive balance looks healthy — consider A/B testing in simulation");
   }
 
+  // TASK-4.13: Fulcrum object (Bible 5.5.2) — O(n) reference point.
+  // The fulcrum is the object with median cost and median power.
+  // All other objects are compared relative to it, avoiding O(n²) pairwise comparison.
+  const sortedByCost = [...transitiveObjects].sort((a, b) => a.effective_cost - b.effective_cost);
+  const sortedByPower = [...transitiveObjects].sort((a, b) => a.power - b.power);
+  const medianIdx = Math.floor(transitiveObjects.length / 2);
+  const fulcrumObject = sortedByCost[medianIdx] || transitiveObjects[0];
+  const fulcrumPower = sortedByPower[medianIdx]?.power || fulcrumObject?.power || 50;
+  const fulcrum = {
+    name: fulcrumObject?.name || "N/A",
+    cost: fulcrumObject?.effective_cost || 100,
+    power: fulcrumPower,
+    cp_ratio: Number((fulcrumPower / Math.max(1, fulcrumObject?.effective_cost || 100)).toFixed(3)),
+    description: `Fulcrum (Bible 5.5.2): median-cost object used as O(n) reference. All objects compared relative to this.`,
+  };
+
   return {
     attribute_weights: weights,
     cost_curve_model: costCurveModel,
     expected_cp: expectedCp,
+    fulcrum,
     objects: transitiveObjects,
     overpowered,
     underpowered,

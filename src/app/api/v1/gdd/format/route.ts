@@ -1,14 +1,15 @@
 /**
  * POST /api/v1/gdd/format
- * Выбор формата GDD (one_sheet | ten_pager | full).
- * Body: { project_id, format }
+ * Выбор формата GDD (one_sheet | ten_pager | full_gdd; full is an alias).
+ * Body: { project_id, target_format? | format? }
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/server-auth";
 import { db } from "@/lib/db";
 import { UNAUTH, SERVER_ERROR, VALIDATION_ERROR } from "@/lib/api-helpers";
+import { normalizeGddFormat } from "@/lib/contracts/stage-contracts";
 
-const VALID_FORMATS = ["one_sheet", "ten_pager", "full"];
+const VALID_FORMATS = ["one_sheet", "ten_pager", "full_gdd"];
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser(request);
@@ -16,7 +17,8 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const projectId = body?.project_id?.toString().trim();
-    const format = body?.format?.toString().trim();
+    const normalizedFormat = normalizeGddFormat(body?.target_format ?? body?.format);
+    const format = typeof normalizedFormat === "string" ? normalizedFormat : undefined;
 
     if (!projectId) return VALIDATION_ERROR("project_id обязателен");
     if (!format || !VALID_FORMATS.includes(format)) {

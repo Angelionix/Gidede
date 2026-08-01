@@ -32,19 +32,15 @@ import {
 } from "@/lib/api-helpers";
 import { enrichGdd } from "@/lib/ai-service";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
-import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
+import {
+  assertStageOutput,
+  GDD_DOCUMENT_FORMATS,
+  STAGE_CONTRACT_VERSION,
+  validateStageInput,
+} from "@/lib/contracts/stage-contracts";
 import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
 
-const VALID_FORMATS = [
-  "one_sheet",
-  "ten_pager",
-  "treatment",
-  "sketch_design",
-  "full_gdd",
-  "concept_doc",
-  "narrative_bible",
-  "modular",
-];
+const VALID_FORMATS: readonly string[] = GDD_DOCUMENT_FORMATS;
 const VALID_DETAIL = ["overview", "standard", "detailed", "exhaustive"];
 const VALID_AUDIENCE = [
   "investor",
@@ -1002,13 +998,13 @@ export async function POST(request: NextRequest) {
   if (!user) return UNAUTH();
 
   try {
-    const body = await request.json().catch(() => ({}));
-    const contractInput = validateStageInput("gdd", body);
+    const requestBody = await request.json().catch(() => ({}));
+    const contractInput = validateStageInput("gdd", requestBody);
     if (!contractInput.success) return VALIDATION_ERROR(contractInput.error);
+    const body = contractInput.data;
     const projectId = body?.project_id?.toString().trim() || undefined;
     const useAi = body?.use_ai === true || body?.use_ai === "true";
-    // TASK-6.5 FIXED: accept both 'target_format' and 'format' (pipeline runner sends 'format').
-    const targetFormat = body?.target_format?.toString().trim() || body?.format?.toString().trim() || "full_gdd";
+    const targetFormat = body?.target_format?.toString().trim() || "full_gdd";
     const detailLevel = body?.detail_level?.toString().trim() || "standard";
     const audience = body?.target_audience_doc?.toString().trim() || "team_sync";
     const projectStage = body?.project_stage?.toString().trim() || "preproduction";

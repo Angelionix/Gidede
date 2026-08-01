@@ -17,6 +17,24 @@ export const CONTRACT_STAGE_IDS = [
 
 export type ContractStageId = (typeof CONTRACT_STAGE_IDS)[number];
 
+export const GDD_DOCUMENT_FORMATS = [
+  "one_sheet",
+  "ten_pager",
+  "treatment",
+  "sketch_design",
+  "full_gdd",
+  "concept_doc",
+  "narrative_bible",
+  "modular",
+] as const;
+
+export type GddDocumentFormat = (typeof GDD_DOCUMENT_FORMATS)[number];
+
+export function isGddDocumentFormat(value: unknown): value is GddDocumentFormat {
+  return typeof value === "string"
+    && (GDD_DOCUMENT_FORMATS as readonly string[]).includes(value);
+}
+
 const stringFlag = z.union([z.boolean(), z.literal("true"), z.literal("false")]);
 const stringArray = z.array(z.string().trim().min(1));
 const optionalId = z.string().trim().min(1).optional();
@@ -25,6 +43,38 @@ const upstreamVersionsInput = z.record(
   z.string().trim().min(1),
   z.string().trim().min(1),
 ).optional();
+
+function asInputRecord(payload: unknown): Record<string, unknown> | null {
+  return payload && typeof payload === "object" && !Array.isArray(payload)
+    ? payload as Record<string, unknown>
+    : null;
+}
+
+export function normalizeProgressionInputAliases(payload: unknown): unknown {
+  const input = asInputRecord(payload);
+  if (!input) return payload;
+  const { total_levels: totalLevels, ...canonical } = input;
+  const targetLevels = input.target_levels ?? totalLevels;
+  return targetLevels === undefined
+    ? canonical
+    : { ...canonical, target_levels: targetLevels };
+}
+
+export function normalizeGddFormat(value: unknown): unknown {
+  if (typeof value !== "string") return value;
+  const normalized = value.trim();
+  return normalized === "full" ? "full_gdd" : normalized;
+}
+
+export function normalizeGddInputAliases(payload: unknown): unknown {
+  const input = asInputRecord(payload);
+  if (!input) return payload;
+  const { format, ...canonical } = input;
+  const targetFormat = normalizeGddFormat(input.target_format ?? format);
+  return targetFormat === undefined
+    ? canonical
+    : { ...canonical, target_format: targetFormat };
+}
 
 const algorithmMetadataSchema = z.object({
   taxonomy_version: z.literal(1),
@@ -122,18 +172,17 @@ const balanceInputV1 = z.object({
   upstream_versions: upstreamVersionsInput,
 }).passthrough();
 
-const progressionInputV1 = z.object({
+const progressionInputV1 = z.preprocess(normalizeProgressionInputAliases, z.object({
   genre: z.string().trim().min(1).optional(),
   target_duration: numericInput.optional(),
   target_levels: numericInput.optional(),
-  total_levels: numericInput.optional(),
   progression_type: z.string().trim().min(1).optional(),
   monetization_model: z.string().trim().min(1).optional(),
   pacing: z.string().trim().min(1).optional(),
   use_ai: stringFlag.optional(),
   project_id: optionalId,
   upstream_versions: upstreamVersionsInput,
-}).passthrough();
+}).passthrough());
 
 const economyInputV1 = z.object({
   genre: z.string().trim().min(1).optional(),
@@ -144,9 +193,8 @@ const economyInputV1 = z.object({
   upstream_versions: upstreamVersionsInput,
 }).passthrough();
 
-const gddInputV1 = z.object({
-  target_format: z.string().trim().min(1).optional(),
-  format: z.string().trim().min(1).optional(),
+const gddInputV1 = z.preprocess(normalizeGddInputAliases, z.object({
+  target_format: z.enum(GDD_DOCUMENT_FORMATS).optional(),
   target_audience_doc: z.string().trim().min(1).optional(),
   detail_level: z.string().trim().min(1).optional(),
   project_stage: z.string().trim().min(1).optional(),
@@ -156,7 +204,7 @@ const gddInputV1 = z.object({
   use_ai: stringFlag.optional(),
   project_id: optionalId,
   upstream_versions: upstreamVersionsInput,
-}).passthrough();
+}).passthrough());
 
 const validationInputV1 = z.object({
   depth: z.string().trim().min(1).optional(),
@@ -241,7 +289,7 @@ export const STAGE_CONTRACTS_V1 = {
 } as const;
 
 export type StageInputValidation =
-  | { success: true }
+  | { success: true; data: Record<string, unknown> }
   | { success: false; error: string };
 
 function formatIssues(error: z.ZodError): string {
@@ -253,7 +301,7 @@ function formatIssues(error: z.ZodError): string {
 export function validateStageInput(stage: ContractStageId, payload: unknown): StageInputValidation {
   const result = STAGE_CONTRACTS_V1[stage].input.safeParse(payload);
   return result.success
-    ? { success: true }
+    ? { success: true, data: result.data as Record<string, unknown> }
     : { success: false, error: `Contract ${stage}@${STAGE_CONTRACT_VERSION}: ${formatIssues(result.error)}` };
 }
 

@@ -57,7 +57,7 @@ describe("stage contracts v1", () => {
     expect(ARTIFACT_SCHEMA_VERSION).toBe(STAGE_CONTRACT_VERSION);
     for (const stage of CONTRACT_STAGE_IDS) {
       expect(STAGE_CONTRACTS_V1[stage].version).toBe(STAGE_CONTRACT_VERSION);
-      expect(validateStageInput(stage, VALID_INPUTS[stage])).toEqual({ success: true });
+      expect(validateStageInput(stage, VALID_INPUTS[stage]).success).toBe(true);
       expect(() => assertStageOutput(stage, output(stage))).not.toThrow();
     }
   });
@@ -76,7 +76,39 @@ describe("stage contracts v1", () => {
     }).success).toBe(false);
     expect(validateStageInput("mda", {
       upstream_versions: { concept: "concept-artifact@2" },
-    })).toEqual({ success: true });
+    }).success).toBe(true);
+  });
+
+  it("normalizes progression and GDD aliases to canonical contract fields", () => {
+    const progression = validateStageInput("progression", {
+      total_levels: "37",
+    });
+    expect(progression.success).toBe(true);
+    if (progression.success) {
+      expect(progression.data.target_levels).toBe("37");
+      expect(progression.data).not.toHaveProperty("total_levels");
+    }
+
+    const gdd = validateStageInput("gdd", { format: "full" });
+    expect(gdd.success).toBe(true);
+    if (gdd.success) {
+      expect(gdd.data.target_format).toBe("full_gdd");
+      expect(gdd.data).not.toHaveProperty("format");
+    }
+  });
+
+  it("gives canonical fields precedence when both alias names are present", () => {
+    const progression = validateStageInput("progression", {
+      target_levels: 24,
+      total_levels: 99,
+    });
+    expect(progression.success && progression.data.target_levels).toBe(24);
+
+    const gdd = validateStageInput("gdd", {
+      target_format: "ten_pager",
+      format: "full",
+    });
+    expect(gdd.success && gdd.data.target_format).toBe("ten_pager");
   });
 
   it("rejects an invalid or unversioned output before persistence", () => {

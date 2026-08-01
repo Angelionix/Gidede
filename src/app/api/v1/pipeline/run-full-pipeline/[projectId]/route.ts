@@ -21,7 +21,7 @@ import {
   createPipelineContext,
   recordStageOutput,
   resolvePipelineIdea,
-  type PipelineInput,
+  resolvePipelineInput,
 } from "@/lib/pipeline-context";
 import type { ContractStageId } from "@/lib/contracts/stage-contracts";
 import { db } from "@/lib/db";
@@ -105,22 +105,7 @@ export async function POST(
       );
     }
 
-    const input: PipelineInput = {
-      idea,
-      genre: requestBody?.genre ?? snapshot.projectGenre,
-      useAi: requestBody?.use_ai === true || requestBody?.use_ai === "true",
-      targetAesthetics: Array.isArray(requestBody?.target_aesthetics)
-        ? requestBody.target_aesthetics.filter((aesthetic: unknown) => typeof aesthetic === "string")
-        : [],
-      totalLevels:
-        typeof requestBody?.total_levels === "number" && requestBody.total_levels > 0
-          ? requestBody.total_levels
-          : 50,
-      format:
-        requestBody?.format === "ten_pager" || requestBody?.format === "full"
-          ? requestBody.format
-          : "one_sheet",
-    };
+    const input = resolvePipelineInput(requestBody, idea, snapshot.projectGenre);
 
     const internalToken = signAccessToken(user.id, user.email);
     const authHeader = `Bearer ${internalToken}`;

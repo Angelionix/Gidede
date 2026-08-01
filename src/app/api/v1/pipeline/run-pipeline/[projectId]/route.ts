@@ -21,8 +21,8 @@ import {
   createPipelineContext,
   recordStageOutput,
   resolvePipelineIdea,
+  resolvePipelineInput,
   seedStageOutput,
-  type PipelineInput,
 } from "@/lib/pipeline-context";
 import type { ContractStageId } from "@/lib/contracts/stage-contracts";
 import { db } from "@/lib/db";
@@ -104,22 +104,7 @@ export async function POST(
       );
     }
 
-    const input: PipelineInput = {
-      idea,
-      genre: requestBody?.genre ?? project.genre,
-      useAi: requestBody?.use_ai === true || requestBody?.use_ai === "true",
-      targetAesthetics: Array.isArray(requestBody?.target_aesthetics)
-        ? requestBody.target_aesthetics.filter((value: unknown) => typeof value === "string")
-        : [],
-      totalLevels:
-        typeof requestBody?.total_levels === "number" && requestBody.total_levels > 0
-          ? requestBody.total_levels
-          : 50,
-      format:
-        requestBody?.format === "ten_pager" || requestBody?.format === "full"
-          ? requestBody.format
-          : "one_sheet",
-    };
+    const input = resolvePipelineInput(requestBody, idea, project.genre);
 
     const lastSelectedIndex = STAGES.findLastIndex((stage) => blockIds.includes(stage.block_id));
     const context = createPipelineContext();

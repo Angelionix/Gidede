@@ -2,7 +2,13 @@ import {
   artifactEnvelopeSchema,
   type ArtifactEnvelope,
 } from "@/lib/contracts/artifact-envelope";
-import type { ContractStageId } from "@/lib/contracts/stage-contracts";
+import {
+  isGddDocumentFormat,
+  normalizeGddInputAliases,
+  normalizeProgressionInputAliases,
+  type ContractStageId,
+  type GddDocumentFormat,
+} from "@/lib/contracts/stage-contracts";
 
 export interface PipelineInput {
   idea: string;
@@ -10,7 +16,7 @@ export interface PipelineInput {
   useAi: boolean;
   targetAesthetics: string[];
   totalLevels: number;
-  format: string;
+  format: GddDocumentFormat;
 }
 
 export interface PipelineContext {
@@ -36,6 +42,35 @@ export function resolvePipelineIdea(
     if (normalized.length >= 10) return normalized;
   }
   return null;
+}
+
+export function resolvePipelineInput(
+  requestBody: unknown,
+  idea: string,
+  projectGenre: string | null | undefined,
+): PipelineInput {
+  const body = asRecord(requestBody) ?? {};
+  const progression = asRecord(normalizeProgressionInputAliases(body)) ?? {};
+  const gdd = asRecord(normalizeGddInputAliases(body)) ?? {};
+  const requestedLevels = Number(progression.target_levels);
+  const requestedFormat = gdd.target_format;
+
+  return {
+    idea,
+    genre: typeof body.genre === "string" && body.genre.trim()
+      ? body.genre.trim()
+      : projectGenre ?? null,
+    useAi: body.use_ai === true || body.use_ai === "true",
+    targetAesthetics: Array.isArray(body.target_aesthetics)
+      ? body.target_aesthetics.filter(
+          (aesthetic): aesthetic is string => typeof aesthetic === "string" && aesthetic.trim().length > 0,
+        )
+      : [],
+    totalLevels: Number.isFinite(requestedLevels) && requestedLevels > 0
+      ? Math.min(500, requestedLevels)
+      : 50,
+    format: isGddDocumentFormat(requestedFormat) ? requestedFormat : "one_sheet",
+  };
 }
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -236,7 +271,7 @@ export function buildStageRequestBody(
       };
     case "gdd":
       return {
-        format: input.format,
+        target_format: input.format,
         use_ai: input.useAi,
         upstream_versions: upstreamVersions,
       };

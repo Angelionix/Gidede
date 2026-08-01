@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R1-05` — нормализовать aliases формата GDD и количества уровней.
-- **Зависимости:** `R1-04` завершена; full и partial runners используют реальные данные проекта и `PipelineContext`.
-- **Ожидаемый результат:** `full`/`full_gdd` и `total_levels`/`target_levels` имеют единое каноническое представление и проходят E2E.
-- **После неё:** `R1-06` — ввести честные статусы выполнения пайплайна.
+- **Следующая задача:** `R1-06` — ввести честные статусы выполнения пайплайна.
+- **Зависимости:** `R1-05` завершена; pipeline inputs нормализуются до канонических полей до выполнения стадий.
+- **Ожидаемый результат:** downstream error не маскируется `ok: true`, а run/stage используют согласованные статусы `success`, `partial`, `failed`, `blocked`, `needs_review`.
+- **После неё:** `R1-07` — реализовать quality gates и stop/resume.
 
 ## Правила ведения
 
@@ -38,7 +38,7 @@
 | R1-02 | DONE | `ArtifactEnvelope`, SHA-256 input hash и upstream tracing | 294 tests, TypeScript, scoped ESLint |
 | R1-03 | DONE | PipelineContext: stage output → next input + cumulative lineage | 300 tests, TypeScript, scoped ESLint |
 | R1-04 | DONE | Реальная project idea и persisted stage outputs без hardcoded inputs | 302 tests, TypeScript, scoped ESLint |
-| R1-05 | TODO | Aliases `full`/`full_gdd`, `total_levels`/`target_levels` | — |
+| R1-05 | DONE | Aliases приводятся к `full_gdd`, `target_format` и `target_levels` на contract boundary | 305 tests, TypeScript, scoped ESLint |
 | R1-06 | TODO | Статусы success/partial/failed/blocked/needs_review | — |
 | R1-07 | TODO | Quality gates и stop/resume | — |
 | R1-08 | TODO | Stale propagation | — |
@@ -47,6 +47,44 @@
 | R2…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R1-05 — DONE
+
+Что сделано:
+
+- versioned input contracts нормализуют `total_levels → target_levels`, `format → target_format` и `full → full_gdd`;
+- после успешной валидации `validateStageInput` возвращает канонический payload, а не только boolean-флаг;
+- Progression и GDD handlers вычисляют результат, создают `ArtifactEnvelope` и сохраняют input data из канонического payload;
+- при одновременной передаче alias и canonical field каноническое поле имеет приоритет;
+- full и partial runners используют единый `resolvePipelineInput`, принимающий как старые, так и новые имена;
+- runner формирует только `target_levels` для Progression и `target_format` для GDD;
+- UI полного запуска переведён на канонические поля;
+- `/gdd/format` и `/gdd/generate-full` принимают оба имени формата и возвращают `full_gdd` для legacy-значения `full`.
+
+Изменённые области:
+
+- `src/lib/contracts/stage-contracts.ts`
+- `src/lib/contracts/stage-contracts.test.ts`
+- `src/lib/pipeline-context.ts`
+- `src/lib/pipeline-context.test.ts`
+- Progression, GDD и pipeline API routes
+- `src/app/pipeline/page.tsx`
+
+Проверки:
+
+- contract/context tests — 2 файла, 14 тестов пройдены;
+- `npm run test` — 16 файлов, 305 тестов пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых файлов — ошибок нет;
+- поиск legacy-полей во внутренних pipeline requests — совпадений нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- тест полного пути input normalization → runner request подтверждает `total_levels: 37 → target_levels: 37` без возврата к default 50;
+- тот же тест подтверждает `format: "full" → target_format: "full_gdd"`;
+- contract tests подтверждают удаление alias-полей из parsed payload и приоритет canonical fields при конфликте;
+- следующей задачей назначена `R1-06`.
 
 ### 2026-08-01 — R1-04 — DONE
 

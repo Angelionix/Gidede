@@ -102,8 +102,8 @@ export default function PipelinePage() {
         body: JSON.stringify({
           idea: project.description?.trim() || project.name.trim(),
           genre: project.genre,
-          format: "one_sheet",
-          total_levels: 50,
+          target_format: "one_sheet",
+          target_levels: 50,
         }),
       });
 

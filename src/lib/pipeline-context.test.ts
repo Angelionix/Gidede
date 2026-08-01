@@ -10,6 +10,7 @@ import {
   extractConceptMechanics,
   recordStageOutput,
   resolvePipelineIdea,
+  resolvePipelineInput,
   seedStageOutput,
   type PipelineInput,
 } from "./pipeline-context";
@@ -134,19 +135,37 @@ describe("pipeline context", () => {
     expect(context.upstreamVersions).toEqual({});
   });
 
+  it("carries legacy pipeline aliases into canonical progression and full GDD requests", () => {
+    const input = resolvePipelineInput({
+      total_levels: 37,
+      format: "full",
+    }, INPUT.idea, "strategy");
+    expect(input).toMatchObject({ totalLevels: 37, format: "full_gdd", genre: "strategy" });
+
+    const progression = buildStageRequestBody("progression", input, createPipelineContext());
+    expect(progression).toMatchObject({ target_levels: 37, genre: "strategy" });
+    expect(progression).not.toHaveProperty("total_levels");
+    expect(validateStageInput("progression", progression).success).toBe(true);
+
+    const gdd = buildStageRequestBody("gdd", input, createPipelineContext());
+    expect(gdd).toMatchObject({ target_format: "full_gdd" });
+    expect(gdd).not.toHaveProperty("format");
+    expect(validateStageInput("gdd", gdd).success).toBe(true);
+  });
+
   it("builds contract-valid requests for all eight stages with cumulative lineage", () => {
     const context = createPipelineContext();
 
     for (const stage of CONTRACT_STAGE_IDS) {
       if (stage === "concept") {
         const request = buildStageRequestBody(stage, INPUT, context);
-        expect(validateStageInput(stage, request), stage).toEqual({ success: true });
+        expect(validateStageInput(stage, request).success, stage).toBe(true);
         recordStageOutput(context, stage, conceptOutput());
         continue;
       }
 
       const request = buildStageRequestBody(stage, INPUT, context);
-      expect(validateStageInput(stage, request), stage).toEqual({ success: true });
+      expect(validateStageInput(stage, request).success, stage).toBe(true);
       recordStageOutput(context, stage, {
         artifact: createArtifactEnvelope(stage, request),
       });

@@ -253,9 +253,10 @@ export async function POST(request: NextRequest) {
   if (!user) return UNAUTH();
 
   try {
-    const body = await request.json().catch(() => ({}));
-    const contractInput = validateStageInput("progression", body);
+    const requestBody = await request.json().catch(() => ({}));
+    const contractInput = validateStageInput("progression", requestBody);
     if (!contractInput.success) return VALIDATION_ERROR(contractInput.error);
+    const body = contractInput.data;
     const projectId = body?.project_id?.toString().trim() || undefined;
     const useAi = body?.use_ai === true || body?.use_ai === "true";
     const genre = body?.genre?.toString().trim() || "rpg";

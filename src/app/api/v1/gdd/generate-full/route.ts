@@ -1,12 +1,15 @@
 /**
  * POST /api/v1/gdd/generate-full
  * Полный пайплайн GDD: format → map → auto-fill → generate.
- * Body: { project_id, format? }
+ * Body: { project_id, target_format? | format? }
  */
 import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/server-auth";
-import { db } from "@/lib/db";
 import { UNAUTH, SERVER_ERROR, VALIDATION_ERROR, getOwnedProject, safeJsonParse } from "@/lib/api-helpers";
+import {
+  isGddDocumentFormat,
+  normalizeGddFormat,
+} from "@/lib/contracts/stage-contracts";
 
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser(request);
@@ -14,8 +17,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json().catch(() => ({}));
     const projectId = body?.project_id?.toString().trim();
-    const format = body?.format?.toString().trim() || "one_sheet";
+    const normalizedFormat = normalizeGddFormat(body?.target_format ?? body?.format ?? "one_sheet");
     if (!projectId) return VALIDATION_ERROR("project_id обязателен");
+    if (!isGddDocumentFormat(normalizedFormat)) {
+      return VALIDATION_ERROR("Неизвестный формат GDD");
+    }
+    const format = normalizedFormat;
 
     const owned = await getOwnedProject({ id: user.id, email: user.email, name: user.name }, projectId);
     if (owned instanceof NextResponse) return owned;

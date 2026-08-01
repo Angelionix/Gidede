@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R5-08` — composite overall balance score + hard sub-gates.
-- **Зависимости:** `R5-07` завершена; buildGap формула исправлена, stall condition достижим через rMin, runs честно = 1.
-- **Ожидаемый результат:** OP/dominance/POOR verdict уменьшают score независимо от stability; critical issues — hard gate.
-- **После неё:** `R5-09` — исполнять реальную combat/economy model, N runs и confidence intervals.
+- **Следующая задача:** `R5-09` — исполнять реальную combat/economy model, N runs и confidence intervals.
+- **Зависимости:** `R5-08` завершена; overallBalanceScore — composite из stability + OP/UP + dominance + MC verdict, с hard gate при critical issues.
+- **Ожидаемый результат:** `runs=N` соответствует N независимым прогонам; confidence intervals включены.
+- **После неё:** `R5-10` — Progression потребляет Balance curves.
 
 ## Статус roadmap
 
@@ -70,7 +70,8 @@
 | R5-05 | DONE | findAllRpsCycles: перебирает все cycles (не только consecutive), без early break, deduplicates rotations | 793 tests, TypeScript, scoped ESLint |
 | R5-06 | DONE | Monte Carlo seed = hash(projectId + objects + simVersion) — изменение objects меняет seed | 810 tests, TypeScript, scoped ESLint |
 | R5-07 | DONE | buildGap формула исправлена; stall condition через rMin (достижим); runs честно = 1 | 810 tests, TypeScript, scoped ESLint |
-| R5-08…R7 | TODO | См. активный roadmap | — |
+| R5-08 | DONE | Composite overallBalanceScore: stability + OP/UP + dominance + MC verdict, hard gate при critical issues | 827 tests, TypeScript, scoped ESLint |
+| R5-09…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -83,6 +84,44 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R5-08 — DONE
+
+Что сделано:
+
+- создан модуль `src/lib/balance/composite-score.ts` с `computeCompositeBalanceScore`;
+- composite formula: `score = stability - 0.10*(OP_frac + UP_frac) - 0.15*has_dominant - 0.05*dominated_frac - MC_verdict_penalty(0/0.10/0.20)`;
+- hard gate: если `criticalIssueCount > 0`, score capped at 0.3 (нельзя быть "balanced" при critical issues);
+- score clamped to [0, 1];
+- возвращает per-factor breakdown (`factors[]` с name, contribution, reason), `hard_gate_triggered`, `reason`;
+- Balance route заменяет `overallBalanceScore = stability.overall_stability` на `computeCompositeBalanceScore`;
+- **исправляет баг**: ранее игра с massive transitive imbalance но stable Machinations decay curves scored "balanced" (stability только); теперь OP/UP, dominance и MC verdict независимо уменьшают score;
+- `algorithm-metadata` обновлён: `overallBalanceScore` имеет provenance о composite formula и hard gate.
+
+Изменённые области:
+
+- `src/lib/balance/composite-score.ts` (новый, 140 строк) и `composite-score.test.ts` (новый, 17 тестов);
+- `src/app/api/v1/balance/analyze/route.ts` — `overallBalanceScore` из `computeCompositeBalanceScore`;
+- `src/lib/algorithm-metadata.ts` — provenance для overallBalanceScore.
+
+Проверки:
+
+- `bun run test` — 70 файлов, 827 тестов пройдено (было 810; +17 composite-score);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- no issues + stability 0.9 → score 0.9;
+- OP/UP reduces score independently of stability (2 OP + 1 UP из 4 → -0.075);
+- dominant strategy → -0.15;
+- MC POOR → -0.20, MODERATE → -0.10, GOOD → 0;
+- critical issues → hard gate caps score at 0.3 (even with stability=1.0);
+- multiple penalties stack (verified);
+- score bounded [0, 1];
+- per-factor breakdown persisted;
+- следующей задачей назначена `R5-09`.
 
 ### 2026-08-01 — R5-07 — DONE
 

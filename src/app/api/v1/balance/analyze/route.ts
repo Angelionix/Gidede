@@ -45,6 +45,7 @@ import { validateBalanceObjects, type BalanceObjectInput } from "@/lib/balance/i
 import { solveNash } from "@/lib/balance/nash-solver";
 import { findAllRpsCycles } from "@/lib/balance/rps-cycles";
 import { computeBalanceSeed } from "@/lib/balance/sim-seed";
+import { computeCompositeBalanceScore } from "@/lib/balance/composite-score";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
@@ -1324,7 +1325,21 @@ export async function POST(request: NextRequest) {
     const situationalValues = JSON.stringify(situationalResult);
     const fullResult = JSON.stringify(result);
 
-    const overallBalanceScore = stability.overall_stability;
+    // R5-08: composite balance score incorporating transitive OP/UP,
+    // intransitive dominance, Monte Carlo verdict AND stability. Before:
+    // overallBalanceScore = stability.overall_stability only, which ignored
+    // OP/UP and dominance. Hard gate: critical issues cap score at 0.3.
+    const compositeScore = computeCompositeBalanceScore({
+      stabilityIndex: stability.overall_stability,
+      overpoweredCount: transitiveResult.overpowered.length,
+      underpoweredCount: transitiveResult.underpowered.length,
+      totalObjects: objects.length,
+      hasDominantStrategy: intransitiveResult.has_dominant_strategy,
+      dominatedStrategyCount: intransitiveResult.dominated_strategies.length,
+      monteCarloVerdict: monteCarloResult.balance_verdict as "GOOD" | "MODERATE" | "POOR",
+      criticalIssueCount: machinationsResult.quality?.critical_issues?.length ?? 0,
+    });
+    const overallBalanceScore = compositeScore.score;
     const imbalanceCount =
       transitiveResult.overpowered.length +
       transitiveResult.underpowered.length +

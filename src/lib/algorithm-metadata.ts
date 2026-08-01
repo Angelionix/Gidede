@@ -180,6 +180,11 @@ const SCORE_METADATA_BY_STAGE = {
       "heuristic",
       "Overall stability aggregates synthetic balance diagnostics and is not a playtest score.",
     ),
+    "overallBalanceScore": score(
+      "heuristic",
+      "Composite score (R5-08): stability - transitive OP/UP penalty - intransitive dominance penalty - Monte Carlo verdict penalty, with a hard gate capping score at 0.3 when critical issues exist.",
+      "Before R5-08 this was just stability.overall_stability, which ignored OP/UP, dominance and MC verdict.",
+    ),
   },
   progression: {
     "content_plan.perceived_difficulty_table[*].target_perceived_difficulty": score(

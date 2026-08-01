@@ -77,6 +77,11 @@ function getApiBaseUrl(): string {
 function ChatMessage({ msg }: { msg: ChatMsg }) {
   const isUser = msg.role === "user";
   const isSystem = msg.role === "system";
+  const sourceIds = Array.isArray(msg.metadata?.source_ids)
+    ? msg.metadata.source_ids.filter(
+        (value): value is string => typeof value === "string"
+      )
+    : [];
 
   return (
     <div
@@ -109,6 +114,11 @@ function ChatMessage({ msg }: { msg: ChatMsg }) {
         {!!msg.metadata?.model_used && !isUser && !msg.isStreaming && (
           <div className="mt-1 text-[10px] opacity-60">
             {(msg.metadata.model_used as string) || ""} • {(msg.metadata.provider as string) || ""} • {((msg.metadata.latency_ms as number) || 0)}ms
+          </div>
+        )}
+        {sourceIds.length > 0 && !isUser && !msg.isStreaming && (
+          <div className="mt-1 text-[10px] opacity-60">
+            Библия: {sourceIds.map((sourceId) => `[${sourceId}]`).join(", ")}
           </div>
         )}
       </div>
@@ -545,6 +555,8 @@ export default function Block7Page() {
                             model_used: event.model_used || "",
                             provider: event.provider || "",
                             latency_ms: event.latency_ms || 0,
+                            source_ids: event.source_ids || [],
+                            sources: event.sources || [],
                           },
                         }
                       : m
@@ -588,6 +600,8 @@ export default function Block7Page() {
             model_used: string;
             provider: string;
             latency_ms: number;
+            source_ids: string[];
+            sources: Array<Record<string, unknown>>;
           }>("/assistant/chat", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -609,6 +623,8 @@ export default function Block7Page() {
                       model_used: data.model_used,
                       provider: data.provider,
                       latency_ms: data.latency_ms,
+                      source_ids: data.source_ids || [],
+                      sources: data.sources || [],
                     },
                   }
                 : m

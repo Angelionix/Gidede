@@ -112,6 +112,20 @@ unique node IDs, valid edge endpoints, bounded graph sizes, an event node and a
 win/lose outcome. Callers receive `null` after a failed bounded repair and retain their
 deterministic/domain fallback; invalid structured data is never returned for persistence.
 
+## Bible RAG context
+
+Assistant prompts retrieve up to four relevant chunks from the local game-design Bible.
+The prompt builder caps the query at 2,000 characters, each excerpt at 1,500 characters,
+and total excerpt content at 5,000 characters. Retrieved markdown is JSON-encoded,
+boundary markers are escaped, and the system message explicitly treats every excerpt as
+untrusted reference data rather than instructions.
+
+Every chunk has a stable public ID such as `bible:bible_2_3_mda_framework:chunk-1`.
+Non-streaming responses and streaming `done` events return both `source_ids` and bounded
+source metadata. The same provenance is stored with assistant history and shown under the
+answer. Deterministic fallback responses return empty source arrays. Retrieval failures are
+fail-open for chat availability and never disable the configured LLM provider.
+
 ## Secrets
 
 Two server-side secret sources are supported:

@@ -51,6 +51,7 @@ export async function POST(request: NextRequest) {
     // Merge results
     const allResults = [
       ...bibleResult.results.map((r) => ({
+        source_id: r.sourceId,
         title: r.title,
         snippet: r.snippet,
         fullContent: r.fullContent,

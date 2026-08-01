@@ -28,6 +28,7 @@ interface BibleChunk {
 }
 
 export interface BibleRagResult {
+  sourceId: string;
   title: string;
   snippet: string;
   fullContent?: string;
@@ -114,6 +115,13 @@ function chunkMarkdown(
   const blocks = content.split(/^(#{1,3}\s+.+)$/gm);
   const chunks: BibleChunk[] = [];
   let currentHeading = section;
+  const sourceKey = source
+    .split(/[\\/]/)
+    .pop()!
+    .replace(/\.md$/i, "")
+    .replace(/[^a-z0-9_-]+/gi, "-")
+    .toLowerCase();
+  const nextChunkId = () => `bible:${sourceKey}:chunk-${chunks.length + 1}`;
 
   for (let i = 0; i < blocks.length; i++) {
     const block = blocks[i];
@@ -130,7 +138,7 @@ function chunkMarkdown(
     if (words.length <= CHUNK_SIZE) {
       const content = words.join(" ");
       chunks.push({
-        id: `${section}#${currentHeading}#${chunks.length}`,
+        id: nextChunkId(),
         section,
         title: currentHeading,
         content,
@@ -142,7 +150,7 @@ function chunkMarkdown(
         const slice = words.slice(j, j + CHUNK_SIZE).join(" ");
         if (slice.trim().length > 50) {
           chunks.push({
-            id: `${section}#${currentHeading}#${chunks.length}`,
+            id: nextChunkId(),
             section,
             title: currentHeading,
             content: slice,
@@ -260,6 +268,7 @@ export async function searchBible(
 
   return {
     results: scored.map((s) => ({
+      sourceId: s.chunk.id,
       title: s.chunk.title,
       snippet: s.chunk.content.slice(0, 300).replace(/\n+/g, " ").trim() + "...",
       fullContent: s.chunk.content,

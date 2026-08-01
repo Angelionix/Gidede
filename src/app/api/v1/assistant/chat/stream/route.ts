@@ -6,7 +6,8 @@
  *   - data: { type: "start", message_id }
  *   - data: { type: "message", content: <accumulated-so-far> }
  *     (sent repeatedly as the response is built up word-by-word)
- *   - data: { type: "done", message_id, model_used, provider, latency_ms }
+ *   - data: { type: "done", message_id, model_used, provider, latency_ms,
+ *             source_ids, sources }
  *
  * Body: { message: string, project_id?: string, context?: Record<string, unknown> }
  *
@@ -25,7 +26,8 @@ import {
   generateAssistantResponse,
   getHistory,
 } from "@/lib/assistant-store";
-import { streamAiResponse } from "@/lib/ai-service";
+import { streamAiResponseWithSources } from "@/lib/ai-service";
+import type { BiblePromptSource } from "@/lib/llm/bible-context";
 import { getDefaultLlmStatus } from "@/lib/llm/default-client";
 import {
   UNAUTH,
@@ -113,9 +115,10 @@ export async function POST(request: NextRequest) {
         let fullText = "";
         let modelUsed = activeModel;
         let provider = activeProvider;
+        let sources: BiblePromptSource[] = [];
 
         // 2. Try real AI streaming first
-        const aiText = await streamAiResponse(
+        const aiResponse = await streamAiResponseWithSources(
           {
             message,
             projectName,
@@ -142,7 +145,7 @@ export async function POST(request: NextRequest) {
         );
 
         // 3. If AI streaming failed, fall back to deterministic response
-        if (!aiText || fullText.length === 0) {
+        if (!aiResponse || fullText.length === 0) {
           const fallback = generateAssistantResponse({
             message,
             projectName,
@@ -174,7 +177,8 @@ export async function POST(request: NextRequest) {
             await new Promise((r) => setTimeout(r, 25));
           }
         } else {
-          fullText = aiText;
+          fullText = aiResponse.text;
+          sources = aiResponse.sources;
         }
 
         const latencyMs = Date.now() - startedAt;
@@ -189,6 +193,8 @@ export async function POST(request: NextRequest) {
             model_used: modelUsed,
             provider,
             latency_ms: latencyMs,
+            source_ids: sources.map((source) => source.source_id),
+            sources,
           },
           project_id: projectId || null,
         });
@@ -200,6 +206,8 @@ export async function POST(request: NextRequest) {
           model_used: modelUsed,
           provider,
           latency_ms: latencyMs,
+          source_ids: sources.map((source) => source.source_id),
+          sources,
         });
       } catch (err) {
         console.error("[assistant/chat/stream] stream error:", err);

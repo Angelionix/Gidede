@@ -14,7 +14,9 @@
  *     suggestions?: Suggestion[],  // spec
  *     model_used: string,          // frontend
  *     provider: string,            // frontend
- *     latency_ms: number           // frontend
+ *     latency_ms: number,          // frontend
+ *     source_ids: string[],        // Bible chunks supplied to the prompt
+ *     sources: BiblePromptSource[] // bounded provenance metadata
  *   }
  */
 
@@ -25,7 +27,8 @@ import {
   generateAssistantResponse,
   getHistory,
 } from "@/lib/assistant-store";
-import { generateAiResponse } from "@/lib/ai-service";
+import { generateAiResponseWithSources } from "@/lib/ai-service";
+import type { BiblePromptSource } from "@/lib/llm/bible-context";
 import { getDefaultLlmStatus } from "@/lib/llm/default-client";
 import {
   UNAUTH,
@@ -88,9 +91,10 @@ export async function POST(request: NextRequest) {
     let responseText: string;
     let modelUsed: string;
     let provider: string;
+    let sources: BiblePromptSource[] = [];
 
     const llmStatus = await getDefaultLlmStatus("assistant");
-    const aiText = await generateAiResponse({
+    const aiResponse = await generateAiResponseWithSources({
       message,
       projectName,
       hasConcept: snap?.hasConcept,
@@ -106,8 +110,9 @@ export async function POST(request: NextRequest) {
       history: historyForAi,
     });
 
-    if (aiText) {
-      responseText = aiText;
+    if (aiResponse) {
+      responseText = aiResponse.text;
+      sources = aiResponse.sources;
       modelUsed = llmStatus.modelId || "unknown";
       provider = llmStatus.providerId || "unknown";
     } else {
@@ -143,6 +148,8 @@ export async function POST(request: NextRequest) {
         model_used: modelUsed,
         provider,
         latency_ms: latencyMs,
+        source_ids: sources.map((source) => source.source_id),
+        sources,
       },
       project_id: projectId || null,
     });
@@ -154,6 +161,8 @@ export async function POST(request: NextRequest) {
       model_used: modelUsed,
       provider,
       latency_ms: latencyMs,
+      source_ids: sources.map((source) => source.source_id),
+      sources,
     });
   } catch (error) {
     console.error("[assistant/chat] error:", error);

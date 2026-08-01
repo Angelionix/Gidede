@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R3-09` — подключить Bible RAG к prompt builder.
-- **Зависимости:** `R3-01`–`R3-08` завершены; JSON tasks используют strict schema boundary и bounded repair.
-- **Ожидаемый результат:** LLM prompt получает ограниченный релевантный Bible context, а ответ содержит использованные source IDs.
-- **После неё:** `R3-10` — добавить call telemetry.
+- **Следующая задача:** `R3-10` — добавить call telemetry.
+- **Зависимости:** `R3-01`–`R3-09` завершены; assistant prompts используют bounded Bible context с source provenance.
+- **Ожидаемый результат:** для LLM-вызова видны фактические provider/model, latency, tokens и error class.
+- **После неё:** `R3-11` — завершить миграцию ZAI как одного из adapters.
 
 ## Правила ведения
 
@@ -60,9 +60,53 @@
 | R3-06 | DONE | Capability contract, health diagnostics и model discovery в adapters/UI | 391 tests, TypeScript, scoped ESLint |
 | R3-07 | DONE | Несколько provider configs, per-stage model routing и transient-only fallback chain | 405 tests, TypeScript, scoped ESLint, Prisma validate |
 | R3-08 | DONE | Strict Zod structured boundary и один bounded repair для всех JSON-задач | 419 tests, TypeScript, scoped ESLint |
-| R3-09…R7 | TODO | См. активный roadmap | — |
+| R3-09 | DONE | Bounded Bible RAG context и server-owned source provenance в assistant API/UI | 427 tests, TypeScript, scoped ESLint |
+| R3-10…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R3-09 — DONE
+
+Что сделано:
+
+- Bible chunks получили стабильные публичные `source_id`, не содержащие абсолютных filesystem paths;
+- создан provider-agnostic prompt builder с лимитами: до 4 источников, 1 500 символов на выдержку, 5 000 символов суммарного текста и 2 000 символов retrieval query;
+- retrieved markdown сериализуется как JSON, boundary markers экранируются, а prompt явно запрещает исполнять инструкции из справочных выдержек;
+- assistant AI service использует один и тот же RAG prompt builder для streaming и non-streaming вызовов;
+- старые string-returning функции AI service сохранены как backward-compatible wrappers;
+- non-streaming response и streaming `done` event возвращают `source_ids` и bounded source metadata, сформированные retriever, а не моделью;
+- provenance сохраняется в metadata истории assistant и показывается под ответом в UI;
+- отдельный RAG search endpoint также возвращает `source_id` для Bible results;
+- retrieval работает fail-open: пустая выдача или недоступный индекс не отключают LLM и возвращают пустые source arrays;
+- документированы лимиты, trust boundary, provenance и fallback semantics.
+
+Изменённые области:
+
+- `src/lib/bible-rag.ts` и тест;
+- `src/lib/llm/bible-context.ts` и тест;
+- `src/lib/ai-service.ts` и RAG integration test;
+- assistant chat/stream routes и route tests;
+- `src/app/api/v1/rag/search/route.ts`;
+- `src/app/blocks/7/page.tsx`;
+- `docs/LLM_ADAPTERS.md`.
+
+Проверки:
+
+- targeted RAG/AI/API tests — 5 файлов, 8 тестов пройдены;
+- `npm run test` — 47 файлов, 427 тестов пройдено;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- реальный Bible index дважды возвращает одинаковые IDs формата `bible:<section-file>:chunk-N`;
+- oversized fixture ограничивается четырьмя sources и bounded prompt size;
+- prompt-injection fixture не может закрыть reference boundary собственным marker;
+- AI-service fixture подтверждает присутствие Bible context в messages и возврат exact retriever provenance;
+- non-streaming API fixture подтверждает exact `source_ids` в response и persisted history metadata;
+- streaming fixture подтверждает exact `source_ids` в `done` event и persisted history metadata;
+- следующей задачей назначена `R3-10`.
 
 ### 2026-08-01 — R3-08 — DONE
 

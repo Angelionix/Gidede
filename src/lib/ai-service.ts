@@ -17,6 +17,10 @@ import {
   type ConceptEnrichmentOutput,
   type CustomMechanicOutput,
 } from "@/lib/ai-structured-schemas";
+import {
+  buildBiblePromptContext,
+  type BiblePromptSource,
+} from "@/lib/llm/bible-context";
 
 const getLlmClient = getLlmClientForStage;
 
@@ -92,6 +96,36 @@ function buildUserPrompt(ctx: AiContext): string {
   return parts.join("\n");
 }
 
+export interface AiTextResponse {
+  text: string;
+  sources: BiblePromptSource[];
+}
+
+async function buildAssistantMessages(ctx: AiContext): Promise<{
+  messages: Array<{ role: "system" | "user" | "assistant"; content: string }>;
+  sources: BiblePromptSource[];
+}> {
+  const rag = await buildBiblePromptContext(ctx.message);
+  const messages: Array<{
+    role: "system" | "user" | "assistant";
+    content: string;
+  }> = [{ role: "system", content: SYSTEM_PROMPT }];
+
+  if (rag.promptContext) {
+    messages.push({ role: "system", content: rag.promptContext });
+  }
+
+  if (ctx.history && ctx.history.length > 0) {
+    const recent = ctx.history.slice(-6);
+    for (const message of recent) {
+      messages.push({ role: message.role, content: message.content });
+    }
+  }
+
+  messages.push({ role: "user", content: buildUserPrompt(ctx) });
+  return { messages, sources: rag.sources };
+}
+
 /**
  * Generate a real AI response via the selected LLM provider.
  * Returns null if the provider is unavailable or fails — caller should fall back
@@ -100,24 +134,18 @@ function buildUserPrompt(ctx: AiContext): string {
 export async function generateAiResponse(
   ctx: AiContext
 ): Promise<string | null> {
+  const result = await generateAiResponseWithSources(ctx);
+  return result?.text ?? null;
+}
+
+export async function generateAiResponseWithSources(
+  ctx: AiContext
+): Promise<AiTextResponse | null> {
   const zai = await getLlmClient("assistant");
   if (!zai) return null;
 
   try {
-    const messages: Array<{
-      role: "system" | "user" | "assistant";
-      content: string;
-    }> = [{ role: "system", content: SYSTEM_PROMPT }];
-
-    // Include recent history for context (last 6 messages)
-    if (ctx.history && ctx.history.length > 0) {
-      const recent = ctx.history.slice(-6);
-      for (const m of recent) {
-        messages.push({ role: m.role, content: m.content });
-      }
-    }
-
-    messages.push({ role: "user", content: buildUserPrompt(ctx) });
+    const { messages, sources } = await buildAssistantMessages(ctx);
 
     const response = await zai.createCompletion({
       messages,
@@ -126,7 +154,9 @@ export async function generateAiResponse(
     });
 
     const reply = response.choices?.[0]?.message?.content;
-    return reply && reply.trim().length > 0 ? reply.trim() : null;
+    return reply && reply.trim().length > 0
+      ? { text: reply.trim(), sources }
+      : null;
   } catch (e) {
     console.error(
       "[ai-service] LLM completion failed:",
@@ -145,23 +175,19 @@ export async function streamAiResponse(
   ctx: AiContext,
   onDelta: (chunk: string) => void
 ): Promise<string | null> {
+  const result = await streamAiResponseWithSources(ctx, onDelta);
+  return result?.text ?? null;
+}
+
+export async function streamAiResponseWithSources(
+  ctx: AiContext,
+  onDelta: (chunk: string) => void
+): Promise<AiTextResponse | null> {
   const zai = await getLlmClient("assistant");
   if (!zai) return null;
 
   try {
-    const messages: Array<{
-      role: "system" | "user" | "assistant";
-      content: string;
-    }> = [{ role: "system", content: SYSTEM_PROMPT }];
-
-    if (ctx.history && ctx.history.length > 0) {
-      const recent = ctx.history.slice(-6);
-      for (const m of recent) {
-        messages.push({ role: m.role, content: m.content });
-      }
-    }
-
-    messages.push({ role: "user", content: buildUserPrompt(ctx) });
+    const { messages, sources } = await buildAssistantMessages(ctx);
 
     const stream = await zai.createCompletion({
       messages,
@@ -178,7 +204,8 @@ export async function streamAiResponse(
       }
     }
 
-    return fullText.trim() || null;
+    const text = fullText.trim();
+    return text ? { text, sources } : null;
   } catch (e) {
     console.error(
       "[ai-service] stream failed:",

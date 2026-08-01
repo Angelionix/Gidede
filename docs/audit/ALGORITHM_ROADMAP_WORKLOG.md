@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R3-10` — добавить call telemetry.
-- **Зависимости:** `R3-01`–`R3-09` завершены; assistant prompts используют bounded Bible context с source provenance.
-- **Ожидаемый результат:** для LLM-вызова видны фактические provider/model, latency, tokens и error class.
-- **После неё:** `R3-11` — завершить миграцию ZAI как одного из adapters.
+- **Следующая задача:** `R3-11` — завершить миграцию ZAI как одного из adapters.
+- **Зависимости:** `R3-01`–`R3-10` завершены; routed calls имеют persistent metadata-only telemetry.
+- **Ожидаемый результат:** встроенное ZAI-поведение полностью доступно через общий `LlmClient`/registry без специального пути в domain-коде.
+- **После неё:** `R4-01` — Unicode tokenization/`Intl.Segmenter` для RU/EN.
 
 ## Правила ведения
 
@@ -61,9 +61,63 @@
 | R3-07 | DONE | Несколько provider configs, per-stage model routing и transient-only fallback chain | 405 tests, TypeScript, scoped ESLint, Prisma validate |
 | R3-08 | DONE | Strict Zod structured boundary и один bounded repair для всех JSON-задач | 419 tests, TypeScript, scoped ESLint |
 | R3-09 | DONE | Bounded Bible RAG context и server-owned source provenance в assistant API/UI | 427 tests, TypeScript, scoped ESLint |
-| R3-10…R7 | TODO | См. активный roadmap | — |
+| R3-10 | DONE | Actual provider/model, latency, provider tokens и safe error class для каждого routed attempt | 438 tests, TypeScript, scoped ESLint, Prisma validate |
+| R3-11…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R3-10 — DONE
+
+Что сделано:
+
+- общий LLM-контракт расширен normalized token usage и metadata-only call telemetry;
+- `RoutedLlmClient` создаёт отдельное событие для каждой provider attempt, включая transient primary failure и успешный fallback;
+- success telemetry использует фактический `response.model`/stream model, а не объявленный primary provider;
+- latency измеряется вокруг provider attempt и не включает запись telemetry в БД;
+- ошибки приводятся к закрытой taxonomy без provider body/message: timeout, circuit open, abort, network, rate limit, authentication, invalid request, transient/provider/unknown;
+- provider-reported token counts нормализуются без coercion; отсутствие usage явно маркируется `usage_source: unavailable`, token estimates не фабрикуются;
+- OpenAI-compatible adapter читает standard usage в completion/stream и запрашивает final stream usage;
+- Generic HTTP mapping поддерживает declarative response/stream paths для actual model и input/output/total tokens;
+- ZAI adapter нормализует usage через тот же provider-agnostic contract;
+- telemetry сохраняется в user-owned Prisma model, который не имеет полей для prompt, response, headers, exception message или secrets;
+- сбой persistence/request observer изолирован через `Promise.allSettled` и не меняет результат LLM-вызова;
+- authenticated telemetry API отдаёт до 100 последних записей, валидирует stage и строит bounded summary;
+- settings UI показывает actual provider/model, status, latency, stream mode, tokens и error class;
+- assistant response/history metadata теперь используют actual successful fallback provider/model и содержат normalized `llm_call`;
+- документированы privacy boundary, endpoint, Generic mapping и применение Prisma schema.
+
+Изменённые области:
+
+- `src/lib/llm/types.ts`, `telemetry.ts`, `telemetry-store.ts` и тесты;
+- `src/lib/llm/routing.ts`, `default-client.ts` и тесты;
+- OpenAI-compatible, Generic HTTP и ZAI adapters;
+- `prisma/schema.prisma`;
+- `src/app/api/v1/settings/llm/telemetry/route.ts` и тест;
+- assistant AI service/chat/stream contracts и тесты;
+- `src/app/settings/page.tsx`;
+- `docs/LLM_ADAPTERS.md`.
+
+Проверки:
+
+- telemetry/routing/provider/API fixtures — 11 новых тестов включены в regression suite;
+- `npm run test` — 50 файлов, 438 тестов пройдено;
+- `npm run typecheck` — ошибок нет;
+- `npm run db:generate` — Prisma Client успешно обновлён;
+- `prisma validate` с локальным SQLite URL — schema valid;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- non-stream fixture возвращает actual provider response model и exact provider token usage;
+- fallback fixture создаёт classified error primary и отдельный successful actual fallback record;
+- stream fixture получает actual model и usage из финального usage-only chunk;
+- synchronous telemetry sink failure не прерывает успешный stream;
+- authenticated persistence fixture связывает запись с текущим user и stage;
+- API fixture показывает provider, actual model, latency, tokens и error class и не позволяет читать данные другого user;
+- assistant fixtures возвращают actual fallback provider/model вместо preflight primary metadata;
+- persistence contract test доказывает отсутствие prompt/response полей;
+- следующей задачей назначена `R3-11`.
 
 ### 2026-08-01 — R3-09 — DONE
 

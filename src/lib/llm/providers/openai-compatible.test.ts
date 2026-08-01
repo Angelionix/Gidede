@@ -13,6 +13,7 @@ describe("OpenAiCompatibleLlmClient — R3-02", () => {
     const fetchMock = vi.fn(async () => Response.json({
       model: "router-model-v2",
       choices: [{ message: { content: "Hello" } }],
+      usage: { prompt_tokens: 11, completion_tokens: 7, total_tokens: 18 },
     }));
     const client = new OpenAiCompatibleLlmClient({
       providerId: "openai-compatible:test",
@@ -31,6 +32,7 @@ describe("OpenAiCompatibleLlmClient — R3-02", () => {
 
     expect(response.choices?.[0]?.message?.content).toBe("Hello");
     expect(response.model).toBe("router-model-v2");
+    expect(response.usage).toEqual({ inputTokens: 11, outputTokens: 7, totalTokens: 18 });
     expect(fetchMock).toHaveBeenCalledOnce();
     const [url, init] = fetchMock.mock.calls[0] as unknown as [RequestInfo | URL, RequestInit?];
     expect(url).toBe("https://router.example/api/v1/chat/completions");
@@ -50,6 +52,7 @@ describe("OpenAiCompatibleLlmClient — R3-02", () => {
       start(controller) {
         controller.enqueue(encoder.encode('data: {"choices":[{"delta":{"content":"Hel'));
         controller.enqueue(encoder.encode('lo"}}]}\n\ndata: {"choices":[{"delta":{"content":"!"}}]}\n'));
+        controller.enqueue(encoder.encode('\ndata: {"model":"actual-stream-model","choices":[],"usage":{"prompt_tokens":5,"completion_tokens":2,"total_tokens":7}}\n'));
         controller.enqueue(encoder.encode("\ndata: [DONE]\n\n"));
         controller.close();
       },
@@ -66,11 +69,18 @@ describe("OpenAiCompatibleLlmClient — R3-02", () => {
       stream: true,
     });
     const content: string[] = [];
+    let usage;
+    let model;
     for await (const chunk of chunks) {
-      content.push(chunk.choices?.[0]?.delta?.content || "");
+      const delta = chunk.choices?.[0]?.delta?.content;
+      if (delta) content.push(delta);
+      if (chunk.usage) usage = chunk.usage;
+      if (chunk.model) model = chunk.model;
     }
 
     expect(content).toEqual(["Hello", "!"]);
+    expect(model).toBe("actual-stream-model");
+    expect(usage).toEqual({ inputTokens: 5, outputTokens: 2, totalTokens: 7 });
   });
 
   it("fails closed when a referenced server secret is unavailable", async () => {

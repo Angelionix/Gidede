@@ -161,3 +161,109 @@ describe("parseLlmRoutePolicy", () => {
     })).toThrow(/max_output_tokens/);
   });
 });
+
+describe("RoutedLlmClient telemetry — R3-10", () => {
+  it("reports the actual successful provider, response model, latency and tokens", async () => {
+    const telemetry = vi.fn();
+    const routed = new RoutedLlmClient(
+      "concept",
+      [{
+        client: client("provider-a", vi.fn(async () => ({
+          model: "actual-model",
+          choices: [{ message: { content: "ok" } }],
+          usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
+        }))),
+        model: "configured-model",
+      }],
+      undefined,
+      telemetry,
+    );
+
+    await routed.createCompletion(request);
+
+    expect(telemetry).toHaveBeenCalledWith(expect.objectContaining({
+      stage: "concept",
+      providerId: "provider-a",
+      modelId: "actual-model",
+      status: "success",
+      stream: false,
+      latencyMs: expect.any(Number),
+      usage: { inputTokens: 12, outputTokens: 4, totalTokens: 16 },
+      usageSource: "provider",
+      errorClass: null,
+    }));
+  });
+
+  it("records a classified primary failure and the factual fallback success", async () => {
+    const telemetry = vi.fn();
+    const primary = vi.fn(async () => {
+      throw new LlmProviderError("busy", { status: 503, retryable: true });
+    });
+    const fallback = vi.fn(async () => ({
+      model: "fallback-actual",
+      choices: [{ message: { content: "ok" } }],
+    }));
+    const routed = new RoutedLlmClient(
+      "gdd",
+      [
+        { client: client("primary", primary), model: "primary-model" },
+        { client: client("fallback", fallback), model: "fallback-model" },
+      ],
+      undefined,
+      telemetry,
+    );
+
+    await routed.createCompletion(request);
+
+    expect(telemetry.mock.calls.map(([event]) => event)).toEqual([
+      expect.objectContaining({
+        providerId: "primary",
+        modelId: "primary-model",
+        status: "error",
+        errorClass: "provider_transient",
+      }),
+      expect.objectContaining({
+        providerId: "fallback",
+        modelId: "fallback-actual",
+        status: "success",
+        usageSource: "unavailable",
+      }),
+    ]);
+  });
+
+  it("collects final stream usage and does not fail the call when a telemetry sink fails", async () => {
+    const requestTelemetry = vi.fn();
+    const failingStore = vi.fn(() => {
+      throw new Error("telemetry database unavailable");
+    });
+    const streaming = vi.fn(async () => (async function* () {
+      yield { choices: [{ delta: { content: "ok" } }] };
+      yield {
+        model: "stream-actual",
+        usage: { inputTokens: 5, outputTokens: 1, totalTokens: 6 },
+      };
+    })());
+    const routed = new RoutedLlmClient(
+      "assistant",
+      [{ client: client("stream-provider", streaming), model: null }],
+      undefined,
+      failingStore,
+    );
+
+    const stream = await routed.createCompletion({
+      ...request,
+      stream: true,
+      onTelemetry: requestTelemetry,
+    });
+    for await (const _chunk of stream) {
+      // Consume the stream so completion telemetry is emitted.
+    }
+
+    expect(requestTelemetry).toHaveBeenCalledWith(expect.objectContaining({
+      providerId: "stream-provider",
+      modelId: "stream-actual",
+      stream: true,
+      usage: { inputTokens: 5, outputTokens: 1, totalTokens: 6 },
+    }));
+  });
+});

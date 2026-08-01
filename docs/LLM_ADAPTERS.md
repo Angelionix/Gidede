@@ -126,6 +126,31 @@ source metadata. The same provenance is stored with assistant history and shown 
 answer. Deterministic fallback responses return empty source arrays. Retrieval failures are
 fail-open for chat availability and never disable the configured LLM provider.
 
+## Call telemetry
+
+Every authenticated routed provider attempt writes a metadata-only telemetry record. A
+fallback therefore produces one classified error record for the failed candidate and a
+separate success record for the provider/model that actually answered. Each record contains:
+
+- pipeline stage, actual provider and provider-reported model when available;
+- streaming flag, success/error status and provider-call latency;
+- provider-reported input/output/total token counts, or explicit `usage_source: unavailable`;
+- a finite safe error class such as `timeout`, `rate_limit`, `authentication`,
+  `invalid_request` or `provider_transient`.
+
+Prompts, generated responses, exception messages, headers and secrets are never part of the
+telemetry contract. Persistence and request observers are isolated with `allSettled`, so a
+telemetry database failure cannot fail an otherwise successful generation.
+
+Recent user-owned records are available from `GET /api/v1/settings/llm/telemetry` and shown in
+the LLM settings panel. The endpoint clamps the window to 100 calls and supports a validated
+`stage` filter. Apply the Prisma schema with `npm run db:push` after deployment.
+
+OpenAI-compatible adapters normalize standard `prompt_tokens`, `completion_tokens` and
+`total_tokens`. Generic HTTP adapters can map arbitrary provider fields with
+`response.usage.{input_tokens_path,output_tokens_path,total_tokens_path}` and the equivalent
+`stream.usage` fields; `stream.model_path` maps the actual streamed model.
+
 ## Secrets
 
 Two server-side secret sources are supported:

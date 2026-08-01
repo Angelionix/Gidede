@@ -8,8 +8,23 @@ import type {
   LlmProviderHealth,
   LlmStreamChunk,
 } from "@/lib/llm/types";
+import { normalizeLlmTokenUsage } from "@/lib/llm/telemetry";
 
 type ZaiInstance = Awaited<ReturnType<typeof ZAI.create>>;
+
+function normalizeResponse(response: LlmCompletionResponse): LlmCompletionResponse {
+  const usage = normalizeLlmTokenUsage(response.usage);
+  return { ...response, ...(usage ? { usage } : {}) };
+}
+
+async function* normalizeStream(
+  stream: AsyncIterable<LlmStreamChunk>
+): AsyncIterable<LlmStreamChunk> {
+  for await (const chunk of stream) {
+    const usage = normalizeLlmTokenUsage(chunk.usage);
+    yield { ...chunk, ...(usage ? { usage } : {}) };
+  }
+}
 
 export class ZaiLlmClient implements LlmClient {
   readonly providerId = "zai-sdk";
@@ -28,7 +43,11 @@ export class ZaiLlmClient implements LlmClient {
       ...(request.maxTokens != null ? { max_tokens: request.maxTokens } : {}),
       ...(request.model ? { model: request.model } : {}),
     };
-    return this.client.chat.completions.create(payload) as unknown as Promise<LlmCompletionResponse | AsyncIterable<LlmStreamChunk>>;
+    const result = await this.client.chat.completions.create(payload) as unknown as
+      LlmCompletionResponse | AsyncIterable<LlmStreamChunk>;
+    return request.stream
+      ? normalizeStream(result as AsyncIterable<LlmStreamChunk>)
+      : normalizeResponse(result as LlmCompletionResponse);
   }
 
   async isAvailable(): Promise<boolean> {

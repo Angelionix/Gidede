@@ -38,6 +38,7 @@ model User {
   prototypeGraphs PrototypeGraph[]
   llmConfigs      UserLlmConfig[]
   llmRoutes       UserLlmRoute[]
+  llmCallTelemetry LlmCallTelemetry[]
 
   @@index([plan])
   @@map("users")
@@ -86,6 +87,34 @@ model UserLlmRoute {
   @@unique([userId, stage])
   @@index([userId])
   @@map("user_llm_routes")
+}
+
+// ============================================================
+// LLM CALL TELEMETRY — metadata only; never stores prompts/responses/secrets
+// ============================================================
+
+model LlmCallTelemetry {
+  id           String   @id @default(cuid())
+  userId       String
+  stage        String
+  provider     String
+  model        String?
+  status       String   // success | error
+  stream       Boolean  @default(false)
+  latencyMs    Int
+  inputTokens  Int?
+  outputTokens Int?
+  totalTokens  Int?
+  usageSource  String   // provider | unavailable
+  errorClass   String?
+  createdAt    DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@index([userId, stage, createdAt])
+  @@index([status])
+  @@map("llm_call_telemetry")
 }
 
 // ============================================================

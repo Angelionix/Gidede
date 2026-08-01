@@ -1,5 +1,6 @@
 import { normalizeOpenAiBaseUrl, resolveServerSecret } from "@/lib/llm/config";
 import { LlmProviderError, isRetryableHttpStatus } from "@/lib/llm/errors";
+import { normalizeLlmTokenUsage } from "@/lib/llm/telemetry";
 import type {
   LlmClient,
   LlmCapabilities,
@@ -14,6 +15,12 @@ import type {
 
 type StreamProtocol = "sse" | "ndjson";
 type MessagesFormat = "messages" | "prompt";
+
+interface GenericUsageMapping {
+  inputTokensPath: string | null;
+  outputTokensPath: string | null;
+  totalTokensPath: string | null;
+}
 
 export interface GenericHttpMapping {
   authHeader: string;
@@ -31,10 +38,13 @@ export interface GenericHttpMapping {
   response: {
     contentPath: string;
     modelPath: string | null;
+    usage: GenericUsageMapping | null;
   };
   stream: null | {
     protocol: StreamProtocol;
     contentPath: string;
+    modelPath: string | null;
+    usage: GenericUsageMapping | null;
     dataPrefix: string;
     doneSentinel: string;
   };
@@ -109,6 +119,26 @@ function booleanValue(value: unknown, field: string, fallback = false): boolean 
   if (value == null) return fallback;
   if (typeof value !== "boolean") throw new Error(`${field} must be a boolean`);
   return value;
+}
+
+function usageMapping(value: unknown, field: string): GenericUsageMapping | null {
+  if (value == null) return null;
+  const input = objectValue(value, field);
+  const result = {
+    inputTokensPath: optionalPath(
+      input.input_tokens_path ?? input.inputTokensPath,
+      `${field}.input_tokens_path`
+    ),
+    outputTokensPath: optionalPath(
+      input.output_tokens_path ?? input.outputTokensPath,
+      `${field}.output_tokens_path`
+    ),
+    totalTokensPath: optionalPath(
+      input.total_tokens_path ?? input.totalTokensPath,
+      `${field}.total_tokens_path`
+    ),
+  };
+  return Object.values(result).some(Boolean) ? result : null;
 }
 
 function stringRecord(value: unknown, field: string): Record<string, string> {
@@ -198,10 +228,13 @@ export function parseGenericHttpMapping(value: unknown): GenericHttpMapping {
     response: {
       contentPath: requiredPath(response.content_path ?? response.contentPath, "response.content_path"),
       modelPath: optionalPath(response.model_path ?? response.modelPath, "response.model_path"),
+      usage: usageMapping(response.usage, "response.usage"),
     },
     stream: streamInput ? {
       protocol: streamProtocol,
       contentPath: requiredPath(streamInput.content_path ?? streamInput.contentPath, "stream.content_path"),
+      modelPath: optionalPath(streamInput.model_path ?? streamInput.modelPath, "stream.model_path"),
+      usage: usageMapping(streamInput.usage, "stream.usage"),
       dataPrefix: shortString(streamInput.data_prefix ?? streamInput.dataPrefix, "data:", "stream.data_prefix", 50),
       doneSentinel: shortString(streamInput.done_sentinel ?? streamInput.doneSentinel, "[DONE]", "stream.done_sentinel", 100),
     } : null,
@@ -266,8 +299,33 @@ function stringAtPath(payload: unknown, path: string, field: string): string {
   return value;
 }
 
-async function* singleChunk(content: string): AsyncIterable<LlmStreamChunk> {
-  yield { choices: [{ delta: { content } }] };
+function optionalStringAtPath(payload: unknown, path: string | null, field: string): string | undefined {
+  if (!path) return undefined;
+  const value = getPath(payload, path);
+  if (value == null) return undefined;
+  if (typeof value !== "string") throw new Error(`${field} did not resolve to a string`);
+  return value;
+}
+
+function mappedUsage(payload: unknown, mapping: GenericUsageMapping | null) {
+  if (!mapping) return undefined;
+  return normalizeLlmTokenUsage({
+    inputTokens: mapping.inputTokensPath ? getPath(payload, mapping.inputTokensPath) : null,
+    outputTokens: mapping.outputTokensPath ? getPath(payload, mapping.outputTokensPath) : null,
+    totalTokens: mapping.totalTokensPath ? getPath(payload, mapping.totalTokensPath) : null,
+  });
+}
+
+async function* singleChunk(
+  content: string,
+  model?: string,
+  usage?: LlmStreamChunk["usage"],
+): AsyncIterable<LlmStreamChunk> {
+  yield {
+    choices: [{ delta: { content } }],
+    ...(model ? { model } : {}),
+    ...(usage ? { usage } : {}),
+  };
 }
 
 async function* parseLineStream(
@@ -292,7 +350,15 @@ async function* parseLineStream(
         }
         if (!data || data === mapping.doneSentinel) continue;
         const payload = JSON.parse(data) as unknown;
-        yield { choices: [{ delta: { content: stringAtPath(payload, mapping.contentPath, "stream.content_path") } }] };
+        const content = optionalStringAtPath(payload, mapping.contentPath, "stream.content_path");
+        const model = optionalStringAtPath(payload, mapping.modelPath, "stream.model_path");
+        const usage = mappedUsage(payload, mapping.usage);
+        if (content == null && model == null && usage == null) continue;
+        yield {
+          ...(content == null ? {} : { choices: [{ delta: { content } }] }),
+          ...(model ? { model } : {}),
+          ...(usage ? { usage } : {}),
+        };
       }
       if (done) break;
     }
@@ -363,11 +429,16 @@ export class GenericHttpLlmClient implements LlmClient {
 
     const payload = await response.json() as unknown;
     const content = stringAtPath(payload, this.mapping.response.contentPath, "response.content_path");
-    if (request.stream) return singleChunk(content);
     const model = this.mapping.response.modelPath
       ? stringAtPath(payload, this.mapping.response.modelPath, "response.model_path")
       : this.modelId;
-    return { choices: [{ message: { content } }], model };
+    const usage = mappedUsage(payload, this.mapping.response.usage);
+    if (request.stream) return singleChunk(content, model, usage);
+    return {
+      choices: [{ message: { content } }],
+      model,
+      ...(usage ? { usage } : {}),
+    };
   }
 
   async isAvailable(): Promise<boolean> {

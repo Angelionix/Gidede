@@ -37,7 +37,7 @@ const source = {
   score: 7.2,
 };
 
-describe("POST /assistant/chat Bible provenance — R3-09", () => {
+describe("POST /assistant/chat provenance and telemetry — R3-09/R3-10", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getCurrentUser.mockResolvedValue({ id: "user-1" });
@@ -49,6 +49,17 @@ describe("POST /assistant/chat Bible provenance — R3-09", () => {
     mocks.generateAiResponseWithSources.mockResolvedValue({
       text: "MDA answer",
       sources: [source],
+      telemetry: {
+        stage: "assistant",
+        providerId: "fallback-provider",
+        modelId: "actual-model",
+        status: "success",
+        stream: false,
+        latencyMs: 75,
+        usage: { inputTokens: 30, outputTokens: 10, totalTokens: 40 },
+        usageSource: "provider",
+        errorClass: null,
+      },
     });
   });
 
@@ -62,10 +73,18 @@ describe("POST /assistant/chat Bible provenance — R3-09", () => {
     );
 
     expect(response.status).toBe(200);
-    await expect(response.json()).resolves.toMatchObject({
+    const payload = await response.json();
+    expect(payload).toMatchObject({
       response: "MDA answer",
       source_ids: [source.source_id],
       sources: [source],
+      provider: "fallback-provider",
+      model_used: "actual-model",
+      llm_call: {
+        providerId: "fallback-provider",
+        modelId: "actual-model",
+        usage: { inputTokens: 30, outputTokens: 10, totalTokens: 40 },
+      },
     });
     expect(mocks.appendMessage).toHaveBeenLastCalledWith(
       "user-1",
@@ -75,8 +94,14 @@ describe("POST /assistant/chat Bible provenance — R3-09", () => {
         metadata: expect.objectContaining({
           source_ids: [source.source_id],
           sources: [source],
+          llm_call: expect.objectContaining({
+            providerId: "fallback-provider",
+            modelId: "actual-model",
+            usage: { inputTokens: 30, outputTokens: 10, totalTokens: 40 },
+          }),
         }),
       })
     );
+    expect(mocks.getDefaultLlmStatus).not.toHaveBeenCalled();
   });
 });

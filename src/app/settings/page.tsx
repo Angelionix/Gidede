@@ -58,6 +58,11 @@ const DEFAULT_GENERIC_MAPPING = JSON.stringify({
   response: {
     content_path: "result.text",
     model_path: "result.model",
+    usage: {
+      input_tokens_path: "usage.input_tokens",
+      output_tokens_path: "usage.output_tokens",
+      total_tokens_path: "usage.total_tokens",
+    },
   },
   capabilities: {
     json_mode: false,
@@ -108,6 +113,34 @@ interface LlmRouteForm {
   extraChain: Array<{ config_id: string; model: string | null }>;
   temperature: number | null;
   maxOutputTokens: number | null;
+}
+
+interface LlmTelemetryCall {
+  id: string;
+  stage: string;
+  provider: string;
+  model: string | null;
+  status: "success" | "error";
+  stream: boolean;
+  latency_ms: number;
+  input_tokens: number | null;
+  output_tokens: number | null;
+  total_tokens: number | null;
+  usage_source: "provider" | "unavailable";
+  error_class: string | null;
+  created_at: string;
+}
+
+interface LlmTelemetryResponse {
+  calls: LlmTelemetryCall[];
+  summary: {
+    window_size: number;
+    successful: number;
+    failed: number;
+    average_latency_ms: number;
+    known_token_calls: number;
+    total_tokens: number;
+  };
 }
 
 const LLM_ROUTE_STAGES = [
@@ -179,6 +212,8 @@ export default function SettingsPage() {
   const [llmSaving, setLlmSaving] = useState(false);
   const [llmInspecting, setLlmInspecting] = useState(false);
   const [llmIntrospection, setLlmIntrospection] = useState<LlmIntrospectionResult | null>(null);
+  const [llmTelemetry, setLlmTelemetry] = useState<LlmTelemetryResponse | null>(null);
+  const [llmTelemetryLoading, setLlmTelemetryLoading] = useState(true);
 
   useEffect(() => {
     if (!user) return;
@@ -259,10 +294,35 @@ export default function SettingsPage() {
       .finally(() => {
         if (!cancelled) setLlmLoading(false);
       });
+    apiFetch<LlmTelemetryResponse>("/settings/llm/telemetry?limit=20")
+      .then((result) => {
+        if (!cancelled) setLlmTelemetry(result);
+      })
+      .catch(() => {
+        if (!cancelled) setLlmTelemetry(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLlmTelemetryLoading(false);
+      });
     return () => {
       cancelled = true;
     };
   }, [apiFetch, toast, user]);
+
+  async function refreshLlmTelemetry() {
+    setLlmTelemetryLoading(true);
+    try {
+      setLlmTelemetry(await apiFetch<LlmTelemetryResponse>("/settings/llm/telemetry?limit=20"));
+    } catch (error) {
+      toast({
+        title: "Не удалось загрузить телеметрию LLM",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setLlmTelemetryLoading(false);
+    }
+  }
 
   function selectLlmConfig(configId: string) {
     const config = llmConfigs.find((item) => item.id === configId);
@@ -943,6 +1003,64 @@ export default function SettingsPage() {
                     {llmRoutesSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                     Сохранить маршруты
                   </Button>
+                </div>
+                <Separator />
+                <div className="space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h3 className="text-sm font-semibold">Телеметрия LLM-вызовов</h3>
+                      <p className="text-xs text-muted-foreground">
+                        Только технические metadata; prompts, ответы и секреты не сохраняются.
+                      </p>
+                    </div>
+                    <Button type="button" size="sm" variant="outline" onClick={refreshLlmTelemetry} disabled={llmTelemetryLoading}>
+                      {llmTelemetryLoading
+                        ? <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        : <RefreshCw className="mr-2 h-4 w-4" />}
+                      Обновить
+                    </Button>
+                  </div>
+                  {llmTelemetry && (
+                    <>
+                      <div className="flex flex-wrap gap-2 text-xs">
+                        <Badge variant="secondary">Вызовов: {llmTelemetry.summary.window_size}</Badge>
+                        <Badge variant="secondary">Успешно: {llmTelemetry.summary.successful}</Badge>
+                        <Badge variant={llmTelemetry.summary.failed > 0 ? "destructive" : "secondary"}>
+                          Ошибок: {llmTelemetry.summary.failed}
+                        </Badge>
+                        <Badge variant="outline">Средняя latency: {llmTelemetry.summary.average_latency_ms} ms</Badge>
+                        <Badge variant="outline">Tokens: {llmTelemetry.summary.total_tokens}</Badge>
+                      </div>
+                      <div className="space-y-2">
+                        {llmTelemetry.calls.length === 0 ? (
+                          <p className="text-xs text-muted-foreground">LLM-вызовов пока нет.</p>
+                        ) : llmTelemetry.calls.map((call) => (
+                          <div key={call.id} className="grid gap-1 rounded-lg border p-3 text-xs md:grid-cols-[7rem_1fr_1fr_auto]">
+                            <div>
+                              <Badge variant={call.status === "success" ? "secondary" : "destructive"}>
+                                {call.stage} · {call.status}
+                              </Badge>
+                            </div>
+                            <div className="min-w-0">
+                              <div className="truncate font-medium">{call.provider}</div>
+                              <div className="truncate text-muted-foreground">{call.model || "model unknown"}</div>
+                            </div>
+                            <div className="text-muted-foreground">
+                              <div>{call.latency_ms} ms · {call.stream ? "stream" : "completion"}</div>
+                              <div>
+                                tokens: {call.total_tokens ?? "—"}
+                                {call.usage_source === "unavailable" ? " (provider не сообщил)" : ""}
+                              </div>
+                            </div>
+                            <div className="text-right text-muted-foreground">
+                              <div>{call.error_class || "ok"}</div>
+                              <div>{new Date(call.created_at).toLocaleString("ru-RU")}</div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
                 </div>
               </>
             )}

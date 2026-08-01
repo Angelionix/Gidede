@@ -120,6 +120,75 @@ describe("GenericHttpLlmClient — R3-03", () => {
     expect(content).toEqual(["One chunk"]);
   });
 
+  it("maps provider token usage for completion and usage-only stream events", async () => {
+    const usageMapping = {
+      ...mapping,
+      response: {
+        ...mapping.response,
+        usage: {
+          input_tokens_path: "meta.usage.in",
+          output_tokens_path: "meta.usage.out",
+          total_tokens_path: "meta.usage.total",
+        },
+      },
+    };
+    const completionClient = new GenericHttpLlmClient({
+      providerId: "generic-http:usage",
+      endpoint: "https://vendor.example/generate",
+      model: "configured",
+      mapping: usageMapping,
+      fetch: vi.fn(async () => Response.json({
+        candidates: [{ text: "Measured" }],
+        meta: { model: "actual", usage: { in: 8, out: 3, total: 11 } },
+      })) as typeof fetch,
+    });
+
+    await expect(completionClient.createCompletion({ messages: [], stream: false })).resolves.toMatchObject({
+      model: "actual",
+      usage: { inputTokens: 8, outputTokens: 3, totalTokens: 11 },
+    });
+
+    const encoder = new TextEncoder();
+    const body = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode(
+          '{"event":{"token":"A"}}\n{"meta":{"model":"stream-actual","usage":{"in":4,"out":1,"total":5}}}\n'
+        ));
+        controller.close();
+      },
+    });
+    const streamClient = new GenericHttpLlmClient({
+      providerId: "generic-http:stream-usage",
+      endpoint: "https://vendor.example/generate",
+      model: "configured",
+      mapping: {
+        ...usageMapping,
+        stream: {
+          protocol: "ndjson",
+          content_path: "event.token",
+          model_path: "meta.model",
+          usage: {
+            input_tokens_path: "meta.usage.in",
+            output_tokens_path: "meta.usage.out",
+            total_tokens_path: "meta.usage.total",
+          },
+        },
+      },
+      fetch: vi.fn(async () => new Response(body)) as typeof fetch,
+    });
+
+    const chunks = await streamClient.createCompletion({ messages: [], stream: true });
+    const received: unknown[] = [];
+    for await (const chunk of chunks) received.push(chunk);
+    expect(received).toEqual([
+      { choices: [{ delta: { content: "A" } }] },
+      {
+        model: "stream-actual",
+        usage: { inputTokens: 4, outputTokens: 1, totalTokens: 5 },
+      },
+    ]);
+  });
+
   it("rejects unsafe paths and secret-bearing static headers", () => {
     expect(() => parseGenericHttpMapping({
       ...mapping,

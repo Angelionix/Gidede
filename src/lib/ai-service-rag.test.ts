@@ -74,4 +74,29 @@ describe("ai-service Bible RAG integration — R3-09", () => {
     expect(onDelta.mock.calls.flat()).toEqual(["MDA ", "answer"]);
     expect(response).toEqual({ text: "MDA answer", sources: [source] });
   });
+
+  it("returns factual routed-call telemetry to the assistant API boundary", async () => {
+    const telemetry = {
+      stage: "assistant",
+      providerId: "fallback-provider",
+      modelId: "actual-model",
+      status: "success" as const,
+      stream: false,
+      latencyMs: 55,
+      usage: { inputTokens: 9, outputTokens: 3, totalTokens: 12 },
+      usageSource: "provider" as const,
+      errorClass: null,
+    };
+    mocks.createCompletion.mockImplementation(async (request: LlmCompletionRequest) => {
+      await request.onTelemetry?.(telemetry);
+      return { choices: [{ message: { content: "Measured answer" } }] };
+    });
+
+    await expect(
+      generateAiResponseWithSources({ message: "Объясни баланс" })
+    ).resolves.toMatchObject({
+      text: "Measured answer",
+      telemetry,
+    });
+  });
 });

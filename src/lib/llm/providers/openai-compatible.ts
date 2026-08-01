@@ -1,5 +1,6 @@
 import { normalizeOpenAiBaseUrl, resolveServerSecret } from "@/lib/llm/config";
 import { LlmProviderError, isRetryableHttpStatus } from "@/lib/llm/errors";
+import { normalizeLlmTokenUsage } from "@/lib/llm/telemetry";
 import type {
   LlmClient,
   LlmCapabilities,
@@ -55,8 +56,14 @@ async function* parseSseStream(body: ReadableStream<Uint8Array>): AsyncIterable<
         if (!line.startsWith("data:")) continue;
         const data = line.slice(5).trim();
         if (!data || data === "[DONE]") continue;
-        const parsed = JSON.parse(data) as LlmStreamChunk;
-        yield { choices: parsed.choices };
+        const parsed = JSON.parse(data) as Record<string, unknown>;
+        const model = typeof parsed.model === "string" ? parsed.model : undefined;
+        const usage = normalizeLlmTokenUsage(parsed.usage);
+        yield {
+          choices: parsed.choices as LlmStreamChunk["choices"],
+          ...(model ? { model } : {}),
+          ...(usage ? { usage } : {}),
+        };
       }
 
       if (done) break;
@@ -105,6 +112,7 @@ export class OpenAiCompatibleLlmClient implements LlmClient {
         model: request.model || this.modelId,
         messages: request.messages,
         stream: request.stream,
+        ...(request.stream ? { stream_options: { include_usage: true } } : {}),
         ...(request.temperature != null ? { temperature: request.temperature } : {}),
         ...(request.maxTokens != null ? { max_tokens: request.maxTokens } : {}),
       }),
@@ -117,8 +125,13 @@ export class OpenAiCompatibleLlmClient implements LlmClient {
       return parseSseStream(response.body);
     }
 
-    const payload = await response.json() as LlmCompletionResponse;
-    return { choices: payload.choices, model: payload.model || this.modelId };
+    const payload = await response.json() as Record<string, unknown>;
+    const usage = normalizeLlmTokenUsage(payload.usage);
+    return {
+      choices: payload.choices as LlmCompletionResponse["choices"],
+      model: typeof payload.model === "string" ? payload.model : this.modelId,
+      ...(usage ? { usage } : {}),
+    };
   }
 
   async isAvailable(): Promise<boolean> {

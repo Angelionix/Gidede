@@ -20,6 +20,7 @@ import type {
 } from "@/lib/llm/types";
 import { db } from "@/lib/db";
 import { getAuthUserId } from "@/lib/server-auth";
+import { createLlmTelemetryStore } from "@/lib/llm/telemetry-store";
 
 const DEFAULT_PROVIDER_ID = "zai-sdk";
 const registry = getLlmRegistry();
@@ -138,7 +139,7 @@ export async function getLlmClientForStage(stage: LlmRouteStage): Promise<LlmCli
     return new RoutedLlmClient(stage, candidates, {
       temperature: policy?.temperature ?? null,
       maxOutputTokens: policy?.maxOutputTokens ?? null,
-    });
+    }, createLlmTelemetryStore(userId));
   } catch (error) {
     console.error(
       `[llm] route resolution failed for ${stage}:`,

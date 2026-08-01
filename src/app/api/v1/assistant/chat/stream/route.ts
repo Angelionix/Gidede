@@ -179,6 +179,10 @@ export async function POST(request: NextRequest) {
         } else {
           fullText = aiResponse.text;
           sources = aiResponse.sources;
+          if (aiResponse.telemetry) {
+            modelUsed = aiResponse.telemetry.modelId || "unknown";
+            provider = aiResponse.telemetry.providerId;
+          }
         }
 
         const latencyMs = Date.now() - startedAt;
@@ -195,6 +199,7 @@ export async function POST(request: NextRequest) {
             latency_ms: latencyMs,
             source_ids: sources.map((source) => source.source_id),
             sources,
+            ...(aiResponse?.telemetry ? { llm_call: aiResponse.telemetry } : {}),
           },
           project_id: projectId || null,
         });
@@ -208,6 +213,7 @@ export async function POST(request: NextRequest) {
           latency_ms: latencyMs,
           source_ids: sources.map((source) => source.source_id),
           sources,
+          ...(aiResponse?.telemetry ? { llm_call: aiResponse.telemetry } : {}),
         });
       } catch (err) {
         console.error("[assistant/chat/stream] stream error:", err);

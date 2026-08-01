@@ -93,7 +93,6 @@ export async function POST(request: NextRequest) {
     let provider: string;
     let sources: BiblePromptSource[] = [];
 
-    const llmStatus = await getDefaultLlmStatus("assistant");
     const aiResponse = await generateAiResponseWithSources({
       message,
       projectName,
@@ -113,8 +112,14 @@ export async function POST(request: NextRequest) {
     if (aiResponse) {
       responseText = aiResponse.text;
       sources = aiResponse.sources;
-      modelUsed = llmStatus.modelId || "unknown";
-      provider = llmStatus.providerId || "unknown";
+      if (aiResponse.telemetry) {
+        modelUsed = aiResponse.telemetry.modelId || "unknown";
+        provider = aiResponse.telemetry.providerId;
+      } else {
+        const llmStatus = await getDefaultLlmStatus("assistant");
+        modelUsed = llmStatus.modelId || "unknown";
+        provider = llmStatus.providerId || "unknown";
+      }
     } else {
       // Deterministic fallback
       const fallback = generateAssistantResponse({
@@ -150,6 +155,7 @@ export async function POST(request: NextRequest) {
         latency_ms: latencyMs,
         source_ids: sources.map((source) => source.source_id),
         sources,
+        ...(aiResponse?.telemetry ? { llm_call: aiResponse.telemetry } : {}),
       },
       project_id: projectId || null,
     });
@@ -163,6 +169,7 @@ export async function POST(request: NextRequest) {
       latency_ms: latencyMs,
       source_ids: sources.map((source) => source.source_id),
       sources,
+      ...(aiResponse?.telemetry ? { llm_call: aiResponse.telemetry } : {}),
     });
   } catch (error) {
     console.error("[assistant/chat] error:", error);

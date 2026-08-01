@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   findConfigs: vi.fn(),
   findRoute: vi.fn(),
   createConfigured: vi.fn(),
+  createTelemetry: vi.fn(),
 }));
 
 vi.mock("@/lib/server-auth", () => ({ getAuthUserId: mocks.getAuthUserId }));
@@ -13,6 +14,7 @@ vi.mock("@/lib/db", () => ({
   db: {
     userLlmConfig: { findMany: mocks.findConfigs, findFirst: vi.fn() },
     userLlmRoute: { findUnique: mocks.findRoute },
+    llmCallTelemetry: { create: mocks.createTelemetry },
   },
 }));
 vi.mock("@/lib/llm/configured-adapters", () => ({
@@ -25,7 +27,11 @@ function provider(providerId: string, modelId: string): LlmClient {
   return {
     providerId,
     modelId,
-    createCompletion: vi.fn(),
+    createCompletion: vi.fn(async (request) => ({
+      model: request.model || modelId,
+      choices: [{ message: { content: "ok" } }],
+      usage: { inputTokens: 2, outputTokens: 1, totalTokens: 3 },
+    })),
     isAvailable: async () => true,
     getCapabilities: () => ({ streaming: true, jsonMode: false, tools: false, modelDiscovery: false }),
     healthCheck: async () => ({
@@ -71,6 +77,7 @@ describe("getLlmClientForStage — R3-07", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getAuthUserId.mockResolvedValue("user-1");
+    mocks.createTelemetry.mockResolvedValue({ id: "call-1" });
     mocks.findConfigs.mockResolvedValue(configs);
     mocks.findRoute.mockImplementation(({ where }) => {
       const stage = where.userId_stage.stage;
@@ -101,5 +108,26 @@ describe("getLlmClientForStage — R3-07", () => {
 
     expect(concept).toMatchObject({ providerId: "Concept provider", modelId: "concept-specialized" });
     expect(gdd).toMatchObject({ providerId: "GDD provider", modelId: "gdd-specialized" });
+  });
+
+  it("persists routed call telemetry for the authenticated user", async () => {
+    const concept = await getLlmClientForStage("concept");
+
+    await concept!.createCompletion({
+      messages: [{ role: "user", content: "idea" }],
+      stream: false,
+    });
+
+    expect(mocks.createTelemetry).toHaveBeenCalledWith({
+      data: expect.objectContaining({
+        userId: "user-1",
+        stage: "concept",
+        provider: "Concept provider",
+        model: "concept-specialized",
+        status: "success",
+        totalTokens: 3,
+        usageSource: "provider",
+      }),
+    });
   });
 });

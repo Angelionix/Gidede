@@ -1,5 +1,11 @@
 import { isTransientLlmError } from "@/lib/llm/errors";
+import {
+  classifyLlmTelemetryError,
+  emitLlmTelemetry,
+  EMPTY_LLM_USAGE,
+} from "@/lib/llm/telemetry";
 import type {
+  LlmCallTelemetry,
   LlmCapabilities,
   LlmClient,
   LlmCompletionRequest,
@@ -8,6 +14,7 @@ import type {
   LlmModelDescriptor,
   LlmProviderHealth,
   LlmStreamChunk,
+  LlmTelemetryObserver,
 } from "@/lib/llm/types";
 
 export const ROUTABLE_LLM_STAGES = [
@@ -131,6 +138,7 @@ export class RoutedLlmClient implements LlmClient {
       temperature: null,
       maxOutputTokens: null,
     },
+    private readonly telemetryObserver?: LlmTelemetryObserver,
   ) {
     if (candidates.length === 0) throw new Error("LLM route requires at least one candidate");
     this.providerId = candidates[0].client.providerId;
@@ -158,12 +166,33 @@ export class RoutedLlmClient implements LlmClient {
 
     for (let index = 0; index < this.candidates.length; index += 1) {
       const candidate = this.candidates[index];
+      const candidateRequest = this.requestForCandidate(request, candidate);
+      const startedAt = Date.now();
       try {
-        return await candidate.client.createCompletion({
-          ...this.requestForCandidate(request, candidate),
+        const response = await candidate.client.createCompletion({
+          ...candidateRequest,
           stream: false,
         });
+        await this.emitTelemetry({
+          stage: this.stage,
+          providerId: candidate.client.providerId,
+          modelId: response.model || candidateRequest.model || candidate.client.modelId,
+          status: "success",
+          stream: false,
+          latencyMs: Date.now() - startedAt,
+          usage: response.usage ?? EMPTY_LLM_USAGE,
+          usageSource: response.usage ? "provider" : "unavailable",
+          errorClass: null,
+        }, request.onTelemetry);
+        return response;
       } catch (error) {
+        await this.emitTelemetry(this.errorTelemetry(
+          candidate,
+          candidateRequest.model,
+          false,
+          startedAt,
+          error,
+        ), request.onTelemetry);
         if (!isTransientLlmError(error) || index === this.candidates.length - 1) throw error;
       }
     }
@@ -176,20 +205,75 @@ export class RoutedLlmClient implements LlmClient {
     let emitted = false;
     for (let index = 0; index < this.candidates.length; index += 1) {
       const candidate = this.candidates[index];
+      const candidateRequest = this.requestForCandidate(request, candidate);
+      const startedAt = Date.now();
+      let usage = EMPTY_LLM_USAGE;
+      let usageAvailable = false;
+      let actualModel = candidateRequest.model || candidate.client.modelId;
       try {
         const stream = await candidate.client.createCompletion({
-          ...this.requestForCandidate(request, candidate),
+          ...candidateRequest,
           stream: true,
         });
         for await (const chunk of stream) {
           emitted = true;
+          if (chunk.model) actualModel = chunk.model;
+          if (chunk.usage) {
+            usage = chunk.usage;
+            usageAvailable = true;
+          }
           yield chunk;
         }
+        await this.emitTelemetry({
+          stage: this.stage,
+          providerId: candidate.client.providerId,
+          modelId: actualModel,
+          status: "success",
+          stream: true,
+          latencyMs: Date.now() - startedAt,
+          usage,
+          usageSource: usageAvailable ? "provider" : "unavailable",
+          errorClass: null,
+        }, request.onTelemetry);
         return;
       } catch (error) {
+        await this.emitTelemetry(this.errorTelemetry(
+          candidate,
+          actualModel,
+          true,
+          startedAt,
+          error,
+        ), request.onTelemetry);
         if (emitted || !isTransientLlmError(error) || index === this.candidates.length - 1) throw error;
       }
     }
+  }
+
+  private errorTelemetry(
+    candidate: LlmRouteCandidate,
+    modelId: string | null | undefined,
+    stream: boolean,
+    startedAt: number,
+    error: unknown,
+  ): LlmCallTelemetry {
+    return {
+      stage: this.stage,
+      providerId: candidate.client.providerId,
+      modelId: modelId || candidate.client.modelId,
+      status: "error",
+      stream,
+      latencyMs: Date.now() - startedAt,
+      usage: EMPTY_LLM_USAGE,
+      usageSource: "unavailable",
+      errorClass: classifyLlmTelemetryError(error),
+    };
+  }
+
+  private emitTelemetry(
+    event: LlmCallTelemetry,
+    requestObserver?: LlmTelemetryObserver,
+  ): Promise<void> {
+    return emitLlmTelemetry(event, this.telemetryObserver, requestObserver);
   }
 
   async isAvailable(): Promise<boolean> {

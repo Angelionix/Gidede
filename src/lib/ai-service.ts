@@ -21,6 +21,7 @@ import {
   buildBiblePromptContext,
   type BiblePromptSource,
 } from "@/lib/llm/bible-context";
+import type { LlmCallTelemetry } from "@/lib/llm/types";
 
 const getLlmClient = getLlmClientForStage;
 
@@ -99,6 +100,7 @@ function buildUserPrompt(ctx: AiContext): string {
 export interface AiTextResponse {
   text: string;
   sources: BiblePromptSource[];
+  telemetry?: LlmCallTelemetry;
 }
 
 async function buildAssistantMessages(ctx: AiContext): Promise<{
@@ -146,16 +148,20 @@ export async function generateAiResponseWithSources(
 
   try {
     const { messages, sources } = await buildAssistantMessages(ctx);
+    let telemetry: LlmCallTelemetry | undefined;
 
     const response = await zai.createCompletion({
       messages,
       stream: false,
       reasoning: "disabled",
+      onTelemetry: (event) => {
+        if (event.status === "success") telemetry = event;
+      },
     });
 
     const reply = response.choices?.[0]?.message?.content;
     return reply && reply.trim().length > 0
-      ? { text: reply.trim(), sources }
+      ? { text: reply.trim(), sources, ...(telemetry ? { telemetry } : {}) }
       : null;
   } catch (e) {
     console.error(
@@ -188,11 +194,15 @@ export async function streamAiResponseWithSources(
 
   try {
     const { messages, sources } = await buildAssistantMessages(ctx);
+    let telemetry: LlmCallTelemetry | undefined;
 
     const stream = await zai.createCompletion({
       messages,
       stream: true,
       reasoning: "disabled",
+      onTelemetry: (event) => {
+        if (event.status === "success") telemetry = event;
+      },
     });
 
     let fullText = "";
@@ -205,7 +215,9 @@ export async function streamAiResponseWithSources(
     }
 
     const text = fullText.trim();
-    return text ? { text, sources } : null;
+    return text
+      ? { text, sources, ...(telemetry ? { telemetry } : {}) }
+      : null;
   } catch (e) {
     console.error(
       "[ai-service] stream failed:",

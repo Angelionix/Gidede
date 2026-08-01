@@ -37,7 +37,7 @@ const source = {
   score: 7.2,
 };
 
-describe("POST /assistant/chat/stream Bible provenance — R3-09", () => {
+describe("POST /assistant/chat/stream provenance and telemetry — R3-09/R3-10", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.getCurrentUser.mockResolvedValue({ id: "user-1" });
@@ -49,7 +49,21 @@ describe("POST /assistant/chat/stream Bible provenance — R3-09", () => {
     mocks.streamAiResponseWithSources.mockImplementation(
       async (_context: unknown, onDelta: (chunk: string) => void) => {
         onDelta("MDA answer");
-        return { text: "MDA answer", sources: [source] };
+        return {
+          text: "MDA answer",
+          sources: [source],
+          telemetry: {
+            stage: "assistant",
+            providerId: "fallback-provider",
+            modelId: "actual-stream-model",
+            status: "success",
+            stream: true,
+            latencyMs: 90,
+            usage: { inputTokens: 35, outputTokens: 12, totalTokens: 47 },
+            usageSource: "provider",
+            errorClass: null,
+          },
+        };
       }
     );
   });
@@ -72,13 +86,24 @@ describe("POST /assistant/chat/stream Bible provenance — R3-09", () => {
         type: "done",
         source_ids: [source.source_id],
         sources: [source],
+        provider: "fallback-provider",
+        model_used: "actual-stream-model",
+        llm_call: expect.objectContaining({
+          usage: { inputTokens: 35, outputTokens: 12, totalTokens: 47 },
+        }),
       })
     );
     expect(mocks.appendMessage).toHaveBeenLastCalledWith(
       "user-1",
       null,
       expect.objectContaining({
-        metadata: expect.objectContaining({ source_ids: [source.source_id] }),
+        metadata: expect.objectContaining({
+          source_ids: [source.source_id],
+          llm_call: expect.objectContaining({
+            providerId: "fallback-provider",
+            modelId: "actual-stream-model",
+          }),
+        }),
       })
     );
   });

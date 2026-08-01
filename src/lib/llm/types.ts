@@ -13,15 +13,55 @@ export interface LlmCompletionRequest {
   maxTokens?: number;
   reasoning?: "enabled" | "disabled";
   signal?: AbortSignal;
+  onTelemetry?: LlmTelemetryObserver;
 }
+
+export interface LlmTokenUsage {
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+}
+
+export type LlmCallStatus = "success" | "error";
+export type LlmUsageSource = "provider" | "unavailable";
+export type LlmTelemetryErrorClass =
+  | "timeout"
+  | "circuit_open"
+  | "aborted"
+  | "network"
+  | "rate_limit"
+  | "authentication"
+  | "invalid_request"
+  | "provider_transient"
+  | "provider_error"
+  | "unknown";
+
+export interface LlmCallTelemetry {
+  stage: string;
+  providerId: string;
+  modelId: string | null;
+  status: LlmCallStatus;
+  stream: boolean;
+  latencyMs: number;
+  usage: LlmTokenUsage;
+  usageSource: LlmUsageSource;
+  errorClass: LlmTelemetryErrorClass | null;
+}
+
+export type LlmTelemetryObserver = (
+  event: LlmCallTelemetry
+) => void | Promise<void>;
 
 export interface LlmCompletionResponse {
   choices?: Array<{ message?: { content?: string | null } }>;
   model?: string;
+  usage?: LlmTokenUsage;
 }
 
 export interface LlmStreamChunk {
   choices?: Array<{ delta?: { content?: string | null } }>;
+  model?: string;
+  usage?: LlmTokenUsage;
 }
 
 export interface LlmCapabilities {

@@ -28,7 +28,6 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/server-auth";
 import {
   getOwnedProject,
-  safeJsonParse,
   updateProjectStage,
   UNAUTH,
   SERVER_ERROR,
@@ -749,19 +748,22 @@ function buildMachinationsResult(
   };
 }
 
+// TASK-4.8 FIXED: buildStability signature broadened to avoid `as unknown as` cast.
+// Before: called with `machinationsResult as unknown as { ... feedback_loops: Array<{type: string}> }`.
+// After: accepts the actual return type of buildMachinationsResult, which may or may not
+// have feedback_loops depending on runMachinations. The `graph` property contains
+// feedback_loops when runMachinations=true.
 function buildStability(
   machinationsResult: {
     aggregated: { runaway_frequency: number; stall_frequency: number; stability_index: number };
     quality: { critical_issues: string[] };
     detected_pathologies: string[];
-    feedback_loops: Array<{ type: string }>;
+    graph?: { feedback_loops?: Array<{ type: string }> };
   },
   transitiveResult: { overpowered: string[]; underpowered: string[] }
 ) {
-  // Defensive: feedback_loops may be undefined when runMachinations is false
-  // (buildMachinationsResult omits the field in that case). Guard against
-  // TypeError so Block 4 does not crash the whole pipeline.
-  const feedbackLoops = machinationsResult.feedback_loops || [];
+  // TASK-4.8: extract feedback_loops from graph.feedback_loops (was top-level feedback_loops).
+  const feedbackLoops = machinationsResult.graph?.feedback_loops || [];
   const positiveLoops = feedbackLoops.filter(
     (l) => l.type === "positive"
   ).length;
@@ -894,13 +896,9 @@ export async function POST(request: NextRequest) {
       runMachinations,
       monteCarloResult
     );
+    // TASK-4.8: removed `as unknown as` cast — buildStability signature now accepts actual type.
     const stability = buildStability(
-      machinationsResult as unknown as {
-        aggregated: { runaway_frequency: number; stall_frequency: number; stability_index: number };
-        quality: { critical_issues: string[] };
-        detected_pathologies: string[];
-        feedback_loops: Array<{ type: string }>;
-      },
+      machinationsResult,
       transitiveResult
     );
 
@@ -1038,8 +1036,7 @@ export async function POST(request: NextRequest) {
 
     await updateProjectStage(proj.id, "balance");
 
-    // safeJsonParse is imported but unused — satisfy linter
-    void safeJsonParse;
+    // TASK-4.17: removed dead code (void safeJsonParse).
 
     // --- Optional AI enrichment ---
     if (useAi) {

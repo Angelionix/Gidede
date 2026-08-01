@@ -109,9 +109,12 @@ for i in 0 1 2 3 4 5 6 7 8 9; do
 
   # Step 4: Balance (AI)
   echo "  [4/8] Balance (AI)..."
+  # TASK-4.1 FIXED: was 'elements' (wrong field, ignored by route → 422 for all 10 test_projects).
+  # Now sends 'objects' with proper BalanceObject shape: {id, name, type, attributes, cost, tier}.
+  # Also sends 4 objects (≥2 required) with genre from concept for better balance analysis.
   R=$(curl -s -X POST $API/balance/analyze \
     -H "Authorization: Bearer $TOKEN" -H "Content-Type: application/json" \
-    -d "{\"project_id\":\"$PID\",\"elements\":[{\"name\":\"sword\",\"cost\":100,\"power\":50}],\"use_ai\":true}" \
+    -d "{\"project_id\":\"$PID\",\"objects\":[{\"id\":\"weapon_basic\",\"name\":\"Базовое оружие\",\"type\":\"weapon\",\"attributes\":{\"power\":30,\"range\":5,\"speed\":7},\"cost\":100,\"tier\":1},{\"id\":\"weapon_advanced\",\"name\":\"Продвинутое оружие\",\"type\":\"weapon\",\"attributes\":{\"power\":60,\"range\":8,\"speed\":5},\"cost\":300,\"tier\":2},{\"id\":\"armor_light\",\"name\":\"Лёгкая броня\",\"type\":\"armor\",\"attributes\":{\"defense\":20,\"mobility\":8},\"cost\":150,\"tier\":1},{\"id\":\"armor_heavy\",\"name\":\"Тяжёлая броня\",\"type\":\"armor\",\"attributes\":{\"defense\":50,\"mobility\":3},\"cost\":400,\"tier\":3}],\"game_mode\":\"pve\",\"use_ai\":true}" \
     --max-time 60 2>/dev/null || echo '{"error":"timeout"}')
   echo "$R" > "$RUN_DIR/04_balance.json"
 

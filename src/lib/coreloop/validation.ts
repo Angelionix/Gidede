@@ -1,0 +1,168 @@
+/**
+ * Gidede — Core Loop validation (Block 2, TASK-2.4/2.6/2.16).
+ *
+ * TASK-2.4: реальная проверка замкнутости через resource flow.
+ * TASK-2.6: 5 вопросов Гэри (Bible 4.11.2).
+ * TASK-2.16: Bible-justified threshold — все 5 критериев обязательны.
+ */
+
+import type { CoreStep } from "./steps";
+import type { PathologyReport } from "./pathologies";
+
+export interface GaryFiveQuestions {
+  is_loop: boolean;
+  has_conflict: boolean;
+  has_resources: boolean;
+  has_interaction: boolean;
+  has_goal: boolean;
+  answers: Record<string, string>;
+}
+
+export interface LoopClosedness {
+  is_closed: boolean;
+  connection_description: string;
+  closing_resources: string[];
+}
+
+export interface ResourceSufficiency {
+  has_dead_resources: boolean;
+  has_unsourced_consumables: boolean;
+  dead_resources: string[];
+  unsourced_consumables: string[];
+}
+
+export interface ValidationResult {
+  fun_check: { passed: boolean; score: number; reasoning: string };
+  loop_closedness: LoopClosedness;
+  resource_sufficiency: ResourceSufficiency;
+  gary_five_questions: GaryFiveQuestions;
+  checklist_passed: number;
+  checklist_total: number;
+  overall_passed: boolean;
+  score: number;
+  warnings: string[];
+}
+
+export function checkLoopClosedness(steps: CoreStep[]): LoopClosedness {
+  if (steps.length < 2) {
+    return { is_closed: false, connection_description: "Недостаточно шагов (минимум 2)", closing_resources: [] };
+  }
+
+  const firstStep = steps[0];
+  const lastStep = steps[steps.length - 1];
+
+  // Check 1: last produces resource consumed by first
+  const closingResources = lastStep.resources_produced.filter((r) => firstStep.resources_consumed.includes(r));
+  if (closingResources.length > 0) {
+    return {
+      is_closed: true,
+      connection_description: `Последний шаг "${lastStep.action}" производит [${closingResources.join(", ")}], потребляемые первым "${firstStep.action}"`,
+      closing_resources: closingResources,
+    };
+  }
+
+  // Check 2: return action keyword
+  const returnKeywords = ["повтор", "return", "repeat", "back", "loop", "continue", "продолж", "возврат", "цикл"];
+  const lastActionLower = lastStep.action.toLowerCase();
+  if (returnKeywords.some((kw) => lastActionLower.includes(kw))) {
+    return { is_closed: true, connection_description: `Последний шаг "${lastStep.action}" указывает на возврат к началу`, closing_resources: [] };
+  }
+
+  // Check 3: chain integrity
+  let chainIntact = true;
+  for (let i = 0; i < steps.length - 1; i++) {
+    const produced = steps[i].resources_produced;
+    const nextConsumed = steps[i + 1].resources_consumed;
+    const hasLink = produced.length === 0 || nextConsumed.length === 0 || produced.some((r) => nextConsumed.includes(r));
+    if (!hasLink) { chainIntact = false; break; }
+  }
+  if (chainIntact && steps.length >= 3) {
+    return { is_closed: true, connection_description: `Цепочка ресурсов цела через ${steps.length} шагов`, closing_resources: [] };
+  }
+
+  return { is_closed: false, connection_description: `Последний шаг "${lastStep.action}" не связан с первым "${firstStep.action}"`, closing_resources: [] };
+}
+
+export function checkGaryFiveQuestions(steps: CoreStep[]): GaryFiveQuestions {
+  const hasLoop = steps.length >= 2;
+  const hasConflict = steps.some((s) => s.feedback_type === "negative" || s.resources_consumed.length > 0);
+  const allResources = new Set<string>();
+  for (const s of steps) {
+    s.resources_consumed.forEach((r) => allResources.add(r));
+    s.resources_produced.forEach((r) => allResources.add(r));
+  }
+  const hasResources = allResources.size >= 2;
+  const hasInteraction = steps.every((s) => s.mechanics.length > 0);
+  const hasGoal = steps.some((s) => s.feedback_type === "positive");
+
+  const answers: Record<string, string> = {
+    "Является ли это циклом?": hasLoop ? `Да, ${steps.length} шагов` : "Нет, недостаточно шагов",
+    "Есть ли конфликт?": hasConflict ? "Да, есть opposing force" : "Нет явного конфликта",
+    "Какие ресурсы?": hasResources ? `${allResources.size} ресурсов: ${Array.from(allResources).slice(0, 5).join(", ")}` : "Недостаточно ресурсов",
+    "Какое взаимодействие?": hasInteraction ? "Каждый шаг имеет player action" : "Некоторые шаги без action",
+    "Какова цель?": hasGoal ? "Да, есть positive feedback" : "Нет явной цели",
+  };
+
+  return { is_loop: hasLoop, has_conflict: hasConflict, has_resources: hasResources, has_interaction: hasInteraction, has_goal: hasGoal, answers };
+}
+
+export function checkResourceSufficiency(steps: CoreStep[]): ResourceSufficiency {
+  const allConsumed = new Set(steps.flatMap((s) => s.resources_consumed));
+  const allProduced = new Set(steps.flatMap((s) => s.resources_produced));
+  const deadResources = Array.from(allProduced).filter((r) => !allConsumed.has(r));
+  const unsourcedConsumables = Array.from(allConsumed).filter((r) => !allProduced.has(r));
+  return {
+    has_dead_resources: deadResources.length > 0,
+    has_unsourced_consumables: unsourcedConsumables.length > 0,
+    dead_resources: deadResources,
+    unsourced_consumables: unsourcedConsumables,
+  };
+}
+
+export function buildValidation(
+  steps: CoreStep[],
+  pathologies: PathologyReport,
+  structuralType: { type: string; has_braking: boolean }
+): ValidationResult {
+  const positiveCount = steps.filter((s) => s.feedback_type === "positive").length;
+  const funCheckScore = Math.min(1, (positiveCount / Math.max(1, steps.length)) * 0.5 + (steps.length >= 3 && steps.length <= 7 ? 0.5 : 0.2));
+  const funCheckPassed = funCheckScore >= 0.5;
+
+  const loopClosedness = checkLoopClosedness(steps);
+  const resourceSufficiency = checkResourceSufficiency(steps);
+  const garyFiveQuestions = checkGaryFiveQuestions(steps);
+
+  const checklistItems = [
+    funCheckPassed,
+    loopClosedness.is_closed,
+    !resourceSufficiency.has_dead_resources && !resourceSufficiency.has_unsourced_consumables,
+    pathologies.critical_count === 0,
+    steps.length >= 3 && steps.length <= 7,
+  ];
+  const checklistPassed = checklistItems.filter(Boolean).length;
+  const checklistTotal = 5;
+  // TASK-2.16: all 5 required
+  const overallPassed = checklistPassed === checklistTotal;
+  const score = Number((checklistPassed / checklistTotal).toFixed(3));
+
+  const warnings: string[] = [];
+  if (resourceSufficiency.has_dead_resources) warnings.push(`Dead resources: ${resourceSufficiency.dead_resources.join(", ")}`);
+  if (resourceSufficiency.has_unsourced_consumables) warnings.push(`Unsourced consumables: ${resourceSufficiency.unsourced_consumables.join(", ")}`);
+  if (pathologies.critical_count > 0) warnings.push(`${pathologies.critical_count} critical патологий`);
+  if (!structuralType.has_braking) warnings.push("Цикл без торможения");
+  if (!loopClosedness.is_closed) warnings.push("Цикл не замкнут");
+  if (!garyFiveQuestions.has_conflict) warnings.push("Gary Q2: нет конфликта");
+  if (!garyFiveQuestions.has_goal) warnings.push("Gary Q5: нет цели");
+
+  return {
+    fun_check: { passed: funCheckPassed, score: Number(funCheckScore.toFixed(3)), reasoning: `${positiveCount}/${steps.length} positive; ${steps.length} шагов` },
+    loop_closedness: loopClosedness,
+    resource_sufficiency: resourceSufficiency,
+    gary_five_questions: garyFiveQuestions,
+    checklist_passed: checklistPassed,
+    checklist_total: checklistTotal,
+    overall_passed: overallPassed,
+    score,
+    warnings,
+  };
+}

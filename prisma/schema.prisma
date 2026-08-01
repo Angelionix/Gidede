@@ -141,8 +141,8 @@ model ProjectConcept {
 model ProjectCoreLoop {
   id                String   @id @default(cuid())
   projectId         String   @unique
-  structuralType    String?   // Engine | Economy | Ecology
-  structuralSubtype String?   // braked/pure, multi_currency/single
+  structuralType    String?   // Engine | Economy | Ecology | Hybrid | Tower_Defense | Rhythm | Puzzle
+  structuralSubtype String?   // braked/pure, multi_currency/single, wave_based/beat_synced/pattern_based
   stepCount         Int?
   hierarchyDepth    Int?
   pathologyCount    Int       @default(0)
@@ -156,6 +156,11 @@ model ProjectCoreLoop {
   recommendations   String?   // JSON: Recommendation[]
   validationData    String?   // JSON: Валидация
   fullProfile       String?   // JSON: Полный CoreLoopProfile
+  // TASK-2.13: новые поля для persist
+  aiInsights        String?   // AI-инсайты от enrichCoreLoop
+  latencyMs         Int?      // Время генерации в мс
+  modelsUsed        String?   // JSON: string[]
+  garyFiveQuestions String?   // JSON: GaryFiveQuestions
   createdAt         DateTime  @default(now())
   updatedAt         DateTime  @updatedAt
 

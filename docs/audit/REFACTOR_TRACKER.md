@@ -39,14 +39,14 @@
 | Блок | Всего задач | 🔴 Критично | 🟡 Средне | 🟢 Низко | Выполнено | Оценка (ч) |
 |------|:-----------:|:-----------:|:---------:|:---------:|:----------:|:----------:|
 | 1. Концепция | 18 | 4 | 11 | 3 | **18/18** ✅✅ | 30-70 |
-| 2. Core Loop | 20 | 6 | 11 | 4 | 0/20 | 50-95 |
+| 2. Core Loop | 20 | 6 | 11 | 4 | **20/20** ✅✅ | 50-95 |
 | 3. MDA | 20 | 6 | 11 | 4 | 0/20 | 55-100 |
 | 4. Баланс | 18 | 9 | 5 | 4 | 0/18 | 130-195 |
 | 5a. Прогрессия | 17 | 0 | 13 | 4 | 0/17 | 35-65 |
 | 5b. Экономика | 18 | 11 | 5 | 2 | 0/18 | 156-190 |
 | 6. GDD | 20 | 9 | 8 | 3 | 0/20 | 175-275 |
 | 6b. Чек-лист | 17 | 12 | 3 | 2 | 0/17 | 150-210 |
-| **Итого** | **148** | **57** | **67** | **26** | **18/148** | **781-1200** |
+| **Итого** | **148** | **57** | **67** | **26** | **38/148** | **781-1200** |
 
 ---
 
@@ -109,26 +109,26 @@
 
 | Task ID | Описание | Сложность | Приоритет | Статус | Dependencies |
 |---------|----------|:---------:|:---------:|:------:|--------------|
-| TASK-2.1 | Параметризовать `buildSteps` по типу (7 builder'ов: Engine/Economy/Ecology/Hybrid/TD/Rhythm/Puzzle) | XL | 🔴 | ⬜ | — |
-| TASK-2.2 | Классифицировать тип по эстетике (Bible 4.11.1) | M | 🔴 | ⬜ | TASK-1.6 |
-| TASK-2.3 | Реализовать 7 Bible патологий (убрать 4 non-biblical) | L | 🔴 | ⬜ | — |
-| TASK-2.4 | Реальная проверка замкнутости через resource flow | M | 🔴 | ⬜ | TASK-2.8 |
-| TASK-2.5 | Sub_types для tower_defense/rhythm/puzzle | M | 🟡 | ⬜ | — |
-| TASK-2.6 | 5 вопросов Гэри (Bible 4.11.2) | M | 🟡 | ⬜ | — |
-| TASK-2.7 | Масштаб по жанру (Bible 4.11.3, 25 жанров) | S | 🟡 | ⬜ | — |
-| TASK-2.8 | Убрать `dead_resources` из default template | M | 🔴 | ⬜ | TASK-2.1 |
-| TASK-2.9 | Починить customSteps mode (resources из типа, не из feedback) | M | 🟡 | ⬜ | — |
-| TASK-2.10 | Заменить `\|\|` на `&&` в pathology detection | S | 🟡 | ⬜ | — |
-| TASK-2.11 | Починить `hasBraking` логику | S | 🟡 | ⬜ | — |
-| TASK-2.12 | Заменить substring matching на keyword sets с русскими эквивалентами | M | 🟡 | ⬜ | — |
-| TASK-2.13 | Добавить `aiInsights`/`modelsUsed`/`latencyMs`/`garyFiveQuestions` в Prisma | M | 🟡 | ⬜ | — |
-| TASK-2.14 | Добавить GET `/coreloop/[projectId]` route | S | 🟡 | ⬜ | — |
-| TASK-2.15 | Убрать dead code (`void safeJsonParse`, `PATHOLOGY_TYPES`, hardcoded `hierarchyDepth`) | S | 🟢 | ⬜ | — |
-| TASK-2.16 | Bible-justified threshold `overallPassed` (все 5 критериев обязательны) | S | 🔴 | ⬜ | — |
-| TASK-2.17 | riskLevel/likelyPathologies для TD/Rhythm/Puzzle | S | 🟢 | ⬜ | TASK-2.5 |
-| TASK-2.18 | Улучшить `enrichCoreLoop` prompt | S | 🟡 | ⬜ | — |
-| TASK-2.19 | Multi-entry loops array (Bible 4.3 шесть уровней) | M | 🟢 | ⬜ | — |
-| TASK-2.20 | Unit-тесты для всех функций | L | 🟢 | ⬜ | Все остальные |
+| TASK-2.1 | Параметризовать `buildSteps` по типу (7 builder'ов: Engine/Economy/Ecology/Hybrid/TD/Rhythm/Puzzle) | XL | 🔴 | ✅ | — |
+| TASK-2.2 | Классифицировать тип по эстетике (Bible 4.11.1) | M | 🔴 | ✅ | TASK-1.6 |
+| TASK-2.3 | Реализовать 7 Bible патологий (убрать 4 non-biblical) | L | 🔴 | ✅ | — |
+| TASK-2.4 | Реальная проверка замкнутости через resource flow | M | 🔴 | ✅ | TASK-2.8 |
+| TASK-2.5 | Sub_types для tower_defense/rhythm/puzzle | M | 🟡 | ✅ | — |
+| TASK-2.6 | 5 вопросов Гэри (Bible 4.11.2) | M | 🟡 | ✅ | — |
+| TASK-2.7 | Масштаб по жанру (Bible 4.11.3, 25 жанров) | S | 🟡 | ✅ | — |
+| TASK-2.8 | Убрать `dead_resources` из default template | M | 🔴 | ✅ | TASK-2.1 |
+| TASK-2.9 | Починить customSteps mode (resources из типа, не из feedback) | M | 🟡 | ✅ | — |
+| TASK-2.10 | Заменить `\|\|` на `&&` в pathology detection | S | 🟡 | ✅ | — |
+| TASK-2.11 | Починить `hasBraking` логику | S | 🟡 | ✅ | — |
+| TASK-2.12 | Заменить substring matching на keyword sets с русскими эквивалентами | M | 🟡 | ✅ | — |
+| TASK-2.13 | Добавить `aiInsights`/`modelsUsed`/`latencyMs`/`garyFiveQuestions` в Prisma | M | 🟡 | ✅ | — |
+| TASK-2.14 | Добавить GET `/coreloop/[projectId]` route | S | 🟡 | ✅ | — |
+| TASK-2.15 | Убрать dead code (`void safeJsonParse`, `PATHOLOGY_TYPES`, hardcoded `hierarchyDepth`) | S | 🟢 | ✅ | — |
+| TASK-2.16 | Bible-justified threshold `overallPassed` (все 5 критериев обязательны) | S | 🔴 | ✅ | — |
+| TASK-2.17 | riskLevel/likelyPathologies для TD/Rhythm/Puzzle | S | 🟢 | ✅ | TASK-2.5 |
+| TASK-2.18 | Улучшить `enrichCoreLoop` prompt | S | 🟡 | ✅ | — |
+| TASK-2.19 | Multi-entry loops array (Bible 4.3 шесть уровней) | M | 🟢 | ✅ | — |
+| TASK-2.20 | Unit-тесты для всех функций | L | 🟢 | ✅ | Все остальные |
 
 ---
 
@@ -581,3 +581,5 @@ Block 6 (GDD)
 ---
 
 *Для обновления статуса задач редактируйте таблицы выше, меняя символ в колонке "Статус".*
+
+| 2026-08-01 | 2.0 | **Block 2 COMPLETE (20/20)**: Все 20 задач Блока 2 (Core Loop Designer) выполнены. Новые модули: `src/lib/coreloop/steps.ts` (7 параметризованных builders, genre-based duration, customSteps с тип-зависимыми ресурсами), `classify.ts` (тип по aesthetic Bible 4.11.1, sub_types для TD/rhythm/puzzle, реальный hasBraking), `pathologies.ts` (7 Bible 4.10 патологий + 6 type-specific, && логика), `validation.ts` (реальная замкнутость через resource flow, 5 вопросов Гэри, all-5-required threshold), `hierarchy.ts` (6 уровней Bible 4.3 + type-specific). Prisma миграция: aiInsights, latencyMs, modelsUsed, garyFiveQuestions. GET /coreloop/[projectId] route. enrichCoreLoop расширенный prompt. 240 unit тестов (90 новых для Block 2), coverage 93.39% stmts / 86.86% branches / 99.3% functions. TypeScript компилируется без ошибок. |

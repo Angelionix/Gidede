@@ -14,7 +14,9 @@ export default defineConfig({
       reporter: ["text", "json-summary"],
       include: [
         "src/lib/concept/**/*.ts",
+        "src/lib/coreloop/**/*.ts",
         "src/lib/mechanics-db.ts",
+        "src/lib/mechanics-taxonomy.ts",
       ],
       exclude: [
         "src/**/*.test.ts",

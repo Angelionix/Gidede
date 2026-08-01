@@ -505,28 +505,52 @@ export interface CoreLoopAiInput {
   genre: string;
   coreLoopType: string;
   steps: string[];
+  // TASK-2.18: расширенный контекст
+  pathologies?: string[];
+  deadResources?: string[];
+  unsourcedConsumables?: string[];
+  garyAnswers?: Record<string, string>;
 }
 
 export async function enrichCoreLoop(ctx: CoreLoopAiInput): Promise<string | null> {
   const zai = await getZai();
   if (!zai) return null;
   try {
+    // TASK-2.18: расширенный prompt с реальным контекстом
+    const pathologiesSection = ctx.pathologies && ctx.pathologies.length > 0
+      ? `\nОбнаруженные патологии: ${ctx.pathologies.join(", ")}`
+      : "\nПатологии не обнаружены.";
+
+    const deadResourcesSection = ctx.deadResources && ctx.deadResources.length > 0
+      ? `\nDead resources (производятся, но не потребляются): ${ctx.deadResources.join(", ")}`
+      : "";
+
+    const unsourcedSection = ctx.unsourcedConsumables && ctx.unsourcedConsumables.length > 0
+      ? `\nUnsourced consumables (потребляются, но не производятся): ${ctx.unsourcedConsumables.join(", ")}`
+      : "";
+
+    const garySection = ctx.garyAnswers
+      ? `\n\n5 вопросов Гэри:\n${Object.entries(ctx.garyAnswers).map(([q, a]) => `- ${q}: ${a}`).join("\n")}`
+      : "";
+
     const prompt = `Ты — экспертный геймдизайнер. Дай инсайты по кор-лупу для теста «30 секунд веселья».
 
 Проект: ${ctx.projectName}
 Жанр: ${ctx.genre}
 Тип кор-лупа: ${ctx.coreLoopType}
 Шаги: ${ctx.steps.join(" → ")}
+${pathologiesSection}${deadResourcesSection}${unsourcedSection}${garySection}
 
-Дай 3 конкретных совета (на русском, каждый 1-2 предложения):
-1. Что делает этот кор-луп увлекательным
-2. Какие wow-моменты добавить
-3. Какие риски fun factor могут возникнуть
+Дай 4 конкретных совета (на русском, каждый 1-2 предложения):
+1. Что делает этот кор-луп увлекательным (fun factor)
+2. Какие wow-моменты добавить для усиления эмоций
+3. Какие риски fun factor могут возникнуть (учти обнаруженные патологии)
+4. Конкретное улучшение для замкнутости цикла или resource flow
 
 Ответ — обычный текст с нумерованными пунктами.`;
     const response = await zai.chat.completions.create({
       messages: [
-        { role: "system", content: "Ты — AI-ассистент по геймдизайну, специализирующийся на core loop проектировании." },
+        { role: "system", content: "Ты — AI-ассистент по геймдизайну, специализирующийся на core loop проектировании по методологии Шелла и Адамса/Дорманс." },
         { role: "user", content: prompt },
       ],
       stream: false,

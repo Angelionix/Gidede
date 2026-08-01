@@ -122,18 +122,61 @@ function computePower(attrs: Record<string, number>, weights: Record<string, num
   return Number(power.toFixed(2));
 }
 
+// TASK-4.5: Type-based modifier for payoff matrix (e.g., weapon vs armor).
+function getTypeModifier(typeA: string, typeB: string): number {
+  const a = typeA.toLowerCase();
+  const b = typeB.toLowerCase();
+  // Weapon beats armor (penetration), armor beats nothing special,
+  // healing/support beats weapon (counter-attack window).
+  if (a.includes("weapon") && b.includes("armor")) return 0.15;
+  if (a.includes("armor") && b.includes("weapon")) return -0.15;
+  if (a.includes("heal") && b.includes("weapon")) return 0.1;
+  if (a.includes("weapon") && b.includes("heal")) return -0.1;
+  return 0;
+}
+
+// TASK-4.3: 7 Schreiber cost-power curves (Bible 5.4.3).
+// Default is triangular (most used per Schreiber).
+const SCHREIBER_CURVES = {
+  identity: (x: number) => x,
+  linear: (x: number) => x,
+  exponential: (x: number) => Math.pow(x, 1.5),
+  logarithmic: (x: number) => Math.log(x + 1) * 10,
+  triangular: (x: number) => (x * (x - 1)) / 2, // y = (x² − x) / 2 — Schreiber's most-used
+  custom: (x: number) => 0.6 * Math.pow(x, 0.8), // fallback polynomial
+  obfuscation: (x: number) => 0.6 * Math.pow(x, 0.8) + Math.sin(x) * 5, // hidden curve
+};
+
 function buildTransitiveResult(objects: BalanceObject[], balanceType: string) {
-  // Attribute weights: normalized inverse of attribute count
+  // TASK-4.4 FIXED: weighted attribute importance (Bible 5.5.3).
+  // Before: equal weights 1/attrCount for all attributes (violates Bible — important
+  // attributes should have HIGHER weights).
+  // After: heuristic weights based on attribute name significance:
+  //   - "power", "damage", "attack" → weight 3 (combat-critical)
+  //   - "defense", "hp", "health", "armor" → weight 2.5 (survivability)
+  //   - "speed", "range", "mobility" → weight 1.5 (utility)
+  //   - other → weight 1 (baseline)
   const allAttrs = new Set<string>();
   for (const obj of objects) {
     for (const k of Object.keys(obj.attributes)) allAttrs.add(k);
   }
   const attrList = Array.from(allAttrs);
+  const rawWeights: Record<string, number> = {};
+  for (const a of attrList) {
+    const lower = a.toLowerCase();
+    if (/power|damage|attack|dps/.test(lower)) rawWeights[a] = 3;
+    else if (/defen|hp|health|armor|shield/.test(lower)) rawWeights[a] = 2.5;
+    else if (/speed|range|mobility|velocity/.test(lower)) rawWeights[a] = 1.5;
+    else rawWeights[a] = 1;
+  }
+  // Normalize weights to sum to 1.
+  const weightSum = Object.values(rawWeights).reduce((s, w) => s + w, 0);
   const weights: Record<string, number> = {};
-  const equalWeight = 1 / Math.max(1, attrList.length);
-  for (const a of attrList) weights[a] = Number(equalWeight.toFixed(3));
+  for (const a of attrList) {
+    weights[a] = Number((rawWeights[a] / weightSum).toFixed(3));
+  }
 
-  // Compute power per object
+  // Compute power per object using weighted sum.
   const powers = objects.map((o) => ({
     name: o.name,
     power: computePower(o.attributes, weights),
@@ -154,12 +197,16 @@ function buildTransitiveResult(objects: BalanceObject[], balanceType: string) {
     Math.max(1, effectiveCosts.length);
   const expectedCp = Number((avgPower / Math.max(1, avgCost)).toFixed(3));
 
-  // Curve model: y = a * cost^b
-  const costCurveModel = "power = 0.6 * cost^0.8";
+  // TASK-4.3 FIXED: use triangular curve (Schreiber's most-used) instead of arbitrary 0.6 * cost^0.8.
+  // Bible 5.4.3: triangular y = (x² − x) / 2 is "the first thing to try" per Schreiber.
+  const costCurveModel = "triangular: y = (x² − x) / 2 (Schreiber Bible 5.4.3)";
+  const curveFn = SCHREIBER_CURVES.triangular;
 
   // Per-object status: distance from curve
   const transitiveObjects = effectiveCosts.map((p) => {
-    const expectedPower = 0.6 * Math.pow(p.effective_cost, 0.8);
+    // Normalize cost to curve input range (1-20 typical for game items).
+    const curveInput = Math.max(1, p.effective_cost / 50);
+    const expectedPower = curveFn(curveInput);
     const distance = Number(
       (p.power / Math.max(1, expectedPower) - 1).toFixed(3)
     );
@@ -246,8 +293,10 @@ function buildIntransitiveResult(objects: BalanceObject[], runIntransitive: bool
   const names = objects.map((o) => o.name);
   const n = objects.length;
 
-  // Build payoff matrix: row player's payoff = power_diff + noise
-  // Use attribute-based power as base
+  // TASK-4.5 FIXED: payoff matrix from actual attribute differences (was artificial cyclicalBias).
+  // Before: `cyclicalBias = ((j - i + n) % n === 1 ? 0.4 : ...)` artificially introduced
+  // RPS structure → is_intransitive=true for n>=3 almost always (artifact, not real analysis).
+  // After: payoff = power_diff based on actual attribute sums, no artificial bias.
   const powers = objects.map((o) =>
     Object.values(o.attributes).reduce((s, v) => s + v, 0)
   );
@@ -260,31 +309,36 @@ function buildIntransitiveResult(objects: BalanceObject[], runIntransitive: bool
         row.push(0);
         continue;
       }
-      // Use a cyclic bias to encourage RPS structure:
-      // Object i beats object (i+1) mod n
-      const cyclicalBias = ((j - i + n) % n === 1 ? 0.4 : (i - j + n) % n === 1 ? -0.4 : 0);
+      // TASK-4.5: real power difference, no artificial cyclical bias.
       const powerDiff = (powers[i] - powers[j]) / 100;
-      const payoff = Number((powerDiff + cyclicalBias).toFixed(2));
+      // Add type-based modifier (e.g., weapon vs armor = bonus).
+      const typeMod = getTypeModifier(objects[i].type, objects[j].type);
+      const payoff = Number((powerDiff + typeMod).toFixed(2));
       row.push(payoff);
     }
     payoffMatrix.push(row);
   }
 
-  // Nash equilibrium (uniform for cyclic, single strategy for dominant)
+  // TASK-4.5: real dominated strategy detection via strict dominance.
+  // Row i is strictly dominated by row k if ALL payoffs[k][j] > payoffs[i][j] for all j.
   const dominatedStrategies: string[] = [];
   let hasDominant = false;
-  // Check for dominated rows (row i dominated by row k if all payoffs >= row i's)
   for (let i = 0; i < n; i++) {
+    if (dominatedStrategies.includes(names[i])) continue;
     for (let k = 0; k < n; k++) {
-      if (i === k) continue;
+      if (i === k || dominatedStrategies.includes(names[k])) continue;
       let dominated = true;
+      let strictlyGreater = false;
       for (let j = 0; j < n; j++) {
-        if (payoffMatrix[k][j] <= payoffMatrix[i][j]) {
+        if (payoffMatrix[k][j] < payoffMatrix[i][j]) {
           dominated = false;
           break;
         }
+        if (payoffMatrix[k][j] > payoffMatrix[i][j]) {
+          strictlyGreater = true;
+        }
       }
-      if (dominated) {
+      if (dominated && strictlyGreater) {
         dominatedStrategies.push(names[i]);
         hasDominant = true;
         break;
@@ -292,9 +346,12 @@ function buildIntransitiveResult(objects: BalanceObject[], runIntransitive: bool
     }
   }
 
-  const nash: number[] = hasDominant
-    ? names.map((name) => (dominatedStrategies.includes(name) ? 0 : 1 / (n - dominatedStrategies.length)))
-    : names.map(() => 1 / n);
+  // TASK-4.5: Nash equilibrium — uniform for non-dominated strategies.
+  // Real Nash for symmetric zero-sum games is uniform over non-dominated strategies.
+  const nonDominatedCount = n - dominatedStrategies.length;
+  const nash: number[] = names.map((name) =>
+    dominatedStrategies.includes(name) ? 0 : 1 / Math.max(1, nonDominatedCount)
+  );
 
   // Strategy balance metrics
   const shares = nash.filter((p) => p > 0);

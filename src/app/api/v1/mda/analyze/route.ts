@@ -61,32 +61,35 @@ const AESTHETIC_TO_DYNAMICS: Record<string, string[]> = {
   submission: ["routine_formation", "habit_loops", "flow_state"],
 };
 
-// Dynamics → mechanics that produce them (Adams/Dormans)
+// TASK-3.1 FIXED: Dynamics → mechanics that produce them (Adams/Dormans).
+// Before: used invented IDs ("difficulty_settings", "voice_acting", etc.) that
+// don't match GENRE_DEFAULT_MECHANICS or MechanicsDB → overlap always 0.
+// After: all mechanic IDs aligned with GENRE_DEFAULT_MECHANICS namespace.
 const DYNAMICS_TO_MECHANICS: Record<string, string[]> = {
   combat_pacing: ["health_damage", "ability_cooldowns", "enemy_ai"],
-  feedback_effects: ["visual_effects", "audio_cues", "haptic_feedback"],
-  audio_visual_sync: ["beat_matching", "visual_pulses", "rhythm_inputs"],
-  role_immersion: ["character_customization", "voice_acting", "backstory_choices"],
-  character_growth: ["xp_leveling", "skill_trees", "ability_unlocks"],
-  world_belief: ["consistent_lore", "npc_dialogue", "environmental_storytelling"],
-  story_progression: ["quest_log", "dialogue_trees", "cutscene_triggers"],
-  character_arcs: ["relationship_system", "alignment_meter", "decision_consequences"],
-  lore_discovery: ["codex_entries", "hidden_notes", "environmental_clues"],
-  skill_scaling: ["difficulty_settings", "enemy_scaling", "player_buffs"],
-  difficulty_curves: ["adaptive_difficulty", "level_design_pacing", "skill_checks"],
-  mastery_growth: ["combo_system", "perfect_timing", "ranking_system"],
-  team_coordination: ["voice_chat", "ping_system", "shared_objectives"],
-  social_bonding: ["friend_list", "guild_system", "emote_wheel"],
-  shared_goals: ["coop_quests", "raid_encounters", "shared_progression"],
-  exploration_loops: ["map_reveal", "fast_travel", "landmark_discovery"],
-  secret_finding: ["hidden_areas", "puzzle_rooms", "easter_eggs"],
-  world_unfolding: ["biome_progression", "weather_system", "day_night_cycle"],
-  creative_tools: ["level_editor", "crafting_system", "building_blocks"],
-  customization: ["cosmetics", "loadout_system", "character_appearance"],
-  sandbox_building: ["terrain_modification", "structure_placement", "resource_mining"],
-  routine_formation: ["daily_quests", "login_rewards", "habit_trackers"],
-  habit_loops: ["notification_system", "streak_bonuses", "auto_collect"],
-  flow_state: ["smooth_controls", "minimal_ui", "gradual_difficulty_ramp"],
+  feedback_effects: ["score_increase", "level_unlock", "input_action"],
+  audio_visual_sync: ["input_action", "state_progression", "score_increase"],
+  role_immersion: ["dialogue_trees", "party_management", "equipment_upgrade"],
+  character_growth: ["xp_leveling", "skill_trees", "equipment_upgrade"],
+  world_belief: ["dialogue_trees", "world_exploration", "merchant_trading"],
+  story_progression: ["dialogue_trees", "quest_log", "cutscene_triggers"],
+  character_arcs: ["dialogue_trees", "party_management", "equipment_upgrade"],
+  lore_discovery: ["world_exploration", "map_exploration", "objective_navigation"],
+  skill_scaling: ["health_damage", "enemy_ai", "ability_cooldowns"],
+  difficulty_curves: ["enemy_ai", "health_damage", "level_unlock"],
+  mastery_growth: ["skill_trees", "perk_trees", "score_increase"],
+  team_coordination: ["squad_coordination", "coop_progression", "party_management"],
+  social_bonding: ["party_management", "squad_coordination", "leaderboards"],
+  shared_goals: ["coop_progression", "squad_coordination", "objective_navigation"],
+  exploration_loops: ["map_exploration", "world_exploration", "objective_navigation"],
+  secret_finding: ["map_exploration", "world_exploration", "dungeon_navigation"],
+  world_unfolding: ["world_exploration", "map_exploration", "territory_control"],
+  creative_tools: ["build_queues", "city_placement", "resource_gathering"],
+  customization: ["equipment_upgrade", "perk_trees", "skill_trees"],
+  sandbox_building: ["build_queues", "city_placement", "territory_control"],
+  routine_formation: ["score_increase", "level_unlock", "leaderboards"],
+  habit_loops: ["leaderboards", "score_increase", "state_progression"],
+  flow_state: ["input_action", "state_progression", "tactical_movement"],
 };
 
 // Genre → typical mechanics (canned fallback if existingMechanics empty)
@@ -394,11 +397,21 @@ function buildClassicMDA(
   ];
 
   // Predicted aesthetics from the mechanic set
+  // TASK-3.2 FIXED: iterate ALL dynamics for each aesthetic, not just [0].
+  // Before: `DYNAMICS_TO_MECHANICS[(AESTHETIC_TO_DYNAMICS[a] || [""])[0]]` — only first dynamic.
+  // After: collect mechanics from ALL dynamics of the aesthetic.
   const predictedAesthetics: Record<string, number> = {};
   const aestheticList = ["sensation", "fantasy", "narrative", "challenge", "fellowship", "discovery", "expression", "submission"];
   for (const a of aestheticList) {
-    // Use the aesthetic_coverage count as a proxy
-    const mechs = DYNAMICS_TO_MECHANICS[(AESTHETIC_TO_DYNAMICS[a] || [""])[0]] || [];
+    // Collect mechanics from ALL dynamics that produce this aesthetic.
+    const dynamics = AESTHETIC_TO_DYNAMICS[a] || [];
+    const mechsSet = new Set<string>();
+    for (const dyn of dynamics) {
+      for (const m of DYNAMICS_TO_MECHANICS[dyn] || []) {
+        mechsSet.add(m);
+      }
+    }
+    const mechs = Array.from(mechsSet);
     const allMechs = [
       ...mechanicSet.base,
       ...mechanicSet.combat,
@@ -675,11 +688,6 @@ export async function POST(request: NextRequest) {
     const projectId = body?.project_id?.toString().trim() || undefined;
     const useAi = body?.use_ai === true || body?.use_ai === "true";
     const conceptId = body?.concept_id?.toString().trim() || "standalone";
-    const genre = body?.genre?.toString().trim() || "rpg";
-    const idea = (body?.idea as string | undefined)?.trim() || "";
-    const primaryAesthetic = body?.primary_aesthetic?.toString().trim() || "challenge";
-    const secondaryAesthetic = body?.secondary_aesthetic?.toString().trim() || "fantasy";
-    const tertiaryAesthetic = body?.tertiary_aesthetic?.toString().trim() || "discovery";
     const maxMechanics = Math.max(5, Math.min(30, Number(body?.max_mechanics) || 18));
     const convergenceThreshold = Math.max(
       0,
@@ -697,6 +705,66 @@ export async function POST(request: NextRequest) {
       ? body.forbidden_mechanics.map((m: unknown) => String(m).trim()).filter(Boolean)
       : [];
 
+    // --- Resolve project FIRST (needed for concept loading) ---
+    const owned = await getOwnedProject(user, projectId);
+    if (owned instanceof NextResponse) return owned;
+    const proj = owned.project as {
+      id: string;
+      name: string;
+      genre: string | null;
+      concept?: {
+        aestheticProfile?: string | null;
+        inputData?: string | null;
+        genre?: string | null;
+      } | null;
+    };
+
+    // TASK-3.6 FIXED: Load aesthetic profile, genre, idea from project.concept
+    // when not provided in body. Also handle target_aesthetics array format
+    // (pipeline runner sends array, not scalars).
+    let conceptAesthetic: { primary?: string; secondary?: string; tertiary?: string } = {};
+    let conceptGenre: string | null = null;
+    let conceptIdea: string | null = null;
+    if (proj.concept) {
+      if (proj.concept.aestheticProfile) {
+        try {
+          conceptAesthetic = JSON.parse(proj.concept.aestheticProfile);
+        } catch { /* ignore parse error */ }
+      }
+      if (proj.concept.genre) conceptGenre = proj.concept.genre;
+      if (proj.concept.inputData) {
+        try {
+          const input = JSON.parse(proj.concept.inputData);
+          conceptIdea = input.idea || null;
+        } catch { /* ignore */ }
+      }
+    }
+
+    // Also check target_aesthetics array (pipeline runner format).
+    const targetAesthetics: string[] = Array.isArray(body?.target_aesthetics)
+      ? body.target_aesthetics.filter((a: unknown) => typeof a === "string")
+      : [];
+
+    // Resolve aesthetics: body > target_aesthetics > concept > defaults.
+    const primaryAesthetic = body?.primary_aesthetic?.toString().trim()
+      || (targetAesthetics[0] && VALID_AESTHETICS.includes(targetAesthetics[0]) ? targetAesthetics[0] : null)
+      || conceptAesthetic.primary
+      || "challenge";
+    const secondaryAesthetic = body?.secondary_aesthetic?.toString().trim()
+      || (targetAesthetics[1] && VALID_AESTHETICS.includes(targetAesthetics[1]) ? targetAesthetics[1] : null)
+      || conceptAesthetic.secondary
+      || "fantasy";
+    const tertiaryAesthetic = body?.tertiary_aesthetic?.toString().trim()
+      || (targetAesthetics[2] && VALID_AESTHETICS.includes(targetAesthetics[2]) ? targetAesthetics[2] : null)
+      || conceptAesthetic.tertiary
+      || "discovery";
+
+    // Resolve genre: body > concept > default.
+    const genre = body?.genre?.toString().trim() || conceptGenre || "rpg";
+    // Resolve idea: body > concept > empty.
+    const idea = (body?.idea as string | undefined)?.trim() || conceptIdea || "";
+
+    // Validate aesthetics.
     if (!VALID_AESTHETICS.includes(primaryAesthetic)) {
       return VALIDATION_ERROR(
         `Неверная primary_aesthetic: ${primaryAesthetic}. Допустимо: ${VALID_AESTHETICS.join(", ")}`
@@ -708,11 +776,6 @@ export async function POST(request: NextRequest) {
     if (!VALID_AESTHETICS.includes(tertiaryAesthetic)) {
       return VALIDATION_ERROR(`Неверная tertiary_aesthetic: ${tertiaryAesthetic}`);
     }
-
-    // --- Resolve project ---
-    const owned = await getOwnedProject(user, projectId);
-    if (owned instanceof NextResponse) return owned;
-    const proj = owned.project as { id: string; name: string };
 
     // --- Stage 1: Aesthetic profile ---
     const aestheticProfile = {

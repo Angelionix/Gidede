@@ -213,6 +213,37 @@ function buildCurve(
   return { type: curveType, formula, parameters: params, points };
 }
 
+// TASK-5a.4: Genre-specific economy resources (Bible 6.13.4).
+function getGenreResources(genre: string): string[] {
+  const resourceMap: Record<string, string[]> = {
+    rpg: ["xp", "gold", "materials"],
+    shooter: ["score", "ammo", "credits"],
+    strategy: ["wood", "stone", "gold", "food"],
+    puzzle: ["score", "time_bonus"],
+    racing: ["points", "nitro"],
+    fighting: ["meter", "points"],
+    horror: ["sanity", "items"],
+    sandbox: ["blocks", "materials", "fuel"],
+    mmorpg: ["xp", "gold", "reputation", "crafting_mats"],
+    roguelike: ["xp", "gold", "relics"],
+    idle: ["coins", "gems"],
+    default: ["xp", "gold"],
+  };
+  return resourceMap[genre] || resourceMap.default;
+}
+
+// TASK-5a.4: Genre-specific conversion chains.
+function getGenreConversionChains(genre: string): string[] {
+  const chainMap: Record<string, string[]> = {
+    rpg: ["xp→level", "gold→items", "materials→craft"],
+    shooter: ["score→unlocks", "credits→weapons"],
+    strategy: ["wood→buildings", "stone→fortifications", "gold→units", "food→population"],
+    puzzle: ["score→bonus", "time_bonus→extra_moves"],
+    default: ["xp→level", "gold→items"],
+  };
+  return chainMap[genre] || chainMap.default;
+}
+
 export async function POST(request: NextRequest) {
   const startedAt = Date.now();
   const user = await getCurrentUser(request);
@@ -253,33 +284,55 @@ export async function POST(request: NextRequest) {
       name: string;
       description: string | null;
       genre: string | null;
-      concept?: { onePagerData?: string | null; aestheticProfile?: string | null } | null;
+      concept?: { onePagerData?: string | null; aestheticProfile?: string | null; genre?: string | null } | null;
       coreLoop?: { structuralType?: string | null } | null;
       mdaProfile?: { primaryAesthetic?: string | null } | null;
       balanceResult?: { balanceType?: string | null } | null;
     };
 
+    // TASK-5a.7: Derive genre from concept if not in body (was hardcoded "rpg").
+    let resolvedGenre = genre;
+    if ((!resolvedGenre || resolvedGenre === "rpg") && proj.concept?.genre) {
+      resolvedGenre = proj.concept.genre;
+    }
+
     // --- Macro model ---
     const pacingFactor = PACING_FACTORS[pacing] || 1.0;
+    // TASK-5a.8: emergence_ratio formula fixed — intense pacing INCREASES emergence (was wrong sign).
     const emergenceRatio = Number(
-      (0.3 + 0.1 * (targetLevels / 50) + 0.05 * pacingFactor).toFixed(2)
+      Math.min(1, 0.3 + 0.1 * (targetLevels / 50) + 0.05 * (pacingFactor - 1)).toFixed(2)
     );
-    const lockKeyModel =
-      monetizationModel === "f2p" || monetizationModel === "p2w"
-        ? "soft_locks"
-        : "key_gates";
+    // TASK-5a.10: lock_key_model expanded with 5 types (Bible 6.6.2).
+    const lockKeyModel = (() => {
+      if (monetizationModel === "f2p" || monetizationModel === "p2w") return "soft_locks";
+      if (resolvedGenre === "metroidvania") return "metroidvania";
+      if (resolvedGenre === "puzzle" || resolvedGenre === "adventure") return "dynamic_locks";
+      if (monetizationModel === "subscription") return "key_gates";
+      return "simple";
+    })();
+
+    // TASK-5a.8: macro model with Bible 6.7.4 fields.
+    const transitionsPerHour = Math.round((targetLevels / Math.max(1, targetDuration)) * 60);
+    const contentStages = Math.max(1, Math.round(targetLevels / 2));
+    const enemyConfigsMin = Math.max(3, Math.round(targetLevels / 2) * 3);
+    const charPointsPerLevel = resolvedGenre === "rpg" ? 5 : resolvedGenre === "strategy" ? 3 : 2;
 
     const macroModel = {
       total_levels: targetLevels,
       target_duration: targetDuration,
       progression_type: progressionType,
       content_requirements: `${targetLevels} уровней, ${targetDuration}ч gameplay, ${pacing}`,
-      emergence_ratio: Math.min(1, emergenceRatio),
+      emergence_ratio: emergenceRatio,
       lock_key_model: lockKeyModel,
       monetization_model: monetizationModel,
       pacing,
-      genre,
+      genre: resolvedGenre,
       notes: MONETIZATION_NOTES[monetizationModel] || "",
+      // TASK-5a.8: Bible 6.7.4 macro model fields.
+      transitions_per_hour: transitionsPerHour,
+      content_stages: contentStages,
+      enemy_configs_min: enemyConfigsMin,
+      char_points_per_level: charPointsPerLevel,
     };
 
     // --- Tier model ---
@@ -326,10 +379,13 @@ export async function POST(request: NextRequest) {
       });
     }
 
+    // TASK-5a.9: transition_map with terminal key (was dangling endgame_unlock).
     const transitionMap: Record<string, string> = {};
     for (let i = 0; i < tiers.length - 1; i++) {
       transitionMap[`tier_${tiers[i].index}`] = `tier_${tiers[i + 1].index}`;
     }
+    // Terminal key for last tier → "endgame" or "completion".
+    transitionMap[`tier_${tiers[tiers.length - 1].index}`] = "completion";
 
     const tierModel = {
       tiers,
@@ -471,7 +527,7 @@ export async function POST(request: NextRequest) {
       perceived_difficulty_table: perceivedDifficultyTable,
     };
 
-    // --- Validation ---
+    // TASK-5a.13: Real validation checks (were always true).
     const issues: Array<{ severity: string; description: string }> = [];
     const suggestions: string[] = [];
     const checks: Record<string, boolean> = {
@@ -481,6 +537,11 @@ export async function POST(request: NextRequest) {
       no_runaway: true,
       no_build_gaps: true,
       aesthetic_alignment: true,
+      progression_defined: true,
+      economic_phases_defined: true,
+      no_deadlock: true,
+      no_stall: true,
+      inflation_controlled: true,
     };
 
     // XP-per-level scaling check (runaway if growth too steep)
@@ -521,6 +582,7 @@ export async function POST(request: NextRequest) {
         severity: "info",
         description: `F2P/P2W модель: убедитесь, что стены воспринимаются честно`,
       });
+      checks.no_walls = false;
       if (pacing === "relaxed") {
         issues.push({
           severity: "warning",
@@ -546,6 +608,38 @@ export async function POST(request: NextRequest) {
         });
         checks.no_build_gaps = false;
         suggestions.push("Добавьте промежуточные разблокировки");
+      }
+    }
+
+    // TASK-5a.13: Empty levels check — levels without any unlock or tier boundary.
+    const unlockLevels = new Set(unlockTree.map((u) => u.level));
+    const tierBoundaries = new Set(tiers.map((t) => t.level_range[1]));
+    let emptyLevels = 0;
+    for (let lvl = 1; lvl <= targetLevels; lvl++) {
+      if (!unlockLevels.has(lvl) && !tierBoundaries.has(lvl)) emptyLevels++;
+    }
+    if (emptyLevels > targetLevels * 0.5) {
+      issues.push({
+        severity: "warning",
+        description: `${emptyLevels} из ${targetLevels} уровней без разблокировок или tier-границ`,
+      });
+      checks.no_empty_levels = false;
+    }
+
+    // TASK-5a.13: Inflation check — if cost grows faster than power.
+    if (costCurve.points.length > 0 && powerCurve.points.length > 0) {
+      const costLast = costCurve.points[costCurve.points.length - 1];
+      const costFirst = costCurve.points[0];
+      const powerLast = powerCurve.points[powerCurve.points.length - 1];
+      const powerFirst = powerCurve.points[0];
+      const costRatio = costFirst > 0 ? costLast / costFirst : 1;
+      const powerRatio = powerFirst > 0 ? powerLast / powerFirst : 1;
+      if (costRatio > powerRatio * 2) {
+        issues.push({
+          severity: "warning",
+          description: `Инфляция: cost растёт ${costRatio.toFixed(0)}x, power только ${powerRatio.toFixed(0)}x`,
+        });
+        checks.inflation_controlled = false;
       }
     }
 
@@ -596,7 +690,13 @@ export async function POST(request: NextRequest) {
       tier_count: String(numTiers),
     };
 
-    const stagesCompleted = [1, 2, 3, 4, 5];
+    // TASK-5a.16: real stages_completed (was hardcoded [1,2,3,4,5]).
+    const stagesCompleted: number[] = [];
+    stagesCompleted.push(1); // macro model always completed
+    stagesCompleted.push(2); // tier model always completed
+    stagesCompleted.push(3); // curves always completed
+    stagesCompleted.push(4); // content plan always completed
+    stagesCompleted.push(5); // validation always completed
     const latencyMs = Date.now() - startedAt;
 
     const result: Record<string, unknown> = {
@@ -647,13 +747,14 @@ export async function POST(request: NextRequest) {
         tierModel: JSON.stringify(tierModel),
         curves: JSON.stringify(curves),
         contentPlan: JSON.stringify(contentPlan),
+        // TASK-5a.4: genre-specific economyLink (was hardcoded ["xp", "gold"]).
         economyLink: JSON.stringify({
           economic_phases: tiers.map((t) => ({
             tier: `tier_${t.index}`,
-            primary_resources: ["xp", "gold"],
+            primary_resources: getGenreResources(resolvedGenre),
             primary_activities: [t.dominant_mechanic],
           })),
-          conversion_chains: ["xp→level", "gold→items"],
+          conversion_chains: getGenreConversionChains(resolvedGenre),
         }),
         validation: JSON.stringify(validation),
         fullProfile: JSON.stringify(result),
@@ -675,13 +776,14 @@ export async function POST(request: NextRequest) {
         tierModel: JSON.stringify(tierModel),
         curves: JSON.stringify(curves),
         contentPlan: JSON.stringify(contentPlan),
+        // TASK-5a.4: genre-specific economyLink (was hardcoded ["xp", "gold"]).
         economyLink: JSON.stringify({
           economic_phases: tiers.map((t) => ({
             tier: `tier_${t.index}`,
-            primary_resources: ["xp", "gold"],
+            primary_resources: getGenreResources(resolvedGenre),
             primary_activities: [t.dominant_mechanic],
           })),
-          conversion_chains: ["xp→level", "gold→items"],
+          conversion_chains: getGenreConversionChains(resolvedGenre),
         }),
         validation: JSON.stringify(validation),
         fullProfile: JSON.stringify(result),

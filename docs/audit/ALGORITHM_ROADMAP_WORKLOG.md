@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R5-13` — Economy строится из Core resource graph + Progression link.
-- **Зависимости:** `R5-12` завершена; Progression curves калибруются из playtest targets (session_length, time_to_first_level, failure_rate).
-- **Ожидаемый результат:** нет жанрового preset при наличии upstream модели; Economy потребляет Core Loop flows.
-- **После неё:** `R5-14` — исправить producing flow, duplicates и classification reachability.
+- **Следующая задача:** `R5-14` — исправить producing flow, duplicates и classification reachability.
+- **Зависимости:** `R5-13` завершена; Economy resource inventory строится из Core Loop stepsData когда доступно.
+- **Ожидаемый результат:** faucet/drain проверен graph fixtures; duplicates и classification исправлены.
+- **После неё:** `R5-15` — исполнять Machinations graph с agents/events/policies.
 
 ## Статус roadmap
 
@@ -75,7 +75,8 @@
 | R5-10 | DONE | Progression level_to_cost curve traces to Balance artifact (avg_cost, expected_cp) | 848 tests, TypeScript, scoped ESLint |
 | R5-11 | DONE | transitions_per_hour корректной размерности; 4 validation checks реально вычисляются | 848 tests, TypeScript, scoped ESLint |
 | R5-12 | DONE | Playtest calibration: session_length/time_to_first_level/failure_rate изменяют XP и difficulty curves | 848 tests, TypeScript, scoped ESLint |
-| R5-13…R7 | TODO | См. активный roadmap | — |
+| R5-13 | DONE | Economy resource inventory из Core Loop stepsData (resource flows) вместо genre preset | 848 tests, TypeScript, scoped ESLint |
+| R5-14…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -88,6 +89,38 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R5-13 — DONE
+
+Что сделано:
+
+- `pipeline-context.ts` добавлен `extractCoreLoopResources(coreLoopOutput)` — извлекает resource flows из Core Loop stepsData (resources_produced + resources_consumed per step);
+- классификация ресурсов: anchor (produced AND consumed), faucet (produced only), drain (consumed only);
+- `buildStageRequestBody("economy")` форвардит `core_loop_resources` и `core_loop_resource_source` когда Core Loop уже выполнен;
+- Economy route `resource inventory` строится из `core_loop_resources` когда доступно (вместо genre preset): anchor → core resource, faucet → currency, drain → consumable;
+- subsidiary resources из genre preset добавляются ТОЛЬКО когда Core Loop resources недоступны (fallback);
+- anchor resource определяется из Core Loop anchor role или первого core resource;
+- F2P gems добавляются независимо от источника resources.
+
+Изменённые области:
+
+- `src/lib/pipeline-context.ts` — `extractCoreLoopResources`, forwarding в economy stage;
+- `src/app/api/v1/economy/design/route.ts` — resource inventory из Core Loop data, conditional subsidiary addition.
+
+Проверки:
+
+- `bun run test` — 71 файл, 848 тестов пройдено (без изменений);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- когда Core Loop доступен: resources строятся из actual game loop flows (не genre preset);
+- когда Core Loop недоступен: fallback к genre preset (pre-R5-13 behavior);
+- anchor/faucet/drain roles определены из produced+consumed intersection;
+- subsidiary resources не дублируются при Core Loop source;
+- следующей задачей назначена `R5-14`.
 
 ### 2026-08-01 — R5-12 — DONE
 

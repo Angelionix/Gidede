@@ -263,6 +263,60 @@ function lineage(context: PipelineContext): Record<string, string> {
 }
 
 /**
+ * R5-13: extract resource flows from Core Loop's stepsData so Economy can
+ * build its Machinations model from the actual game loop instead of genre
+ * presets. Returns null when Core Loop has not yet run.
+ *
+ * Reads stepsData[].resources_produced and stepsData[].resources_consumed
+ * to build a deduplicated list of resource names with their roles.
+ */
+function extractCoreLoopResources(coreLoopOutput: unknown): Record<string, unknown> | null {
+  const coreLoop = asRecord(coreLoopOutput);
+  if (!coreLoop) return null;
+
+  // stepsData may be a JSON string or already parsed.
+  let steps: unknown = coreLoop.steps_data ?? coreLoop.stepsData;
+  if (typeof steps === "string") {
+    try { steps = JSON.parse(steps); } catch { return null; }
+  }
+  if (!Array.isArray(steps)) return null;
+
+  const produced = new Set<string>();
+  const consumed = new Set<string>();
+  for (const step of steps) {
+    const s = asRecord(step);
+    if (!s) continue;
+    const sp = Array.isArray(s.resources_produced) ? s.resources_produced : [];
+    const sc = Array.isArray(s.resources_consumed) ? s.resources_consumed : [];
+    for (const r of sp) {
+      if (typeof r === "string" && r.trim()) produced.add(r.trim());
+    }
+    for (const r of sc) {
+      if (typeof r === "string" && r.trim()) consumed.add(r.trim());
+    }
+  }
+
+  if (produced.size === 0 && consumed.size === 0) return null;
+
+  // Classify resources: anchor (produced AND consumed), faucet (produced only),
+  // drain (consumed only).
+  const all = new Set([...produced, ...consumed]);
+  const resources = Array.from(all).map((name) => {
+    const isProduced = produced.has(name);
+    const isConsumed = consumed.has(name);
+    const role = isProduced && isConsumed ? "anchor"
+      : isProduced ? "faucet"
+      : "drain";
+    return { name, role, produced: isProduced, consumed: isConsumed };
+  });
+
+  return {
+    core_loop_resources: resources,
+    core_loop_resource_source: "core_loop_steps_data",
+  };
+}
+
+/**
  * R5-10: extract cost-power data from Balance stage output so Progression's
  * level_to_cost curve can trace to the Balance artifact.
  *
@@ -427,6 +481,10 @@ export function buildStageRequestBody(
         genre,
         use_ai: input.useAi,
         upstream_versions: upstreamVersions,
+        // R5-13: forward Core Loop resource flows so Economy builds from the
+        // actual game loop instead of genre presets. Also forward Progression's
+        // economy link for monetization context.
+        ...(extractCoreLoopResources(context.outputs.core_loop) ?? {}),
       };
     case "gdd":
       return {

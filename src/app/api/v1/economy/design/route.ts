@@ -730,24 +730,62 @@ export async function POST(request: NextRequest) {
     }
 
     // --- Build resource inventory ---
+    // R5-13: when Core Loop resource flows are available (forwarded by the
+    // pipeline runner), build the resource inventory from the actual game
+    // loop instead of genre presets. Falls back to genre preset when Core
+    // Loop hasn't run or has no resource data.
+    const coreLoopResources = Array.isArray(body?.core_loop_resources)
+      ? (body.core_loop_resources as Array<{
+          name: string;
+          role: string;
+          produced: boolean;
+          consumed: boolean;
+        }>)
+      : [];
+    const resourceSource = coreLoopResources.length > 0
+      ? "core_loop_steps_data"
+      : "genre_preset";
     const preset = pickResources(resolvedGenre);
     const resources: ResourceDef[] = [];
-    const anchorName = preset.core[0] || "score";
 
-    for (const name of preset.core) {
-      const isAnchor = name === anchorName;
-      resources.push({
-        name,
-        resource_class: "core",
-        resource_type: isAnchor ? "core" : "currency",
-        initial_value: isAnchor ? 100 : 50,
-        bounds: { min: 0, max: isAnchor ? 1000 : 10000 },
-        is_consumable: false,
-        is_catalytic: false,
-        is_anchor: isAnchor,
-      });
+    if (coreLoopResources.length > 0) {
+      // Build from Core Loop resource flows.
+      for (const clr of coreLoopResources) {
+        const isAnchor = clr.role === "anchor";
+        const isFaucet = clr.role === "faucet";
+        const isDrain = clr.role === "drain";
+        resources.push({
+          name: clr.name,
+          resource_class: isAnchor ? "core" : "subsidiary",
+          resource_type: isAnchor ? "core" : "currency",
+          initial_value: isAnchor ? 100 : isDrain ? 10 : 50,
+          bounds: { min: 0, max: isAnchor ? 1000 : 10000 },
+          is_consumable: isDrain,
+          is_catalytic: !isAnchor && !isDrain && !isFaucet,
+          is_anchor: isAnchor,
+        });
+      }
+    } else {
+      // Fallback: genre preset (pre-R5-13 behavior).
+      const anchorName = preset.core[0] || "score";
+      for (const name of preset.core) {
+        const isAnchor = name === anchorName;
+        resources.push({
+          name,
+          resource_class: "core",
+          resource_type: isAnchor ? "core" : "currency",
+          initial_value: isAnchor ? 100 : 50,
+          bounds: { min: 0, max: isAnchor ? 1000 : 10000 },
+          is_consumable: false,
+          is_catalytic: false,
+          is_anchor: isAnchor,
+        });
+      }
     }
-    for (let i = 0; i < preset.subsidiary.length; i++) {
+    // R5-13: only add genre-preset subsidiary resources when not using
+    // Core Loop resources (Core Loop already provides the full resource set).
+    if (coreLoopResources.length === 0) {
+      for (let i = 0; i < preset.subsidiary.length; i++) {
       const name = preset.subsidiary[i];
       const isCatalytic = i % 2 === 0;
       const isConsumable = i % 3 === 1;
@@ -761,6 +799,7 @@ export async function POST(request: NextRequest) {
         is_catalytic: isCatalytic,
         is_anchor: false,
       });
+      }
     }
     // Add a premium currency if F2P
     if (resolvedMonetization === "f2p" || resolvedMonetization === "hybrid") {
@@ -776,7 +815,11 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    const anchor = anchorName;
+    // R5-13: anchor is the first core resource, or the first Core Loop
+    // anchor resource when using Core Loop data.
+    const anchor = coreLoopResources.length > 0
+      ? (coreLoopResources.find((r) => r.role === "anchor")?.name ?? coreLoopResources[0]?.name ?? "score")
+      : (preset.core[0] || "score");
     const coreCount = resources.filter((r) => r.resource_class === "core").length;
     const subsidiaryCount = resources.filter(
       (r) => r.resource_class !== "core"

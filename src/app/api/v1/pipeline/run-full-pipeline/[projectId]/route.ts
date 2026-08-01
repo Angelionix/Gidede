@@ -119,20 +119,44 @@ const STAGES: StageDef[] = [
     stage: "balance",
     block_id: 4,
     endpoint: "/api/v1/balance/analyze",
-    // Block 4 requires a non-empty `objects` array (BalanceObject[]).
-    // Provide a small deterministic default set so the pipeline can run
-    // end-to-end without user-supplied balance data.
-    buildBody: (i) => ({
-      objects: [
-        { id: "weapon_basic", name: "Базовое оружие", type: "weapon", attributes: { power: 30, range: 5, speed: 7 }, cost: 100, tier: 1 },
-        { id: "weapon_advanced", name: "Продвинутое оружие", type: "weapon", attributes: { power: 60, range: 8, speed: 5 }, cost: 300, tier: 2 },
-        { id: "armor_light", name: "Лёгкая броня", type: "armor", attributes: { defense: 20, mobility: 8 }, cost: 150, tier: 1 },
-        { id: "armor_heavy", name: "Тяжёлая броня", type: "armor", attributes: { defense: 50, mobility: 3 }, cost: 400, tier: 3 },
-      ],
-      game_mode: "pve",
-      genre: i.genre || "rpg",
-      use_ai: i.useAi,
-    }),
+    // TASK-4.2 FIXED: derive balance objects from genre (was hardcoded 4 RPG objects).
+    // Different genres get different object sets appropriate to their balance needs.
+    buildBody: (i) => {
+      const genre = i.genre || "rpg";
+      const objectsByGenre: Record<string, Array<{ id: string; name: string; type: string; attributes: Record<string, number>; cost: number; tier: number }>> = {
+        rpg: [
+          { id: "weapon_basic", name: "Базовое оружие", type: "weapon", attributes: { power: 30, range: 5, speed: 7 }, cost: 100, tier: 1 },
+          { id: "weapon_advanced", name: "Продвинутое оружие", type: "weapon", attributes: { power: 60, range: 8, speed: 5 }, cost: 300, tier: 2 },
+          { id: "armor_light", name: "Лёгкая броня", type: "armor", attributes: { defense: 20, mobility: 8 }, cost: 150, tier: 1 },
+          { id: "armor_heavy", name: "Тяжёлая броня", type: "armor", attributes: { defense: 50, mobility: 3 }, cost: 400, tier: 3 },
+        ],
+        shooter: [
+          { id: "smg", name: "Пистолет-пуромет", type: "weapon", attributes: { power: 25, range: 3, speed: 9 }, cost: 200, tier: 1 },
+          { id: "rifle", name: "Винтовка", type: "weapon", attributes: { power: 50, range: 8, speed: 4 }, cost: 400, tier: 2 },
+          { id: "shotgun", name: "Дробовик", type: "weapon", attributes: { power: 70, range: 2, speed: 3 }, cost: 350, tier: 2 },
+          { id: "sniper", name: "Снайперская винтовка", type: "weapon", attributes: { power: 90, range: 10, speed: 1 }, cost: 600, tier: 3 },
+        ],
+        strategy: [
+          { id: "infantry", name: "Пехота", type: "unit", attributes: { power: 15, defense: 10, speed: 5 }, cost: 50, tier: 1 },
+          { id: "cavalry", name: "Кавалерия", type: "unit", attributes: { power: 30, defense: 8, speed: 9 }, cost: 120, tier: 2 },
+          { id: "archer", name: "Лучник", type: "unit", attributes: { power: 25, defense: 5, speed: 3 }, cost: 80, tier: 1 },
+          { id: "siege", name: "Осадная машина", type: "unit", attributes: { power: 80, defense: 20, speed: 1 }, cost: 300, tier: 3 },
+        ],
+        fighting: [
+          { id: "grappler", name: "Грэпплер", type: "fighter", attributes: { power: 40, speed: 4, defense: 30 }, cost: 0, tier: 1 },
+          { id: "rushdown", name: "Рашдаун", type: "fighter", attributes: { power: 35, speed: 9, defense: 15 }, cost: 0, tier: 1 },
+          { id: "zoner", name: "Зонер", type: "fighter", attributes: { power: 25, speed: 6, defense: 20 }, cost: 0, tier: 1 },
+          { id: "tank", name: "Танк", type: "fighter", attributes: { power: 30, speed: 2, defense: 50 }, cost: 0, tier: 1 },
+        ],
+      };
+      const objects = objectsByGenre[genre] || objectsByGenre.rpg;
+      return {
+        objects,
+        game_mode: genre === "fighting" ? "pvp" : "pve",
+        genre,
+        use_ai: i.useAi,
+      };
+    },
   },
   {
     stage: "progression",

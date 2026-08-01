@@ -34,6 +34,7 @@ import {
   VALIDATION_ERROR,
 } from "@/lib/api-helpers";
 import { enrichBalance } from "@/lib/ai-service";
+import { detectBalancePathologies } from "@/lib/balance/pathologies";
 
 // ============================================================
 // Types
@@ -996,6 +997,22 @@ export async function POST(request: NextRequest) {
       transitiveResult
     );
 
+    // TASK-4.9: detect all 8 Bible 5.13 balance pathologies.
+    const balancePathologies = detectBalancePathologies({
+      transitiveOverpowered: transitiveResult.overpowered,
+      transitiveUnderpowered: transitiveResult.underpowered,
+      dominatedStrategies: intransitiveResult.dominated_strategies,
+      hasDominantStrategy: intransitiveResult.has_dominant_strategy,
+      nashEquilibrium: intransitiveResult.nash_equilibrium,
+      maxShare: intransitiveResult.strategy_balance.max_share,
+      runawayFrequency: machinationsResult.aggregated.runaway_frequency,
+      stallFrequency: machinationsResult.aggregated.stall_frequency,
+      buildGap: machinationsResult.aggregated.build_gap,
+      stabilityIndex: machinationsResult.aggregated.stability_index,
+      winRateSpread: monteCarloResult.win_rate_spread,
+      rankingCorrelation: monteCarloResult.ranking_correlation,
+    });
+
     // Top-level warnings & suggestions aggregation
     const warnings: string[] = [];
     const suggestions: string[] = [];
@@ -1028,6 +1045,8 @@ export async function POST(request: NextRequest) {
       situational_result: situationalResult,
       q_factor_result: qFactorResult,
       stability,
+      // TASK-4.9: 8 Bible 5.13 balance pathologies.
+      balance_pathologies: balancePathologies,
       monte_carlo_result: monteCarloResult,
       machinations_result: machinationsResult,
       stages_completed: stagesCompleted,

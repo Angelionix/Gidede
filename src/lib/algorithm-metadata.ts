@@ -136,15 +136,20 @@ const SCORE_METADATA_BY_STAGE = {
     ),
     "bond_validation.row_consistency[*].score": score(
       "heuristic",
-      "Bond alignment is estimated from static mechanics-to-dynamics mappings.",
+      "Row consistency reflects the count of dissonances detected at that level (R4-10), not a compatibility transform.",
+      "Dissonances are detected from concrete incompatible pairs (e.g. cozy aesthetic + combat-heavy mechanics, horror genre + fellowship aesthetic).",
     ),
     "bond_validation.col_consistency[*].score": score(
       "heuristic",
-      "Bond alignment is estimated from static dynamics-to-aesthetics mappings.",
+      "Column consistency reflects the count of dissonances detected for that element (R4-10).",
     ),
     "bond_validation.overall_consistency": score(
       "heuristic",
-      "Consistency aggregates deterministic mapping scores without playtest evidence.",
+      "Overall consistency aggregates row and column consistency scores; it drops when dissonances are present.",
+    ),
+    "bond_validation.dissonances": score(
+      "heuristic",
+      "Dissonances are detected from concrete incompatible artifact pairs (R4-10): cozy+combat, intense+no-combat, horror+fellowship, VR+social, empty-base, target-not-in-predicted.",
     ),
   },
   balance: {

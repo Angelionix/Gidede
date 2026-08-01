@@ -42,6 +42,7 @@ import {
   extractBalanceDominanceEvidence,
   type BalanceDominanceEvidence,
 } from "@/lib/mda/dominance-lens";
+import { buildBondValidationFromArtifacts } from "@/lib/mda/bond-matrix";
 
 // ============================================================
 // Constants
@@ -1113,10 +1114,33 @@ export async function POST(request: NextRequest) {
     }
 
     // --- Stage 7: Bond matrix ---
-    let bondValidation: ReturnType<typeof buildBondValidation> | null = null;
+    // R4-10: build Bond matrix from real artifact evidence (mechanic names,
+    // USP, platforms, predicted aesthetics) instead of hardcoded strings.
+    // Dissonances are detected from concrete incompatible pairs.
+    let bondValidation: ReturnType<typeof buildBondValidationFromArtifacts> | null = null;
     if (fullAnalysis) {
-      // TASK-3.15: removed `as unknown as` cast.
-      bondValidation = buildBondValidation(mechanicSet, aestheticProfile);
+      // Extract USP and platforms from the Concept DB record's inputData.
+      let conceptUsp: string | undefined;
+      let conceptPlatforms: string[] | undefined;
+      if (proj.concept?.inputData) {
+        try {
+          const conceptInput = JSON.parse(proj.concept.inputData);
+          if (typeof conceptInput?.usp === "string") conceptUsp = conceptInput.usp;
+          if (Array.isArray(conceptInput?.platform)) {
+            conceptPlatforms = conceptInput.platform
+              .map((p: unknown) => typeof p === "string" ? p.trim() : "")
+              .filter(Boolean);
+          }
+        } catch { /* ignore parse error */ }
+      }
+      bondValidation = buildBondValidationFromArtifacts({
+        mechanicSet,
+        aesthetics: aestheticProfile,
+        usp: conceptUsp,
+        genre,
+        platforms: conceptPlatforms,
+        predictedAesthetics: classicMdaResult?.predicted_aesthetics as Record<string, number> | undefined,
+      });
     }
 
     const latencyMs = Date.now() - startedAt;

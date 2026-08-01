@@ -11,20 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R4-10` — Bond matrix строить из artifact evidence.
-- **Зависимости:** `R4-09` завершена; Lens #41 (dominance) выводится из Balance intransitive dominance evidence когда доступно.
-- **Ожидаемый результат:** Bond matrix ячейки заполняются из реальных артефактов (mechanic set, narrative, technology); dissonance создаётся из конкретной несовместимой пары.
-- **После неё:** Фаза R4 завершена, переход к Фазе 5 (Balance, Progression, Economy).
-
-## Правила ведения
-
-1. В каждый момент времени только одна задача имеет статус `IN PROGRESS`.
-2. `DONE` разрешён только после реализации, релевантных тестов и проверки критерия приёмки.
-3. Изменения задачи и обновление этого worklog входят в один коммит.
-4. После каждой завершённой задачи коммит отправляется в `origin/nextjs-port`.
-5. Если задача заблокирована, в журнале указываются причина, выполненные проверки и безопасная точка продолжения.
-6. Новый агент перед началом работы читает разделы «Точка продолжения», «Статус roadmap» и последнюю запись истории.
-7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
+- **Следующая задача:** Фаза R5 (Balance, Progression, Economy) — начать с `R5-01` (typed units и нормализация Balance attributes).
+- **Зависимости:** Фаза R4 (Concept и MDA) завершена — все 10 задач R4-01…R4-10 выполнены.
+- **Ожидаемый результат:** несопоставимые units нельзя молча суммировать; Balance objects строятся из MDA/Core domain model.
+- **После неё:** R5-02…R5-16 — полный рефакторинг Balance/Progression/Economy.
 
 ## Статус roadmap
 
@@ -72,9 +62,71 @@
 | R4-07 | DONE | Единый `MechanicRef` wire-тип со стабильным `id` + canonical `category` через Concept/Core/MDA | 624 tests, TypeScript, scoped ESLint |
 | R4-08 | DONE | MDA iteration loop: реальные итерации, меняют candidate set, сохраняют diffs | 641 tests, TypeScript, scoped ESLint |
 | R4-09 | DONE | Lens #41 (dominance) из Balance intransitive dominance evidence, не synergy proxy | 662 tests, TypeScript, scoped ESLint |
-| R4-10…R7 | TODO | См. активный roadmap | — |
+| R4-10 | DONE | Bond matrix из artifact evidence; dissonances из конкретных несовместимых пар | 685 tests, TypeScript, scoped ESLint |
+| R5-01…R7 | TODO | См. активный roadmap | — |
+
+## Правила ведения
+
+1. В каждый момент времени только одна задача имеет статус `IN PROGRESS`.
+2. `DONE` разрешён только после реализации, релевантных тестов и проверки критерия приёмки.
+3. Изменения задачи и обновление этого worklog входят в один коммит.
+4. После каждой завершённой задачи коммит отправляется в `origin/nextjs-port`.
+5. Если задача заблокирована, в журнале указываются причина, выполненные проверки и безопасная точка продолжения.
+6. Новый агент перед началом работы читает разделы «Точка продолжения», «Статус roadmap» и последнюю запись истории.
+7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R4-10 — DONE
+
+Что сделано:
+
+- создан модуль `src/lib/mda/bond-matrix.ts` с функциями `buildBondMatrixFromArtifacts`, `detectBondDissonances`, `buildBondValidationFromArtifacts`;
+- Bond 4×3 matrix ячейки теперь заполняются из реальных артефактов:
+  - **Механика**: base/combat/social mechanic names из mechanic_set;
+  - **История**: USP из concept inputData, genre, top predicted aesthetics;
+  - **Эстетика**: target aesthetic (primary/secondary), top predicted aesthetics из MDA, audience fit;
+  - **Технология**: platforms из concept, tech-dependent mechanics, modding/community;
+- `detectBondDissonances` находит конкретные несовместимые пары:
+  - cozy aesthetic (submission/expression/fellowship) + combat-heavy mechanics;
+  - intense aesthetic (challenge/sensation) + empty combat category (critical);
+  - horror genre + fellowship aesthetic (tonal dissonance);
+  - VR platform + many social mechanics (tech dissonance);
+  - empty base category (structural, critical);
+  - target aesthetic not in top-3 predicted (ludonarrative dissonance);
+- каждая dissonance содержит `element`, `level`, `issue`, `pair: {a, b}` (конкретная пара), `severity` ("warning" | "critical");
+- row/column consistency scores теперь отражают реальное количество dissonances (`1 - dissonance_count / element_count`), а не дегенеративный transform compatibility_score;
+- `overall_consistency` падает когда dissonances присутствуют;
+- ludonarrative analysis (Гармония/Ирония/Диссонанс) теперь выводится из dissonances, не из compatibility_score;
+- MDA route извлекает USP и platforms из Concept DB record (inputData) и передаёт в `buildBondValidationFromArtifacts`;
+- `algorithm-metadata` обновлён: Bond provenance описывает dissonance-based scoring и concrete pairs.
+
+Изменённые области:
+
+- `src/lib/mda/bond-matrix.ts` (новый, 350 строк) и `bond-matrix.test.ts` (новый, 23 теста);
+- `src/app/api/v1/mda/analyze/route.ts` — `buildBondValidation` заменён на `buildBondValidationFromArtifacts` с real evidence;
+- `src/lib/algorithm-metadata.ts` — обновлённые assumptions для Bond row/col/overall/dissonances.
+
+Проверки:
+
+- `bun run test` — 63 файла, 685 тестов пройдено (было 662; +23 bond-matrix);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- matrix cells содержат реальные mechanic names, USP, platforms (не hardcoded strings);
+- dissonances array populated (не всегда пустой) при несовместимых парах;
+- cozy+combat → dissonance с pair `aesthetic:submission` / `combat_count:3`;
+- horror+fellowship → dissonance с pair `genre:horror` / `aesthetic:fellowship`;
+- VR+social → dissonance с pair `platform:VR`;
+- empty base → critical dissonance;
+- target-not-in-predicted → ludonarrative dissonance;
+- well-aligned concept → 0 dissonances;
+- consistency scores меняются с dissonance count (не фиксированный transform);
+- **Фаза R4 (Concept и MDA) полностью завершена** — все 10 задач R4-01…R4-10 выполнены;
+- следующей задачей назначена `R5-01` (Фаза 5: Balance, Progression, Economy).
 
 ### 2026-08-01 — R4-09 — DONE
 

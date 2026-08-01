@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { buildBlocks, derivePipelineNotifications, type ProjectPipelineSnapshot } from "./pipeline-helpers";
+import {
+  buildBlocks,
+  derivePipelineNotifications,
+  nextBlockToFill,
+  type ProjectPipelineSnapshot,
+} from "./pipeline-helpers";
 
 function snapshot(pipelineState: string | null): ProjectPipelineSnapshot {
   return {
@@ -23,6 +28,12 @@ function snapshot(pipelineState: string | null): ProjectPipelineSnapshot {
 }
 
 describe("pipeline block freshness", () => {
+  it("does not treat legacy DB rows without accepted artifacts as completed", () => {
+    const legacy = snapshot(null);
+    expect(buildBlocks(legacy).find((item) => item.block_id === 1)?.status).toBe("in_progress");
+    expect(nextBlockToFill(legacy)).toBe(1);
+  });
+
   it("maps stale stage state to its owning block", () => {
     const state = JSON.stringify({
       version: 1,

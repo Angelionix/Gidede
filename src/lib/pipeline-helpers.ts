@@ -8,7 +8,11 @@
 
 import { db } from "@/lib/db";
 import type { ContractStageId } from "@/lib/contracts/stage-contracts";
-import { parsePipelineFreshnessState } from "@/lib/pipeline-stale";
+import {
+  acceptedFreshCompletion,
+  parsePipelineFreshnessState,
+  stageIsAcceptedFresh,
+} from "@/lib/pipeline-stale";
 
 export type BlockStatus = "empty" | "in_progress" | "completed" | "stale";
 
@@ -106,27 +110,8 @@ export async function loadProjectPipelineSnapshot(
   const hasGdd = !!project.gdd;
   const hasChecklist = !!project.checklist;
 
-  // Same completion weights as in api-helpers.updateProjectStage
-  const STAGE_WEIGHTS: Record<string, number> = {
-    concept: 12,
-    core_loop: 12,
-    mda: 18,
-    balance: 18,
-    progression: 10,
-    economy: 10,
-    gdd: 10,
-    validation: 10,
-  };
-  let completion = 0;
-  if (hasConcept) completion += STAGE_WEIGHTS.concept;
-  if (hasCoreLoop) completion += STAGE_WEIGHTS.core_loop;
-  if (hasMda) completion += STAGE_WEIGHTS.mda;
-  if (hasBalance) completion += STAGE_WEIGHTS.balance;
-  if (hasProgression) completion += STAGE_WEIGHTS.progression;
-  if (hasEconomy) completion += STAGE_WEIGHTS.economy;
-  if (hasGdd) completion += STAGE_WEIGHTS.gdd;
-  if (hasChecklist) completion += STAGE_WEIGHTS.validation;
-  completion = Math.min(100, completion);
+  const freshness = parsePipelineFreshnessState(project.pipelineState);
+  const completion = acceptedFreshCompletion(freshness);
 
   // Determine which block has the latest update (current stage).
   const stageCandidates = [
@@ -198,7 +183,16 @@ export function buildBlocks(snap: ProjectPipelineSnapshot): BlockProgress[] {
       .map((stage) => freshness.artifacts[stage])
       .filter((artifact) => artifact?.staleSince);
     const firstStale = staleArtifacts[0];
-    const status: BlockStatus = !isFilled ? "empty" : firstStale ? "stale" : "completed";
+    const requiredStages = blockStages[blockId];
+    const accepted = requiredStages.length === 0
+      || requiredStages.every((stage) => stageIsAcceptedFresh(freshness, stage));
+    const status: BlockStatus = !isFilled
+      ? "empty"
+      : firstStale
+        ? "stale"
+        : accepted
+          ? "completed"
+          : "in_progress";
     return {
       block_id: blockId,
       name: BLOCK_NAMES[blockId],
@@ -215,15 +209,9 @@ export function buildBlocks(snap: ProjectPipelineSnapshot): BlockProgress[] {
 export function nextBlockToFill(
   snap: ProjectPipelineSnapshot
 ): number | null {
-  if (!snap.hasConcept) return 1;
-  if (!snap.hasCoreLoop) return 2;
-  if (!snap.hasMda) return 3;
-  if (!snap.hasBalance) return 4;
-  if (!snap.hasProgression) return 5;
-  if (!snap.hasEconomy) return 5;
-  if (!snap.hasGdd) return 6;
-  if (!snap.hasChecklist) return 6;
-  return null;
+  return buildBlocks(snap)
+    .find((block) => block.block_id <= 6 && block.status !== "completed")
+    ?.block_id ?? null;
 }
 
 /** Can the user proceed to the next block? */

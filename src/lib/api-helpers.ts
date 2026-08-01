@@ -18,10 +18,12 @@ import {
 } from "@/lib/contracts/stage-contracts";
 import { buildPersistedPipelineOutputs } from "@/lib/pipeline-persisted-outputs";
 import {
+  acceptedFreshCompletion,
   parsePipelineFreshnessState,
   reconcilePipelineFreshness,
   recordFreshArtifact,
 } from "@/lib/pipeline-stale";
+import { evaluateStageQuality } from "@/lib/pipeline-quality-gates";
 
 export interface AuthedUser {
   id: string;
@@ -106,26 +108,13 @@ export function safeJsonParse<T = Record<string, unknown>>(
   }
 }
 
-/** Stage completion weights (out of 100). Each block contributes a portion. */
-const STAGE_WEIGHTS: Record<string, number> = {
-  concept: 12,
-  core_loop: 12,
-  mda: 18,
-  balance: 18,
-  progression: 10,
-  economy: 10,
-  gdd: 10,
-  validation: 10,
-};
-
 /**
- * Update project stage / completion. Computes completionPercent from which
- * child records exist.
+ * Update project stage and artifact freshness. Completion is derived only
+ * from accepted, non-stale, versioned artifacts.
  */
 export async function updateProjectStage(
   projectId: string,
   stage: string,
-  options: { completionBoost?: number } = {}
 ): Promise<void> {
   const proj = await db.project.findUnique({
     where: { id: projectId },
@@ -142,33 +131,25 @@ export async function updateProjectStage(
   });
   if (!proj) return;
 
-  let completion = 0;
-  if (proj.concept) completion += STAGE_WEIGHTS.concept;
-  if (proj.coreLoop) completion += STAGE_WEIGHTS.core_loop;
-  if (proj.mdaProfile) completion += STAGE_WEIGHTS.mda;
-  if (proj.balanceResult) completion += STAGE_WEIGHTS.balance;
-  if (proj.progression) completion += STAGE_WEIGHTS.progression;
-  if (proj.economy) completion += STAGE_WEIGHTS.economy;
-  if (proj.gdd) completion += STAGE_WEIGHTS.gdd;
-  if (proj.checklist) completion += STAGE_WEIGHTS.validation;
-
-  completion = Math.min(100, completion + (options.completionBoost || 0));
-
-  let pipelineState = proj.pipelineState;
+  let freshness = parsePipelineFreshnessState(proj.pipelineState);
   if ((CONTRACT_STAGE_IDS as readonly string[]).includes(stage)) {
     const contractStage = stage as ContractStageId;
     const outputs = buildPersistedPipelineOutputs(proj);
     const output = outputs[contractStage];
     const artifact = artifactEnvelopeSchema.safeParse(output?.artifact);
     if (artifact.success && artifact.data.artifactType === contractStage) {
+      const gate = evaluateStageQuality(contractStage, output);
       const nextState = recordFreshArtifact(
-        parsePipelineFreshnessState(proj.pipelineState),
+        freshness,
         contractStage,
         artifact.data,
+        artifact.data.status === "success" && gate.severity === "pass",
       );
-      pipelineState = JSON.stringify(reconcilePipelineFreshness(nextState, outputs));
+      freshness = reconcilePipelineFreshness(nextState, outputs);
     }
   }
+  const completion = acceptedFreshCompletion(freshness);
+  const pipelineState = JSON.stringify(freshness);
 
   await db.project.update({
     where: { id: projectId },

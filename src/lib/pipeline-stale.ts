@@ -23,6 +23,7 @@ export interface ArtifactFreshness {
   upstreamVersions: Record<string, string>;
   staleSince: string | null;
   staleReason: string | null;
+  acceptedAt: string | null;
 }
 
 export interface PipelineFreshnessState {
@@ -58,6 +59,7 @@ export function recordFreshArtifact(
   current: PipelineFreshnessState,
   stage: ContractStageId,
   artifact: ArtifactEnvelope,
+  accepted: boolean,
   now = new Date().toISOString(),
 ): PipelineFreshnessState {
   const artifacts = { ...current.artifacts };
@@ -70,6 +72,7 @@ export function recordFreshArtifact(
     upstreamVersions: { ...artifact.upstreamVersions },
     staleSince: null,
     staleReason: null,
+    acceptedAt: accepted ? now : null,
   };
 
   if (previousArtifactId !== artifact.artifactId) {
@@ -94,6 +97,36 @@ export function stageIsStale(
   return Boolean(state.artifacts[stage]?.staleSince);
 }
 
+export function stageIsAcceptedFresh(
+  state: PipelineFreshnessState,
+  stage: ContractStageId,
+): boolean {
+  const artifact = state.artifacts[stage];
+  return Boolean(
+    artifact
+    && artifact.status === "success"
+    && artifact.acceptedAt
+    && !artifact.staleSince,
+  );
+}
+
+export const STAGE_COMPLETION_WEIGHTS: Record<ContractStageId, number> = {
+  concept: 12,
+  core_loop: 12,
+  mda: 18,
+  balance: 18,
+  progression: 10,
+  economy: 10,
+  gdd: 10,
+  validation: 10,
+};
+
+export function acceptedFreshCompletion(state: PipelineFreshnessState): number {
+  return (Object.keys(STAGE_COMPLETION_WEIGHTS) as ContractStageId[])
+    .filter((stage) => stageIsAcceptedFresh(state, stage))
+    .reduce((sum, stage) => sum + STAGE_COMPLETION_WEIGHTS[stage], 0);
+}
+
 export function reconcilePipelineFreshness(
   current: PipelineFreshnessState,
   outputs: Partial<Record<ContractStageId, Record<string, unknown>>>,
@@ -115,6 +148,7 @@ export function reconcilePipelineFreshness(
       upstreamVersions: { ...artifact.data.upstreamVersions },
       staleSince: null,
       staleReason: null,
+      acceptedAt: null,
     };
   }
 

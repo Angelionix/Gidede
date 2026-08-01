@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R1-09` — считать completion только по accepted/non-stale artifacts.
-- **Зависимости:** `R1-08` завершена; проект хранит versioned freshness-map, а stale распространяется транзитивно.
-- **Ожидаемый результат:** наличие старой DB row не увеличивает completion; учитываются только существующие, принятые и свежие artifacts.
-- **После неё:** `R1-10` — increment версии только для согласованного сохранённого run.
+- **Следующая задача:** `R1-10` — increment версии только для согласованного сохранённого run.
+- **Зависимости:** `R1-06` и `R1-09` завершены; run statuses честны, а completion зависит только от accepted/non-stale artifacts.
+- **Ожидаемый результат:** новая версия проекта фиксирует только полностью согласованный и сохранённый run; partial/failed/blocked/needs_review не маскируются увеличением версии.
+- **После неё:** `R2-01` — добавить отдельный `CoreHypothesis` artifact.
 
 ## Правила ведения
 
@@ -42,11 +42,47 @@
 | R1-06 | DONE | Единые run/stage statuses; `ok` истинно только для полного success | 309 tests, TypeScript, scoped ESLint |
 | R1-07 | DONE | Evidence-based gates, downstream blocking и безопасный `resume_from` | 316 tests, TypeScript, scoped ESLint |
 | R1-08 | DONE | Persistent freshness-map и транзитивная invalidation по dependency graph | 322 tests, TypeScript, scoped ESLint, Prisma validate |
-| R1-09 | TODO | Completion по accepted/non-stale artifacts | — |
+| R1-09 | DONE | Completion и блоки учитывают только accepted/non-stale artifacts | 324 tests, TypeScript, scoped ESLint |
 | R1-10 | TODO | Version increment только для согласованного run | — |
 | R2…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R1-09 — DONE
+
+Что сделано:
+
+- freshness-map хранит отдельный `acceptedAt`, поэтому существование DB row и успешная приёмка больше не смешиваются;
+- artifact считается принятым только при `status: success` и пройденном quality gate;
+- completion вычисляется централизованно по восьми принятым, свежим artifacts с прежними весами стадий;
+- stale artifact немедленно перестаёт давать completion до фактического пересчёта и повторной приёмки;
+- legacy rows без доказательства приёмки не увеличивают completion и показываются как `in_progress`, а не `completed`;
+- агрегированные блоки Progression/Economy и GDD/Validation завершаются только когда приняты и свежи обе составляющие;
+- выбор следующего блока использует те же freshness/acceptance rules, что и отображаемый статус.
+
+Изменённые области:
+
+- `src/lib/pipeline-stale.ts`
+- `src/lib/pipeline-stale.test.ts`
+- `src/lib/api-helpers.ts`
+- `src/lib/pipeline-helpers.ts`
+- `src/lib/pipeline-helpers.test.ts`
+
+Проверки:
+
+- targeted freshness/block tests — 2 файла, 8 тестов пройдены;
+- `npm run test` — 21 файл, 324 теста пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- принятые Concept и Core Loop дают 24%, а изменение Concept делает Core Loop stale и снижает completion до 12%;
+- повторно сохранённый, но не принятый Core Loop остаётся с нулевым вкладом;
+- старые stage rows при пустом `pipelineState` не считаются завершёнными;
+- следующим незавершённым блоком legacy-проекта корректно выбирается Concept;
+- следующей задачей назначена `R1-10`.
 
 ### 2026-08-01 — R1-08 — DONE
 

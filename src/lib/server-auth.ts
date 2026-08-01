@@ -8,7 +8,7 @@
  */
 
 import { scryptSync, randomBytes, createHmac, timingSafeEqual } from "crypto";
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 import { db } from "@/lib/db";
 
 // ============================================================
@@ -242,12 +242,31 @@ export async function getAuthUserId(
     }
   }
 
-  // 2. Cookie (set by login/register/refresh routes)
-  const store = await cookies();
-  const cookieToken = store.get(ACCESS_COOKIE)?.value;
-  if (cookieToken) {
-    const payload = verifyAccessToken(cookieToken);
-    if (payload) return payload.sub;
+  // 2. Authorization header from the active Next.js request context. This
+  // keeps server-only services user-aware without threading Request through
+  // every domain service, and also covers internal pipeline stage requests.
+  if (!request) {
+    try {
+      const authHeader = (await headers()).get("authorization");
+      if (authHeader?.startsWith("Bearer ")) {
+        const payload = verifyAccessToken(authHeader.slice(7));
+        if (payload) return payload.sub;
+      }
+    } catch {
+      // No active request context (tests/background work): continue to cookie lookup.
+    }
+  }
+
+  // 3. Cookie (set by login/register/refresh routes)
+  try {
+    const store = await cookies();
+    const cookieToken = store.get(ACCESS_COOKIE)?.value;
+    if (cookieToken) {
+      const payload = verifyAccessToken(cookieToken);
+      if (payload) return payload.sub;
+    }
+  } catch {
+    // No active request context.
   }
 
   return null;

@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R3-02` — реализовать OpenAI-compatible adapter для произвольного LLM-router API.
-- **Зависимости:** `R3-01` завершена; общий `LlmClient` и lazy provider registry работают.
-- **Ожидаемый результат:** новый router подключается через base URL/model/secret reference без изменения `ai-service`.
-- **После неё:** `R3-03` — добавить Generic HTTP mapping и Custom adapter SPI.
+- **Следующая задача:** `R3-03` — добавить Generic HTTP mapping и Custom adapter SPI для нестандартных LLM API.
+- **Зависимости:** `R3-01` и `R3-02` завершены; общий контракт и OpenAI-compatible path работают.
+- **Ожидаемый результат:** нестандартный API подключается декларативным mapping или одним plugin adapter.
+- **После неё:** `R3-04` — добавить encrypted secrets/server secret references.
 
 ## Правила ведения
 
@@ -53,9 +53,53 @@
 | R2-07 | DONE | Versioned playtest evidence хранит hypothesis/cohort/observations и агрегируется по прототипу | 353 tests, TypeScript, scoped ESLint, Prisma validate |
 | R2-08 | DONE | GDD требует `go` либо документированный override; доступны 4 decision outcome | 355 tests, TypeScript, scoped ESLint |
 | R3-01 | DONE | `LlmClient`, lazy registry и изолированный ZAI adapter отделены от `ai-service` | 358 tests, TypeScript, scoped ESLint |
-| R3-02…R7 | TODO | См. активный roadmap | — |
+| R3-02 | DONE | OpenAI-compatible router настраивается через UI, включая SSE и server secret ref | 365 tests, TypeScript, scoped ESLint, Prisma validate |
+| R3-03…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R3-02 — DONE
+
+Что сделано:
+
+- реализован OpenAI-compatible adapter для `POST {base_url}/chat/completions` без зависимости от конкретного SDK;
+- нормализованные `LlmClient` requests транслируются в OpenAI messages/model/temperature/max_tokens contract;
+- обычные JSON completions и фрагментированные SSE streams приводятся обратно к общим response/chunk types;
+- ошибки роутера классифицируются по HTTP status и безопасному message без вывода API-ключа;
+- добавлена пользовательская конфигурация router: label, base URL, model, server secret reference и enabled flag;
+- API настроек принимает только secret references вида `env:VARIABLE_NAME` и отвергает plaintext-подобные ключи;
+- UI `/settings` позволяет создать, изменить, отключить и удалить OpenAI-compatible router без правок кода;
+- активная конфигурация определяется по bearer/cookie request context, включая внутренние HTTP-вызовы стадий pipeline;
+- `ai-service` не изменён: пользовательский adapter подключается через существующий `getDefaultLlmClient`;
+- при отсутствии пользовательской конфигурации сохраняется встроенный ZAI/rules-engine fallback.
+
+Изменённые области:
+
+- `prisma/schema.prisma` (`UserLlmConfig`);
+- `src/lib/llm/config.ts` и тесты;
+- `src/lib/llm/providers/openai-compatible.ts` и тесты;
+- `src/lib/llm/default-client.ts`;
+- `src/lib/server-auth.ts`;
+- `src/app/api/v1/settings/llm/route.ts`;
+- `src/app/settings/page.tsx`.
+
+Проверки:
+
+- targeted config/adapter tests — 2 файла, 7 тестов пройдены;
+- `npm run test` — 29 файлов, 365 тестов пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript/TSX-файлов — ошибок нет;
+- `prisma validate` с test `DATABASE_URL` — schema valid;
+- `npm run db:generate` — Prisma Client успешно сгенерирован;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- новый OpenAI-compatible router задаётся в UI через label/base URL/model/`env:` secret reference;
+- для перехода на новый router не требуется изменение `ai-service` или stage algorithms;
+- adapter покрыт тестами request mapping, bearer secret resolution, non-stream response, fragmented SSE и HTTP errors;
+- значение секрета не хранится в Prisma model, не возвращается API и не включается в error messages;
+- следующей задачей назначена `R3-03`.
 
 ### 2026-08-01 — R3-01 — DONE
 

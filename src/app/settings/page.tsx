@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   Card,
   CardContent,
@@ -19,6 +19,9 @@ import {
   Bell,
   Mail,
   CheckCircle2,
+  Cpu,
+  Loader2,
+  Trash2,
 } from "lucide-react";
 import { useTheme } from "next-themes";
 import { useAuth } from "@/lib/auth";
@@ -27,6 +30,8 @@ import { Badge } from "@/components/ui/badge";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { useToast } from "@/hooks/use-toast";
 
 const THEME_OPTIONS = [
   { value: "light", label: "Светлая", icon: Sun },
@@ -36,12 +41,116 @@ const THEME_OPTIONS = [
 
 export default function SettingsPage() {
   const { theme, setTheme } = useTheme();
-  const { user } = useAuth();
+  const { user, apiFetch } = useAuth();
+  const { toast } = useToast();
   const [notifications, setNotifications] = useState({
     pipeline: true,
     aiAlerts: true,
     email: false,
   });
+  const [llmConfig, setLlmConfig] = useState({
+    label: "OpenAI-compatible router",
+    baseUrl: "",
+    model: "",
+    secretRef: "",
+    enabled: true,
+  });
+  const [llmSecretAvailable, setLlmSecretAvailable] = useState<boolean | null>(null);
+  const [llmLoading, setLlmLoading] = useState(true);
+  const [llmSaving, setLlmSaving] = useState(false);
+
+  useEffect(() => {
+    if (!user) return;
+    let cancelled = false;
+    apiFetch<{
+      config: null | {
+        label: string;
+        base_url: string;
+        model: string;
+        secret_ref: string | null;
+        secret_available: boolean;
+        enabled: boolean;
+      };
+    }>("/settings/llm")
+      .then(({ config }) => {
+        if (cancelled || !config) return;
+        setLlmConfig({
+          label: config.label,
+          baseUrl: config.base_url,
+          model: config.model,
+          secretRef: config.secret_ref || "",
+          enabled: config.enabled,
+        });
+        setLlmSecretAvailable(config.secret_available);
+      })
+      .catch((error) => {
+        if (!cancelled) {
+          toast({
+            title: "Не удалось загрузить LLM-настройки",
+            description: error instanceof Error ? error.message : String(error),
+            variant: "destructive",
+          });
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLlmLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [apiFetch, toast, user]);
+
+  async function saveLlmConfig() {
+    setLlmSaving(true);
+    try {
+      const { config } = await apiFetch<{
+        config: { secret_available: boolean };
+      }>("/settings/llm", {
+        method: "PUT",
+        body: JSON.stringify({
+          label: llmConfig.label,
+          base_url: llmConfig.baseUrl,
+          model: llmConfig.model,
+          secret_ref: llmConfig.secretRef || null,
+          enabled: llmConfig.enabled,
+        }),
+      });
+      setLlmSecretAvailable(config.secret_available);
+      toast({ title: "LLM-router сохранён" });
+    } catch (error) {
+      toast({
+        title: "Не удалось сохранить LLM-router",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setLlmSaving(false);
+    }
+  }
+
+  async function removeLlmConfig() {
+    setLlmSaving(true);
+    try {
+      await apiFetch("/settings/llm", { method: "DELETE" });
+      setLlmConfig({
+        label: "OpenAI-compatible router",
+        baseUrl: "",
+        model: "",
+        secretRef: "",
+        enabled: true,
+      });
+      setLlmSecretAvailable(null);
+      toast({ title: "Пользовательский LLM-router отключён" });
+    } catch (error) {
+      toast({
+        title: "Не удалось удалить LLM-router",
+        description: error instanceof Error ? error.message : String(error),
+        variant: "destructive",
+      });
+    } finally {
+      setLlmSaving(false);
+    }
+  }
 
   const aiUsagePercent = user
     ? Math.min(100, Math.round((user.ai_calls_count / user.ai_calls_limit) * 100))
@@ -201,6 +310,104 @@ export default function SettingsPage() {
                   Обновитесь до тарифа Pro для 500 запросов в день.
                 </p>
               </div>
+            )}
+          </CardContent>
+        </Card>
+      )}
+
+      {user && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Cpu className="h-4 w-4 text-primary" />
+              LLM-router
+            </CardTitle>
+            <CardDescription>
+              Подключите любой API с OpenAI-совместимым endpoint <code>/chat/completions</code>
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {llmLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Загрузка конфигурации…
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-4 md:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="llm-label">Название</Label>
+                    <Input
+                      id="llm-label"
+                      value={llmConfig.label}
+                      onChange={(event) => setLlmConfig((value) => ({ ...value, label: event.target.value }))}
+                      placeholder="OpenRouter"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="llm-model">Модель</Label>
+                    <Input
+                      id="llm-model"
+                      value={llmConfig.model}
+                      onChange={(event) => setLlmConfig((value) => ({ ...value, model: event.target.value }))}
+                      placeholder="openai/gpt-4.1-mini"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="llm-base-url">Base URL</Label>
+                  <Input
+                    id="llm-base-url"
+                    value={llmConfig.baseUrl}
+                    onChange={(event) => setLlmConfig((value) => ({ ...value, baseUrl: event.target.value }))}
+                    placeholder="https://openrouter.ai/api/v1"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="llm-secret-ref">Ссылка на серверный секрет</Label>
+                  <Input
+                    id="llm-secret-ref"
+                    value={llmConfig.secretRef}
+                    onChange={(event) => setLlmConfig((value) => ({ ...value, secretRef: event.target.value }))}
+                    placeholder="env:OPENROUTER_API_KEY"
+                    autoComplete="off"
+                  />
+                  <p className="text-xs text-muted-foreground">
+                    Укажите имя переменной окружения. Сам API-ключ не отправляется в браузер и не хранится в базе.
+                  </p>
+                  {llmSecretAvailable !== null && (
+                    <Badge variant={llmSecretAvailable ? "secondary" : "destructive"}>
+                      {llmSecretAvailable ? "Секрет доступен серверу" : "Переменная окружения не найдена"}
+                    </Badge>
+                  )}
+                </div>
+                <div className="flex items-center justify-between rounded-lg border p-3">
+                  <div>
+                    <Label htmlFor="llm-enabled">Использовать этот router</Label>
+                    <p className="text-xs text-muted-foreground">
+                      При отключении приложение вернётся к встроенному provider/fallback.
+                    </p>
+                  </div>
+                  <Switch
+                    id="llm-enabled"
+                    checked={llmConfig.enabled}
+                    onCheckedChange={(enabled) => setLlmConfig((value) => ({ ...value, enabled }))}
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={saveLlmConfig}
+                    disabled={llmSaving || !llmConfig.label.trim() || !llmConfig.baseUrl.trim() || !llmConfig.model.trim()}
+                  >
+                    {llmSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Сохранить router
+                  </Button>
+                  <Button variant="outline" onClick={removeLlmConfig} disabled={llmSaving || !llmConfig.baseUrl}>
+                    <Trash2 className="mr-2 h-4 w-4" />
+                    Удалить
+                  </Button>
+                </div>
+              </>
             )}
           </CardContent>
         </Card>

@@ -36,9 +36,32 @@ model User {
   playtestResults PlaytestResult[]
   savedMechanics  SavedMechanic[]
   prototypeGraphs PrototypeGraph[]
+  llmConfig       UserLlmConfig?
 
   @@index([plan])
   @@map("users")
+}
+
+// ============================================================
+// USER LLM CONFIG — active OpenAI-compatible router
+// ============================================================
+
+model UserLlmConfig {
+  id            String   @id @default(cuid())
+  userId        String   @unique
+  adapter       String   @default("openai-compatible")
+  label         String
+  baseUrl       String
+  model         String
+  secretRef     String?  // Server-only reference, e.g. env:OPENROUTER_API_KEY. Never a plaintext key.
+  enabled       Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([adapter])
+  @@map("user_llm_configs")
 }
 
 // ============================================================

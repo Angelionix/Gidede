@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R2-08` — добавить decision gate `go / iterate / stop / insufficient_data`.
-- **Зависимости:** `R2-07` завершена; versioned playtest evidence и агрегаты по прототипу/гипотезе доступны.
-- **Ожидаемый результат:** переход к GDD требует evidence-based решения либо явного override с причиной.
-- **После неё:** `R3-01` — выделить provider-agnostic `LlmClient` и registry.
+- **Следующая задача:** `R3-01` — выделить provider-agnostic `LlmClient` и registry.
+- **Зависимости:** `R2-08` завершена; GDD защищён evidence-based playtest decision gate.
+- **Ожидаемый результат:** `ai-service` зависит от общего LLM-контракта, а не от конкретного SDK/provider.
+- **После неё:** `R3-02` — реализовать OpenAI-compatible adapter для произвольного LLM-router API.
 
 ## Правила ведения
 
@@ -51,10 +51,50 @@
 | R2-05 | DONE | Вычисляемый fun заменён на `unverified` hypothesis и измеримый playtest protocol | 343 tests, TypeScript, scoped ESLint |
 | R2-06 | DONE | PrototypeArtifact закрепляет прототип за accepted/fresh Core Loop lineage | 349 tests, TypeScript, scoped ESLint |
 | R2-07 | DONE | Versioned playtest evidence хранит hypothesis/cohort/observations и агрегируется по прототипу | 353 tests, TypeScript, scoped ESLint, Prisma validate |
-| R2-08 | TODO | Decision gate `go / iterate / stop / insufficient_data` | — |
+| R2-08 | DONE | GDD требует `go` либо документированный override; доступны 4 decision outcome | 355 tests, TypeScript, scoped ESLint |
 | R3…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R2-08 — DONE
+
+Что сделано:
+
+- реализован детерминированный decision gate `go / iterate / stop / insufficient_data`;
+- gate читает пороги непосредственно из versioned fun-hypothesis protocol;
+- `insufficient_data` возвращается, если не достигнут minimum participant count или не измерена хотя бы одна метрика на минимальной выборке;
+- `go` возможен только при прохождении всех comparator/target условий;
+- достаточные данные с частичным провалом дают `iterate`;
+- `stop` требует полного провала всех порогов минимум в двух когортах и удвоенной минимальной выборки;
+- GDD выбирает последнюю generated-версию прототипа для текущего hypothesis ID и блокируется без `go`;
+- API возвращает HTTP 409 с полным gate result и требованиями к override;
+- явный override разрешает GDD только с причиной длиной минимум 20 символов и сохраняется в GDD profile/inputData;
+- Block 6 UI получил явный warning, checkbox и поле причины override; payload теперь содержит активный `project_id`.
+
+Изменённые области:
+
+- `src/lib/playtest-evidence.ts` и тесты;
+- `src/app/api/v1/gdd/generate/route.ts`;
+- `src/app/blocks/6/page.tsx`;
+- `src/types/gdd.ts`.
+
+Проверки:
+
+- playtest decision/prototype lineage/pipeline stale targeted tests — 3 файла, 17 тестов пройдены;
+- `npm run test` — 26 файлов, 355 тестов пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- 4 участника при minimum=5 всегда дают `insufficient_data`, даже при идеальных rates;
+- ровно достигнутые пороги completion/replay/confusion дают `go`;
+- один проваленный порог при достаточной выборке даёт `iterate`;
+- полный повторный провал в 2 когортах и на 10 участниках при minimum=5 даёт `stop`;
+- GDD без `go` не сохраняется и не продвигает project stage;
+- override без содержательной причины отклоняется;
+- следующей задачей назначена `R3-01`.
 
 ### 2026-08-01 — R2-07 — DONE
 

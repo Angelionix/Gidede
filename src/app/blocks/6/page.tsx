@@ -11,6 +11,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -83,6 +84,8 @@ export default function Block6Page() {
   const [docAudience, setDocAudience] = useState("team_sync");
   const [projectStage, setProjectStage] = useState("preproduction");
   const [language, setLanguage] = useState("ru");
+  const [allowPlaytestOverride, setAllowPlaytestOverride] = useState(false);
+  const [playtestOverrideReason, setPlaytestOverrideReason] = useState("");
 
   // --- Result state ---
   const [isGenerating, setIsGenerating] = useState(false);
@@ -101,11 +104,15 @@ export default function Block6Page() {
 
     try {
       const payload: GDDGenerationRequest = {
+        ...(projectId ? { project_id: projectId } : {}),
         target_format: targetFormat,
         detail_level: detailLevel,
         target_audience_doc: docAudience,
         project_stage: projectStage,
         language,
+        ...(allowPlaytestOverride ? {
+          playtest_gate_override: { allow_gdd: true, reason: playtestOverrideReason.trim() },
+        } : {}),
       };
 
       const data = await apiFetch<GDDProfile>("/gdd/generate", {
@@ -148,6 +155,8 @@ export default function Block6Page() {
     docAudience,
     projectStage,
     language,
+    allowPlaytestOverride,
+    playtestOverrideReason,
     projectId,
     apiFetch,
     pipeline,
@@ -376,6 +385,31 @@ export default function Block6Page() {
                     </SelectContent>
                   </Select>
                 </div>
+              </div>
+
+              <div className="rounded-lg border border-amber-300/60 bg-amber-50/40 p-3 dark:bg-amber-950/10">
+                <label className="flex items-start gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={allowPlaytestOverride}
+                    onChange={(event) => setAllowPlaytestOverride(event.target.checked)}
+                    className="mt-1"
+                  />
+                  <span>
+                    <span className="font-medium">Разрешить GDD без решения go</span>
+                    <span className="block text-xs text-muted-foreground">Override фиксируется в GDD и требует содержательную причину.</span>
+                  </span>
+                </label>
+                {allowPlaytestOverride && (
+                  <div className="mt-3 space-y-1.5">
+                    <Label className="text-xs">Причина override (минимум 20 символов)</Label>
+                    <Input
+                      value={playtestOverrideReason}
+                      onChange={(event) => setPlaytestOverrideReason(event.target.value)}
+                      placeholder="Почему дальнейшая проработка оправдана без достаточного playtest evidence"
+                    />
+                  </div>
+                )}
               </div>
 
               {/* Generate button */}

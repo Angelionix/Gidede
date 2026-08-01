@@ -51,6 +51,24 @@ export interface PrototypePlaytestAggregate {
   retry: { observed: number; rate: number | null; averageCount: number | null };
 }
 
+export type PlaytestDecision = "go" | "iterate" | "stop" | "insufficient_data";
+
+export interface PlaytestDecisionGate {
+  decision: PlaytestDecision;
+  reason: string;
+  prototypeId: string | null;
+  hypothesisId: string | null;
+  participantCount: number;
+  metricResults: Array<{
+    id: string;
+    observed: number;
+    rate: number | null;
+    comparator: ">=" | "<=";
+    target: number;
+    passed: boolean | null;
+  }>;
+}
+
 export class PlaytestEvidenceError extends Error {
   constructor(public readonly code: "hypothesis_missing" | "core_loop_version_missing", message: string) {
     super(message);
@@ -61,6 +79,20 @@ export class PlaytestEvidenceError extends Error {
 export function createHypothesisSnapshot(
   validationData: string | null | undefined,
   prototype: PrototypeArtifact,
+): PlaytestHypothesisSnapshot {
+  const coreLoopVersion = prototype.sourceArtifactVersions.core_loop;
+  if (!coreLoopVersion) {
+    throw new PlaytestEvidenceError(
+      "core_loop_version_missing",
+      "PrototypeArtifact не содержит версию Core Loop.",
+    );
+  }
+  return createHypothesisSnapshotFromValidation(validationData, coreLoopVersion);
+}
+
+export function createHypothesisSnapshotFromValidation(
+  validationData: string | null | undefined,
+  coreLoopVersion: string,
 ): PlaytestHypothesisSnapshot {
   let validation: unknown;
   try {
@@ -80,25 +112,84 @@ export function createHypothesisSnapshot(
     );
   }
 
-  const coreLoopVersion = prototype.sourceArtifactVersions.core_loop;
-  if (!coreLoopVersion) {
-    throw new PlaytestEvidenceError(
-      "core_loop_version_missing",
-      "PrototypeArtifact не содержит версию Core Loop.",
-    );
-  }
+  return createHypothesisSnapshotForCoreVersion(parsed.data, coreLoopVersion);
+}
 
+export function createHypothesisSnapshotForCoreVersion(
+  hypothesis: z.infer<typeof funHypothesisSchema>,
+  coreLoopVersion: string,
+): PlaytestHypothesisSnapshot {
   const hypothesisId = hashArtifactInput({
     coreLoopVersion,
-    statement: parsed.data.statement,
-    testProtocol: parsed.data.test_protocol,
+    statement: hypothesis.statement,
+    testProtocol: hypothesis.test_protocol,
   });
   return {
     hypothesisId,
     coreLoopVersion,
-    statusAtTest: parsed.data.status,
-    statement: parsed.data.statement,
-    testProtocol: parsed.data.test_protocol,
+    statusAtTest: hypothesis.status,
+    statement: hypothesis.statement,
+    testProtocol: hypothesis.test_protocol,
+  };
+}
+
+export function evaluatePlaytestDecision(
+  hypothesis: PlaytestHypothesisSnapshot,
+  aggregate: PrototypePlaytestAggregate | null,
+): PlaytestDecisionGate {
+  if (!aggregate) {
+    return {
+      decision: "insufficient_data",
+      reason: "Нет versioned playtest evidence для текущей гипотезы.",
+      prototypeId: null,
+      hypothesisId: hypothesis.hypothesisId,
+      participantCount: 0,
+      metricResults: [],
+    };
+  }
+
+  const metricResults = hypothesis.testProtocol.metrics.map((metric) => {
+    const measured = metric.id === "loop_completion_rate"
+      ? aggregate.completion
+      : metric.id === "critical_confusion_rate"
+        ? aggregate.criticalConfusion
+        : aggregate.retry;
+    const passed = measured.rate == null
+      ? null
+      : metric.comparator === ">="
+        ? measured.rate >= metric.target
+        : measured.rate <= metric.target;
+    return { id: metric.id, observed: measured.observed, rate: measured.rate, comparator: metric.comparator, target: metric.target, passed };
+  });
+  const minimum = hypothesis.testProtocol.minimum_participants;
+  const missingEvidence = aggregate.participantCount < minimum
+    || metricResults.some((metric) => metric.observed < minimum || metric.rate == null);
+  if (missingEvidence) {
+    return {
+      decision: "insufficient_data",
+      reason: `Нужно минимум ${minimum} участников и ${minimum} наблюдений по каждой метрике.`,
+      prototypeId: aggregate.prototypeId,
+      hypothesisId: aggregate.hypothesisId,
+      participantCount: aggregate.participantCount,
+      metricResults,
+    };
+  }
+
+  const allPassed = metricResults.every((metric) => metric.passed === true);
+  const repeatedCompleteFailure = metricResults.every((metric) => metric.passed === false)
+    && aggregate.cohortCount >= 2
+    && aggregate.participantCount >= minimum * 2;
+  return {
+    decision: allPassed ? "go" : repeatedCompleteFailure ? "stop" : "iterate",
+    reason: allPassed
+      ? "Все пороги гипотезы подтверждены достаточным числом наблюдений."
+      : repeatedCompleteFailure
+        ? "Все пороги провалены минимум в двух когортах с удвоенной минимальной выборкой."
+      : "Данных достаточно, но один или несколько порогов гипотезы не достигнуты.",
+    prototypeId: aggregate.prototypeId,
+    hypothesisId: aggregate.hypothesisId,
+    participantCount: aggregate.participantCount,
+    metricResults,
   };
 }
 

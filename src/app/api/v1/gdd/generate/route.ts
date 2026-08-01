@@ -39,6 +39,13 @@ import {
   validateStageInput,
 } from "@/lib/contracts/stage-contracts";
 import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
+import { parsePipelineFreshnessState, stageIsAcceptedFresh } from "@/lib/pipeline-stale";
+import {
+  aggregatePlaytestEvidence,
+  createHypothesisSnapshotFromValidation,
+  evaluatePlaytestDecision,
+  type PlaytestDecisionGate,
+} from "@/lib/playtest-evidence";
 
 const VALID_FORMATS: readonly string[] = GDD_DOCUMENT_FORMATS;
 const VALID_DETAIL = ["overview", "standard", "detailed", "exhaustive"];
@@ -204,6 +211,7 @@ const DETAIL_FACTOR: Record<string, number> = {
 
 interface ProjectData {
   id: string;
+  pipelineState: string | null;
   name: string;
   description: string | null;
   genre: string | null;
@@ -1045,6 +1053,68 @@ export async function POST(request: NextRequest) {
     if (owned instanceof NextResponse) return owned;
     const proj = owned.project as ProjectData;
 
+    const freshness = parsePipelineFreshnessState(proj.pipelineState);
+    const coreArtifact = freshness.artifacts.core_loop;
+    let playtestGate: PlaytestDecisionGate;
+    if (!coreArtifact || !stageIsAcceptedFresh(freshness, "core_loop")) {
+      playtestGate = {
+        decision: "insufficient_data",
+        reason: "Нет accepted/fresh Core Loop для evidence gate.",
+        prototypeId: null,
+        hypothesisId: null,
+        participantCount: 0,
+        metricResults: [],
+      };
+    } else {
+      const coreLoopVersion = `${coreArtifact.artifactId}@${coreArtifact.schemaVersion}`;
+      const hypothesis = createHypothesisSnapshotFromValidation(proj.coreLoop?.validationData, coreLoopVersion);
+      const evidenceRows = await db.playtestResult.findMany({
+        where: { projectId: proj.id, hypothesisId: hypothesis.hypothesisId, userId: user.id },
+        select: {
+          prototypeId: true,
+          hypothesisId: true,
+          cohortId: true,
+          participantId: true,
+          completion: true,
+          confusionEvents: true,
+          retryCount: true,
+          createdAt: true,
+          prototypeGeneratedAt: true,
+        },
+        orderBy: [{ prototypeGeneratedAt: "desc" }, { createdAt: "desc" }],
+        take: 10_000,
+      });
+      const requestedPrototypeId = typeof body.playtest_prototype_id === "string"
+        ? body.playtest_prototype_id.trim()
+        : "";
+      const selectedPrototypeId = requestedPrototypeId || evidenceRows.find((row) => row.prototypeId)?.prototypeId || null;
+      const aggregate = aggregatePlaytestEvidence(
+        selectedPrototypeId ? evidenceRows.filter((row) => row.prototypeId === selectedPrototypeId) : [],
+      )[0] || null;
+      playtestGate = evaluatePlaytestDecision(hypothesis, aggregate);
+    }
+
+    const override = body.playtest_gate_override && typeof body.playtest_gate_override === "object"
+      ? body.playtest_gate_override as Record<string, unknown>
+      : null;
+    const overrideApplied = override?.allow_gdd === true;
+    const overrideReason = typeof override?.reason === "string" ? override.reason.trim() : "";
+    if (overrideApplied && overrideReason.length < 20) {
+      return VALIDATION_ERROR("playtest gate override требует содержательную причину минимум из 20 символов");
+    }
+    if (playtestGate.decision !== "go" && !overrideApplied) {
+      return NextResponse.json({
+        detail: "GDD заблокирован playtest decision gate.",
+        code: "playtest_gate_blocked",
+        playtest_gate: playtestGate,
+        override_required: { allow_gdd: true, reason_min_length: 20 },
+      }, { status: 409 });
+    }
+    const playtestGateRecord = {
+      ...playtestGate,
+      override: overrideApplied ? { applied: true, reason: overrideReason } : { applied: false },
+    };
+
     // --- Section catalogue ---
     let sectionsList = FORMAT_SECTIONS[targetFormat] || FORMAT_SECTIONS.full_gdd;
     if (customSections.length > 0) {
@@ -1317,6 +1387,7 @@ export async function POST(request: NextRequest) {
       contract_version: STAGE_CONTRACT_VERSION,
       artifact: createArtifactEnvelope("gdd", body),
       algorithm_metadata: getStageAlgorithmMetadata("gdd"),
+      playtest_gate: playtestGateRecord,
       stages_completed: stagesCompleted,
       coverage_score: Number(coverageScore.toFixed(3)),
       latency_ms: latencyMs,
@@ -1357,6 +1428,7 @@ export async function POST(request: NextRequest) {
           target_audience_doc: audience,
           project_stage: projectStage,
           language,
+          playtest_gate: playtestGateRecord,
         }),
         sections: JSON.stringify(assembledSections),
         visualElements: JSON.stringify({}),
@@ -1381,6 +1453,7 @@ export async function POST(request: NextRequest) {
           target_audience_doc: audience,
           project_stage: projectStage,
           language,
+          playtest_gate: playtestGateRecord,
         }),
         sections: JSON.stringify(assembledSections),
         visualElements: JSON.stringify({}),

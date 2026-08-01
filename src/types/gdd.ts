@@ -135,6 +135,7 @@ export interface GDDProfile {
 }
 
 export interface GDDGenerationRequest {
+  project_id?: string;
   target_format?: string;
   target_audience_doc?: string;
   detail_level?: string;
@@ -142,6 +143,7 @@ export interface GDDGenerationRequest {
   custom_sections?: string[];
   excluded_sections?: string[];
   language?: string;
+  playtest_gate_override?: { allow_gdd: true; reason: string };
 }
 
 export interface ChecklistValidationProfile {

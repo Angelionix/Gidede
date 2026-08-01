@@ -35,6 +35,12 @@ import {
 } from "@/lib/api-helpers";
 import { enrichBalance } from "@/lib/ai-service";
 import { detectBalancePathologies } from "@/lib/balance/pathologies";
+import {
+  computeUnitAwareWeights,
+  normalizeAttributes,
+  computeUnitAwarePower,
+  findInvalidAttributes,
+} from "@/lib/balance/attribute-units";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION, validateStageInput } from "@/lib/contracts/stage-contracts";
 import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
@@ -152,38 +158,25 @@ const SCHREIBER_CURVES = {
 };
 
 function buildTransitiveResult(objects: BalanceObject[], balanceType: string) {
-  // TASK-4.4 FIXED: weighted attribute importance (Bible 5.5.3).
-  // Before: equal weights 1/attrCount for all attributes (violates Bible — important
-  // attributes should have HIGHER weights).
-  // After: heuristic weights based on attribute name significance:
-  //   - "power", "damage", "attack" → weight 3 (combat-critical)
-  //   - "defense", "hp", "health", "armor" → weight 2.5 (survivability)
-  //   - "speed", "range", "mobility" → weight 1.5 (utility)
-  //   - other → weight 1 (baseline)
+  // R5-01: typed attribute units and per-unit normalization.
+  // Before R5-01, attributes with different units (power=30, range=5, speed=7)
+  // were summed with only name-based weights — silently mixing incomparable
+  // scales. Now each attribute is classified into a unit group (combat_power,
+  // survivability, mobility, utility) and normalized to [0, 1] within its
+  // group across the object set, so incomparable units are never summed at
+  // different raw scales.
   const allAttrs = new Set<string>();
   for (const obj of objects) {
     for (const k of Object.keys(obj.attributes)) allAttrs.add(k);
   }
   const attrList = Array.from(allAttrs);
-  const rawWeights: Record<string, number> = {};
-  for (const a of attrList) {
-    const lower = a.toLowerCase();
-    if (/power|damage|attack|dps/.test(lower)) rawWeights[a] = 3;
-    else if (/defen|hp|health|armor|shield/.test(lower)) rawWeights[a] = 2.5;
-    else if (/speed|range|mobility|velocity/.test(lower)) rawWeights[a] = 1.5;
-    else rawWeights[a] = 1;
-  }
-  // Normalize weights to sum to 1.
-  const weightSum = Object.values(rawWeights).reduce((s, w) => s + w, 0);
-  const weights: Record<string, number> = {};
-  for (const a of attrList) {
-    weights[a] = Number((rawWeights[a] / weightSum).toFixed(3));
-  }
+  const weights = computeUnitAwareWeights(attrList);
+  const normalizedAttrs = normalizeAttributes(objects.map((o) => o.attributes));
 
-  // Compute power per object using weighted sum.
-  const powers = objects.map((o) => ({
+  // Compute power per object using normalized attributes + unit-aware weights.
+  const powers = objects.map((o, i) => ({
     name: o.name,
-    power: computePower(o.attributes, weights),
+    power: computeUnitAwarePower(o.attributes, weights, normalizedAttrs[i] ?? {}) * 100,
     cost: o.cost ?? 100,
   }));
 

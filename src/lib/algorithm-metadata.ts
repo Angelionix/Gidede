@@ -153,6 +153,11 @@ const SCORE_METADATA_BY_STAGE = {
     ),
   },
   balance: {
+    "transitive_result.powers[*].power": score(
+      "heuristic",
+      "Power is computed from per-unit-normalized attributes (R5-01): each attribute is classified into a unit group (combat_power, survivability, mobility, utility) and normalized to [0,1] within its group across the object set, so incomparable units are not silently summed at different raw scales.",
+      "Weights are unit-group-aware: combat_power > survivability > mobility > utility, normalized to sum to 1.",
+    ),
     "q_factor_result.q_factors[*].synergy_score": score(
       "heuristic",
       "Synergy is a deterministic name-hash proxy, not an interaction simulation.",

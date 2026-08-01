@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** Фаза R5 (Balance, Progression, Economy) — начать с `R5-01` (typed units и нормализация Balance attributes).
-- **Зависимости:** Фаза R4 (Concept и MDA) завершена — все 10 задач R4-01…R4-10 выполнены.
-- **Ожидаемый результат:** несопоставимые units нельзя молча суммировать; Balance objects строятся из MDA/Core domain model.
-- **После неё:** R5-02…R5-16 — полный рефакторинг Balance/Progression/Economy.
+- **Следующая задача:** `R5-02` — строить balance objects из MDA/Core domain model.
+- **Зависимости:** `R5-01` завершена; Balance transitive power вычисляется из per-unit-normalized attributes.
+- **Ожидаемый результат:** hardcoded genre object sets используются только как explicit demo fixtures; Balance получает objects из MDA/Core артефактов.
+- **После неё:** `R5-03` — валидация finite numeric attributes и unique IDs.
 
 ## Статус roadmap
 
@@ -63,7 +63,8 @@
 | R4-08 | DONE | MDA iteration loop: реальные итерации, меняют candidate set, сохраняют diffs | 641 tests, TypeScript, scoped ESLint |
 | R4-09 | DONE | Lens #41 (dominance) из Balance intransitive dominance evidence, не synergy proxy | 662 tests, TypeScript, scoped ESLint |
 | R4-10 | DONE | Bond matrix из artifact evidence; dissonances из конкретных несовместимых пар | 685 tests, TypeScript, scoped ESLint |
-| R5-01…R7 | TODO | См. активный roadmap | — |
+| R5-01 | DONE | Typed attribute units + per-unit normalization для Balance transitive power | 713 tests, TypeScript, scoped ESLint |
+| R5-02…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -76,6 +77,43 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R5-01 — DONE
+
+Что сделано:
+
+- создан модуль `src/lib/balance/attribute-units.ts` с typed attribute units и per-unit normalization;
+- `classifyAttributeUnit(name)` — классифицирует attribute name в canonical unit group: `combat_power` (power/damage/attack/dps), `survivability` (defense/hp/health/armor/shield), `mobility` (speed/range/mobility/velocity), `utility` (crit/cooldown/mana/energy), `unknown`;
+- `UNIT_DEFAULT_WEIGHTS` — importance heuristic по unit group (combat_power=3 > survivability=2.5 > mobility=1.5 > utility=1);
+- `normalizeAttributes(objectsAttrs)` — per-unit min-max normalization: каждый attribute нормализуется к [0, 1] в пределах своего unit group ACROSS the object set; incomparable units (power vs range) нормализуются отдельно, поэтому не могут быть silently summed at different raw scales; equal values → neutral 0.5; non-finite → 0;
+- `computeUnitAwareWeights(attrNames)` — unit-group-aware weighting: equal weight within each unit group, group weights proportional to UNIT_DEFAULT_WEIGHTS, summing to 1 across all attributes;
+- `computeUnitAwarePower(attrs, weights, normalizedAttrs)` — weighted power score из normalized attributes, в [0, 1];
+- `findInvalidAttributes(objectsAttrs)` — детектирует NaN/string/Infinity values (для R5-03 валидации);
+- `buildTransitiveResult` в route.ts теперь использует `computeUnitAwareWeights` + `normalizeAttributes` + `computeUnitAwarePower` вместо raw weighted sum; power масштабируется ×100 для совместимости с существующим expectedCp/curve logic;
+- `algorithm-metadata` обновлён: `transitive_result.powers[*].power` имеет provenance о per-unit normalization и unit-group-aware weights.
+
+Изменённые области:
+
+- `src/lib/balance/attribute-units.ts` (новый, 200 строк) и `attribute-units.test.ts` (новый, 28 тестов);
+- `src/app/api/v1/balance/analyze/route.ts` — `buildTransitiveResult` использует typed units;
+- `src/lib/algorithm-metadata.ts` — provenance для transitive power.
+
+Проверки:
+
+- `bun run test` — 64 файла, 713 тестов пройдено (было 685; +28 attribute-units);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- objects с power=50 но разными range scales (1 vs 100) получают разные power scores — difference пропорционален range weight, не raw 99;
+- normalization делает power и range оба в [0, 1] — могут суммироваться без доминирования raw scale;
+- unit-aware weights: combat_power > survivability > mobility > utility (verified);
+- equal values → neutral 0.5 (no division by zero);
+- single object → neutral 0.5;
+- non-finite values detected `findInvalidAttributes`;
+- следующей задачей назначена `R5-02`.
 
 ### 2026-08-01 — R4-10 — DONE
 

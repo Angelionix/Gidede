@@ -69,6 +69,12 @@ const SCORE_METADATA_BY_STAGE = {
       "Without external evidence, the score is a rule-of-thumb prior labelled with confidence 'low' and source 'heuristic_prior', not a market measurement.",
       "Reference games supplied by the user are treated as low-confidence indirect evidence, not verified market data.",
     ),
+    "usp_candidates[*].triangle_of_weirdness_check": score(
+      "heuristic",
+      "Triangle of Weirdness is evaluated per USP from cross-genre/novelty signals (weird), player-benefit/verb/resonance signals (appealing), and absence of hyperbolic claims plus genre mention (credible).",
+      "Pass requires all three dimensions; warn if any; fail if none.",
+      "Signal lists are rule-of-thumb keyword heuristics, not a validated design-quality model.",
+    ),
     "validation_report.triangle_check.score": score(
       "heuristic",
       "The current Triangle of Weirdness dimensions are rule-derived and not user-validated.",

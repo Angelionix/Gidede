@@ -36,6 +36,7 @@ import {
 import { enrichConcept } from "@/lib/ai-service";
 import { buildMechanicSetForGenres, type Mechanic } from "@/lib/mechanics-db";
 import { buildValidationReport } from "@/lib/concept/validation";
+import { buildUSPCandidates } from "@/lib/concept/usp-builders";
 import { validateConceptInput } from "@/lib/concept/validation-input";
 import {
   rankAestheticsFromText,
@@ -500,60 +501,6 @@ function buildCoreLoopCandidates(genre: string, mechanicSet: {
       estimated_duration_seconds: 60,
     },
   ];
-}
-
-function buildUSPCandidates(genre: string, idea: string) {
-  // TASK-1.10 FIXED: slice boundaries now use safe fallbacks for short ideas.
-  // Original bug: idea.slice(0, 100/200/300) produced empty/duplicate USPs when idea was short.
-  // Now: each USP derives a distinct aspect from idea (origin, mechanic, theme) with min-length guards.
-
-  // Extract first 2-3 "core verbs" from the idea (lowercased) — used for USP #3.
-  const lower = idea.toLowerCase();
-  const coreVerbs = lower
-    .split(/\s+/)
-    .filter((w) => w.length >= 3 && !["the", "and", "for", "with", "that", "this"].includes(w))
-    .slice(0, 2)
-    .join(" ");
-  const verbPhrase = coreVerbs.length >= 3 ? coreVerbs : "explore and survive";
-
-  // Safe idea excerpt: never empty, always meaningful (min 20 chars).
-  const ideaExcerpt = (maxLen: number, offset = 0) => {
-    const slice = idea.slice(offset, offset + maxLen).trim();
-    if (slice.length < 20) {
-      // Idea too short for a meaningful slice — use full idea with ellipsis style.
-      return idea.trim().length > 0 ? idea.trim() : "an unexplored concept";
-    }
-    return slice + (idea.length > offset + maxLen ? "…" : "");
-  };
-
-  // Detect theme keywords for thematic USP
-  const themeKeywords = ["dark", "light", "future", "past", "dream", "war", "peace", "magic", "tech", "nature"];
-  const detectedTheme = themeKeywords.find((k) => lower.includes(k));
-  const themePhrase = detectedTheme
-    ? `the "${detectedTheme}" theme`
-    : "an unconventional aesthetic direction";
-
-  const candidates = [
-    {
-      usp: `A ${genre} game where every decision reshapes the world — combining "${ideaExcerpt(60)}" with emergent narrative consequences.`,
-      triangle_of_weirdness_check: "pass" as const,
-      competitive_differentiation:
-        "No competitor merges player agency with persistent world mutation at this scale.",
-    },
-    {
-      usp: `Hybrid ${genre} experience blending traditional mechanics with novel systems derived from "${ideaExcerpt(50)}".`,
-      triangle_of_weirdness_check: "warn" as const,
-      competitive_differentiation:
-        "Differentiator is mechanical fusion; similar genre games lack this hybrid layer.",
-    },
-    {
-      usp: `Narrative-driven ${genre} where the core verb is "${verbPhrase}" and the experience leans on ${themePhrase} — players experience story through gameplay, not cutscenes.`,
-      triangle_of_weirdness_check: "pass" as const,
-      competitive_differentiation:
-        "Ludonarrative harmony creates a distinct identity vs. story-light competitors.",
-    },
-  ];
-  return candidates;
 }
 
 

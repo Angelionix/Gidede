@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R4-05` — генерировать USP candidates без hardcoded Triangle result.
-- **Зависимости:** `R4-04` завершена; market_fit разделяет heuristic prior и external evidence с честным confidence/source.
-- **Ожидаемый результат:** Triangle зависит от фактических свойств кандидата, а не от hardcoded `"pass"|"warn"|"pass"`.
-- **После неё:** `R4-06` — исправить mechanics affinity/cross-genre scoring.
+- **Следующая задача:** `R4-06` — исправить mechanics affinity/cross-genre scoring.
+- **Зависимости:** `R4-05` завершена; USP candidates вычисляют Triangle of Weirdness из реальных свойств текста.
+- **Ожидаемый результат:** intentional hybrid не штрафуется автоматически; cross-genre mechanics не понижают compatibility_score.
+- **После неё:** `R4-07` — унифицировать mechanic namespace и taxonomy.
 
 ## Правила ведения
 
@@ -67,9 +67,52 @@
 | R4-02 | DONE | Word-level genre candidates, exact matched-keyword evidence и честный fallback | 458 tests, TypeScript, scoped ESLint |
 | R4-03 | DONE | Composite feasibility из team/budget/platform/scope с per-factor breakdown | 510 tests, TypeScript, scoped ESLint |
 | R4-04 | DONE | market_fit разделяет heuristic prior и external evidence с confidence/source | 543 tests, TypeScript, scoped ESLint |
-| R4-05…R7 | TODO | См. активный roadmap | — |
+| R4-05 | DONE | USP candidates вычисляют Triangle of Weirdness из реальных свойств текста | 577 tests, TypeScript, scoped ESLint |
+| R4-06…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R4-05 — DONE
+
+Что сделано:
+
+- USP candidates больше не используют hardcoded `triangle_of_weirdness_check: "pass"|"warn"|"pass"` — теперь каждое значение вычисляется из реальных свойств USP-текста;
+- новый модуль `src/lib/concept/triangle-check.ts` с функцией `evaluateTriangleOfWeirdness(usp, genre, context)`;
+- три оси Triangle of Weirdness (Schreiber) реализованы как transparent keyword/phrase heuristics:
+  - **weird**: cross-genre keywords (hybrid/blending/fusion/combining/merges/...) ИЛИ novelty signals (novel/unique/unconventional/emergent/reshapes/revolutionary/...);
+  - **appealing**: player benefit phrases (player agency/story through gameplay/players experience/...) ИЛИ concrete verb в context ИЛИ emotional resonance (story/narrative/experience/journey/...), И разумная длина USP (30-300 chars);
+  - **credible**: отсутствие hyperbolic claims (every decision/infinite/revolutionary/reshapes the world/...) И genre alignment (genre keyword в USP);
+- pass требует все три оси; warn если хотя бы одна; fail если ни одной (исправляет BUG-1.4 — раньше проходило с 1 из 3);
+- score = 0.4 weird + 0.3 appealing + 0.3 credible;
+- `buildUSPCandidates` вынесена из route в тестируемый модуль `src/lib/concept/usp-builders.ts`; каждый candidate получает structured `triangle_check` field для UI transparency (weird/appealing/credible/score/reason);
+- UI `USPCandidates.tsx` уже поддерживает structured `triangle_check` — теперь получает реальные значения;
+- `algorithm-metadata` обновлён: `usp_candidates[*].triangle_of_weirdness_check` имеет отдельные assumptions о heuristic-сигналах и pass/warn/fail правиле.
+
+Изменённые области:
+
+- `src/lib/concept/triangle-check.ts` (новый) и `triangle-check.test.ts` (новый, 21 тест);
+- `src/lib/concept/usp-builders.ts` (новый) и `usp-builders.test.ts` (новый, 13 тестов);
+- `src/app/api/v1/concept/generate/route.ts` — удалена локальная `buildUSPCandidates`, импорт из нового модуля;
+- `src/lib/algorithm-metadata.ts` — отдельная provenance-запись для usp_candidates triangle.
+
+Проверки:
+
+- targeted triangle-check/usp-builders tests — 2 файла, 34 теста пройдено;
+- `bun run test` — 58 файлов, 577 тестов пройдено (было 543);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- legacy hardcoded pattern `"pass"|"warn"|"pass"` больше не возвращается: candidate #1 содержит «every decision reshapes the world» (hyperbolic) → credible=false → check != "pass";
+- candidate #2 «Hybrid RPG experience blending...» → weird=true от cross-genre сигнала «hybrid»;
+- candidate #3 «Narrative-driven RPG where... players experience story through gameplay» → appealing=true от player benefit сигнала «players experience»;
+- разные USP-тексты дают разные triangle results (pass для strong USP, warn для partial, fail для слабого);
+- reason human-readable и перечисляет какие signals сработали для каждой оси;
+- score formula 0.4+0.3+0.3 проверена для разных комбинаций;
+- determinism: одинаковые inputs дают идентичные outputs;
+- следующей задачей назначена `R4-06`.
 
 ### 2026-08-01 — R4-04 — DONE
 

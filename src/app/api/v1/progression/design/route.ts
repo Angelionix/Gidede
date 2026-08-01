@@ -268,6 +268,24 @@ export async function POST(request: NextRequest) {
       body?.monetization_model?.toString().trim() || "b2p";
     const pacing = body?.pacing?.toString().trim() || "balanced";
 
+    // R5-12: playtest calibration inputs. When provided, these adjust the XP
+    // and difficulty curves to match observed player behavior. All optional —
+    // when absent, curves use the default calibration.
+    const playtestTargets = body?.playtest_targets as {
+      session_length_minutes?: number;
+      time_to_first_level_minutes?: number;
+      failure_rate?: number;
+    } | undefined;
+    const sessionLengthMin = typeof playtestTargets?.session_length_minutes === "number"
+      ? Math.max(1, playtestTargets.session_length_minutes)
+      : null;
+    const timeToFirstLevel = typeof playtestTargets?.time_to_first_level_minutes === "number"
+      ? Math.max(0.5, playtestTargets.time_to_first_level_minutes)
+      : null;
+    const failureRate = typeof playtestTargets?.failure_rate === "number"
+      ? Math.max(0, Math.min(1, playtestTargets.failure_rate))
+      : null;
+
     if (!VALID_PROGRESSION_TYPES.includes(progressionType)) {
       return VALIDATION_ERROR(
         `Неверный тип прогрессии: ${progressionType}. Допустимо: ${VALID_PROGRESSION_TYPES.join(", ")}`
@@ -405,9 +423,26 @@ export async function POST(request: NextRequest) {
 
     // --- Curves ---
     // XP curve uses progressionType. Power & cost use derived types.
+    // R5-12: when playtest calibration is available, adjust the XP base value
+    // and growth rate to match observed player behavior.
     const xpGrowth =
       progressionType === "exponential" ? 1.15 : progressionType === "linear" ? 1.0 : 0.4;
-    const xpCurve = buildCurve(progressionType, targetLevels, 100, xpGrowth);
+    // R5-12: calibrate XP base from time_to_first_level. Default 100 XP for
+    // level 1; if players take longer than 5 min to reach level 1, scale up
+    // proportionally (more XP needed = slower progression).
+    const xpBaseDefault = 100;
+    const xpBase = timeToFirstLevel !== null
+      ? Math.round(xpBaseDefault * (timeToFirstLevel / 5))
+      : xpBaseDefault;
+    // R5-12: calibrate XP growth from session_length. Default growth assumes
+    // ~30 min sessions; shorter sessions → faster progression (lower growth).
+    const xpGrowthCalibrated = sessionLengthMin !== null
+      ? Number(Math.max(1.02, Math.min(1.30, xpGrowth * (30 / Math.max(5, sessionLengthMin)))).toFixed(3))
+      : xpGrowth;
+    const xpCurve = buildCurve(progressionType, targetLevels, xpBase, xpGrowthCalibrated);
+    const xpCalibrationSource = (timeToFirstLevel !== null || sessionLengthMin !== null)
+      ? "playtest_targets"
+      : "default";
 
     // Level→Power: usually exponential or linear
     const powerCurveType =
@@ -441,15 +476,24 @@ export async function POST(request: NextRequest) {
       ? "balance_transitive_result"
       : "hardcoded_default";
 
-    // Difficulty: usually s_curve or exponential
+    // Difficulty: usually s_curve or exponential.
+    // R5-12: calibrate difficulty growth rate from failure_rate. Higher
+    // failure rate → steeper difficulty curve (players are struggling).
     const difficultyCurveType =
       pacing === "intense" ? "exponential" : "s_curve";
+    const difficultyGrowthDefault = 0.15;
+    const difficultyGrowth = failureRate !== null
+      ? Number(Math.max(0.05, Math.min(0.40, difficultyGrowthDefault + failureRate * 0.15)).toFixed(3))
+      : difficultyGrowthDefault;
     const difficultyCurve = buildCurve(
       difficultyCurveType,
       targetLevels,
       1,
-      0.15
+      difficultyGrowth
     );
+    const difficultyCalibrationSource = failureRate !== null
+      ? "playtest_targets"
+      : "default";
 
     const curves = {
       xp_to_level: xpCurve,
@@ -461,6 +505,12 @@ export async function POST(request: NextRequest) {
       cost_curve_source: costCurveSource,
       ...(balanceAvgCost !== null ? { cost_curve_balance_avg_cost: balanceAvgCost } : {}),
       ...(balanceExpectedCp !== null ? { cost_curve_balance_expected_cp: balanceExpectedCp } : {}),
+      // R5-12: playtest calibration provenance.
+      xp_curve_calibration_source: xpCalibrationSource,
+      difficulty_curve_calibration_source: difficultyCalibrationSource,
+      ...(timeToFirstLevel !== null ? { xp_base_from_time_to_first_level: xpBase } : {}),
+      ...(sessionLengthMin !== null ? { xp_growth_from_session_length: xpGrowthCalibrated } : {}),
+      ...(failureRate !== null ? { difficulty_growth_from_failure_rate: difficultyGrowth } : {}),
     };
 
     // --- Content plan ---

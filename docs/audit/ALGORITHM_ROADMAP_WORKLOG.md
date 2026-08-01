@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R5-12` — калибровать progression через playtest targets.
-- **Зависимости:** `R5-11` завершена; transitions_per_hour имеет корректную размерность; 4 validation checks реально вычисляются.
-- **Ожидаемый результат:** session/time-to-level/failure inputs изменяют curves.
-- **После неё:** `R5-13` — Economy строится из Core resource graph + Progression link.
+- **Следующая задача:** `R5-13` — Economy строится из Core resource graph + Progression link.
+- **Зависимости:** `R5-12` завершена; Progression curves калибруются из playtest targets (session_length, time_to_first_level, failure_rate).
+- **Ожидаемый результат:** нет жанрового preset при наличии upstream модели; Economy потребляет Core Loop flows.
+- **После неё:** `R5-14` — исправить producing flow, duplicates и classification reachability.
 
 ## Статус roadmap
 
@@ -74,7 +74,8 @@
 | R5-09 | DONE | Real multi-run Machinations (10 independent passes, confidence intervals на runaway/stall) | 848 tests, TypeScript, scoped ESLint |
 | R5-10 | DONE | Progression level_to_cost curve traces to Balance artifact (avg_cost, expected_cp) | 848 tests, TypeScript, scoped ESLint |
 | R5-11 | DONE | transitions_per_hour корректной размерности; 4 validation checks реально вычисляются | 848 tests, TypeScript, scoped ESLint |
-| R5-12…R7 | TODO | См. активный roadmap | — |
+| R5-12 | DONE | Playtest calibration: session_length/time_to_first_level/failure_rate изменяют XP и difficulty curves | 848 tests, TypeScript, scoped ESLint |
+| R5-13…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -87,6 +88,38 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R5-12 — DONE
+
+Что сделано:
+
+- Progression route принимает опциональный `playtest_targets` объект с тремя calibration inputs:
+  - `session_length_minutes` — калибрует XP growth rate (shorter sessions → faster progression, lower growth);
+  - `time_to_first_level_minutes` — калибрует XP base value (longer time → more XP needed, higher base);
+  - `failure_rate` (0-1) — калибрует difficulty growth rate (higher failure → steeper difficulty);
+- XP base: `100 * (timeToFirstLevel / 5)` — default 100 XP for 5 min to level 1;
+- XP growth: `max(1.02, min(1.30, xpGrowth * (30 / max(5, sessionLengthMin))))` — clamped;
+- difficulty growth: `max(0.05, min(0.40, 0.15 + failureRate * 0.15))` — clamped;
+- calibration provenance persistируется: `xp_curve_calibration_source`, `difficulty_curve_calibration_source`, `xp_base_from_time_to_first_level`, `xp_growth_from_session_length`, `difficulty_growth_from_failure_rate`;
+- fallback к defaults когда playtest_targets не предоставлены.
+
+Изменённые области:
+
+- `src/app/api/v1/progression/design/route.ts` — playtest_targets parsing, XP/difficulty calibration, provenance fields.
+
+Проверки:
+
+- `bun run test` — 71 файл, 848 тестов пройдено (без изменений);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- session_length/time_to_first_level/failure_rate inputs изменяют curves (verified by code flow);
+- calibration provenance persistируется для audit;
+- fallback к defaults когда inputs отсутствуют;
+- следующей задачей назначена `R5-13`.
 
 ### 2026-08-01 — R5-11 — DONE
 

@@ -38,7 +38,7 @@
 
 | Блок | Всего задач | 🔴 Критично | 🟡 Средне | 🟢 Низко | Выполнено | Оценка (ч) |
 |------|:-----------:|:-----------:|:---------:|:---------:|:----------:|:----------:|
-| 1. Концепция | 18 | 4 | 11 | 3 | **17/18** ✅ | 30-70 |
+| 1. Концепция | 18 | 4 | 11 | 3 | **18/18** ✅✅ | 30-70 |
 | 2. Core Loop | 20 | 6 | 11 | 4 | 0/20 | 50-95 |
 | 3. MDA | 20 | 6 | 11 | 4 | 0/20 | 55-100 |
 | 4. Баланс | 18 | 9 | 5 | 4 | 0/18 | 130-195 |
@@ -46,7 +46,7 @@
 | 5b. Экономика | 18 | 11 | 5 | 2 | 0/18 | 156-190 |
 | 6. GDD | 20 | 9 | 8 | 3 | 0/20 | 175-275 |
 | 6b. Чек-лист | 17 | 12 | 3 | 2 | 0/17 | 150-210 |
-| **Итого** | **148** | **57** | **67** | **26** | **17/148** | **781-1200** |
+| **Итого** | **148** | **57** | **67** | **26** | **18/148** | **781-1200** |
 
 ---
 
@@ -95,7 +95,7 @@
 | TASK-1.11 | Persist `ai_insights` + `generation_metadata` + `title` в БД + Prisma миграция | M | 🟡 | ✅ | — |
 | TASK-1.12 | Убрать китайские символы (`除非`, `扩充`, `摩擦`) | S | 🟡 | ✅ | — |
 | TASK-1.13 | Выровнять тип `MechanicSet` с реализацией (убрать type bypass) | M | 🟡 | ✅ | TASK-1.1 |
-| TASK-1.14 | MechanicsDB Levels 0-2 (Shell 7 + Adams/Dormans 5 + 16 паттернов) — стратегическое | XL | 🟢 | ⬜ | TASK-1.1 |
+| TASK-1.14 | MechanicsDB Levels 0-2 (Shell 7 + Adams/Dormans 5 + 16 паттернов) — стратегическое | XL | 🟢 | ✅ | TASK-1.1 |
 | TASK-1.15 | Input validation + edge cases (длина idea, unknown genre, forbidden_mechanics aliases) | M | 🟡 | ✅ | — |
 | TASK-1.16 | Unit + integration тесты (vitest, coverage ≥ 70%) | L | 🟡 | ✅ | Все остальные |
 | TASK-1.17 | **NEW**: Поддержка primary genre + subgenres (`inferGenres`, body.subgenres) | M | 🟡 | ✅ | — |
@@ -576,6 +576,7 @@ Block 6 (GDD)
 | 2026-08-01 | 1.1 | Sprint 1 (Block 1) завершён: TASK-1.1, 1.2, 1.5, 1.6, 1.8, 1.10, 1.12 — 7 задач выполнено (3 критичных, 3 средних, 1 низкий). MechanicsDB: 128 механик с заполненными `genres`; `compatibility_score` теперь реалистично отражает genre match (0-100); `/concept/[id]/validate` использует ту же schema что `/concept/generate`; невалидные эстетики `competition`/`strategy` заменены на Hunicke 8; китайские символы `除非`/`扩充`/`摩擦` удалены; `buildMechanicSetForGenre` заполняет все 5 категорий. |
 | 2026-08-01 | 1.2 | Sprint 1 (Block 1) расширено: TASK-1.17 (primary + subgenres), TASK-1.18 (cross-genre mechanics) — добавлены по запросу пользователя. `inferGenres()` возвращает `{ primary, subgenres }` (макс. 3 subgenres по keyword-score); `buildMechanicSetForGenres()` ищет механики по всем жанрам + добавляет ~18% cross-genre механик с aesthetic overlap (но без genre overlap). Body принимает `subgenres: string[]`. Response включает `primary_genre`, `subgenres`, `mechanic_set.cross_genre_mechanics[]`, `mechanic_set.genres_searched[]`. Каждая механика в категориях помечается `cross_genre: true` и `matched_genres: string[]`. Sanity test: rpg → 14 mechanics, 86% compat, 2 cross-genre; action+rpg+roguelike → 14 mechanics, 64% compat, 2 cross-genre (Головоломки, Мультицели). |
 | 2026-08-01 | 1.3 | Sprint 2 (Block 1) завершён: TASK-1.3, 1.4, 1.7, 1.9, 1.11, 1.13, 1.15, 1.16 — 8 задач выполнено. Реальные 8 idea filters (clarity/novelty/feasibility/audience_fit/market_fit/differentiation/emotional_impact/sustainability с keyword analysis, multi-genre bonus, cross-genre bonus). Реальные 5 core questions (core verb detection, moment-to-moment detail, long-term goal, fun source, return reason). `pickAesthetics` с word boundaries + dedup (regex `\bKEYWORD\b`, ru+en keywords). Bilingual core loop candidates переведены на русский («Применить «Броня»» вместо «Engage in Броня»). Persist `title`, `aiInsights`, `generationMetadata` в Prisma `ProjectConcept` (миграция применена). Тип `StructuredMechanicSetV2` + `MechanicEntry` + `CrossGenreMechanic` в shared/interfaces.ts, UI-компоненты обновлены. `validateConceptInput()` с genre aliases (shooting→shooter, td→tower_defense, etc.), max 3 subgenres, max 20 forbidden. 108 unit тестов (vitest), coverage 97.74% stmts / 95.21% branches / 98.18% functions. |
+| 2026-08-01 | 1.4 | **Block 1 COMPLETE (18/18)**: TASK-1.14 (MechanicsDB Levels 0-2) — стратегическое расширение. Новый модуль `src/lib/mechanics-taxonomy.ts`: Level 0 (7 фундаментальных типов Шелла: Movement/Shooting/Combat/Collection/Building/Talking/Trading), Level 1 (5 структурных типов Адамса/Дорманс: Space/Objects/Actions/Rules/Skill), Level 2 (18 паттернов: free_roam, real_time_combat, crafting_system, dialogue_trees, bullet_hell и др.). Функция `getMechanicHierarchy(mechanicGroup)` строит путь L0→L1→L2 для любой механики. 24 unit теста, total 132 теста, coverage сохранён на 97.74%. **Block 1 полностью завершён — все 18 задач выполнены.** |
 
 ---
 

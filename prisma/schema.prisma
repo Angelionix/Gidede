@@ -397,11 +397,23 @@ model PlaytestResult {
   id            String   @id @default(cuid())
   userId        String
   projectId     String?
+  prototypeId   String?
+  prototypeSchemaVersion String?
+  prototypeInputHash String?
+  prototypeGeneratedAt DateTime?
+  sourceArtifactVersions String?                            // JSON: artifactId@schemaVersion map
+  hypothesisId  String?
+  hypothesisSnapshot String?                               // JSON: statement/status/protocol at test time
+  cohortId      String?
+  participantId String?
   prototypeType String                                     // engine | economy | ecology
   mode          String                                     // 2d | 3d
   outcome       String                                     // win | lose | timeout
   score         Float?
   durationSec   Float                                      // длительность плейтеста
+  completion    Boolean?
+  confusionEvents Int?
+  retryCount    Int?
   notes         String?
   aiGenerated   Boolean  @default(false)                   // был ли код сгенерирован AI
   createdAt     DateTime @default(now())
@@ -413,6 +425,9 @@ model PlaytestResult {
   @@index([userId, projectId])
   @@index([createdAt])
   @@index([prototypeType])
+  @@index([prototypeId])
+  @@index([hypothesisId])
+  @@index([cohortId])
   @@map("playtest_results")
 }
 

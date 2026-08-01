@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R2-07` — расширить PlaytestResult и ingestion evidence по версии прототипа.
-- **Зависимости:** `R2-06` завершена; generated prototype имеет собственный ID, input hash и точную lineage исходного Core Loop.
-- **Ожидаемый результат:** playtest хранит hypothesis/version, cohort, completion, confusion, retry и notes; доступны агрегаты по версии прототипа.
-- **После неё:** `R2-08` — добавить decision gate `go / iterate / stop / insufficient_data`.
+- **Следующая задача:** `R2-08` — добавить decision gate `go / iterate / stop / insufficient_data`.
+- **Зависимости:** `R2-07` завершена; versioned playtest evidence и агрегаты по прототипу/гипотезе доступны.
+- **Ожидаемый результат:** переход к GDD требует evidence-based решения либо явного override с причиной.
+- **После неё:** `R3-01` — выделить provider-agnostic `LlmClient` и registry.
 
 ## Правила ведения
 
@@ -50,9 +50,55 @@
 | R2-04 | DONE | Engine/Puzzle defaults проходят mandatory structural checks | 341 tests, TypeScript, scoped ESLint |
 | R2-05 | DONE | Вычисляемый fun заменён на `unverified` hypothesis и измеримый playtest protocol | 343 tests, TypeScript, scoped ESLint |
 | R2-06 | DONE | PrototypeArtifact закрепляет прототип за accepted/fresh Core Loop lineage | 349 tests, TypeScript, scoped ESLint |
-| R2-07…R7 | TODO | См. активный roadmap | — |
+| R2-07 | DONE | Versioned playtest evidence хранит hypothesis/cohort/observations и агрегируется по прототипу | 353 tests, TypeScript, scoped ESLint, Prisma validate |
+| R2-08 | TODO | Decision gate `go / iterate / stop / insufficient_data` | — |
+| R3…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R2-07 — DONE
+
+Что сделано:
+
+- `PlaytestResult` расширен идентичностью и schema version прототипа, input hash, source artifact versions и временем генерации;
+- сохраняются стабильный `hypothesisId`, полный snapshot statement/status/protocol, cohort и participant IDs;
+- добавлены наблюдения `completion`, `confusionEvents`, `retryCount` и существующие notes;
+- save API валидирует PrototypeArtifact, ownership и freshness относительно текущего pipeline state; stale evidence отклоняется с HTTP 409;
+- completion выводится из фактического outcome, если не передан явно; confusion/retry остаются nullable, если их не измеряли;
+- import принимает только versioned evidence, повторяет freshness/hypothesis checks и пропускает legacy/stale записи;
+- JSON export сохраняет reconstructable `prototype_artifact`; CSV экспортирует version/evidence поля с корректным escaping;
+- history возвращает evidence rows и `aggregates_by_prototype` с числом когорт/участников, observed count и rates;
+- UI считает рестарты прототипа, передаёт completion/retry и показывает агрегаты отдельно для каждой версии/гипотезы.
+
+Изменённые области:
+
+- `prisma/schema.prisma`;
+- `src/lib/playtest-evidence.ts` и тесты;
+- `src/lib/prototype-lineage.ts`;
+- `src/app/api/v1/playtests/save/route.ts`;
+- `src/app/api/v1/playtests/import/route.ts`;
+- `src/app/api/v1/playtests/history/route.ts`;
+- `src/app/api/v1/playtests/export/route.ts`;
+- `src/app/prototypes/page.tsx`.
+
+Проверки:
+
+- playtest-evidence/prototype-lineage/pipeline-stale targeted tests — 3 файла, 15 тестов пройдены;
+- `npm run test` — 26 файлов, 353 теста пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых файлов — ошибок нет;
+- Prisma client успешно сгенерирован;
+- `prisma validate` с test `DATABASE_URL` — schema valid;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- hypothesis ID детерминированно зависит от Core Loop version, statement и protocol;
+- агрегаты группируются по паре `prototypeId + hypothesisId`, а не по общему prototype type;
+- completion 2/3 даёт rate `0.667`; confusion использует только 2 фактических наблюдения, а не все 3 запуска;
+- полностью отсутствующая метрика возвращает `observed=0, rate=null`, а не ложный ноль;
+- stale prototype не может записать доказательство для новой версии Core Loop;
+- следующей задачей назначена `R2-08`.
 
 ### 2026-08-01 — R2-06 — DONE
 

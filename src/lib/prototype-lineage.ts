@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { z } from "zod";
 import { hashArtifactInput } from "@/lib/contracts/artifact-envelope";
 import type { ContractStageId } from "@/lib/contracts/stage-contracts";
 import {
@@ -18,6 +19,15 @@ export interface PrototypeArtifact {
   inputHash: string;
   generatedAt: string;
 }
+
+export const prototypeArtifactSchema = z.object({
+  prototypeId: z.string().trim().min(1),
+  schemaVersion: z.literal(PROTOTYPE_ARTIFACT_SCHEMA_VERSION),
+  projectId: z.string().trim().min(1),
+  sourceArtifactVersions: z.record(z.string().trim().min(1), z.string().trim().min(1)),
+  inputHash: z.string().regex(/^[a-f0-9]{64}$/),
+  generatedAt: z.iso.datetime(),
+});
 
 export interface PrototypeFreshnessResult {
   fresh: boolean;

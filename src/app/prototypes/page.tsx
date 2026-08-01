@@ -43,14 +43,31 @@ interface PrototypeResponse {
 
 interface PlaytestHistoryEntry {
   id: string;
+  prototype_id: string | null;
+  hypothesis_id: string | null;
+  cohort_id: string | null;
   prototype_type: string;
   mode: string;
   outcome: string;
   score: number | null;
   duration_sec: number;
+  completion: boolean | null;
+  confusion_events: number | null;
+  retry_count: number | null;
   notes: string | null;
   ai_generated: boolean;
   created_at: string;
+}
+
+interface PrototypePlaytestAggregate {
+  prototypeId: string;
+  hypothesisId: string;
+  cohortCount: number;
+  participantCount: number;
+  totalRuns: number;
+  completion: { observed: number; rate: number | null };
+  criticalConfusion: { observed: number; rate: number | null };
+  retry: { observed: number; rate: number | null; averageCount: number | null };
 }
 
 const TYPE_LABELS: Record<string, { label: string; color: string; desc: string }> = {
@@ -70,9 +87,11 @@ export default function PrototypesPage() {
   const [useAi, setUseAi] = useState(false);
   const [typeOverride, setTypeOverride] = useState<string>("auto");
   const [autoSaved, setAutoSaved] = useState(false);
+  const [retryCount, setRetryCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [prototype, setPrototype] = useState<PrototypeResponse | null>(null);
   const [history, setHistory] = useState<PlaytestHistoryEntry[]>([]);
+  const [playtestAggregates, setPlaytestAggregates] = useState<PrototypePlaytestAggregate[]>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [compareMode, setCompareMode] = useState(false);
   const [secondType, setSecondType] = useState<string>("ecology");
@@ -118,8 +137,10 @@ export default function PrototypesPage() {
             prototype_type: data.prototypeType || sourcePrototype.config.type,
             mode: data.mode || sourcePrototype.config.mode,
             outcome: data.outcome,
-            score: data.score || null,
+            score: data.score ?? null,
             duration_sec: Math.round(data.duration || 30),
+            completion: data.outcome === "win",
+            retry_count: retryCount,
             ai_generated: sourcePrototype.ai_generated,
             prototype_artifact: sourcePrototype.prototype_artifact,
           }),
@@ -135,7 +156,7 @@ export default function PrototypesPage() {
     };
     window.addEventListener("message", handler);
     return () => window.removeEventListener("message", handler);
-  }, [prototype, secondPrototype, apiFetch, toast, autoSaved]);
+  }, [prototype, secondPrototype, apiFetch, toast, autoSaved, retryCount]);
 
   const handleGenerate = async () => {
     if (!selectedProject) {
@@ -162,6 +183,7 @@ export default function PrototypesPage() {
       });
       setPrototype(data);
       setAutoSaved(false);
+      setRetryCount(0);
 
       // If compare mode, generate second prototype
       if (compareMode) {
@@ -201,6 +223,7 @@ export default function PrototypesPage() {
 
   const handleRestart = () => {
     setAutoSaved(false);
+    setRetryCount((count) => count + 1);
     if (iframeRef.current) {
       // Перезагружаем iframe, чтобы перезапустить игру
       const src = iframeRef.current.src;
@@ -347,10 +370,11 @@ export default function PrototypesPage() {
                 setShowHistory(!showHistory);
                 if (!showHistory) {
                   try {
-                    const data = await apiFetch<{ results: PlaytestHistoryEntry[] }>(
+                    const data = await apiFetch<{ results: PlaytestHistoryEntry[]; aggregates_by_prototype: PrototypePlaytestAggregate[] }>(
                       `/playtests/history?limit=10`
                     );
                     setHistory(data.results);
+                    setPlaytestAggregates(data.aggregates_by_prototype);
                   } catch (e) {
                     /* ignore */
                   }
@@ -681,8 +705,9 @@ export default function PrototypesPage() {
                               description: `${res.imported} результатов (${res.skipped} пропущено)`,
                             });
                             // Reload history
-                            const hist = await apiFetch<{ results: PlaytestHistoryEntry[] }>("/playtests/history?limit=10");
+                            const hist = await apiFetch<{ results: PlaytestHistoryEntry[]; aggregates_by_prototype: PrototypePlaytestAggregate[] }>("/playtests/history?limit=10");
                             setHistory(hist.results);
+                            setPlaytestAggregates(hist.aggregates_by_prototype);
                           } catch (err) {
                             toast({ title: "Ошибка импорта", variant: "destructive" });
                           }
@@ -697,6 +722,25 @@ export default function PrototypesPage() {
                   <p className="text-sm text-muted-foreground">Нет сохранённых результатов.</p>
                 ) : (
                   <>
+                    {playtestAggregates.length > 0 && (
+                      <div className="mb-4 space-y-2">
+                        <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Evidence по версии прототипа</p>
+                        {playtestAggregates.slice(0, 5).map((aggregate) => (
+                          <div key={`${aggregate.prototypeId}:${aggregate.hypothesisId}`} className="rounded-lg border p-2 text-xs">
+                            <div className="flex flex-wrap items-center gap-2 font-medium">
+                              <span>Prototype {aggregate.prototypeId.slice(0, 8)}</span>
+                              <Badge variant="outline" className="text-[10px]">{aggregate.totalRuns} запусков</Badge>
+                              <span className="text-muted-foreground">{aggregate.participantCount} участников / {aggregate.cohortCount} когорт</span>
+                            </div>
+                            <div className="mt-1 grid grid-cols-3 gap-2 text-muted-foreground">
+                              <span>Completion: {aggregate.completion.rate == null ? "нет данных" : `${Math.round(aggregate.completion.rate * 100)}%`} ({aggregate.completion.observed})</span>
+                              <span>Confusion: {aggregate.criticalConfusion.rate == null ? "нет данных" : `${Math.round(aggregate.criticalConfusion.rate * 100)}%`} ({aggregate.criticalConfusion.observed})</span>
+                              <span>Retry: {aggregate.retry.rate == null ? "нет данных" : `${Math.round(aggregate.retry.rate * 100)}%`} ({aggregate.retry.observed})</span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
                     {/* Stats summary */}
                     {(() => {
                       const wins = history.filter((h) => h.outcome === "win").length;
@@ -885,6 +929,8 @@ export default function PrototypesPage() {
                               mode: prototype.config.mode,
                               outcome: "win",
                               duration_sec: 30,
+                              completion: true,
+                              retry_count: retryCount,
                               ai_generated: prototype.ai_generated,
                               prototype_artifact: prototype.prototype_artifact,
                             }),
@@ -913,6 +959,8 @@ export default function PrototypesPage() {
                               mode: prototype.config.mode,
                               outcome: "lose",
                               duration_sec: 30,
+                              completion: false,
+                              retry_count: retryCount,
                               ai_generated: prototype.ai_generated,
                               prototype_artifact: prototype.prototype_artifact,
                             }),

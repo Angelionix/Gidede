@@ -93,6 +93,25 @@ is the transient fallback. Deleting a connection also removes its references fro
 saved route chains. Route entries can only reference provider configs owned by the
 authenticated user.
 
+## Structured output validation
+
+JSON-producing AI tasks do not read provider text directly. They use the shared
+`createStructuredCompletion` boundary, which:
+
+- extracts one balanced JSON object/array without rewriting its contents;
+- rejects empty and oversized responses;
+- validates the parsed value with a strict task-specific Zod schema;
+- performs no type coercion and rejects undeclared fields;
+- permits at most one schema-repair completion;
+- treats the previous model output as untrusted JSON-encoded data in the repair prompt;
+- throws a typed error without including raw model output when validation still fails.
+
+Concept enrichment, custom mechanics, prototype graphs and graph suggestions all use
+this boundary. Graph validation additionally enforces the finite node taxonomy,
+unique node IDs, valid edge endpoints, bounded graph sizes, an event node and a
+win/lose outcome. Callers receive `null` after a failed bounded repair and retain their
+deterministic/domain fallback; invalid structured data is never returned for persistence.
+
 ## Secrets
 
 Two server-side secret sources are supported:

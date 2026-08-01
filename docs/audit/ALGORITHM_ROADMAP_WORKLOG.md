@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R3-08` — валидировать structured output схемой до записи в domain state.
-- **Зависимости:** `R3-01`–`R3-07` завершены; stage router выбирает provider/model и transient fallback chain.
-- **Ожидаемый результат:** invalid JSON/structured output не попадает в domain state, repair retry ограничен.
-- **После неё:** `R3-09` — подключить Bible RAG к prompt builder.
+- **Следующая задача:** `R3-09` — подключить Bible RAG к prompt builder.
+- **Зависимости:** `R3-01`–`R3-08` завершены; JSON tasks используют strict schema boundary и bounded repair.
+- **Ожидаемый результат:** LLM prompt получает ограниченный релевантный Bible context, а ответ содержит использованные source IDs.
+- **После неё:** `R3-10` — добавить call telemetry.
 
 ## Правила ведения
 
@@ -59,9 +59,54 @@
 | R3-05 | DONE | Timeout, transient retry/backoff, TTL cache, circuit breaker и recoverable init | 384 tests, TypeScript, scoped ESLint |
 | R3-06 | DONE | Capability contract, health diagnostics и model discovery в adapters/UI | 391 tests, TypeScript, scoped ESLint |
 | R3-07 | DONE | Несколько provider configs, per-stage model routing и transient-only fallback chain | 405 tests, TypeScript, scoped ESLint, Prisma validate |
-| R3-08…R7 | TODO | См. активный roadmap | — |
+| R3-08 | DONE | Strict Zod structured boundary и один bounded repair для всех JSON-задач | 419 tests, TypeScript, scoped ESLint |
+| R3-09…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R3-08 — DONE
+
+Что сделано:
+
+- введён provider-agnostic `createStructuredCompletion` для всех JSON-producing LLM tasks;
+- JSON извлекается balanced scanner без изменения содержимого и без эвристического переписывания model output;
+- empty и oversized responses отклоняются до domain mapping;
+- parsed value обязан пройти task-specific strict Zod schema без type coercion и undeclared fields;
+- допускается максимум один repair completion; runtime guard не позволяет расширить этот лимит;
+- repair prompt получает previous output как JSON-encoded untrusted data и запрещает выполнять содержащиеся в нём instructions;
+- после неуспешного repair возвращается typed `LlmStructuredOutputError` без raw provider output;
+- Concept enrichment, custom mechanic, graph generation from text/GDD и graph suggestions переведены с ручного `JSON.parse`/`as` на общий boundary;
+- Concept/mechanic schemas ограничивают типы, обязательные поля, массивы и размеры строк;
+- graph schema ограничивает node/edge count, finite taxonomy, ID/handle lengths, координаты и properties;
+- graph invariants требуют уникальные node IDs, существующие edge endpoints, event node и win/lose outcome;
+- invalid structured result перехватывается AI service и возвращает `null`, поэтому caller сохраняет deterministic/domain fallback вместо невалидных данных.
+
+Изменённые области:
+
+- `src/lib/llm/structured-output.ts` и тесты;
+- `src/lib/ai-structured-schemas.ts` и тесты;
+- `src/lib/ai-service.ts`;
+- `src/lib/ai-service-structured.test.ts`;
+- `docs/LLM_ADAPTERS.md`.
+
+Проверки:
+
+- targeted structured-output/schema/AI-boundary tests — 3 файла, 14 тестов пройдены;
+- `npm run test` — 42 файла, 419 тестов пройдено;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых TypeScript-файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- coercible Concept fixture с number/boolean вместо string дважды отклоняется и возвращает `null`;
+- malformed JSON получает ровно один repair call; второй invalid response создаёт typed error с `attempts: 2`;
+- successful repair повторно проходит ту же schema и только после этого возвращается caller;
+- unknown executable graph node type, duplicate IDs и dangling endpoints не проходят schema/invariants;
+- suggestion type вне finite taxonomy отклоняется;
+- oversized response не копируется в exception, а repair prompt маркирует previous output как untrusted data;
+- в `ai-service` больше нет прямого `JSON.parse` или unchecked `as` для LLM structured output;
+- следующей задачей назначена `R3-09`.
 
 ### 2026-08-01 — R3-07 — DONE
 

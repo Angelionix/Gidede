@@ -6,6 +6,17 @@
  */
 
 import { getLlmClientForStage } from "@/lib/llm/default-client";
+import { createStructuredCompletion } from "@/lib/llm/structured-output";
+import {
+  aiGraphSchema,
+  aiGraphSuggestionsSchema,
+  conceptEnrichmentSchema,
+  customMechanicSchema,
+  type AiGraphOutput,
+  type AiGraphSuggestionOutput,
+  type ConceptEnrichmentOutput,
+  type CustomMechanicOutput,
+} from "@/lib/ai-structured-schemas";
 
 const getLlmClient = getLlmClientForStage;
 
@@ -194,12 +205,7 @@ export interface ConceptEnrichmentInput {
   aesthetics: string[];
 }
 
-export interface ConceptEnrichment {
-  story_synopsis: string;
-  gameplay_description: string;
-  unique_features: string[];
-  ai_insights: string;
-}
+export type ConceptEnrichment = ConceptEnrichmentOutput;
 
 /**
  * AI-обогащение концепции: генерирует более креативные story_synopsis,
@@ -228,55 +234,21 @@ export async function enrichConcept(
 
 Ответ — только валидный JSON, без markdown обёртки.`;
 
-    const response = await zai.createCompletion({
+    return await createStructuredCompletion(zai, {
       messages: [
         {
           role: "system",
-          content:
-            "Ты — AI-ассистент по геймдизайну. Отвечай только валидным JSON.",
+          content: "Ты — AI-ассистент по геймдизайну. Отвечай только валидным JSON.",
         },
         { role: "user", content: prompt },
       ],
-      stream: false,
       reasoning: "disabled",
+    }, {
+      schema: conceptEnrichmentSchema,
+      schemaName: "concept_enrichment",
+      schemaHint: "strict object {story_synopsis:string, gameplay_description:string, unique_features:string[1..8], ai_insights:string}",
+      maxRepairAttempts: 1,
     });
-
-    const raw = response.choices?.[0]?.message?.content?.trim() || "";
-    // Strip markdown code fences if present
-    let cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-
-    // Try to extract JSON object from the response (LLM may include preamble text)
-    const jsonStart = cleaned.indexOf("{");
-    const jsonEnd = cleaned.lastIndexOf("}");
-    if (jsonStart >= 0 && jsonEnd > jsonStart) {
-      cleaned = cleaned.slice(jsonStart, jsonEnd + 1);
-    }
-
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      // Fallback: try to fix common LLM JSON issues (unescaped quotes, trailing commas)
-      const fixed = cleaned
-        .replace(/,\s*}/g, "}")
-        .replace(/,\s*]/g, "]")
-        .replace(/[\u201C\u201D]/g, '"') // smart quotes → straight
-        .replace(/[\u2018\u2019]/g, "'");
-      parsed = JSON.parse(fixed);
-    }
-
-    if (!parsed.story_synopsis || !parsed.gameplay_description) {
-      return null;
-    }
-
-    return {
-      story_synopsis: String(parsed.story_synopsis),
-      gameplay_description: String(parsed.gameplay_description),
-      unique_features: Array.isArray(parsed.unique_features)
-        ? parsed.unique_features.map(String)
-        : [],
-      ai_insights: String(parsed.ai_insights || ""),
-    };
   } catch (e) {
     console.error(
       "[ai-service] enrichConcept failed:",
@@ -373,7 +345,7 @@ export interface CustomMechanicInput {
 
 export async function generateCustomMechanic(
   ctx: CustomMechanicInput
-): Promise<{ mechanicName: string; description: string; codeSnippet: string } | null> {
+): Promise<CustomMechanicOutput | null> {
   const zai = await getLlmClient("prototype");
   if (!zai) return null;
 
@@ -393,37 +365,18 @@ export async function generateCustomMechanic(
 
 Ответ — только валидный JSON, без markdown.`;
 
-    const response = await zai.createCompletion({
+    return await createStructuredCompletion(zai, {
       messages: [
         { role: "system", content: "Ты — AI-ассистент по геймдизайну и программированию. Отвечай только валидным JSON." },
         { role: "user", content: prompt },
       ],
-      stream: false,
       reasoning: "disabled",
+    }, {
+      schema: customMechanicSchema,
+      schemaName: "custom_mechanic",
+      schemaHint: "strict object {mechanicName:string, description:string, codeSnippet:string}",
+      maxRepairAttempts: 1,
     });
-
-    const raw = response.choices?.[0]?.message?.content?.trim() || "";
-    let cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-    const jsonStart = cleaned.indexOf("{");
-    const jsonEnd = cleaned.lastIndexOf("}");
-    if (jsonStart >= 0 && jsonEnd > jsonStart) {
-      cleaned = cleaned.slice(jsonStart, jsonEnd + 1);
-    }
-
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      const fixed = cleaned.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]").replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'");
-      parsed = JSON.parse(fixed);
-    }
-
-    if (!parsed.mechanicName || !parsed.description) return null;
-    return {
-      mechanicName: String(parsed.mechanicName),
-      description: String(parsed.description),
-      codeSnippet: String(parsed.codeSnippet || ""),
-    };
   } catch (e) {
     console.error("[ai-service] generateCustomMechanic failed:", e instanceof Error ? e.message : e);
     return null;
@@ -796,21 +749,7 @@ export interface AiGraphInput {
   mode?: "2d" | "3d";
 }
 
-export interface AiGraphResult {
-  nodes: Array<{
-    id: string;
-    type: string;
-    label: string;
-    position: { x: number; y: number };
-    properties: Record<string, unknown>;
-  }>;
-  edges: Array<{
-    source: string;
-    sourceHandle: string;
-    target: string;
-    targetHandle: string;
-  }>;
-}
+export type AiGraphResult = AiGraphOutput;
 
 /**
  * AI генерирует граф прототипа из текстового описания игры.
@@ -858,37 +797,18 @@ Output: win, lose
 
 Ответ — только валидный JSON, без markdown.`;
 
-    const response = await zai.createCompletion({
+    return await createStructuredCompletion(zai, {
       messages: [
         { role: "system", content: "Ты — AI-ассистент по геймдизайну. Отвечай только валидным JSON." },
         { role: "user", content: prompt },
       ],
-      stream: false,
       reasoning: "disabled",
+    }, {
+      schema: aiGraphSchema,
+      schemaName: "prototype_graph",
+      schemaHint: "strict object {nodes:[{id,type,label,position:{x,y},properties}], edges:[{source,sourceHandle,target,targetHandle}]}; unique node IDs, known node types/endpoints, event and win/lose required",
+      maxRepairAttempts: 1,
     });
-
-    const raw = response.choices?.[0]?.message?.content?.trim() || "";
-    let cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-    const jsonStart = cleaned.indexOf("{");
-    const jsonEnd = cleaned.lastIndexOf("}");
-    if (jsonStart >= 0 && jsonEnd > jsonStart) {
-      cleaned = cleaned.slice(jsonStart, jsonEnd + 1);
-    }
-
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      const fixed = cleaned.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]").replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'");
-      parsed = JSON.parse(fixed);
-    }
-
-    if (!Array.isArray(parsed.nodes) || parsed.nodes.length === 0) return null;
-
-    return {
-      nodes: parsed.nodes as AiGraphResult["nodes"],
-      edges: Array.isArray(parsed.edges) ? (parsed.edges as AiGraphResult["edges"]) : [],
-    };
   } catch (e) {
     console.error("[ai-service] generateGraphFromText failed:", e instanceof Error ? e.message : e);
     return null;
@@ -899,12 +819,7 @@ Output: win, lose
 // AI Graph Validation & Suggestions (Phase 3.2)
 // ============================================================
 
-export interface AiGraphSuggestion {
-  type: "error" | "warning" | "suggestion";
-  message: string;
-  suggestedNode?: string;
-  fixAction?: string;
-}
+export type AiGraphSuggestion = AiGraphSuggestionOutput;
 
 /**
  * AI анализирует граф и предлагает улучшения.
@@ -935,27 +850,18 @@ ${description ? `Описание игры: ${description}` : ""}
 
 Ответ — JSON массив: [{"type":"error|warning|suggestion","message":"...","suggestedNode":"тип ноды (опционально)","fixAction":"описание (опционально)"}]`;
 
-    const response = await zai.createCompletion({
+    return await createStructuredCompletion(zai, {
       messages: [
         { role: "system", content: "Ты — AI-ассистент по геймдизайну. Отвечай только валидным JSON массивом." },
         { role: "user", content: prompt },
       ],
-      stream: false,
       reasoning: "disabled",
+    }, {
+      schema: aiGraphSuggestionsSchema,
+      schemaName: "prototype_graph_suggestions",
+      schemaHint: "array (max 50) of strict {type:error|warning|suggestion, message:string, suggestedNode?:string, fixAction?:string}",
+      maxRepairAttempts: 1,
     });
-
-    const raw = response.choices?.[0]?.message?.content?.trim() || "";
-    let cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-    const arrStart = cleaned.indexOf("[");
-    const arrEnd = cleaned.lastIndexOf("]");
-    if (arrStart >= 0 && arrEnd > arrStart) {
-      cleaned = cleaned.slice(arrStart, arrEnd + 1);
-    }
-
-    const parsed = JSON.parse(cleaned);
-    if (!Array.isArray(parsed)) return null;
-
-    return parsed as AiGraphSuggestion[];
   } catch (e) {
     console.error("[ai-service] validateGraphWithAI failed:", e instanceof Error ? e.message : e);
     return null;
@@ -1007,37 +913,18 @@ ${ctx.mechanicsDb ? `Механики из MechanicsDB: ${ctx.mechanicsDb.join("
 
 Ответ — только валидный JSON.`;
 
-    const response = await zai.createCompletion({
+    return await createStructuredCompletion(zai, {
       messages: [
         { role: "system", content: "Ты — AI-ассистент по геймдизайну. Отвечай только валидным JSON." },
         { role: "user", content: prompt },
       ],
-      stream: false,
       reasoning: "disabled",
+    }, {
+      schema: aiGraphSchema,
+      schemaName: "gdd_prototype_graph",
+      schemaHint: "strict object {nodes:[{id,type,label,position:{x,y},properties}], edges:[{source,sourceHandle,target,targetHandle}]}; unique node IDs, known node types/endpoints, event and win/lose required",
+      maxRepairAttempts: 1,
     });
-
-    const raw = response.choices?.[0]?.message?.content?.trim() || "";
-    let cleaned = raw.replace(/^```(?:json)?\s*/i, "").replace(/\s*```$/i, "").trim();
-    const jsonStart = cleaned.indexOf("{");
-    const jsonEnd = cleaned.lastIndexOf("}");
-    if (jsonStart >= 0 && jsonEnd > jsonStart) {
-      cleaned = cleaned.slice(jsonStart, jsonEnd + 1);
-    }
-
-    let parsed: Record<string, unknown>;
-    try {
-      parsed = JSON.parse(cleaned);
-    } catch {
-      const fixed = cleaned.replace(/,\s*}/g, "}").replace(/,\s*]/g, "]").replace(/[\u201C\u201D]/g, '"').replace(/[\u2018\u2019]/g, "'");
-      parsed = JSON.parse(fixed);
-    }
-
-    if (!Array.isArray(parsed.nodes)) return null;
-
-    return {
-      nodes: parsed.nodes as AiGraphResult["nodes"],
-      edges: Array.isArray(parsed.edges) ? (parsed.edges as AiGraphResult["edges"]) : [],
-    };
   } catch (e) {
     console.error("[ai-service] generateGraphFromGdd failed:", e instanceof Error ? e.message : e);
     return null;

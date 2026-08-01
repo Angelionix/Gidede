@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R0-02` — единые scripts `test`, `test:coverage`, `typecheck`.
+- **Следующая задача:** `R0-03` — taxonomy методов и metadata результатов.
 - **Зависимости:** отсутствуют.
-- **Ожидаемый результат:** команды работают в clean checkout и используют зафиксированный тестовый стек проекта.
-- **После неё:** `R0-03` — taxonomy методов и metadata результатов.
+- **Ожидаемый результат:** каждый вычисляемый score сообщает method и assumptions, не выдавая эвристику за simulation/solver/playtest evidence.
+- **После неё:** `R1-01` — versioned Zod schemas входов и выходов стадий.
 
 ## Правила ведения
 
@@ -31,12 +31,38 @@
 | ID | Статус | Краткий результат | Проверка |
 |---|---|---|---|
 | R0-01 | DONE | 6 жанров, 12 RU/EN inputs, invariants и версии 8 артефактов | 283 tests, TypeScript |
-| R0-02 | TODO | Scripts test/coverage/typecheck | — |
+| R0-02 | DONE | Scripts test/test:coverage/typecheck | 283 tests, coverage, TypeScript |
 | R0-03 | TODO | Taxonomy методов и metadata результатов | — |
 | R0-04 | DONE | Новый roadmap назначен активным; создан единый worklog и handoff | Проверка ссылок и `git diff --check` |
 | R1-01…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R0-02 — DONE
+
+Что сделано:
+
+- в `package.json` добавлена единая команда `test` (`vitest run`);
+- добавлена команда `test:coverage` (`vitest run --coverage`);
+- добавлена команда `typecheck` (`tsc --noEmit`);
+- команды не зависят от shell-конструкций и доступны через npm/Bun-compatible scripts.
+
+Изменённые области:
+
+- `package.json`
+
+Проверки:
+
+- `npm run test` — 12 файлов, 283 теста пройдены;
+- `npm run test:coverage` — 283 теста пройдены, statements 93.84%, branches 87.58%, functions 99.32%, lines 95.22%;
+- `npm run typecheck` — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- все три команды запускаются из корня после установки зависимостей;
+- test/coverage используют версию Vitest из devDependencies и общий `vitest.config.ts`;
+- следующей задачей назначена `R0-03`.
 
 ### 2026-08-01 — R0-01 — DONE
 

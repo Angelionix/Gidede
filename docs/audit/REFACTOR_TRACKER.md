@@ -40,13 +40,13 @@
 |------|:-----------:|:-----------:|:---------:|:---------:|:----------:|:----------:|
 | 1. Концепция | 18 | 4 | 11 | 3 | **18/18** ✅✅ | 30-70 |
 | 2. Core Loop | 20 | 6 | 11 | 4 | **20/20** ✅✅ | 50-95 |
-| 3. MDA | 20 | 6 | 11 | 4 | 0/20 | 55-100 |
+| 3. MDA | 20 | 6 | 11 | 4 | **20/20** ✅✅ | 55-100 |
 | 4. Баланс | 18 | 9 | 5 | 4 | 0/18 | 130-195 |
 | 5a. Прогрессия | 17 | 0 | 13 | 4 | 0/17 | 35-65 |
 | 5b. Экономика | 18 | 11 | 5 | 2 | 0/18 | 156-190 |
 | 6. GDD | 20 | 9 | 8 | 3 | 0/20 | 175-275 |
 | 6b. Чек-лист | 17 | 12 | 3 | 2 | 0/17 | 150-210 |
-| **Итого** | **148** | **57** | **67** | **26** | **38/148** | **781-1200** |
+| **Итого** | **148** | **57** | **67** | **26** | **58/148** | **781-1200** |
 
 ---
 
@@ -138,26 +138,26 @@
 
 | Task ID | Описание | Сложность | Приоритет | Статус | Dependencies |
 |---------|----------|:---------:|:---------:|:------:|--------------|
-| TASK-3.1 | Выровнять `mechanic_id` namespace (DYNAMICS_TO_MECHANICS ↔ GENRE_DEFAULT_MECHANICS ↔ MechanicsDB) | XL | 🔴 | ⬜ | TASK-1.1 |
-| TASK-3.2 | Перебирать все динамики эстетики (не только `[0]`) | M | 🔴 | ⬜ | TASK-3.1 |
-| TASK-3.3 | Починить `match_scores` формулу + реальная итерация Classic MDA | M | 🔴 | ⬜ | TASK-3.2 |
-| TASK-3.4 | Реальный Reverse MDA — mechanic set из dynamics_target (Bible 3.5.4) | L | 🔴 | ⬜ | TASK-3.1 |
-| TASK-3.5 | Инвертировать logic в Lens #41 | S | 🔴 | ⬜ | — |
-| TASK-3.6 | Загружать `aestheticProfile`/`genre`/`idea` из `project.concept` + починить pipeline runner | M | 🔴 | ⬜ | TASK-1.6 |
-| TASK-3.7 | Переписать `compatibility_score` — убрать hardcoded `present: true` | M | 🟡 | ⬜ | TASK-3.1 |
-| TASK-3.8 | Реальная Bond 4×3 matrix + вычислить ludonarrative (Гармония/Ирония/Диссонанс) | L | 🟡 | ⬜ | — |
-| TASK-3.9 | Реальный `observed_dynamics` из mechanic set | M | 🟡 | ⬜ | TASK-3.1 |
-| TASK-3.10 | Реальный `gameplay_sequence` (templates по 12+ жанрам) | M | 🟡 | ⬜ | — |
-| TASK-3.11 | Добавить `moderate` в `EMERGENCE_BADGES` | S | 🟡 | ⬜ | — |
-| TASK-3.12 | Persist `ai_insights` в БД + убрать `void safeJsonParse` | S | 🟡 | ⬜ | — |
-| TASK-3.13 | Lens categories по 3 уровням Зубека (Bible 3.6.3) | M | 🟡 | ⬜ | — |
-| TASK-3.14 | Расширить `enrichMda` prompt | M | 🟡 | ⬜ | — |
-| TASK-3.15 | Type-safe `MDAAnalysisResult` — убрать `as unknown as` casts | M | 🟢 | ⬜ | — |
-| TASK-3.16 | Реальный `machinationsModel` graph из mechanic set | M | 🟡 | ⬜ | — |
-| TASK-3.17 | Убрать `uncovered_dynamics` всегда пустой + sanity-валидация | S | 🟢 | ⬜ | — |
-| TASK-3.18 | Убрать dead code | S | 🟢 | ⬜ | — |
-| TASK-3.19 | `buildMechanicSet` round-robin → semantic categorization + affinity sort | M | 🟡 | ⬜ | TASK-1.1 |
-| TASK-3.20 | Unit-тесты для Block 3 | L | 🟢 | ⬜ | Все остальные |
+| TASK-3.1 | Выровнять `mechanic_id` namespace (DYNAMICS_TO_MECHANICS ↔ GENRE_DEFAULT_MECHANICS ↔ MechanicsDB) | XL | 🔴 | ✅ | TASK-1.1 |
+| TASK-3.2 | Перебирать все динамики эстетики (не только `[0]`) | M | 🔴 | ✅ | TASK-3.1 |
+| TASK-3.3 | Починить `match_scores` формулу + реальная итерация Classic MDA | M | 🔴 | ✅ | TASK-3.2 |
+| TASK-3.4 | Реальный Reverse MDA — mechanic set из dynamics_target (Bible 3.5.4) | L | 🔴 | ✅ | TASK-3.1 |
+| TASK-3.5 | Инвертировать logic в Lens #41 | S | 🔴 | ✅ | — |
+| TASK-3.6 | Загружать `aestheticProfile`/`genre`/`idea` из `project.concept` + починить pipeline runner | M | 🔴 | ✅ | TASK-1.6 |
+| TASK-3.7 | Переписать `compatibility_score` — убрать hardcoded `present: true` | M | 🟡 | ✅ | TASK-3.1 |
+| TASK-3.8 | Реальная Bond 4×3 matrix + вычислить ludonarrative (Гармония/Ирония/Диссонанс) | L | 🟡 | ✅ | — |
+| TASK-3.9 | Реальный `observed_dynamics` из mechanic set | M | 🟡 | ✅ | TASK-3.1 |
+| TASK-3.10 | Реальный `gameplay_sequence` (templates по 12+ жанрам) | M | 🟡 | ✅ | — |
+| TASK-3.11 | Добавить `moderate` в `EMERGENCE_BADGES` | S | 🟡 | ✅ | — |
+| TASK-3.12 | Persist `ai_insights` в БД + убрать `void safeJsonParse` | S | 🟡 | ✅ | — |
+| TASK-3.13 | Lens categories по 3 уровням Зубека (Bible 3.6.3) | M | 🟡 | ✅ | — |
+| TASK-3.14 | Расширить `enrichMda` prompt | M | 🟡 | ✅ | — |
+| TASK-3.15 | Type-safe `MDAAnalysisResult` — убрать `as unknown as` casts | M | 🟢 | ✅ | — |
+| TASK-3.16 | Реальный `machinationsModel` graph из mechanic set | M | 🟡 | ✅ | — |
+| TASK-3.17 | Убрать `uncovered_dynamics` всегда пустой + sanity-валидация | S | 🟢 | ✅ | — |
+| TASK-3.18 | Убрать dead code | S | 🟢 | ✅ | — |
+| TASK-3.19 | `buildMechanicSet` round-robin → semantic categorization + affinity sort | M | 🟡 | ✅ | TASK-1.1 |
+| TASK-3.20 | Unit-тесты для Block 3 | L | 🟢 | ✅ | Все остальные |
 
 ---
 

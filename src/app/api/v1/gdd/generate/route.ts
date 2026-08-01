@@ -98,6 +98,7 @@ const FORMAT_SECTIONS: Record<string, string[]> = {
     "ui_mockups",
     "tech_notes",
   ],
+  // TASK-6.1: Expanded from 21 to 38 sections (Bible 11.3.3).
   full_gdd: [
     "title",
     "logline",
@@ -110,16 +111,40 @@ const FORMAT_SECTIONS: Record<string, string[]> = {
     "progression",
     "economy",
     "narrative",
+    "world_overview",
+    "characters",
+    "plot_arcs",
+    "themes",
+    "tone_voice",
+    "story_mechanics",
+    "branching_structure",
     "target_audience",
     "monetization",
     "platforms",
     "ux",
-    "tech_stack",
-    "art_style",
+    "ux_flow",
+    "ui_mockups",
+    "controls",
+    "camera",
+    "game_modes",
+    "dialogues",
+    "quests",
+    "lore_and_world",
+    "level_design",
+    "navigation",
+    "combat_spaces",
+    "resources",
+    "tech_tree",
+    "hud_ui",
+    "menus_navigation",
+    "visual_style",
     "sound",
     "localization",
     "testing_plan",
     "risks",
+    "team_fit",
+    "live_ops_plan",
+    "milestones",
   ],
   concept_doc: [
     "title",
@@ -140,6 +165,7 @@ const FORMAT_SECTIONS: Record<string, string[]> = {
     "story_mechanics",
     "branching_structure",
   ],
+  // TASK-6.2: Expanded from 10 to 13 modules (Bible 11.3.4).
   modular: [
     "title",
     "overview",
@@ -151,6 +177,10 @@ const FORMAT_SECTIONS: Record<string, string[]> = {
     "art_bible",
     "tech_bible",
     "live_ops_plan",
+    // TASK-6.2: 3 new modules.
+    "ui_ux_spec",
+    "audio_bible",
+    "production_plan",
   ],
 };
 
@@ -629,23 +659,156 @@ function deriveSectionContent(
         requires_review: !(Array.isArray(platforms) && platforms.length > 0),
       };
     }
+    // TASK-6.4: Derive content for previously-missing Bible sections.
     case "ux":
     case "ux_flow":
     case "ui_mockups":
+    case "hud_ui":
+    case "menus_navigation":
+    case "ui_ux_spec":
+      return {
+        content: isRu
+          ? `## ${sectionName}\n\nUX/UI для «${name}» в жанре ${genre}. Требует детального прототипирования.\n\nКлючевые экраны:\n- Главное меню\n- HUD (игровой интерфейс)\n- Меню паузы\n- Экран инвентаря${genre === "rpg" || genre === "mmorpg" ? "\n- Карта мира" : ""}\n\nУправление: ${genre === "shooter" ? "клавиатура + мышь / геймпад" : genre === "puzzle" ? "мышь / тач" : "универсальное"}`
+          : `## ${sectionName}\n\nUX/UI for "${name}" in ${genre} genre. Requires detailed prototyping.\n\nKey screens:\n- Main menu\n- HUD (game interface)\n- Pause menu\n- Inventory screen${genre === "rpg" || genre === "mmorpg" ? "\n- World map" : ""}\n\nControls: ${genre === "shooter" ? "keyboard + mouse / gamepad" : genre === "puzzle" ? "mouse / touch" : "universal"}`,
+        source: "ai_generate",
+        requires_review: true,
+      };
     case "tech_notes":
     case "tech_stack":
     case "tech_bible":
-    case "art_bible":
-    case "sound":
-    case "localization":
-    case "testing_plan":
-    case "risks":
-    case "team_fit":
-    case "live_ops_plan":
-    case "overview":
       return {
-        content: placeholder,
-        source: "manual",
+        content: isRu
+          ? `## ${sectionName}\n\nТехнологический стек «${name}»:\n- Движок: TBD (Unity / Unreal / кастомный)\n- Язык: C# / C++ / TypeScript\n- Сеть: ${genre === "mmorpg" ? "высоконагруженный сервер" : "опционально"}\n- Платформы: PC${genre === "shooter" || genre === "fighting" ? " / Console" : ""}\n- Сохранения: облачные + локальные`
+          : `## ${sectionName}\n\nTechnology stack for "${name}":\n- Engine: TBD (Unity / Unreal / custom)\n- Language: C# / C++ / TypeScript\n- Network: ${genre === "mmorpg" ? "high-load server" : "optional"}\n- Platforms: PC${genre === "shooter" || genre === "fighting" ? " / Console" : ""}\n- Saves: cloud + local`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    case "art_bible":
+    case "art_style":
+    case "visual_style":
+      return {
+        content: isRu
+          ? `## ${sectionName}\n\nВизуальный стиль «${name}»:\n- Эстетика: ${mda?.primaryAesthetic || "challenge"}\n- Палитра: ${genre === "horror" ? "тёмные тона, контрастные акценты" : genre === "puzzle" ? "яркие, чистые цвета" : "сбалансированная палитра"}\n- Стиль: ${genre === "puzzle" || genre === "idle" ? "минималистичный" : genre === "horror" ? "реалистичный, мрачный" : "стилизованный"}\n- Анимация: ${genre === "fighting" || genre === "rhythm" ? "покадровая + плавная" : "скелетная"}`
+          : `## ${sectionName}\n\nVisual style for "${name}":\n- Aesthetic: ${mda?.primaryAesthetic || "challenge"}\n- Palette: ${genre === "horror" ? "dark tones, contrasting accents" : genre === "puzzle" ? "bright, clean colors" : "balanced palette"}\n- Style: ${genre === "puzzle" || genre === "idle" ? "minimalist" : genre === "horror" ? "realistic, dark" : "stylized"}\n- Animation: ${genre === "fighting" || genre === "rhythm" ? "frame-by-frame + smooth" : "skeletal"}`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    case "sound":
+    case "audio_bible":
+      return {
+        content: isRu
+          ? `## ${sectionName}\n\nЗвуковое design «${name}»:\n- Музыка: ${genre === "rhythm" ? "основной геймплейный элемент" : genre === "horror" ? "атмосферные эмбиенты" : "адаптивная"}\n- SFX: ${genre === "shooter" || genre === "fighting" ? "детализированные боевые эффекты" : "универсальные игровые звуки"}\n- Озвучка: ${genre === "rpg" || genre === "adventure" ? "полная озвучка диалогов" : "текст + ключевые фразы"}\n- Аудио-дизайнер: TBD`
+          : `## ${sectionName}\n\nSound design for "${name}":\n- Music: ${genre === "rhythm" ? "core gameplay element" : genre === "horror" ? "atmospheric ambients" : "adaptive"}\n- SFX: ${genre === "shooter" || genre === "fighting" ? "detailed combat effects" : "universal game sounds"}\n- Voice: ${genre === "rpg" || genre === "adventure" ? "full dialogue voiceover" : "text + key phrases"}\n- Audio designer: TBD`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    case "controls":
+    case "camera":
+      return {
+        content: isRu
+          ? `## ${sectionName}\n\n${sectionName === "controls" ? "Управление" : "Камера"} для «${name}» в жанре ${genre}.\n\n${sectionName === "controls" ? `Схема управления:\n- ${genre === "shooter" ? "WASD + мышь (PC), двойной стик (Console)" : genre === "fighting" ? "6 кнопок + D-pad" : "клавиатура / геймпад"}\n- Назначение кнопок: TBD\n- Accessibility: настраиваемые привязки` : `Настройки камеры:\n- Тип: ${genre === "shooter" ? "FPS/TPS" : genre === "strategy" ? "RTS top-down" : genre === "fighting" ? "2.5D боковая" : "3rd person"}\n- Дистанция: ${genre === "strategy" ? "далёкая" : "средняя"}\n- Управление: ${genre === "shooter" || genre === "mmorpg" ? "поворот мышью/стиком" : "автоматическое"}`}`
+          : `## ${sectionName}\n\n${sectionName === "controls" ? "Controls" : "Camera"} for "${name}" in ${genre} genre.\n\n${sectionName === "controls" ? `Control scheme:\n- ${genre === "shooter" ? "WASD + mouse (PC), dual stick (Console)" : genre === "fighting" ? "6 buttons + D-pad" : "keyboard / gamepad"}\n- Button mapping: TBD\n- Accessibility: remappable bindings` : `Camera settings:\n- Type: ${genre === "shooter" ? "FPS/TPS" : genre === "strategy" ? "RTS top-down" : genre === "fighting" ? "2.5D side" : "3rd person"}\n- Distance: ${genre === "strategy" ? "far" : "medium"}\n- Control: ${genre === "shooter" || genre === "mmorpg" ? "mouse/stick rotation" : "automatic"}`}`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    case "game_modes":
+      return {
+        content: isRu
+          ? `## Игровые режимы\n\nРежимы «${name}»:\n- Single Player: основной${genre === "shooter" || genre === "fighting" ? "" : " (единственный)"}\n${genre === "shooter" || genre === "fighting" ? "- Multiplayer: PvP" : ""}${genre === "mmorpg" ? "- MMO: массовый онлайн" : ""}\n- Difficulty: Easy / Normal / Hard${genre === "strategy" ? " / Insane" : ""}`
+          : `## Game Modes\n\nModes of "${name}":\n- Single Player: main${genre === "shooter" || genre === "fighting" ? "" : " (only)"}\n${genre === "shooter" || genre === "fighting" ? "- Multiplayer: PvP" : ""}${genre === "mmorpg" ? "- MMO: massive online" : ""}\n- Difficulty: Easy / Normal / Hard${genre === "strategy" ? " / Insane" : ""}`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    case "dialogues":
+      return {
+        content: isRu
+          ? `## Диалоги\n\nСистема диалогов «${name}»:\n- Тип: ${genre === "rpg" || genre === "adventure" ? "диалоговые деревья с выбором" : "линейные реплики"}\n- Озвучка: ${genre === "rpg" ? "полная" : "частичная"}\n- Локализация: RU + EN\n- Количество NPC: TBD`
+          : `## Dialogues\n\nDialogue system for "${name}":\n- Type: ${genre === "rpg" || genre === "adventure" ? "dialogue trees with choices" : "linear lines"}\n- Voiceover: ${genre === "rpg" ? "full" : "partial"}\n- Localization: RU + EN\n- NPC count: TBD`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    case "quests":
+      return {
+        content: isRu
+          ? `## Квесты\n\nКвестовая система «${name}»:\n- Основные квесты: ${progression?.totalLevels || "TBD"} уровней\n- Побочные квесты: ~${Math.round((progression?.totalLevels || 50) * 0.5)}\n- Daily/Weekly: ${genre === "mmorpg" || genre === "idle" ? "да" : "нет"}\n- Структура: ${genre === "rpg" ? "ветвящиеся" : "линейные"}`
+          : `## Quests\n\nQuest system for "${name}":\n- Main quests: ${progression?.totalLevels || "TBD"} levels\n- Side quests: ~${Math.round((progression?.totalLevels || 50) * 0.5)}\n- Daily/Weekly: ${genre === "mmorpg" || genre === "idle" ? "yes" : "no"}\n- Structure: ${genre === "rpg" ? "branching" : "linear"}`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    case "lore_and_world":
+      return {
+        content: isRu
+          ? `## Лор и мир\n\nИстория мира «${name}»:\n- Эпоха: ${genre === "horror" ? "современность" : genre === "strategy" ? "средневековье/фантастика" : "вымышленный мир"}\n- Фракции: ${genre === "strategy" || genre === "mmorpg" ? "3-5 основных" : "1-2"}\n- Культура: TBD\n- Bestiary: ${genre === "rpg" || genre === "horror" ? "требуется" : "минимальный"}`
+          : `## Lore and World\n\nWorld history of "${name}":\n- Era: ${genre === "horror" ? "modern" : genre === "strategy" ? "medieval/sci-fi" : "fictional world"}\n- Factions: ${genre === "strategy" || genre === "mmorpg" ? "3-5 major" : "1-2"}\n- Culture: TBD\n- Bestiary: ${genre === "rpg" || genre === "horror" ? "required" : "minimal"}`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    case "level_design":
+    case "navigation":
+    case "combat_spaces":
+      return {
+        content: isRu
+          ? `## ${sectionName}\n\n${sectionName === "level_design" ? "Дизайн уровней" : sectionName === "navigation" ? "Навигация" : "Боевые пространства"} для «${name}»:\n- Структура: ${genre === "puzzle" ? "решётка" : genre === "strategy" ? "гексагональная карта" : "линейная + открытые зоны"}\n- Масштаб: ${progression?.totalLevels || 50} уровней/зон\n- Темп: ${genre === "shooter" ? "быстрый" : genre === "puzzle" ? "медленный" : "сбалансированный"}`
+          : `## ${sectionName}\n\n${sectionName === "level_design" ? "Level design" : sectionName === "navigation" ? "Navigation" : "Combat spaces"} for "${name}":\n- Structure: ${genre === "puzzle" ? "grid" : genre === "strategy" ? "hex map" : "linear + open zones"}\n- Scale: ${progression?.totalLevels || 50} levels/zones\n- Pacing: ${genre === "shooter" ? "fast" : genre === "puzzle" ? "slow" : "balanced"}`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    case "resources":
+    case "tech_tree":
+      return {
+        content: isRu
+          ? `## ${sectionName}\n\n${sectionName === "resources" ? "Ресурсы" : "Дерево технологий"} для «${name}»:\n${economy ? `- Ресурсов в экономике: ${economy.resourceCount || "TBD"}\n- Тип системы: ${economy.systemType || "TBD"}` : ""}\n${progression ? `- Тиров: ${progression.tierCount || "TBD"}\n- Тип кривой: ${progression.curveType || "TBD"}` : ""}`
+          : `## ${sectionName}\n\n${sectionName === "resources" ? "Resources" : "Tech tree"} for "${name}":\n${economy ? `- Resources in economy: ${economy.resourceCount || "TBD"}\n- System type: ${economy.systemType || "TBD"}` : ""}\n${progression ? `- Tiers: ${progression.tierCount || "TBD"}\n- Curve type: ${progression.curveType || "TBD"}` : ""}`,
+        source: economy || progression ? "auto_fill" : "ai_generate",
+        requires_review: !economy && !progression,
+      };
+    case "localization":
+      return {
+        content: isRu
+          ? `## Локализация\n\nЛокализация «${name}»:\n- Языки: RU, EN${genre === "mmorpg" || genre === "rpg" ? ", DE, FR, ES, JP, CN" : ""}\n- Текст: полный перевод\n- Озвучка: ${genre === "rpg" || genre === "adventure" ? "RU + EN" : "EN только"}\n- Дата завершения локализации: за 2 месяца до релиза`
+          : `## Localization\n\nLocalization for "${name}":\n- Languages: RU, EN${genre === "mmorpg" || genre === "rpg" ? ", DE, FR, ES, JP, CN" : ""}\n- Text: full translation\n- Voice: ${genre === "rpg" || genre === "adventure" ? "RU + EN" : "EN only"}\n- Localization completion: 2 months before release`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    case "testing_plan":
+      return {
+        content: isRu
+          ? `## План тестирования\n\nТестирование «${name}»:\n- Unit тесты: критические механики\n- Integration: пайплайн (concept → GDD)\n- Playtest: 5 итераций по 10 игроков\n- Beta: ${genre === "mmorpg" ? "закрытая бета за 3 месяца" : "открытая бета за 1 месяц"}\n- Автоматизация: CI/CD pipeline`
+          : `## Testing Plan\n\nTesting for "${name}":\n- Unit tests: critical mechanics\n- Integration: pipeline (concept → GDD)\n- Playtest: 5 iterations × 10 players\n- Beta: ${genre === "mmorpg" ? "closed beta 3 months before" : "open beta 1 month before"}\n- Automation: CI/CD pipeline`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    case "risks":
+      return {
+        content: isRu
+          ? `## Риски\n\nОсновные риски «${name}»:\n- Scope creep: ${genre === "rpg" || genre === "mmorpg" ? "высокий" : "средний"}\n- Технические: ${genre === "mmorpg" ? "сетевая инфраструктура" : "оптимизация"}\n- Дизайн: баланс экономики (${economy?.hasPathology ? "патологии обнаружены" : "OK"})\n- Расписание: buffer 20%`
+          : `## Risks\n\nMain risks for "${name}":\n- Scope creep: ${genre === "rpg" || genre === "mmorpg" ? "high" : "medium"}\n- Technical: ${genre === "mmorpg" ? "network infrastructure" : "optimization"}\n- Design: economy balance (${economy?.hasPathology ? "pathologies detected" : "OK"})\n- Schedule: 20% buffer`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    case "team_fit":
+      return {
+        content: isRu
+          ? `## Команда\n\nКоманда для «${name}»:\n- Геймдизайнер: 1\n- Программист: ${genre === "mmorpg" ? "3-5" : "2-3"}\n- Художник: ${genre === "puzzle" ? "1" : "2-3"}\n- Звук: 1 (или аутсорс)\n- QA: 1-2\n- Продюсер: 1 (совместитель)`
+          : `## Team\n\nTeam for "${name}":\n- Game designer: 1\n- Programmer: ${genre === "mmorpg" ? "3-5" : "2-3"}\n- Artist: ${genre === "puzzle" ? "1" : "2-3"}\n- Audio: 1 (or outsource)\n- QA: 1-2\n- Producer: 1 (part-time)`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    case "live_ops_plan":
+    case "production_plan":
+      return {
+        content: isRu
+          ? `## ${sectionName === "live_ops_plan" ? "Live Ops" : "Production Plan"}\n\n${sectionName === "live_ops_plan" ? `Live ops для «${name}»:\n- Сезоны: ${genre === "mmorpg" || genre === "idle" ? "каждые 3 месяца" : "не применимо"}\n- Events: ${genre === "mmorpg" ? "ежемесячные" : "праздничные"}\n- Монетизация: ${economy?.monetizationModel ? JSON.parse(economy.monetizationModel).type || "TBD" : "TBD"}` : `Production plan для «${name}»:\n- Pre-production: 2 месяца\n- Production: ${genre === "rpg" || genre === "mmorpg" ? "12-18" : "6-10"} месяцев\n- Alpha: за 3 месяца до релиза\n- Beta: за 1 месяц до релиза\n- Gold: релиз`}`
+          : `## ${sectionName === "live_ops_plan" ? "Live Ops" : "Production Plan"}\n\n${sectionName === "live_ops_plan" ? `Live ops for "${name}":\n- Seasons: ${genre === "mmorpg" || genre === "idle" ? "every 3 months" : "N/A"}\n- Events: ${genre === "mmorpg" ? "monthly" : "holiday"}\n- Monetization: ${economy?.monetizationModel ? JSON.parse(economy.monetizationModel).type || "TBD" : "TBD"}` : `Production plan for "${name}":\n- Pre-production: 2 months\n- Production: ${genre === "rpg" || genre === "mmorpg" ? "12-18" : "6-10"} months\n- Alpha: 3 months before release\n- Beta: 1 month before release\n- Gold: release`}`,
+        source: "ai_generate",
+        requires_review: true,
+      };
+    case "milestones":
+      return {
+        content: isRu
+          ? `## Milestones\n\nMilestones «${name}»:\n1. Prototype (4 недели)\n2. Vertical Slice (8 недель)\n3. Alpha (50% контента)\n4. Beta (feature complete)\n5. Gold Master\n6. Launch\n\nТекущая стадия: preproduction`
+          : `## Milestones\n\nMilestones for "${name}":\n1. Prototype (4 weeks)\n2. Vertical Slice (8 weeks)\n3. Alpha (50% content)\n4. Beta (feature complete)\n5. Gold Master\n6. Launch\n\nCurrent stage: preproduction`,
+        source: "ai_generate",
         requires_review: true,
       };
     default:

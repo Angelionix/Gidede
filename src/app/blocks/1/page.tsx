@@ -55,6 +55,7 @@ export default function Block1Page() {
     idea: "",
     genreMode: "auto",
     genre: "",
+    subgenres: [],
     targetMotivations: [],
     experienceLevel: "midcore",
     platforms: ["pc"],

@@ -18,12 +18,16 @@ import {
 } from "@/components/ui/accordion";
 import { AlertTriangle, Zap } from "lucide-react";
 import { MECHANIC_GROUPS } from "@/constants/concept";
+// TASK-1.13: используем конкретный тип вместо Record<string, unknown>.
+import type { StructuredMechanicSetV2 } from "../../../../shared/types/typescript/interfaces";
 
-export const MechanicSetView = React.memo(function MechanicSetView({ mechanicSet }: { mechanicSet: Record<string, unknown> }) {
-  const compatibilityScore = typeof mechanicSet.compatibility_score === "number" ? mechanicSet.compatibility_score : 0;
-  const conflictsResolved = Array.isArray(mechanicSet.conflicts_resolved) ? mechanicSet.conflicts_resolved as string[] : [];
-  const synergiesDetected = Array.isArray(mechanicSet.synergies_detected) ? mechanicSet.synergies_detected as Record<string, unknown>[] : [];
-  const warnings = Array.isArray(mechanicSet.warnings) ? mechanicSet.warnings as string[] : [];
+export const MechanicSetView = React.memo(function MechanicSetView({ mechanicSet }: { mechanicSet: StructuredMechanicSetV2 | Record<string, unknown> }) {
+  // Duck-type: если есть compatibility_score и base — считаем StructuredMechanicSetV2.
+  const ms = mechanicSet as Partial<StructuredMechanicSetV2> & Record<string, unknown>;
+  const compatibilityScore = typeof ms.compatibility_score === "number" ? ms.compatibility_score : 0;
+  const conflictsResolved = Array.isArray(ms.conflicts_resolved) ? ms.conflicts_resolved as string[] : [];
+  const synergiesDetected = Array.isArray(ms.synergies_detected) ? ms.synergies_detected as Array<{ name: string; score: number }> : [];
+  const warnings = Array.isArray(ms.warnings) ? ms.warnings as string[] : [];
 
   return (
     <Card>
@@ -65,7 +69,7 @@ export const MechanicSetView = React.memo(function MechanicSetView({ mechanicSet
         {/* Mechanic groups in accordion */}
         <Accordion type="multiple" className="w-full">
           {MECHANIC_GROUPS.map((group) => {
-            const items = mechanicSet[group.key];
+            const items = ms[group.key as keyof typeof ms];
             if (!Array.isArray(items) || items.length === 0) return null;
             return (
               <AccordionItem key={group.key} value={group.key}>
@@ -78,10 +82,11 @@ export const MechanicSetView = React.memo(function MechanicSetView({ mechanicSet
                 <AccordionContent>
                   <div className="space-y-3 pt-1">
                     {items.map((mech, i) => {
-                      const m = mech as Record<string, unknown>;
-                      const name = (m.name as unknown as string) || (m as unknown as string) || `Механика ${i + 1}`;
-                      const groupVal = (m.group as string) || group.key;
-                      const description = (m.description as string) || "";
+                      // TASK-1.13: mech может быть string (legacy) или MechanicEntry.
+                      const m = (typeof mech === "string" ? { name: mech, group: group.key } : mech) as { name?: string; group?: string; desc?: string; description?: string; cross_genre?: boolean };
+                      const name = m.name || `Механика ${i + 1}`;
+                      const groupVal = m.group || group.key;
+                      const description = m.desc || m.description || "";
                       return (
                         <div key={i} className="rounded-md border p-3 space-y-1">
                           <div className="flex items-center gap-2">

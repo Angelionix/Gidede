@@ -1439,7 +1439,8 @@ export function getMechanicGroups(): string[] {
  * Возвращает массив механик, отсортированный по релевантности.
  */
 export function findMechanicsByGenre(genre: string): Mechanic[] {
-  const genreLower = genre.toLowerCase().replace(/\s+/g, "_");
+  // TASK-1.15: trim + normalize whitespace to underscore.
+  const genreLower = genre.toLowerCase().trim().replace(/\s+/g, "_");
   return MECHANICS_DB
     .filter((m) => m.genres.includes(genreLower))
     .sort((a, b) => {

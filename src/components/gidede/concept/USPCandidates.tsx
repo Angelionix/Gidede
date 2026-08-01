@@ -10,13 +10,15 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Check, CheckCircle2, XCircle, Info } from "lucide-react";
+// TASK-1.13: конкретный тип вместо Record<string, unknown>[].
+import type { USPCandidate } from "../../../../shared/types/typescript/interfaces";
 
 export const USPCandidates = React.memo(function USPCandidates({
   candidates,
   selectedIndex,
   onSelect,
 }: {
-  candidates: Record<string, unknown>[];
+  candidates: USPCandidate[] | Record<string, unknown>[];
   selectedIndex: number | null;
   onSelect: (index: number) => void;
 }) {

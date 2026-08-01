@@ -35,6 +35,8 @@ import {
 } from "@/lib/api-helpers";
 import { enrichConcept } from "@/lib/ai-service";
 import { buildMechanicSetForGenres, type Mechanic } from "@/lib/mechanics-db";
+import { buildValidationReport } from "@/lib/concept/validation";
+import { validateConceptInput } from "@/lib/concept/validation-input";
 
 // ============================================================
 // Constants — valid enum values & static lookup tables
@@ -222,20 +224,121 @@ function inferGenre(idea: string): string {
   return inferGenres(idea).primary;
 }
 
+/**
+ * TASK-1.7 FIXED: pickAesthetics с word boundaries и dedup.
+ *
+ * Оригинальные баги:
+ *   1. `lower.includes("build")` матчит "deck-building", "building", "rebuild".
+ *   2. `lower.includes("team")` матчит "steam".
+ *   3. Не проверяет дубликаты с secondary/tertiary (например, "deck-building card battler"
+ *      давал primary=expression, secondary=discovery, tertiary=expression — дубликат).
+ *
+ * Новая реализация:
+ *   - Word boundary matching через regex `\bKEYWORD\b`.
+ *   - Dedup: primary не может совпадать с secondary или tertiary.
+ *   - Если primary совпадает с secondary/tertiary, fallback к base.primary.
+ *   - Поддержка русских и английских keywords.
+ */
 function pickAesthetics(genre: string, idea: string) {
-  const base = GENRE_AESTHETICS[genre] || GENRE_AESTHETICS.default;
-  // Slight customization based on idea keywords
+  const base = GENRE_AESTHETICS[genre] || GENRE_AESTHETICS.action;
+
+  // Word-boundary keyword matching.
+  // Каждый keyword проверяется как отдельное слово, не как substring.
+  const hasWord = (text: string, keyword: string): boolean => {
+    // \b на границе слова; экранируем keyword на случай спецсимволов.
+    const escaped = keyword.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const regex = new RegExp(`\\b${escaped}\\b`, "i");
+    return regex.test(text);
+  };
+
   const lower = idea.toLowerCase();
+
+  // Keyword groups: каждый aesthetic имеет набор keywords (включая русские).
+  const AESTHETIC_KEYWORDS: Array<{ aesthetic: string; keywords: string[] }> = [
+    {
+      aesthetic: "narrative",
+      keywords: ["story", "narrative", "plot", "dialogue", "character-driven", "storytelling",
+                 "история", "нарратив", "сюжет", "диалог", "персонаж"],
+    },
+    {
+      aesthetic: "discovery",
+      keywords: ["explore", "discover", "exploration", "uncover", "find", "search",
+                 "исследовать", "открывать", "исследование", "найти"],
+    },
+    {
+      aesthetic: "expression",
+      keywords: ["build", "create", "construct", "craft", "design", "customize", "sandbox",
+                 "строить", "создавать", "крафтить", "конструировать", "настраивать"],
+    },
+    {
+      aesthetic: "fellowship",
+      keywords: ["team", "friends", "co-op", "coop", "cooperative", "multiplayer", "party", "guild",
+                 "команда", "друзья", "кооператив", "вместе", "гильдия"],
+    },
+    {
+      aesthetic: "challenge",
+      keywords: ["difficult", "hard", "skill", "competitive", "hardcore", "challenge",
+                 "сложный", "сложно", "навык", "соревновательный", "хардкор", "вызов"],
+    },
+    {
+      aesthetic: "sensation",
+      keywords: ["fast", "speed", "action", "intense", "adrenaline", "thrilling",
+                 "быстрый", "скорость", "экшен", "интенсивный", "адреналин"],
+    },
+    {
+      aesthetic: "fantasy",
+      keywords: ["roleplay", "role-play", "immersion", "character", "hero", "epic",
+                 "роли", "ролевая", "погружение", "герой", "эпический"],
+    },
+    {
+      aesthetic: "submission",
+      keywords: ["relax", "calm", "zen", "meditative", "idle", "peaceful", "routine",
+                 "расслаб", "спокойный", "дзен", "медитативный", "мирный"],
+    },
+  ];
+
+  // Считаем совпадения для каждого aesthetic.
+  const scores = new Map<string, number>();
+  for (const entry of AESTHETIC_KEYWORDS) {
+    let score = 0;
+    for (const kw of entry.keywords) {
+      if (hasWord(lower, kw)) score += 1;
+    }
+    if (score > 0) scores.set(entry.aesthetic, score);
+  }
+
+  // Primary = aesthetic с макс. совпадениями (если есть).
   let primary = base.primary;
-  if (lower.includes("story") || lower.includes("narrative")) primary = "narrative";
-  if (lower.includes("explore") || lower.includes("discover")) primary = "discovery";
-  if (lower.includes("build") || lower.includes("create")) primary = "expression";
-  if (lower.includes("team") || lower.includes("friends")) primary = "fellowship";
+  if (scores.size > 0) {
+    const sorted = Array.from(scores.entries()).sort((a, b) => b[1] - a[1]);
+    const topAesthetic = sorted[0][0];
+
+    // TASK-1.7: dedup — primary не должен совпадать с secondary или tertiary.
+    // Если совпадает, fallback к base.primary (genre-based).
+    if (topAesthetic !== base.secondary && topAesthetic !== base.tertiary) {
+      primary = topAesthetic;
+    }
+  }
+
+  // TASK-1.7: если primary после override совпадает с secondary, меняем secondary с primary.
+  // Это сохраняет разнообразие aesthetic profile.
+  let secondary = base.secondary;
+  let tertiary = base.tertiary;
+  if (primary === secondary) {
+    secondary = base.primary; // меняем местами
+  }
+  if (primary === tertiary) {
+    tertiary = base.primary;
+  }
+  // Финальная проверка: secondary != tertiary (на всякий случай).
+  if (secondary === tertiary) {
+    tertiary = "submission"; // безопасный fallback
+  }
 
   return {
     primary,
-    secondary: base.secondary,
-    tertiary: base.tertiary,
+    secondary,
+    tertiary,
   };
 }
 
@@ -386,16 +489,31 @@ function buildMechanicSet(
   };
 }
 
+/**
+ * TASK-1.9 FIXED: bilingual core loop candidates.
+ *
+ * Оригинальный баг: русские имена механик подставлялись в английские глагольные
+ * фразы: "Engage in Броня", "Upgrade via Очки опыта" — nonsensical mix.
+ *
+ * Решение: все шаги core loop на русском, так как:
+ *   1. MechanicsDB хранит имена на русском ("Броня", "Очки опыта").
+ *   2. System prompt AI на русском.
+ *   3. Пользователь — русскоязычный геймдизайнер.
+ *
+ * Если у механики нет русского имени (legacy fallback), используем английский
+ * глагол-заглушку ("исследование", "сражение", "прокачка").
+ */
 function buildCoreLoopCandidates(genre: string, mechanicSet: {
   base: Array<{ name: string }>;
   combat: Array<{ name: string }>;
   progression: Array<{ name: string }>;
 }) {
-  const baseName = mechanicSet.base[0]?.name || "explore";
-  const combatName = mechanicSet.combat[0]?.name || "engage";
-  const progName = mechanicSet.progression[0]?.name || "upgrade";
+  // Извлекаем имена механик с fallback на русские глаголы.
+  const baseName = mechanicSet.base[0]?.name || "исследование";
+  const combatName = mechanicSet.combat[0]?.name || "сражение";
+  const progName = mechanicSet.progression[0]?.name || "прокачка";
 
-  // Loop type by genre
+  // Loop type by genre (Bible 4.11.1)
   const loopTypeByGenre: Record<string, string> = {
     action: "engine",
     shooter: "engine",
@@ -411,47 +529,72 @@ function buildCoreLoopCandidates(genre: string, mechanicSet: {
   };
   const loopType = loopTypeByGenre[genre] || "hybrid";
 
+  // Локализованное название жанра для имени кандидата.
+  const genreLabels: Record<string, string> = {
+    action: "Экшен",
+    shooter: "Шутер",
+    platformer: "Платформер",
+    rpg: "RPG",
+    strategy: "Стратегия",
+    mmorpg: "MMORPG",
+    horror: "Хоррор",
+    survival_horror: "Survival Horror",
+    roguelike: "Roguelike",
+    adventure: "Приключение",
+    sandbox: "Песочница",
+    puzzle: "Головоломка",
+    racing: "Гонки",
+    fighting: "Файтинг",
+    stealth: "Стелс",
+    tower_defense: "Tower Defense",
+    rhythm: "Ритм",
+    metroidvania: "Метроидвания",
+    visual_novel: "Визуальная новелла",
+    idle: "Idle",
+  };
+  const genreLabel = genreLabels[genre] || genre.charAt(0).toUpperCase() + genre.slice(1);
+
   return [
     {
-      name: `${genre.charAt(0).toUpperCase() + genre.slice(1)} Core Loop`,
+      name: `${genreLabel} — основной цикл`,
       steps: [
-        `Explore the world`,
-        `Encounter enemies`,
-        `Engage in ${combatName}`,
-        `Collect rewards`,
-        `Upgrade via ${progName}`,
+        `Исследовать мир`,
+        `Встретить противников`,
+        `Применить «${combatName}»`,
+        `Собрать награды`,
+        `Улучшить через «${progName}»`,
       ],
       loop_type: loopType,
       fun_check_reasoning:
-        "30-second fun test: each step has immediate feedback and visible progress",
+        "Тест на 30 секунд веселья: каждый шаг даёт немедленную обратную связь и видимый прогресс.",
       estimated_duration_seconds: 45,
     },
     {
-      name: "Combat-Focused Loop",
+      name: "Боевой цикл",
       steps: [
-        `Find target`,
-        `Plan approach (${baseName})`,
-        `Execute ${combatName}`,
-        `Loot drops`,
-        `Return to base`,
+        `Найти цель`,
+        `Подготовить подход («${baseName}»)`,
+        `Атаковать («${combatName}»)`,
+        `Собрать добычу`,
+        `Вернуться на базу`,
       ],
       loop_type: loopType === "ecology" ? "hybrid" : "engine",
       fun_check_reasoning:
-        "Combat-centric loop rewards aggressive play with immediate loot feedback",
+        "Боевой цикл вознаграждает агрессивную игру немедленным лутом.",
       estimated_duration_seconds: 30,
     },
     {
-      name: "Progression-First Loop",
+      name: "Цикл прогрессии",
       steps: [
-        `Set a goal (${progName})`,
-        `Gather resources (${baseName})`,
-        `Engage threats (${combatName})`,
-        `Bank progress`,
-        `Unlock next tier`,
+        `Поставить цель («${progName}»)`,
+        `Собрать ресурсы («${baseName}»)`,
+        `Отразить угрозы («${combatName}»)`,
+        `Сохранить прогресс`,
+        `Открыть следующий уровень`,
       ],
       loop_type: loopType === "engine" ? "hybrid" : loopType,
       fun_check_reasoning:
-        "Progression-first loop emphasizes long-term goals with short-term engagement",
+        "Цикл прогрессии акцентирует долгосрочные цели с краткосрочным вовлечением.",
       estimated_duration_seconds: 60,
     },
   ];
@@ -511,124 +654,6 @@ function buildUSPCandidates(genre: string, idea: string) {
   return candidates;
 }
 
-function buildValidationReport(
-  aestheticProfile: { primary: string; secondary: string; tertiary: string },
-  mechanicSet: { total_count: number; compatibility_score: number },
-  uspCandidates: Array<{ triangle_of_weirdness_check: string }>
-) {
-  // TASK-1.2 FIXED: cascade now works correctly after TASK-1.1 (genres filled).
-  // - `credible` was always false because compatibility_score was always 0.
-  // - Now compatibility_score reflects real genre match (0-100), so:
-  //     * credible = true when ≥60% mechanics match the genre
-  //     * five_questions["Why would a player return tomorrow?"] reflects real sustainability
-  //     * eight_filters.feasibility.score varies 0.5-0.8 based on real compatibility
-  //     * warnings["Mechanic compatibility below 60%"] only fires when truly low
-  //
-  // NOTE: TASK-1.3 (8 idea filters with real logic) and TASK-1.4 (5 core questions
-  // with real logic) are still TODO — some scores remain hardcoded (clarity=0.8,
-  // market_fit=0.6, emotional_impact=0.7, sustainability=0.65). Will be addressed
-  // in subsequent refactoring sprints.
-
-  // --- Triangle of Weirdness ---
-  const weird = uspCandidates.some((c) => c.triangle_of_weirdness_check === "pass");
-  const appealing = aestheticProfile.primary !== "submission";
-  const credible = mechanicSet.compatibility_score >= 60;
-  const triangleScore = Number(
-    ((weird ? 0.4 : 0.2) + (appealing ? 0.3 : 0.1) + (credible ? 0.3 : 0.1)).toFixed(2)
-  );
-  const trianglePassed = triangleScore >= 0.6;
-
-  // --- 5 core questions ---
-  // TASK-1.4 TODO: questions 1, 2 are hardcoded true — should derive from idea analysis.
-  const fiveQuestions: Record<string, boolean> = {
-    "What is the core verb?": true,
-    "What does the player do moment-to-moment?": true,
-    "What long-term goal drives the player?": mechanicSet.total_count >= 5,
-    "Where does the fun come from?": appealing,
-    "Why would a player return tomorrow?": credible,
-  };
-
-  // --- 8 idea filters ---
-  const eightFilters: Record<string, { score: number; reason: string; improvement: string }> = {
-    clarity: {
-      score: 0.8,
-      reason: "Core idea is expressible in one sentence",
-      improvement: "Sharpen the verb-noun form of the pitch",
-    },
-    novelty: {
-      score: weird ? 0.85 : 0.55,
-      reason: weird ? "Multiple novel angles detected" : "Familiar genre conventions dominate",
-      improvement: "Add one truly weird angle (per Triangle of Weirdness)",
-    },
-    feasibility: {
-      score: credible ? 0.8 : 0.5,
-      reason: credible ? "Mechanic set is implementable with given scope" : "Mechanic count too low or incompatible",
-      improvement: "Reduce scope or add a clear MVP slice",
-    },
-    audience_fit: {
-      score: appealing ? 0.85 : 0.5,
-      reason: appealing ? "Aesthetic aligns with target motivations" : "Primary aesthetic may not pull target audience",
-      improvement: "Re-pick primary aesthetic to match audience",
-    },
-    market_fit: {
-      score: 0.6,
-      reason: "Genre has competition but viable niche",
-      improvement: "Identify 2-3 direct competitors and define differentiation",
-    },
-    differentiation: {
-      score: weird ? 0.8 : 0.5,
-      reason: weird ? "USP candidates propose clear differentiation" : "USP candidates need a stronger weird angle",
-      improvement: "Push the USP triangle further toward 'weird'",
-    },
-    emotional_impact: {
-      score: 0.7,
-      reason: "Aesthetic profile promises an emotional journey",
-      improvement: "Map aesthetic to specific emotion beats in the campaign",
-    },
-    sustainability: {
-      score: 0.65,
-      reason: "Core loop has replay potential via progression mechanics",
-      improvement: "Add meta-loop or live-ops hook",
-    },
-  };
-
-  const overallScore = Number(
-    (
-      triangleScore * 0.3 +
-      (Object.values(fiveQuestions).filter(Boolean).length / 5) * 0.3 +
-      (Object.values(eightFilters).reduce((s, f) => s + f.score, 0) /
-        Object.keys(eightFilters).length) *
-        0.4
-    ).toFixed(3)
-  );
-
-  const warnings: string[] = [];
-  if (!credible) warnings.push("Mechanic compatibility below 60% — review synergies");
-  if (!appealing) warnings.push("Primary aesthetic is 'submission' — may not pull casual audience");
-  if (!weird) warnings.push("No USP passed the Triangle of Weirdness — push for a stranger angle");
-
-  const suggestions: string[] = [
-    "Run a 5-minute paper prototype to validate the core verb",
-    "Define 3 direct competitors and articulate one concrete differentiator",
-    "Map aesthetic profile to specific moments in the player journey",
-  ];
-
-  return {
-    triangle_check: {
-      passed: trianglePassed,
-      score: triangleScore,
-      details: `Weird=${weird}, Appealing=${appealing}, Credible=${credible}`,
-      weird,
-      appealing,
-      credible,
-    },
-    five_questions: fiveQuestions,
-    eight_filters: eightFilters,
-    overall_score: overallScore,
-    warnings,
-    suggestions,
-  };
-}
 
 // ============================================================
 // Route handler
@@ -641,43 +666,25 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const projectId = body?.project_id?.toString().trim() || undefined;
-    const idea = (body?.idea as string | undefined)?.trim() || "";
-    const explicitGenre =
-      body?.genre && typeof body.genre === "string" && body.genre.trim()
-        ? body.genre.trim()
-        : null;
 
-    if (!idea || idea.length < 10) {
-      return VALIDATION_ERROR(
-        "Поле 'idea' обязательно и должно быть не менее 10 символов"
-      );
+    // TASK-1.15: централизованная валидация входных данных.
+    // Проверяет: idea (10-2000 символов), genre (known list + aliases),
+    // subgenres (known list + aliases + dedup), forbidden_mechanics (max 20).
+    const input = validateConceptInput(body);
+    if (!input.valid) {
+      return VALIDATION_ERROR(input.error || "Невалидные входные данные");
     }
 
-    const targetAudience = body?.target_audience as
-      | { primary?: string[]; experience?: string }
-      | null;
-    const platforms = Array.isArray(body?.platform) ? body.platform : null;
-    const constraints = body?.constraints as
-      | { team_size?: number; budget?: string }
-      | null;
-    const referenceGames = Array.isArray(body?.reference_games)
-      ? body.reference_games
-      : null;
-    const forbiddenMechanics = Array.isArray(body?.forbidden_mechanics)
-      ? body.forbidden_mechanics
-      : [];
-    const useAi = body?.use_ai === true || body?.use_ai === "true";
-
-    // TASK-1.17: Поддержка явных subgenres в body.
-    // Body может содержать `subgenres: string[]` для явного указания поджанров.
-    // Если не указано — subgenres выводятся из idea keywords (inferGenres).
-    const explicitSubgenres = Array.isArray(body?.subgenres)
-      ? body.subgenres
-          .filter((g: unknown) => typeof g === "string" && g.trim().length > 0)
-          .map((g: string) => g.trim())
-          .slice(0, 3) // максимум 3 subgenres
-      : null;
+    const projectId = input.project_id;
+    const idea = input.idea!;
+    const explicitGenre = input.genre;
+    const targetAudience = input.target_audience;
+    const platforms = input.platform;
+    const constraints = input.constraints;
+    const referenceGames = input.reference_games;
+    const forbiddenMechanics = input.forbiddenMechanics!;
+    const useAi = input.use_ai || false;
+    const explicitSubgenres = input.subgenres!.length > 0 ? input.subgenres : null;
 
     // --- Stage 1: Genre inference (primary + subgenres) ---
     // TASK-1.17: inferGenres возвращает { primary, subgenres }.
@@ -725,10 +732,13 @@ export async function POST(request: NextRequest) {
     const uspCandidates = buildUSPCandidates(genre, idea);
 
     // --- Stage 6: Validation report ---
+    // TASK-1.3 + TASK-1.4: передаём idea и subgenres для реального анализа.
     const validationReport = buildValidationReport(
       aestheticProfile,
       mechanicSet,
-      uspCandidates
+      uspCandidates,
+      idea,
+      subgenres
     );
 
     // --- Stage 7: One-pager assembly ---
@@ -840,11 +850,25 @@ export async function POST(request: NextRequest) {
       competitors,
     });
 
+    // TASK-1.11: сохраняем generation_metadata и ai_insights в БД.
+    // Раньше эти данные возвращались в HTTP response, но НЕ сохранялись —
+    // при перезагрузке проекта (GET /concept/[id]) они терялись.
+    const generationMetadataJson = JSON.stringify({
+      stages_completed: stagesCompleted,
+      latency_ms: latencyMs,
+      models_used: useAi && aiEnrichment.enriched
+        ? ["deterministic-concept-v1", "rule-based-mda", "shell-lens-lite", "glm-4.6 (ai-enrichment)"]
+        : ["deterministic-concept-v1", "rule-based-mda", "shell-lens-lite"],
+      ai_enriched: aiEnrichment.enriched,
+    });
+
     await db.projectConcept.upsert({
       where: { projectId: proj.id },
       create: {
         projectId: proj.id,
         genre,
+        // TASK-1.17: сохраняем primary_genre + subgenres.
+        subgenre: subgenres.length > 0 ? JSON.stringify(subgenres) : null,
         primaryAesthetic: aestheticProfile.primary,
         usp: uspCandidates[0]?.usp || null,
         inputData,
@@ -855,9 +879,14 @@ export async function POST(request: NextRequest) {
         validationReport: JSON.stringify(validationReport),
         uspCandidates: JSON.stringify(uspCandidates),
         coreLoopCandidates: JSON.stringify(coreLoopCandidates),
+        // TASK-1.11: новые поля для persist.
+        title: result.title,
+        aiInsights: aiEnrichment.insights || null,
+        generationMetadata: generationMetadataJson,
       },
       update: {
         genre,
+        subgenre: subgenres.length > 0 ? JSON.stringify(subgenres) : null,
         primaryAesthetic: aestheticProfile.primary,
         usp: uspCandidates[0]?.usp || null,
         inputData,
@@ -868,6 +897,10 @@ export async function POST(request: NextRequest) {
         validationReport: JSON.stringify(validationReport),
         uspCandidates: JSON.stringify(uspCandidates),
         coreLoopCandidates: JSON.stringify(coreLoopCandidates),
+        // TASK-1.11: новые поля для persist.
+        title: result.title,
+        aiInsights: aiEnrichment.insights || null,
+        generationMetadata: generationMetadataJson,
       },
     });
 

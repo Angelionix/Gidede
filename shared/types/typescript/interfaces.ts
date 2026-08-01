@@ -82,6 +82,57 @@ export interface MechanicSet {
   compatibility_score: number;
 }
 
+/**
+ * TASK-1.13: Структурированный тип механики, выровненный с реализацией.
+ *
+ * Раньше `MechanicSet` использовал `string[]` для категорий, но реализация
+ * в `concept/generate/route.ts` возвращает объекты `{name, group, desc, ...}`.
+ * Это приводило к type bypass (`Record<string, unknown>` в ConceptGenerationResult).
+ *
+ * Новый `MechanicEntry` точно описывает структуру, возвращаемую `buildMechanicSet`:
+ *   - name: русское название механики из MechanicsDB
+ *   - group: группа MechanicsDB (Базовые/Боевые/Прогрессия/...)
+ *   - desc: описание (опциональное)
+ *   - cross_genre: true для cross-genre механик (TASK-1.18)
+ *   - matched_genres: жанры, которым релевантна эта механика
+ *
+ * `StructuredMechanicSetV2` — расширенная версия MechanicSet с:
+ *   - категориями как MechanicEntry[] (вместо string[])
+ *   - cross_genre_mechanics[] для TASK-1.18
+ *   - genres_searched[] для TASK-1.17
+ *   - mechanics_db_source для traceability
+ */
+export interface MechanicEntry {
+  name: string;
+  group: string;
+  desc?: string;
+  cross_genre?: boolean;
+  matched_genres?: string[];
+}
+
+export interface CrossGenreMechanic {
+  name: string;
+  group: string;
+  desc: string;
+  original_genres: string[];
+  matched_aesthetics: string[];
+}
+
+export interface StructuredMechanicSetV2 {
+  base: MechanicEntry[];
+  combat: MechanicEntry[];
+  progression: MechanicEntry[];
+  spatial: MechanicEntry[];
+  social: MechanicEntry[];
+  total_count: number;
+  conflicts_resolved: string[];
+  synergies_detected: Array<{ name: string; score: number }>;
+  compatibility_score: number;
+  mechanics_db_source: string;
+  cross_genre_mechanics: CrossGenreMechanic[];
+  genres_searched: string[];
+}
+
 export interface CoreLoopCandidate {
   name: string;
   steps: string[];

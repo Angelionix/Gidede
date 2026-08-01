@@ -118,6 +118,12 @@ model ProjectConcept {
   validationReport    String?  // JSON: ValidationReport
   uspCandidates       String?  // JSON: [{usp, triangle_check, differentiation}]
   coreLoopCandidates  String?  // JSON: [{name, steps, loop_type, fun_check}]
+  // TASK-1.11: новые поля для persist ai_insights, title, generation_metadata.
+  // Раньше эти данные возвращались в HTTP response, но НЕ сохранялись в БД —
+  // при перезагрузке проекта они терялись.
+  title               String?  // Заголовок концепции (например, "Untitled — RPG+roguelike Concept")
+  aiInsights          String?  // AI-инсайты от enrichConcept (если use_ai=true)
+  generationMetadata  String?  // JSON: { stages_completed, latency_ms, models_used, ai_enriched }
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
 

@@ -11,13 +11,15 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Check, Eye, Zap } from "lucide-react";
 import { LOOP_TYPE_LABELS } from "@/constants/concept";
+// TASK-1.13: конкретный тип вместо Record<string, unknown>[].
+import type { CoreLoopCandidate } from "../../../../shared/types/typescript/interfaces";
 
 export const CoreLoopCandidates = React.memo(function CoreLoopCandidates({
   candidates,
   selectedIndex,
   onSelect,
 }: {
-  candidates: Record<string, unknown>[];
+  candidates: CoreLoopCandidate[] | Record<string, unknown>[];
   selectedIndex: number | null;
   onSelect: (index: number) => void;
 }) {

@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R2-04` — исправить self-failing Engine/Puzzle templates.
-- **Зависимости:** `R2-03` завершена; closedness теперь доказывается directed resource path от последнего шага к первому.
-- **Ожидаемый результат:** default Engine/Puzzle templates проходят собственные обязательные structural checks и не создают неизбежный critical.
-- **После неё:** `R2-05` — заменить вычисляемый `fun` на `fun_hypothesis` и test protocol.
+- **Следующая задача:** `R2-05` — заменить вычисляемый `fun` на `fun_hypothesis` и test protocol.
+- **Зависимости:** `R2-04` завершена; default Engine/Puzzle templates больше не создают неизбежные critical failures.
+- **Ожидаемый результат:** до фактического playtest fun имеет статус `unverified`, а не синтетический passed/score.
+- **После неё:** `R2-06` — связать generated prototype с artifact versions.
 
 ## Правила ведения
 
@@ -47,10 +47,42 @@
 | R2-01 | DONE | Concept mechanics/genre/aesthetic доходят до Core Loop без generic fallback | 334 tests, TypeScript, scoped ESLint |
 | R2-02 | DONE | Structural type выбирается до matching step template | 335 tests, TypeScript, scoped ESLint |
 | R2-03 | DONE | Closedness доказана directed resource graph и last→first path | 339 tests, TypeScript, scoped ESLint |
-| R2-04 | TODO | Исправить self-failing Engine/Puzzle templates | — |
+| R2-04 | DONE | Engine/Puzzle defaults проходят mandatory structural checks | 341 tests, TypeScript, scoped ESLint |
 | R2-05…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R2-04 — DONE
+
+Что сделано:
+
+- Engine resource chain перестроена в замкнутый directed cycle `momentum → target_lock → combo → xp → power → momentum`;
+- финальный Engine step моделирует рост сложности как negative feedback/brake;
+- default Engine больше не создаёт critical Runaway;
+- Puzzle chain получила явное состояние `board_ready` и полностью связанный цикл через observation/pattern/placement/match;
+- финальный Puzzle step содержит recovery mechanic `Undo/Hint` и возвращает `board_ready`;
+- default Puzzle больше не создаёт critical Stuck State;
+- добавлены интеграционные проверки template → classification → pathologies → validation.
+
+Изменённые области:
+
+- `src/lib/coreloop/steps.ts`
+- `src/lib/coreloop/steps.test.ts`
+
+Проверки:
+
+- steps/pathologies/validation tests — 3 файла, 68 тестов пройдены;
+- `npm run test` — 24 файла, 341 тест пройден;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- Engine: `has_braking=true`, `critical_count=0`, directed closure `[4,0]`, `overall_passed=true`;
+- Puzzle: присутствует `Undo/Hint`, `critical_count=0`, directed closure `[4,0]`, `overall_passed=true`;
+- pathology rules не ослаблялись: исправлены сами templates;
+- следующей задачей назначена `R2-05`.
 
 ### 2026-08-01 — R2-03 — DONE
 

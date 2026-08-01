@@ -136,11 +136,11 @@ const STEP_BUILDERS: Record<LoopType, StepBuilder> = {
     const m2 = mechanics[2] || "Награда";
     const m3 = mechanics[3] || "Прокачка";
     return [
-      { action: `Найти цель (${m0})`, mechanics: [m0], resources_consumed: [], resources_produced: ["momentum"], feedback_type: "neutral", duration_estimate: scale.short },
-      { action: `Атаковать (${m1})`, mechanics: [m1], resources_consumed: ["momentum"], resources_produced: ["combo"], feedback_type: "positive", duration_estimate: scale.medium },
+      { action: `Найти цель (${m0})`, mechanics: [m0], resources_consumed: ["momentum"], resources_produced: ["target_lock"], feedback_type: "neutral", duration_estimate: scale.short },
+      { action: `Атаковать (${m1})`, mechanics: [m1], resources_consumed: ["target_lock"], resources_produced: ["combo"], feedback_type: "positive", duration_estimate: scale.medium },
       { action: `Собрать награду (${m2})`, mechanics: [m2], resources_consumed: ["combo"], resources_produced: ["xp"], feedback_type: "positive", duration_estimate: scale.short },
       { action: `Улучшить (${m3})`, mechanics: [m3], resources_consumed: ["xp"], resources_produced: ["power"], feedback_type: "positive", duration_estimate: scale.medium },
-      { action: "Повторить с большей силой", mechanics: [m0], resources_consumed: ["power"], resources_produced: ["momentum"], feedback_type: "positive", duration_estimate: scale.long },
+      { action: "Повторить с возросшей сложностью", mechanics: [m0], resources_consumed: ["power"], resources_produced: ["momentum"], feedback_type: "negative", duration_estimate: scale.long },
     ];
   },
   economy: (mechanics, scale) => {
@@ -214,11 +214,11 @@ const STEP_BUILDERS: Record<LoopType, StepBuilder> = {
     const m2 = mechanics[2] || "Размещение";
     const m3 = mechanics[3] || "Проверка";
     return [
-      { action: `Сканировать доску (${m0})`, mechanics: [m0], resources_consumed: [], resources_produced: [], feedback_type: "neutral", duration_estimate: scale.short },
-      { action: `Анализировать (${m1})`, mechanics: [m1], resources_consumed: [], resources_produced: ["pattern"], feedback_type: "neutral", duration_estimate: scale.medium },
+      { action: `Сканировать доску (${m0})`, mechanics: [m0], resources_consumed: ["board_ready"], resources_produced: ["observation"], feedback_type: "neutral", duration_estimate: scale.short },
+      { action: `Анализировать (${m1})`, mechanics: [m1], resources_consumed: ["observation"], resources_produced: ["pattern"], feedback_type: "neutral", duration_estimate: scale.medium },
       { action: `Разместить элемент (${m2})`, mechanics: [m2], resources_consumed: ["pattern"], resources_produced: ["placement"], feedback_type: "neutral", duration_estimate: scale.medium },
       { action: `Проверить (${m3})`, mechanics: [m3], resources_consumed: ["placement"], resources_produced: ["match"], feedback_type: "positive", duration_estimate: scale.short },
-      { action: "Очистить линию", mechanics: [m0], resources_consumed: ["match"], resources_produced: ["clear_bonus"], feedback_type: "positive", duration_estimate: scale.short },
+      { action: "Очистить линию или отменить ход", mechanics: [m0, "Undo/Hint"], resources_consumed: ["match"], resources_produced: ["board_ready"], feedback_type: "positive", duration_estimate: scale.short },
     ];
   },
 };

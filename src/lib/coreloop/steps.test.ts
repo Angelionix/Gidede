@@ -5,6 +5,17 @@
 
 import { describe, it, expect } from "vitest";
 import { buildSteps } from "./steps";
+import { classifyStructuralType } from "./classify";
+import { detectPathologies } from "./pathologies";
+import { buildValidation } from "./validation";
+
+function validateDefaultTemplate(type: "engine" | "puzzle", genre: string, aesthetic: string) {
+  const mechanics = ["M1", "M2", "M3", "M4"];
+  const steps = buildSteps(mechanics, undefined, type, genre);
+  const structural = classifyStructuralType(mechanics, genre, aesthetic, type, steps);
+  const pathologies = detectPathologies(steps, structural);
+  return { steps, structural, pathologies, validation: buildValidation(steps, pathologies, structural) };
+}
 
 describe("buildSteps — TASK-2.1: параметризация по типу", () => {
   it("engine builder: 5 steps, momentum-based", () => {
@@ -13,6 +24,14 @@ describe("buildSteps — TASK-2.1: параметризация по типу", 
     expect(steps[0].action).toContain("Найти цель");
     expect(steps[1].action).toContain("Атаковать");
     expect(steps[4].action).toContain("Повторить");
+  });
+
+  it("engine default has a brake and passes its mandatory structural checks", () => {
+    const result = validateDefaultTemplate("engine", "shooter", "challenge");
+    expect(result.structural.has_braking).toBe(true);
+    expect(result.pathologies.critical_count).toBe(0);
+    expect(result.validation.loop_closedness.step_path).toEqual([4, 0]);
+    expect(result.validation.overall_passed).toBe(true);
   });
 
   it("economy builder: 5 steps, resource conversion", () => {
@@ -55,6 +74,14 @@ describe("buildSteps — TASK-2.1: параметризация по типу", 
     expect(steps.length).toBe(5);
     expect(steps[0].action).toContain("Сканировать доску");
     expect(steps[4].action).toContain("Очистить линию");
+  });
+
+  it("puzzle default has recovery and passes its mandatory structural checks", () => {
+    const result = validateDefaultTemplate("puzzle", "puzzle", "challenge");
+    expect(result.steps.some((step) => step.mechanics.includes("Undo/Hint"))).toBe(true);
+    expect(result.pathologies.critical_count).toBe(0);
+    expect(result.validation.loop_closedness.step_path).toEqual([4, 0]);
+    expect(result.validation.overall_passed).toBe(true);
   });
 
   it("unknown type falls back to hybrid", () => {

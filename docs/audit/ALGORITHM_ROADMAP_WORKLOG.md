@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R1-03` — runner передаёт output предыдущей стадии во вход следующей.
-- **Зависимости:** `R1-02` завершена; все результаты имеют `ArtifactEnvelope` и принимают `upstream_versions`.
-- **Ожидаемый результат:** выбранные mechanics, genre и artifact versions реально переходят между стадиями.
-- **После неё:** `R1-04` — убрать фиктивную project idea из UI/partial runner.
+- **Следующая задача:** `R1-04` — убрать фиктивную project idea из UI/partial runner.
+- **Зависимости:** `R1-03` завершена; full runner использует `PipelineContext`.
+- **Ожидаемый результат:** RU/EN project idea без подмены доходит до Concept и partial run не использует hardcoded inputs.
+- **После неё:** `R1-05` — нормализовать aliases формата GDD и количества уровней.
 
 ## Правила ведения
 
@@ -36,7 +36,7 @@
 | R0-04 | DONE | Новый roadmap назначен активным; создан единый worklog и handoff | Проверка ссылок и `git diff --check` |
 | R1-01 | DONE | Versioned Zod input/output contracts для 8 стадий | 289 tests, TypeScript, scoped ESLint |
 | R1-02 | DONE | `ArtifactEnvelope`, SHA-256 input hash и upstream tracing | 294 tests, TypeScript, scoped ESLint |
-| R1-03 | TODO | Реальная передача stage output → next input | — |
+| R1-03 | DONE | PipelineContext: stage output → next input + cumulative lineage | 300 tests, TypeScript, scoped ESLint |
 | R1-04 | TODO | Реальная project idea вместо фиктивной UI-строки | — |
 | R1-05 | TODO | Aliases `full`/`full_gdd`, `total_levels`/`target_levels` | — |
 | R1-06 | TODO | Статусы success/partial/failed/blocked/needs_review | — |
@@ -47,6 +47,44 @@
 | R2…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R1-03 — DONE
+
+Что сделано:
+
+- создан тестируемый `PipelineContext`, хранящий реальные stage outputs и накопленные artifact versions;
+- full runner разбирает JSON каждого успешного stage response и регистрирует его до построения следующего request;
+- Core Loop получает `concept_id`, generated genre, primary aesthetic и выбранные Concept mechanics;
+- MDA получает generated genre, все Concept aesthetics и тот же mechanic set;
+- Balance objects детерминированно строятся из выбранных mechanics, а не из фиксированного RPG-набора;
+- Progression и Economy получают generated genre;
+- каждая downstream-стадия получает cumulative `upstream_versions` в формате `artifactId@schemaVersion`;
+- итог full-run response содержит `artifact_versions`, а каждая завершённая стадия — `artifact_id` и `schema_version`;
+- keyword fallback расширен RU/EN и используется только при отсутствии Concept output;
+- из full runner удалены независимые hardcoded build bodies и fallback `explore/combat/reward` при наличии Concept;
+- partial runner остаётся отдельным источником фиктивных данных и назначен областью `R1-04`.
+
+Изменённые области:
+
+- `src/lib/pipeline-context.ts`
+- `src/lib/pipeline-context.test.ts`
+- `src/app/api/v1/pipeline/run-full-pipeline/[projectId]/route.ts`
+
+Проверки:
+
+- `npm run test -- src/lib/pipeline-context.test.ts` — 6 тестов пройдены;
+- `npm run test` — 16 файлов, 300 тестов пройдены;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых файлов — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- contract test подтверждает передачу Concept mechanics/genre/aesthetics в Core Loop и MDA;
+- Balance test подтверждает построение объектов из выбранных mechanics;
+- все восемь runner requests проходят соответствующие Zod input contracts;
+- lineage test подтверждает накопление реальных artifact refs по порядку стадий;
+- следующей задачей назначена `R1-04`.
 
 ### 2026-08-01 — R1-02 — DONE
 

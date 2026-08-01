@@ -36,6 +36,8 @@ export const CATEGORY_COLORS: Record<string, string> = {
 export const EMERGENCE_BADGES: Record<string, { label: string; color: string }> = {
   nominal: { label: "Номинальная", color: "bg-gray-100 text-gray-800 dark:bg-gray-950/40 dark:text-gray-300" },
   weak: { label: "Слабая", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-950/40 dark:text-yellow-300" },
+  // TASK-3.11 FIXED: added 'moderate' badge (route uses it as default, but it was missing).
+  moderate: { label: "Умеренная", color: "bg-blue-100 text-blue-800 dark:bg-blue-950/40 dark:text-blue-300" },
   multiple: { label: "Множественная", color: "bg-green-100 text-green-800 dark:bg-green-950/40 dark:text-green-300" },
   strong: { label: "Сильная", color: "bg-purple-100 text-purple-800 dark:bg-purple-950/40 dark:text-purple-300" },
 };

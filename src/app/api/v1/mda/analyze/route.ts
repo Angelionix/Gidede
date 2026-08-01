@@ -27,7 +27,6 @@ import { db } from "@/lib/db";
 import { getCurrentUser } from "@/lib/server-auth";
 import {
   getOwnedProject,
-  safeJsonParse,
   updateProjectStage,
   UNAUTH,
   SERVER_ERROR,
@@ -508,7 +507,10 @@ function buildLensValidation(
       issuesFound.push(`${lens.name}: low coherence — score ${score.toFixed(2)}`);
       suggestions.push(`Improve ${lens.name.toLowerCase()} by adding supporting mechanics`);
     }
-    if (lens.id === 41 && score > 0.7) {
+    // TASK-3.5 FIXED: Lens #41 «Доминантная стратегия» logic inverted.
+    // Before: flagged when score > 0.7 (high score = good, but flagged as problem — backwards).
+    // After: flags when score < 0.5 (low score = dominant strategy present = bad).
+    if (lens.id === 41 && score < 0.5) {
       issuesFound.push("Possible dominant strategy detected");
       suggestions.push("Add a counter-balancing mechanic to break the dominant path");
     }
@@ -851,8 +853,7 @@ export async function POST(request: NextRequest) {
 
     await updateProjectStage(proj.id, "mda");
 
-    // safeJsonParse is imported but unused here — kept for future use / linter
-    void safeJsonParse;
+    // TASK-3.18: removed dead code (void safeJsonParse).
 
     // --- Optional AI enrichment ---
     if (useAi) {

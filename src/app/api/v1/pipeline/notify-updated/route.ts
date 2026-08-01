@@ -2,11 +2,9 @@
  * POST /api/v1/pipeline/notify-updated
  *
  * Notifies the pipeline that a block was updated. The frontend's use-pipeline.ts
- * hook calls this after a block algorithm completes. In our mock implementation
- * we accept the notification and update the project's lastAlgorithmRun field
- * to reflect the activity (this is the same field updated by api-helpers'
- * updateProjectStage, but we don't change completionPercent here — that's
- * the responsibility of the per-block algorithm route).
+ * hook calls this after a block algorithm completes. The notification records
+ * activity only; it must not create a new coherent project version. Version
+ * commits belong to a fully accepted and persisted pipeline run.
  *
  * Body: { project_id: string, block_id: number, metadata?: Record<string, unknown> }
  *
@@ -58,14 +56,13 @@ export async function POST(request: NextRequest) {
     });
     if (!project) return NOT_FOUND();
 
-    // Update lastAlgorithmRun + bump version (no stage change here)
+    // Record activity without claiming that a coherent pipeline run committed.
     const updated = await db.project.update({
       where: { id: projectId },
       data: {
         lastAlgorithmRun: BLOCK_ID_TO_STAGE[blockId] || "unknown",
-        version: { increment: 1 },
       },
-      select: { updatedAt: true },
+      select: { updatedAt: true, version: true },
     });
 
     return NextResponse.json({
@@ -73,6 +70,8 @@ export async function POST(request: NextRequest) {
       project_id: projectId,
       block_id: blockId,
       updated_at: updated.updatedAt.toISOString(),
+      version_committed: false,
+      project_version: updated.version,
       metadata,
     });
   } catch (error) {

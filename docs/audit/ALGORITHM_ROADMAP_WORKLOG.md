@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R1-10` — increment версии только для согласованного сохранённого run.
-- **Зависимости:** `R1-06` и `R1-09` завершены; run statuses честны, а completion зависит только от accepted/non-stale artifacts.
-- **Ожидаемый результат:** новая версия проекта фиксирует только полностью согласованный и сохранённый run; partial/failed/blocked/needs_review не маскируются увеличением версии.
-- **После неё:** `R2-01` — добавить отдельный `CoreHypothesis` artifact.
+- **Следующая задача:** `R2-01` — передавать selected Concept mechanics/genre/aesthetic в Core Loop.
+- **Зависимости:** фаза R1 завершена; versioned pipeline contracts и фактический stage-to-stage context готовы.
+- **Ожидаемый результат:** Core Loop использует выбранные свойства принятого Concept и не возвращается к fallback `explore/combat/reward`, когда Concept заполнен.
+- **После неё:** `R2-02` — сначала определять structural type, затем строить steps.
 
 ## Правила ведения
 
@@ -43,10 +43,50 @@
 | R1-07 | DONE | Evidence-based gates, downstream blocking и безопасный `resume_from` | 316 tests, TypeScript, scoped ESLint |
 | R1-08 | DONE | Persistent freshness-map и транзитивная invalidation по dependency graph | 322 tests, TypeScript, scoped ESLint, Prisma validate |
 | R1-09 | DONE | Completion и блоки учитывают только accepted/non-stale artifacts | 324 tests, TypeScript, scoped ESLint |
-| R1-10 | TODO | Version increment только для согласованного run | — |
+| R1-10 | DONE | Version commit только для полного accepted/fresh snapshot с optimistic lock | 331 tests, TypeScript, scoped ESLint |
 | R2…R7 | TODO | См. активный roadmap | — |
 
 ## История выполнения
+
+### 2026-08-01 — R1-10 — DONE
+
+Что сделано:
+
+- введено единое решение `evaluatePipelineVersionCommit`: version commit разрешён только для `success` run, когда все восемь artifacts приняты и свежи;
+- ответы `partial`, `failed`, `blocked` и `needs_review` больше не могут увеличить `Project.version`;
+- успешные ответы стадий без полностью согласованного persisted snapshot возвращают 409/`needs_review`, а не ложный `ok: true`;
+- version increment выполняется через optimistic lock по версии, с которой стартовал run;
+- конкурентное изменение версии возвращает 409 и не выдаёт run за закоммиченный;
+- прежнее подавление ошибки version update удалено: сбой commit теперь виден клиенту;
+- `notify-updated` записывает только активность и больше не увеличивает версию;
+- partial runner явно возвращает `version_committed: false`;
+- pipeline responses сообщают `project_version`, `version_committed` и причину решения.
+
+Изменённые области:
+
+- `src/lib/pipeline-versioning.ts`
+- `src/lib/pipeline-versioning.test.ts`
+- `src/app/api/v1/pipeline/run-full-pipeline/[projectId]/route.ts`
+- `src/app/api/v1/pipeline/run-pipeline/[projectId]/route.ts`
+- `src/app/api/v1/pipeline/notify-updated/route.ts`
+
+Проверки:
+
+- versioning/status/freshness tests — 3 файла, 16 тестов пройдены;
+- `npm run test` — 22 файла, 331 тест пройден;
+- `npm run typecheck` — ошибок нет;
+- scoped ESLint затронутых файлов — ошибок нет;
+- поиск `version: { increment: 1 }` — остался только guarded commit полного pipeline;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- parameterized tests подтверждают отсутствие commit для всех четырёх non-success statuses;
+- `success` с непринятым Validation не коммитит версию;
+- изменение Concept делает downstream stale и запрещает commit до пересчёта;
+- только полный accepted/fresh snapshot разрешает increment;
+- уведомление блока и partial runner не меняют версию проекта;
+- следующей задачей назначена `R2-01`.
 
 ### 2026-08-01 — R1-09 — DONE
 

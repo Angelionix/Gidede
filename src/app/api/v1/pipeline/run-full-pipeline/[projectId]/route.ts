@@ -31,6 +31,7 @@ import {
   type QualityGateResult,
 } from "@/lib/pipeline-quality-gates";
 import { buildPersistedPipelineOutputs } from "@/lib/pipeline-persisted-outputs";
+import { evaluatePipelineVersionCommit } from "@/lib/pipeline-versioning";
 import { db } from "@/lib/db";
 
 interface StageDef {
@@ -211,6 +212,8 @@ export async function POST(
               stages_total: STAGES.length - startIndex,
               latency_ms: Date.now() - startedAt,
               completion_percent: finalSnapshot?.completionPercent ?? 0,
+              version_committed: false,
+              project_version: project.version,
               artifact_versions: context.upstreamVersions,
               stopped_by: stage.stage,
               quality_gate: qualityGate,
@@ -248,6 +251,8 @@ export async function POST(
           stages_completed: completedCount,
           stages_total: STAGES.length - startIndex,
           latency_ms: Date.now() - startedAt,
+          version_committed: false,
+          project_version: project.version,
           artifact_versions: context.upstreamVersions,
           stopped_by: stage.stage,
           resume: { from_stage: stage.stage, blocked_by: stage.stage },
@@ -276,6 +281,8 @@ export async function POST(
           stages_completed: completedCount,
           stages_total: STAGES.length - startIndex,
           latency_ms: Date.now() - startedAt,
+          version_committed: false,
+          project_version: project.version,
           artifact_versions: context.upstreamVersions,
           stopped_by: stage.stage,
           resume: { from_stage: stage.stage, blocked_by: stage.stage },
@@ -287,13 +294,71 @@ export async function POST(
     const finalSnapshot = await loadProjectPipelineSnapshot(user.id, projectId);
     const completedCount = stages.filter((stage) => stage.artifact_id).length;
     const runStatus = derivePipelineRunStatus(stages.map((stage) => stage.status));
+    const versionDecision = evaluatePipelineVersionCommit(
+      runStatus,
+      finalSnapshot?.pipelineState,
+    );
+    let committedVersion = project.version;
 
-    await db.project.update({
-      where: { id: projectId },
-      data: { version: { increment: 1 } },
-    }).catch(() => {
-      // Version consistency is handled by roadmap task R1-10.
-    });
+    if (runStatus === "success" && !versionDecision.shouldCommit) {
+      return NextResponse.json({
+        ok: false,
+        status: "needs_review",
+        execution_status: runStatus,
+        project_id: projectId,
+        concept_idea: idea,
+        resumed_from: requestedResumeStage,
+        stages,
+        stages_completed: completedCount,
+        stages_total: STAGES.length - startIndex,
+        latency_ms: Date.now() - startedAt,
+        completion_percent: finalSnapshot?.completionPercent ?? 0,
+        version_committed: false,
+        version_commit_reason: versionDecision.reason,
+        version_commit_missing_stages: versionDecision.missingStages,
+        project_version: project.version,
+        artifact_versions: context.upstreamVersions,
+        resume: null,
+        error: "The run completed, but the saved pipeline snapshot is not fully accepted and fresh.",
+      }, { status: 409 });
+    }
+
+    if (versionDecision.shouldCommit) {
+      const versionCommit = await db.project.updateMany({
+        where: {
+          id: projectId,
+          userId: user.id,
+          deletedAt: null,
+          version: project.version,
+        },
+        data: { version: { increment: 1 } },
+      });
+      if (versionCommit.count !== 1) {
+        const currentProject = await db.project.findUnique({
+          where: { id: projectId },
+          select: { version: true },
+        });
+        return NextResponse.json({
+          ok: false,
+          status: "failed",
+          project_id: projectId,
+          concept_idea: idea,
+          resumed_from: requestedResumeStage,
+          stages,
+          stages_completed: completedCount,
+          stages_total: STAGES.length - startIndex,
+          latency_ms: Date.now() - startedAt,
+          completion_percent: finalSnapshot?.completionPercent ?? 0,
+          version_committed: false,
+          project_version: currentProject?.version ?? null,
+          expected_project_version: project.version,
+          artifact_versions: context.upstreamVersions,
+          resume: null,
+          error: "Project version changed while the pipeline was running. Reload and run again.",
+        }, { status: 409 });
+      }
+      committedVersion += 1;
+    }
 
     return NextResponse.json({
       ok: isSuccessfulRun(runStatus),
@@ -306,6 +371,10 @@ export async function POST(
       stages_total: STAGES.length - startIndex,
       latency_ms: Date.now() - startedAt,
       completion_percent: finalSnapshot?.completionPercent ?? 0,
+      version_committed: versionDecision.shouldCommit,
+      version_commit_reason: versionDecision.reason,
+      version_commit_missing_stages: versionDecision.missingStages,
+      project_version: committedVersion,
       artifact_versions: context.upstreamVersions,
       resume: null,
       note: runStatus === "success"

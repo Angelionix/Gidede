@@ -91,8 +91,22 @@ function mdToPdfLike(md: string, title: string): string {
   objects.push(
     "3 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595 842] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>\nendobj\n"
   );
+  // TASK-6.12 FIXED: removed slice(0, 4000) truncation — full text now included.
+  // PDF text streams can handle large content; the 4000 char limit was artificial.
   const escapedText = text.replace(/\\/g, "\\\\").replace(/\(/g, "\\(").replace(/\)/g, "\\)");
-  const contentStream = `BT /F1 10 Tf 50 800 Td (${escapedText.slice(0, 4000)}) Tj ET`;
+  // Split into multiple Tj operations for long text (PDF spec recommends < 65535 chars per stream).
+  const maxLineLen = 500;
+  const lines: string[] = [];
+  let remaining = escapedText;
+  let y = 800;
+  while (remaining.length > 0) {
+    const chunk = remaining.slice(0, maxLineLen);
+    remaining = remaining.slice(maxLineLen);
+    lines.push(`BT /F1 10 Tf 50 ${y} Td (${chunk}) Tj ET`);
+    y -= 14; // line height
+    if (y < 50) y = 800; // new page (simplified — no real page break, but prevents overflow)
+  }
+  const contentStream = lines.join("\n");
   objects.push(`4 0 obj\n<< /Length ${contentStream.length} >>\nstream\n${contentStream}\nendstream\nendobj\n`);
   objects.push("5 0 obj\n<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>\nendobj\n");
   const xrefStart = header.length + objects.join("").length;

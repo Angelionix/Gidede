@@ -686,7 +686,8 @@ export async function POST(request: NextRequest) {
     const body = await request.json().catch(() => ({}));
     const projectId = body?.project_id?.toString().trim() || undefined;
     const useAi = body?.use_ai === true || body?.use_ai === "true";
-    const targetFormat = body?.target_format?.toString().trim() || "full_gdd";
+    // TASK-6.5 FIXED: accept both 'target_format' and 'format' (pipeline runner sends 'format').
+    const targetFormat = body?.target_format?.toString().trim() || body?.format?.toString().trim() || "full_gdd";
     const detailLevel = body?.detail_level?.toString().trim() || "standard";
     const audience = body?.target_audience_doc?.toString().trim() || "team_sync";
     const projectStage = body?.project_stage?.toString().trim() || "preproduction";
@@ -894,7 +895,9 @@ export async function POST(request: NextRequest) {
     for (const [k, v] of Object.entries(sectionsContent)) {
       const hasDiagram = /```mermaid|```graph/.test(v.content);
       const hasTables = /\|.*\|.*\n\|[-: |]+\|/.test(v.content);
-      const hasFormulas = /=|∑|∫|≤|≥/.test(v.content) && v.content.length > 0;
+      // TASK-6.11 FIXED: has_formulas regex — was matching any '=' character.
+      // Now requires math-specific patterns: equations, summations, inequalities.
+      const hasFormulas = /\b\w+\s*=\s*\w|∑|∫|≤|≥|×|÷|\^\d/.test(v.content) && v.content.length > 0;
       assembledSections[k] = {
         section_name: k.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()),
         content: v.content,
@@ -955,7 +958,14 @@ export async function POST(request: NextRequest) {
       estimated_pages: estimatedPages,
     };
 
-    const stagesCompleted = [1, 2, 3, 4, 5, 6];
+    // TASK-6.14: Dynamic stages_completed based on what was actually done.
+    const stagesCompleted: number[] = [];
+    stagesCompleted.push(1); // section catalogue
+    stagesCompleted.push(2); // data mapping
+    stagesCompleted.push(3); // auto-filled sections
+    if (useAi) stagesCompleted.push(4); // AI enrichment (only if requested)
+    stagesCompleted.push(5); // manual skeletons
+    stagesCompleted.push(6); // assembled document
     const latencyMs = Date.now() - startedAt;
 
     // --- Format spec ---

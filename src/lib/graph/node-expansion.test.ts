@@ -599,3 +599,154 @@ describe("R-NODE-EXPANSION Step 3: compilation of Effects nodes", () => {
     expect(r.html).toContain("spawnParticles");
   });
 });
+
+// ============================================================
+// R-NODE-EXPANSION Step 4: UI (4 new nodes)
+// ============================================================
+
+describe("R-NODE-EXPANSION Step 4: UI node definitions", () => {
+  const uiNodes = ["drawText", "drawBar", "showMessage", "hud"] as const;
+
+  for (const type of uiNodes) {
+    it(`${type}: is in NODE_DEFINITIONS with category=ui`, () => {
+      const def = NODE_DEFINITIONS[type];
+      expect(def).toBeDefined();
+      expect(def.category).toBe("ui");
+      expect(def.color).toBe("#a855f7"); // purple for UI
+    });
+  }
+
+  it("drawText has exec + position inputs, text/size/color defaults", () => {
+    const def = NODE_DEFINITIONS.drawText;
+    expect(def.inputs.find((p) => p.id === "position" && p.type === "vec2")).toBeDefined();
+    expect(def.defaultProperties.text).toBe("Score: 0");
+    expect(def.defaultProperties.size).toBe(24);
+    expect(def.defaultProperties.color).toBe("white");
+  });
+
+  it("drawBar has exec + position + value + max inputs", () => {
+    const def = NODE_DEFINITIONS.drawBar;
+    expect(def.inputs.find((p) => p.id === "position" && p.type === "vec2")).toBeDefined();
+    expect(def.inputs.find((p) => p.id === "value" && p.type === "number")).toBeDefined();
+    expect(def.inputs.find((p) => p.id === "max" && p.type === "number")).toBeDefined();
+    expect(def.defaultProperties.width).toBe(100);
+    expect(def.defaultProperties.height).toBe(8);
+  });
+
+  it("showMessage has text and duration defaults", () => {
+    expect(NODE_DEFINITIONS.showMessage.defaultProperties.text).toBe("Hello!");
+    expect(NODE_DEFINITIONS.showMessage.defaultProperties.duration).toBe(2.0);
+  });
+
+  it("hud has key and label defaults", () => {
+    expect(NODE_DEFINITIONS.hud.defaultProperties.key).toBe("score");
+    expect(NODE_DEFINITIONS.hud.defaultProperties.label).toBe("Score");
+  });
+});
+
+describe("R-NODE-EXPANSION Step 4: compilation of UI nodes", () => {
+  it("drawText emits drawText call with correct text and size", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("dt", "drawText", 200, 50, { text: "Level 1", size: 32, color: "yellow" }),
+        makeNode("w", "win", 400, 50),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "dt", toHandle: null },
+        { from: "dt", fromHandle: "exec", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    expect(r.html).toContain("drawText");
+    expect(r.html).toContain('"Level 1"');
+    expect(r.html).toContain("32");
+  });
+
+  it("drawBar emits drawRect for background and filled portion", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("db", "drawBar", 200, 50, { width: 120, height: 10, color: "green" }),
+        makeNode("w", "win", 400, 50),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "db", toHandle: null },
+        { from: "db", fromHandle: "exec", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    expect(r.html).toContain("drawRect");
+    // Bar uses Math.max/Math.min for percentage clamping.
+    expect(r.html).toContain("Math.max");
+    expect(r.html).toContain("Math.min");
+  });
+
+  it("showMessage declares msgTime and msgText variables", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("sm", "showMessage", 200, 50, { text: "Game Over!", duration: 3.0 }),
+        makeNode("w", "win", 400, 50),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "sm", toHandle: null },
+        { from: "sm", fromHandle: "exec", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    expect(r.html).toContain("_msgTime");
+    expect(r.html).toContain("_msgText");
+    expect(r.html).toContain('"Game Over!"');
+    // Decay logic
+    expect(r.html).toContain("decay showMessage");
+    // Render code draws the message
+    expect(r.html).toContain("drawText");
+  });
+
+  it("hud writes to __hud object", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("cnt", "counter", 200, 50, { startValue: 0, threshold: 5 }),
+        makeNode("h", "hud", 350, 50, { key: "kills", label: "Kills" }),
+        makeNode("w", "win", 500, 50),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "cnt", toHandle: "increment" },
+        // Trigger hud via exec when counter hits threshold.
+        { from: "cnt", fromHandle: "onThreshold", to: "h", toHandle: null },
+        // Pass counter.value to hud.value via data edge.
+        { from: "cnt", fromHandle: "value", to: "h", toHandle: "value" },
+        { from: "h", fromHandle: "exec", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    expect(r.html).toContain("__hud");
+    expect(r.html).toContain('"kills"');
+    expect(r.html).toContain('"Kills"');
+  });
+
+  it("drawBar can display player HP from base node", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("b", "base", 200, 50, { maxHp: 100 }),
+        makeNode("db", "drawBar", 350, 50, { width: 80, height: 6, color: "red" }),
+        makeNode("w", "win", 500, 50),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "b", toHandle: null },
+        { from: "b", fromHandle: "hp", to: "db", toHandle: "value" },
+        { from: "db", fromHandle: "exec", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    expect(r.html).toContain("drawRect");
+  });
+});

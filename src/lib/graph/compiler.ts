@@ -151,6 +151,9 @@ export function compileGraph(graph: NodeGraph): CompileResult {
     } else if (node.type === "flash") {
       ctx.updateLines.push(`  // decay flash ${node.id}`);
       ctx.updateLines.push(`  if (${v}_flashTime > 0) { ${v}_flashTime -= timeDelta; if (${v}_flashTime < 0) ${v}_flashTime = 0; }`);
+    } else if (node.type === "showMessage") {
+      ctx.updateLines.push(`  // decay showMessage ${node.id}`);
+      ctx.updateLines.push(`  if (${v}_msgTime > 0) { ${v}_msgTime -= timeDelta; if (${v}_msgTime < 0) ${v}_msgTime = 0; }`);
     }
   }
 
@@ -260,6 +263,16 @@ function declareNodeVariable(node: GraphNode, ctx: CompileContext): void {
     case "playSound":
       // no per-node state needed
       break;
+    // R-NODE-EXPANSION: UI nodes — showMessage needs a timer for auto-hide.
+    case "showMessage":
+      ctx.varLines.push(`let ${v}_msgTime = 0;`);
+      ctx.varLines.push(`let ${v}_msgText = '';`);
+      break;
+    case "drawText":
+    case "drawBar":
+    case "hud":
+      // no per-node state needed
+      break;
     default:
       // events, flow, output — no top-level variable needed
       break;
@@ -274,6 +287,9 @@ function emitRenderCode(node: GraphNode, ctx: CompileContext): void {
   const def = NODE_DEFINITIONS[node.type];
   if (!def) return;
   const v = varName(node.id);
+  // R-NODE-EXPANSION: expose props for UI nodes (drawText/drawBar read
+  // defaultProperties for text/size/color/width/height).
+  const props = node.data.properties || def.defaultProperties;
 
   switch (node.type) {
     case "player":
@@ -299,6 +315,39 @@ function emitRenderCode(node: GraphNode, ctx: CompileContext): void {
       // Draw a full-screen colored rect with fading alpha.
       ctx.renderLines.push(`  if (${v}_flashTime > 0) { const _a = ${v}_flashAlpha * (${v}_flashTime / 0.15); const _c = ${v}_flashColor === 'red' ? 'rgba(255,50,50,' + _a + ')' : ${v}_flashColor === 'green' ? 'rgba(50,255,100,' + _a + ')' : ${v}_flashColor === 'blue' ? 'rgba(80,120,255,' + _a + ')' : ${v}_flashColor === 'yellow' ? 'rgba(255,220,80,' + _a + ')' : 'rgba(255,255,255,' + _a + ')'; canvasContext.fillStyle = _c; canvasContext.fillRect(0, 0, canvasWidth, canvasHeight); }`);
       break;
+    // R-NODE-EXPANSION: UI render code.
+    case "drawText": {
+      // Read position/value via inline resolution at render time.
+      const pos = resolveDataInput(node.id, "position", ctx, props);
+      const text = str(props.text, "Score: 0");
+      const size = num(props.size, 24);
+      const colorStr = str(props.color, "white");
+      // Use LittleJS drawText with a Color derived from the color name.
+      const colorExpr = colorStrToColorExpr(colorStr);
+      ctx.renderLines.push(`  drawText(${JSON.stringify(text)}, ${pos}, ${size}, ${colorExpr});`);
+      break;
+    }
+    case "drawBar": {
+      const pos = resolveDataInput(node.id, "position", ctx, props);
+      const val = resolveDataInput(node.id, "value", ctx, props);
+      const max = resolveDataInput(node.id, "max", ctx, props);
+      const width = num(props.width, 100);
+      const height = num(props.height, 8);
+      const colorStr = str(props.color, "green");
+      const colorExpr = colorStrToColorExpr(colorStr);
+      // Background bar + filled portion.
+      ctx.renderLines.push(`  { const _pct = Math.max(0, Math.min(1, ${max} > 0 ? ${val} / ${max} : 0)); drawRect(${pos}, vec2(${width}, ${height}), new Color(0.15, 0.2, 0.3, 1)); drawRect(${pos}.add(vec2(-${width}/2 + ${width}*_pct/2, 0)), vec2(${width}*_pct, ${height}), ${colorExpr}); }`);
+      break;
+    }
+    case "showMessage": {
+      // Render the message text centered on screen while _msgTime > 0.
+      ctx.renderLines.push(`  if (${v}_msgTime > 0) { drawText(${v}_msgText, vec2(canvasWidth/2, canvasHeight/2), 32, new Color(1,1,1,1)); }`);
+      break;
+    }
+    case "hud": {
+      // HUD is rendered via emitHud() reading __hud map. No per-node render.
+      break;
+    }
     default:
       // non-entity nodes have no render code
       break;
@@ -795,6 +844,44 @@ function emitNodeBody(
       emitFollowers(node, ctx, lines, indent);
       break;
     }
+
+    // ============================================================
+    // R-NODE-EXPANSION: UI (4 new nodes)
+    // ============================================================
+    case "drawText": {
+      // Render code is emitted by emitRenderCode. Body just passes exec through.
+      lines.push(`${indent}// drawText ${node.id}`);
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
+
+    case "drawBar": {
+      lines.push(`${indent}// drawBar ${node.id}`);
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
+
+    case "showMessage": {
+      const text = str(props.text, "Hello!");
+      const duration = num(props.duration, 2.0);
+      lines.push(`${indent}// showMessage ${node.id}`);
+      lines.push(`${indent}${v}_msgTime = ${duration};`);
+      lines.push(`${indent}${v}_msgText = ${JSON.stringify(text)};`);
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
+
+    case "hud": {
+      const key = str(props.key, "score");
+      const label = str(props.label, "Score");
+      const val = resolveDataInput(node.id, "value", ctx, props);
+      lines.push(`${indent}// hud ${node.id} key=${key}`);
+      // Write to a shared __hud object that emitHud() reads.
+      lines.push(`${indent}if (typeof __hud === 'undefined') __hud = {};`);
+      lines.push(`${indent}__hud[${JSON.stringify(key)}] = { value: ${val}, label: ${JSON.stringify(label)} };`);
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
   }
 }
 
@@ -834,6 +921,12 @@ function soundNameToSfxCall(soundName: string): string {
     lose: "sfxLose()",
   };
   return map[lower] ?? "sfxCollect()";
+}
+
+// R-NODE-EXPANSION: UI helper — same color mapping but returns a Color
+// expression (alias of colorStrToExpr for clarity in UI context).
+function colorStrToColorExpr(colorStr: string): string {
+  return colorStrToExpr(colorStr);
 }
 
 /** Emit followers connected to a specific exec output handle (e.g. "true", "false", "onCollect"). */

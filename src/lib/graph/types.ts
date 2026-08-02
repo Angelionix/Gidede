@@ -43,7 +43,12 @@ export type NodeType =
   | "particles"
   | "playSound"
   | "screenShake"
-  | "flash";
+  | "flash"
+  // R-NODE-EXPANSION: UI (4 new nodes)
+  | "drawText"
+  | "drawBar"
+  | "showMessage"
+  | "hud";
 
 export type PinType = "exec" | "number" | "string" | "boolean" | "vec2" | "entity" | "array";
 
@@ -57,8 +62,8 @@ export interface NodeDefinition {
   type: NodeType;
   label: string;
   icon: string;
-  // R-NODE-EXPANSION: added "state" and "effects" categories.
-  category: "event" | "entity" | "flow" | "data" | "output" | "state" | "effects";
+  // R-NODE-EXPANSION: added "state", "effects", and "ui" categories.
+  category: "event" | "entity" | "flow" | "data" | "output" | "state" | "effects" | "ui";
   color: string;
   inputs: NodePin[];
   outputs: NodePin[];
@@ -576,6 +581,61 @@ export const NODE_DEFINITIONS: Record<NodeType, NodeDefinition> = {
     outputs: [{ id: "exec", label: "→", type: "exec" }],
     defaultProperties: { color: "white", alpha: 0.5, duration: 0.15 },
   },
+
+  // ============================================================
+  // R-NODE-EXPANSION: UI (4 new nodes, category=ui)
+  // ============================================================
+  drawText: {
+    type: "drawText",
+    label: "Draw Text",
+    icon: "📝",
+    category: "ui",
+    color: "#a855f7",
+    inputs: [
+      { id: "exec", label: "→", type: "exec" },
+      { id: "position", label: "pos", type: "vec2" },
+    ],
+    outputs: [{ id: "exec", label: "→", type: "exec" }],
+    defaultProperties: { text: "Score: 0", size: 24, color: "white" },
+  },
+  drawBar: {
+    type: "drawBar",
+    label: "Draw Bar",
+    icon: "📊",
+    category: "ui",
+    color: "#a855f7",
+    inputs: [
+      { id: "exec", label: "→", type: "exec" },
+      { id: "position", label: "pos", type: "vec2" },
+      { id: "value", label: "value", type: "number" },
+      { id: "max", label: "max", type: "number" },
+    ],
+    outputs: [{ id: "exec", label: "→", type: "exec" }],
+    defaultProperties: { width: 100, height: 8, color: "green" },
+  },
+  showMessage: {
+    type: "showMessage",
+    label: "Show Message",
+    icon: "💬",
+    category: "ui",
+    color: "#a855f7",
+    inputs: [{ id: "exec", label: "→", type: "exec" }],
+    outputs: [{ id: "exec", label: "→", type: "exec" }],
+    defaultProperties: { text: "Hello!", duration: 2.0 },
+  },
+  hud: {
+    type: "hud",
+    label: "Set HUD",
+    icon: "🖥️",
+    category: "ui",
+    color: "#a855f7",
+    inputs: [
+      { id: "exec", label: "→", type: "exec" },
+      { id: "value", label: "value", type: "number" },
+    ],
+    outputs: [{ id: "exec", label: "→", type: "exec" }],
+    defaultProperties: { key: "score", label: "Score" },
+  },
 };
 
 export const NODE_CATEGORIES = [
@@ -585,6 +645,7 @@ export const NODE_CATEGORIES = [
   { id: "data", label: "Data", color: "#10b981" },
   { id: "state", label: "Variables & State", color: "#f97316" },
   { id: "effects", label: "Effects", color: "#06b6d4" },
+  { id: "ui", label: "UI", color: "#a855f7" },
   { id: "output", label: "Output", color: "#ef4444" },
 ] as const;
 

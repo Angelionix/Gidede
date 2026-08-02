@@ -448,3 +448,154 @@ describe("R-NODE-EXPANSION Step 2: compilation of Variables & State nodes", () =
     expect(matches.length).toBe(1);
   });
 });
+
+// ============================================================
+// R-NODE-EXPANSION Step 3: Effects (4 new nodes)
+// ============================================================
+
+describe("R-NODE-EXPANSION Step 3: Effects node definitions", () => {
+  const effectNodes = ["particles", "playSound", "screenShake", "flash"] as const;
+
+  for (const type of effectNodes) {
+    it(`${type}: is in NODE_DEFINITIONS with category=effects`, () => {
+      const def = NODE_DEFINITIONS[type];
+      expect(def).toBeDefined();
+      expect(def.category).toBe("effects");
+      expect(def.color).toBe("#06b6d4"); // cyan for effects
+    });
+  }
+
+  it("particles has exec + position inputs, exec output", () => {
+    const def = NODE_DEFINITIONS.particles;
+    expect(def.inputs.find((p) => p.id === "exec" && p.type === "exec")).toBeDefined();
+    expect(def.inputs.find((p) => p.id === "position" && p.type === "vec2")).toBeDefined();
+    expect(def.outputs.find((p) => p.type === "exec")).toBeDefined();
+  });
+
+  it("playSound has soundName defaultProperty", () => {
+    expect(NODE_DEFINITIONS.playSound.defaultProperties.soundName).toBe("collect");
+  });
+
+  it("screenShake has intensity and duration defaults", () => {
+    expect(NODE_DEFINITIONS.screenShake.defaultProperties.intensity).toBe(8);
+    expect(NODE_DEFINITIONS.screenShake.defaultProperties.duration).toBe(0.3);
+  });
+
+  it("flash has color, alpha, duration defaults", () => {
+    expect(NODE_DEFINITIONS.flash.defaultProperties.color).toBe("white");
+    expect(NODE_DEFINITIONS.flash.defaultProperties.alpha).toBe(0.5);
+    expect(NODE_DEFINITIONS.flash.defaultProperties.duration).toBe(0.15);
+  });
+});
+
+describe("R-NODE-EXPANSION Step 3: compilation of Effects nodes", () => {
+  it("particles emits spawnParticles call", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("p", "particles", 200, 50, { count: 15, color: "red" }),
+        makeNode("w", "win", 400, 50),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "p", toHandle: null },
+        { from: "p", fromHandle: "exec", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    expect(r.html).toContain("spawnParticles");
+    // Red color → new Color(1,0.3,0.3,1)
+    expect(r.html).toContain("new Color(1,0.3,0.3,1)");
+  });
+
+  it("playSound emits correct sfx function per soundName", () => {
+    const sounds: Record<string, string> = {
+      collect: "sfxCollect",
+      convert: "sfxConvert",
+      hit: "sfxHit",
+      win: "sfxWin",
+      lose: "sfxLose",
+    };
+    for (const [name, fn] of Object.entries(sounds)) {
+      const g = makeGraph(
+        [
+          makeNode("start", "onGameStart"),
+          makeNode("ps", "playSound", 200, 50, { soundName: name }),
+          makeNode("w", "win", 400, 50),
+        ],
+        [
+          { from: "start", fromHandle: "exec", to: "ps", toHandle: null },
+          { from: "ps", fromHandle: "exec", to: "w", toHandle: "trigger" },
+        ],
+      );
+      const r = compileGraph(g);
+      expect(r.valid).toBe(true);
+      expect(r.html).toContain(fn);
+    }
+  });
+
+  it("screenShake declares shakeTime and shakeIntensity variables", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("ss", "screenShake", 200, 50, { intensity: 12, duration: 0.5 }),
+        makeNode("w", "win", 400, 50),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "ss", toHandle: null },
+        { from: "ss", fromHandle: "exec", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    expect(r.html).toContain("_shakeTime");
+    expect(r.html).toContain("_shakeIntensity");
+    // Decay logic in update
+    expect(r.html).toContain("decay screenShake");
+  });
+
+  it("flash declares flashTime, flashAlpha, flashColor variables", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("f", "flash", 200, 50, { color: "red", alpha: 0.7, duration: 0.2 }),
+        makeNode("w", "win", 400, 50),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "f", toHandle: null },
+        { from: "f", fromHandle: "exec", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    expect(r.html).toContain("_flashTime");
+    expect(r.html).toContain("_flashAlpha");
+    expect(r.html).toContain("_flashColor");
+    expect(r.html).toContain("decay flash");
+    // Flash renders a fillRect overlay
+    expect(r.html).toContain("fillRect");
+  });
+
+  it("particles can be triggered on collect event", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("player", "player", 50, 150),
+        makeNode("c", "collectible", 200, 50, { count: 3 }),
+        makeNode("p", "particles", 350, 50, { count: 8, color: "yellow" }),
+        makeNode("cnt", "counter", 500, 50, { threshold: 3 }),
+        makeNode("w", "win", 650, 50),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "player", toHandle: null },
+        { from: "start", fromHandle: "exec", to: "c", toHandle: null },
+        { from: "c", fromHandle: "onCollect", to: "p", toHandle: null },
+        { from: "p", fromHandle: "exec", to: "cnt", toHandle: "increment" },
+        { from: "cnt", fromHandle: "onThreshold", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    expect(r.html).toContain("spawnParticles");
+  });
+});

@@ -141,6 +141,19 @@ export function compileGraph(graph: NodeGraph): CompileResult {
   // --- Phase D: HUD rendering (score/timer/hp) ---
   emitHud(ctx);
 
+  // R-NODE-EXPANSION: Effects decay — screenShake and flash timers tick down
+  // every frame. Emit this BEFORE Phase E so the decay lines are in updateLines.
+  for (const node of graph.nodes) {
+    const v = varName(node.id);
+    if (node.type === "screenShake") {
+      ctx.updateLines.push(`  // decay screenShake ${node.id}`);
+      ctx.updateLines.push(`  if (${v}_shakeTime > 0) { ${v}_shakeTime -= timeDelta; if (${v}_shakeTime < 0) ${v}_shakeTime = 0; }`);
+    } else if (node.type === "flash") {
+      ctx.updateLines.push(`  // decay flash ${node.id}`);
+      ctx.updateLines.push(`  if (${v}_flashTime > 0) { ${v}_flashTime -= timeDelta; if (${v}_flashTime < 0) ${v}_flashTime = 0; }`);
+    }
+  }
+
   // --- Phase E: generate HTML (2D LittleJS or 3D Three.js) ---
   const is3D = graph.settings?.mode === "3d";
   const html = is3D
@@ -232,6 +245,21 @@ function declareNodeVariable(node: GraphNode, ctx: CompileContext): void {
         ctx.varLines.push(`let ${v}_loaded = 0;`);
       }
       break;
+    // R-NODE-EXPANSION: Effects nodes — screenShake and flash need
+    // per-instance state vars for their timed effect.
+    case "screenShake":
+      ctx.varLines.push(`let ${v}_shakeTime = 0;`);
+      ctx.varLines.push(`let ${v}_shakeIntensity = 0;`);
+      break;
+    case "flash":
+      ctx.varLines.push(`let ${v}_flashTime = 0;`);
+      ctx.varLines.push(`let ${v}_flashAlpha = 0;`);
+      ctx.varLines.push(`let ${v}_flashColor = 'white';`);
+      break;
+    case "particles":
+    case "playSound":
+      // no per-node state needed
+      break;
     default:
       // events, flow, output — no top-level variable needed
       break;
@@ -259,6 +287,17 @@ function emitRenderCode(node: GraphNode, ctx: CompileContext): void {
       break;
     case "base":
       ctx.renderLines.push(`  drawRect(vec2(canvasWidth-15, canvasHeight/2), vec2(20, 60), new Color(0.2,0.5,1,1), 0, new Color(0.5,0.7,1,1), 2);`);
+      break;
+    // R-NODE-EXPANSION: Effects render code.
+    case "screenShake":
+      // Apply shake offset to canvas while shakeTime > 0 (decay in update).
+      ctx.renderLines.push(`  if (${v}_shakeTime > 0) { const _sx = (Math.random()-0.5)*${v}_shakeIntensity; const _sy = (Math.random()-0.5)*${v}_shakeIntensity; canvasContext.save(); canvasContext.translate(_sx, _sy); }`);
+      // After main render, restore — we add a "post-render" line at the end.
+      ctx.renderLines.push(`  /* end-shake-${v} */ if (${v}_shakeTime > 0) { canvasContext.restore(); }`);
+      break;
+    case "flash":
+      // Draw a full-screen colored rect with fading alpha.
+      ctx.renderLines.push(`  if (${v}_flashTime > 0) { const _a = ${v}_flashAlpha * (${v}_flashTime / 0.15); const _c = ${v}_flashColor === 'red' ? 'rgba(255,50,50,' + _a + ')' : ${v}_flashColor === 'green' ? 'rgba(50,255,100,' + _a + ')' : ${v}_flashColor === 'blue' ? 'rgba(80,120,255,' + _a + ')' : ${v}_flashColor === 'yellow' ? 'rgba(255,220,80,' + _a + ')' : 'rgba(255,255,255,' + _a + ')'; canvasContext.fillStyle = _c; canvasContext.fillRect(0, 0, canvasWidth, canvasHeight); }`);
       break;
     default:
       // non-entity nodes have no render code
@@ -710,12 +749,92 @@ function emitNodeBody(
       emitFollowers(node, ctx, lines, indent);
       break;
     }
+
+    // ============================================================
+    // R-NODE-EXPANSION: Effects (4 new nodes)
+    // ============================================================
+    case "particles": {
+      const pos = resolveDataInput(node.id, "position", ctx, props);
+      const count = num(props.count, 10);
+      const colorStr = str(props.color, "gold");
+      const colorExpr = colorStrToExpr(colorStr);
+      lines.push(`${indent}// particles ${node.id}`);
+      lines.push(`${indent}spawnParticles(${pos}, ${count}, ${colorExpr});`);
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
+
+    case "playSound": {
+      const soundName = str(props.soundName, "collect");
+      lines.push(`${indent}// playSound ${node.id} ${soundName}`);
+      // Map soundName to the existing sfx functions.
+      const sfxCall = soundNameToSfxCall(soundName);
+      lines.push(`${indent}${sfxCall};`);
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
+
+    case "screenShake": {
+      const intensity = num(props.intensity, 8);
+      const duration = num(props.duration, 0.3);
+      lines.push(`${indent}// screenShake ${node.id}`);
+      lines.push(`${indent}${v}_shakeTime = ${duration};`);
+      lines.push(`${indent}${v}_shakeIntensity = ${intensity};`);
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
+
+    case "flash": {
+      const colorStr = str(props.color, "white");
+      const alpha = num(props.alpha, 0.5);
+      const duration = num(props.duration, 0.15);
+      lines.push(`${indent}// flash ${node.id}`);
+      lines.push(`${indent}${v}_flashTime = ${duration};`);
+      lines.push(`${indent}${v}_flashAlpha = ${alpha};`);
+      lines.push(`${indent}${v}_flashColor = ${JSON.stringify(colorStr)};`);
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
   }
 }
 
 // ============================================================
 // Helpers
 // ============================================================
+
+// R-NODE-EXPANSION: Effects helpers.
+
+/** Map a color name string to a LittleJS Color expression. */
+function colorStrToExpr(colorStr: string): string {
+  const lower = colorStr.toLowerCase();
+  const map: Record<string, string> = {
+    red: "new Color(1,0.3,0.3,1)",
+    green: "new Color(0.2,0.9,0.5,1)",
+    blue: "new Color(0.3,0.5,1,1)",
+    yellow: "new Color(1,0.8,0.2,1)",
+    gold: "new Color(1,0.85,0.2,1)",
+    white: "new Color(1,1,1,1)",
+    black: "new Color(0,0,0,1)",
+    purple: "new Color(0.7,0.3,1,1)",
+    orange: "new Color(1,0.6,0.2,1)",
+    cyan: "new Color(0.2,0.9,1,1)",
+    pink: "new Color(1,0.4,0.8,1)",
+  };
+  return map[lower] ?? "new Color(1,0.8,0.2,1)";
+}
+
+/** Map a soundName string to the existing sfx function call. */
+function soundNameToSfxCall(soundName: string): string {
+  const lower = soundName.toLowerCase();
+  const map: Record<string, string> = {
+    collect: "sfxCollect()",
+    convert: "sfxConvert()",
+    hit: "sfxHit()",
+    win: "sfxWin()",
+    lose: "sfxLose()",
+  };
+  return map[lower] ?? "sfxCollect()";
+}
 
 /** Emit followers connected to a specific exec output handle (e.g. "true", "false", "onCollect"). */
 function emitFollowersByHandle(

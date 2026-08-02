@@ -38,7 +38,12 @@ export type NodeType =
   | "setVar"
   | "getVar"
   | "saveState"
-  | "loadState";
+  | "loadState"
+  // R-NODE-EXPANSION: Effects (4 new nodes)
+  | "particles"
+  | "playSound"
+  | "screenShake"
+  | "flash";
 
 export type PinType = "exec" | "number" | "string" | "boolean" | "vec2" | "entity" | "array";
 
@@ -52,8 +57,8 @@ export interface NodeDefinition {
   type: NodeType;
   label: string;
   icon: string;
-  // R-NODE-EXPANSION: added "state" category for Variables & State nodes.
-  category: "event" | "entity" | "flow" | "data" | "output" | "state";
+  // R-NODE-EXPANSION: added "state" and "effects" categories.
+  category: "event" | "entity" | "flow" | "data" | "output" | "state" | "effects";
   color: string;
   inputs: NodePin[];
   outputs: NodePin[];
@@ -524,6 +529,53 @@ export const NODE_DEFINITIONS: Record<NodeType, NodeDefinition> = {
     ],
     defaultProperties: { key: "progress", defaultValue: 0 },
   },
+
+  // ============================================================
+  // R-NODE-EXPANSION: Effects (4 new nodes, category=effects)
+  // ============================================================
+  particles: {
+    type: "particles",
+    label: "Particles",
+    icon: "✨",
+    category: "effects",
+    color: "#06b6d4",
+    inputs: [
+      { id: "exec", label: "→", type: "exec" },
+      { id: "position", label: "pos", type: "vec2" },
+    ],
+    outputs: [{ id: "exec", label: "→", type: "exec" }],
+    defaultProperties: { count: 10, color: "gold" },
+  },
+  playSound: {
+    type: "playSound",
+    label: "Play Sound",
+    icon: "🔊",
+    category: "effects",
+    color: "#06b6d4",
+    inputs: [{ id: "exec", label: "→", type: "exec" }],
+    outputs: [{ id: "exec", label: "→", type: "exec" }],
+    defaultProperties: { soundName: "collect" },
+  },
+  screenShake: {
+    type: "screenShake",
+    label: "Screen Shake",
+    icon: "📳",
+    category: "effects",
+    color: "#06b6d4",
+    inputs: [{ id: "exec", label: "→", type: "exec" }],
+    outputs: [{ id: "exec", label: "→", type: "exec" }],
+    defaultProperties: { intensity: 8, duration: 0.3 },
+  },
+  flash: {
+    type: "flash",
+    label: "Screen Flash",
+    icon: "⚡",
+    category: "effects",
+    color: "#06b6d4",
+    inputs: [{ id: "exec", label: "→", type: "exec" }],
+    outputs: [{ id: "exec", label: "→", type: "exec" }],
+    defaultProperties: { color: "white", alpha: 0.5, duration: 0.15 },
+  },
 };
 
 export const NODE_CATEGORIES = [
@@ -532,6 +584,7 @@ export const NODE_CATEGORIES = [
   { id: "flow", label: "Flow Control", color: "#8b5cf6" },
   { id: "data", label: "Data", color: "#10b981" },
   { id: "state", label: "Variables & State", color: "#f97316" },
+  { id: "effects", label: "Effects", color: "#06b6d4" },
   { id: "output", label: "Output", color: "#ef4444" },
 ] as const;
 

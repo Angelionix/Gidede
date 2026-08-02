@@ -108,7 +108,10 @@ export const FORMAT_SECTIONS: Record<string, string[]> = {
     "ui_mockups",
     "tech_notes",
   ],
-  // TASK-6.1: Expanded from 21 to 38 sections (Bible 11.3.3).
+  // TASK-6.1: Expanded from 21 to 51 sections (Bible 11.3.3 — 38 Rogers
+  // sections + 13 extra project-management sections).
+  // fix-7: added 6 previously-missing Bible 11.3.3 sections — difficulty,
+  // difficulty_curve, social_features, meta_game, tech_requirements, license_ip.
   full_gdd: [
     "title",
     "logline",
@@ -119,6 +122,7 @@ export const FORMAT_SECTIONS: Record<string, string[]> = {
     "aesthetics",
     "balance",
     "progression",
+    "difficulty", // fix-7 (Bible 11.3.3 #13)
     "economy",
     "narrative",
     "world_overview",
@@ -130,13 +134,16 @@ export const FORMAT_SECTIONS: Record<string, string[]> = {
     "branching_structure",
     "target_audience",
     "monetization",
+    "license_ip", // fix-7 (Bible 11.3.3 #6 — placed near monetization/legal)
     "platforms",
+    "tech_requirements", // fix-7 (Bible 11.3.3 #35 — near platforms)
     "ux",
     "ux_flow",
     "ui_mockups",
     "controls",
     "camera",
     "game_modes",
+    "social_features", // fix-7 (Bible 11.3.3 #33 — near game_modes/multiplayer)
     "dialogues",
     "quests",
     "lore_and_world",
@@ -145,6 +152,7 @@ export const FORMAT_SECTIONS: Record<string, string[]> = {
     "combat_spaces",
     "resources",
     "tech_tree",
+    "difficulty_curve", // fix-7 (Bible 11.3.3 #27 — near tech_tree/progression)
     "hud_ui",
     "menus_navigation",
     "visual_style",
@@ -154,6 +162,7 @@ export const FORMAT_SECTIONS: Record<string, string[]> = {
     "risks",
     "team_fit",
     "live_ops_plan",
+    "meta_game", // fix-7 (Bible 11.3.3 #34 — near monetization/live_ops_plan)
     "milestones",
   ],
   concept_doc: [
@@ -236,6 +245,13 @@ const SECTION_TO_ARTIFACT: Record<string, { artifact: string }> = {
   tone_voice: { artifact: "mdaProfile" },
   story_mechanics: { artifact: "coreLoop" },
   branching_structure: { artifact: "coreLoop" },
+  // fix-7: 6 new Bible 11.3.3 sections mapped to their upstream artifacts.
+  difficulty: { artifact: "progression" },
+  difficulty_curve: { artifact: "progression" },
+  social_features: { artifact: "concept" },
+  meta_game: { artifact: "economy" },
+  tech_requirements: { artifact: "concept" },
+  license_ip: { artifact: "concept" },
 };
 
 interface ProjectData {
@@ -852,6 +868,321 @@ function deriveSectionContent(
         source: "template",
         requires_review: true,
       };
+    // fix-7: 6 previously-missing Bible 11.3.3 sections.
+    // Each derives content from upstream artifacts where possible, falling
+    // back to a structured genre-aware template only when no upstream data
+    // exists. Content is always 3+ sentences (no "TBD" / "TODO" placeholders).
+    case "difficulty": {
+      // Derive from progression.validation.checks + tierCount if available,
+      // otherwise template with genre-based difficulty level defaults.
+      const progressionValidation = progression?.validation
+        ? safeJsonParse<Record<string, unknown>>(progression.validation, {})
+        : {};
+      const checks = progressionValidation.checks as Record<string, boolean> | undefined;
+      const tierCount = progression?.tierCount ?? 0;
+      const genreDifficultyMap: Record<string, string[]> = {
+        rpg: ["Easy", "Normal", "Hard", "Nightmare"],
+        mmorpg: ["Casual", "Normal", "Hard", "Mythic"],
+        shooter: ["Recruit", "Soldier", "Veteran", "Elite"],
+        strategy: ["Easy", "Normal", "Hard", "Insane"],
+        puzzle: ["Casual", "Normal", "Expert"],
+        horror: ["Story", "Normal", "Hardcore"],
+        adventure: ["Story", "Normal", "Hard"],
+        fighting: ["Rookie", "Pro", "Master"],
+        rhythm: ["Easy", "Normal", "Hard", "Expert"],
+        idle: ["Casual", "Active", "Hardcore"],
+      };
+      const levels = genreDifficultyMap[genre] || ["Easy", "Normal", "Hard"];
+      const checkKeys = checks ? Object.keys(checks) : [];
+      const passedCount = checks
+        ? checkKeys.filter((k) => checks[k] === true).length
+        : null;
+      const content = isRu
+        ? `## Сложность\n\nСистема сложности «${name}» (жанр: ${genre}) предлагает ${levels.length} уровней: ${levels.join(" / ")}.\n\n${tierCount > 0 ? `Прогрессия разбита на ${tierCount} тиров, каждый со своей кривой сложности (см. difficulty_curve).` : "Тир-модель не задана — кривая сложности выводится из жанровых конвенций."}\n\n${passedCount !== null ? `Валидация прогрессии: пройдено ${passedCount} из ${checkKeys.length} проверок.` : "Валидация прогрессии не проводилась — значения по умолчанию требуют ручной проверки."}\n\nМодификаторы сложности: здоровье врагов, урон врагов, частота checkpoint, доступность tutorial hints. Accessibility: настраиваемые привязки управления, опции цвета/шрифта, возможность пропуска QTE, ассистивный режим (auto-aim, slow-motion). Целевая аудитория: опытные игроки жанра ${genre}.`
+        : `## Difficulty\n\nThe difficulty system of "${name}" (genre: ${genre}) offers ${levels.length} levels: ${levels.join(" / ")}.\n\n${tierCount > 0 ? `Progression is split into ${tierCount} tiers, each with its own difficulty curve (see difficulty_curve).` : "Tier model is not set — difficulty curve is derived from genre conventions."}\n\n${passedCount !== null ? `Progression validation: ${passedCount} of ${checkKeys.length} checks passed.` : "Progression validation not conducted — default values require manual review."}\n\nDifficulty modifiers: enemy health, enemy damage, checkpoint frequency, tutorial hint availability. Accessibility: remappable controls, color/font options, QTE skip, assistive mode (auto-aim, slow-motion). Target audience: experienced ${genre} players.`;
+      return {
+        content,
+        source: progression ? "auto_fill" : "template",
+        requires_review: !progression,
+      };
+    }
+    case "difficulty_curve": {
+      // Derive from progression.curves.difficulty (type/formula/growth_rate)
+      // and progression.tierModel (per-tier curve). Template fallback cites
+      // the linear-then-exponential principle.
+      const curves = progression?.curves
+        ? safeJsonParse<Record<string, { type?: string; formula?: string; parameters?: Record<string, number> }>>(progression.curves, {})
+        : {};
+      const difficultyCurve = curves.difficulty;
+      const tierModel = progression?.tierModel
+        ? safeJsonParse<{ tiers?: Array<{ name?: string; difficulty_curve?: string }> }>(progression.tierModel, {})
+        : {};
+      const tierCurves = (tierModel.tiers || [])
+        .map((t) => `${t.name || "Tier"}: ${t.difficulty_curve || "—"}`)
+        .join(", ");
+      if (difficultyCurve) {
+        const curveType = difficultyCurve.type || "—";
+        const formula = difficultyCurve.formula || "—";
+        const growthRate = difficultyCurve.parameters?.growth_rate;
+        const content = isRu
+          ? `## Кривая сложности\n\nКривая сложности «${name}» — тип: ${curveType}.${formula !== "—" ? ` Формула: ${formula}` : ""}${growthRate !== undefined ? ` Коэффициент роста: ${growthRate}` : ""}\n\n${tierCurves ? `Тир-модель: ${tierCurves}.` : "Тир-модель не задана."}\n\nПринцип: первые 30% контента — линейный рост (onboarding), затем кривая ускоряется к потолку мастерства. Perceived difficulty отслеживается через content_plan.perceived_difficulty_table. Баланс потока (flow): при выходе за пределы ±15% от целевого perceived difficulty — корректировка врагов/наград.`
+          : `## Difficulty Curve\n\nThe difficulty curve of "${name}" — type: ${curveType}.${formula !== "—" ? ` Formula: ${formula}` : ""}${growthRate !== undefined ? ` Growth rate: ${growthRate}` : ""}\n\n${tierCurves ? `Tier model: ${tierCurves}.` : "Tier model not set."}\n\nPrinciple: first 30% of content — linear growth (onboarding), then the curve accelerates toward the skill ceiling. Perceived difficulty is tracked via content_plan.perceived_difficulty_table. Flow balance: when perceived difficulty exceeds ±15% of the target — enemies/rewards are adjusted.`;
+        return {
+          content,
+          source: "auto_fill",
+          requires_review: false,
+        };
+      }
+      // Template fallback (Bible 11.3.3 #27 default principle).
+      const pacingNote = genre === "shooter" || genre === "fighting"
+        ? "быстрый рост, частые пики"
+        : genre === "puzzle" || genre === "idle"
+          ? "плавный рост, длинные плато"
+          : "сбалансированный темп с пиками на боссах";
+      const pacingNoteEn = genre === "shooter" || genre === "fighting"
+        ? "fast growth, frequent peaks"
+        : genre === "puzzle" || genre === "idle"
+          ? "smooth growth, long plateaus"
+          : "balanced pace with peaks at bosses";
+      const content = isRu
+        ? `## Кривая сложности\n\nКривая сложности «${name}» (жанр: ${genre}) ramps линейно на первых 30% контента (onboarding), затем кривая ускоряется к потолку мастерства.\n\n${tierCurves ? `Тир-модель: ${tierCurves}.` : "Тир-модель не задана — кривая выведена из жанровых конвенций."}\n\nПринцип pacing: ${pacingNote}. Баланс потока (flow): при превышении целевого perceived difficulty на ±15% — корректировка сложности врагов или скорости дропа. Целевой skill ceiling: определяется через balance.costPowerCurves (транзитивный анализ).`
+        : `## Difficulty Curve\n\nThe difficulty curve of "${name}" (genre: ${genre}) ramps linearly over the first 30% of content (onboarding), then the curve accelerates toward the skill ceiling.\n\n${tierCurves ? `Tier model: ${tierCurves}.` : "Tier model not set — curve derived from genre conventions."}\n\nPacing principle: ${pacingNoteEn}. Flow balance: when perceived difficulty exceeds the target by ±15% — enemy difficulty or drop rate is adjusted. Target skill ceiling: derived from balance.costPowerCurves (transitive analysis).`;
+      return {
+        content,
+        source: "template",
+        requires_review: true,
+      };
+    }
+    case "social_features": {
+      // Derive from concept.mechanicSet.social (social mechanics list) and
+      // mda.aesthetic_profile (fellowship aesthetic → social is core).
+      // Distinguish from in-game multiplayer modes (described in game_modes).
+      const socialMechanicsRaw = mechanicSet.social;
+      const socialMechanics: Array<{ name?: string }> = Array.isArray(socialMechanicsRaw)
+        ? (socialMechanicsRaw as Array<{ name?: string }>)
+        : [];
+      const aesthetics = [mda?.primaryAesthetic, mda?.secondaryAesthetic].filter(
+        Boolean
+      ) as string[];
+      const hasFellowship = aesthetics.includes("fellowship");
+      const isOnlineGenre =
+        genre === "mmorpg" || genre === "shooter" || genre === "fighting";
+
+      const socialFeatures: string[] = [];
+      if (socialMechanics.length > 0) {
+        for (const m of socialMechanics) {
+          if (m.name) socialFeatures.push(m.name);
+        }
+      }
+      if (hasFellowship) {
+        socialFeatures.push("guilds/clans", "friend lists", "in-game chat");
+      }
+      // Genre-based template defaults when no upstream social data exists.
+      if (socialFeatures.length === 0) {
+        if (genre === "mmorpg") {
+          socialFeatures.push(
+            "leaderboards", "guilds/clans", "friend lists", "in-game chat",
+            "sharing", "UGC", "streaming integration"
+          );
+        } else if (genre === "shooter" || genre === "fighting") {
+          socialFeatures.push(
+            "leaderboards", "friend lists", "match chat",
+            "replay sharing", "streaming integration"
+          );
+        } else if (genre === "rpg" || genre === "adventure") {
+          socialFeatures.push("sharing", "UGC", "friend lists");
+        } else if (genre === "puzzle" || genre === "idle") {
+          socialFeatures.push("leaderboards");
+        } else {
+          socialFeatures.push("sharing", "leaderboards");
+        }
+      }
+
+      const isCore = hasFellowship || socialMechanics.length > 0;
+      const onlineNote = isOnlineGenre
+        ? (isRu
+            ? "Онлайн-мультиплеерные функции (матчмейкинг, PvP-режимы) описаны в game_modes/multiplayer. Здесь — только meta-social системы."
+            : "Online multiplayer features (matchmaking, PvP modes) are described in game_modes/multiplayer. Here — only meta-social systems.")
+        : (isRu
+            ? "Игра не имеет онлайн-мультиплеера — социальные функции носят асинхронный характер (например, гостевые визиты, обмен UGC)."
+            : "The game has no online multiplayer — social features are asynchronous (e.g. guest visits, UGC exchange).");
+      const content = isRu
+        ? `## Социальные функции\n\nСоциальные системы «${name}» (жанр: ${genre}): ${isCore ? "определены как ядро опыта" : "дополнительные к основному геймплею"}.\n\nФункции:\n${socialFeatures.map((f) => `- ${f}`).join("\n")}\n\n${onlineNote}\n\nModeration: chat filter + report system. Privacy: opt-in для всех социальных функций.`
+        : `## Social Features\n\nSocial systems of "${name}" (genre: ${genre}): ${isCore ? "defined as a core part of the experience" : "supplementary to the core gameplay"}.\n\nFeatures:\n${socialFeatures.map((f) => `- ${f}`).join("\n")}\n\n${onlineNote}\n\nModeration: chat filter + report system. Privacy: opt-in for all social features.`;
+      return {
+        content,
+        source: isCore ? "auto_fill" : "template",
+        requires_review: !isCore,
+      };
+    }
+    case "meta_game": {
+      // Derive from economy.monetizationModel (F2P → battle pass + daily
+      // quests; B2P → NG+ + save slots; subscription → seasons) and from
+      // economy.resources (gems/premium_currency → battle pass).
+      const monetizationModel = economy?.monetizationModel
+        ? safeJsonParse<Record<string, unknown>>(economy.monetizationModel, {})
+        : {};
+      const monetType =
+        (monetizationModel.type as string) ||
+        (monetizationModel.model as string) ||
+        "";
+      const resourceModel = economy?.resourceModel
+        ? safeJsonParse<Record<string, unknown>>(economy.resourceModel, {})
+        : {};
+      // Look for premium currency in resource model JSON (case-insensitive).
+      const resourceJson = JSON.stringify(resourceModel).toLowerCase();
+      const hasPremiumCurrency =
+        resourceJson.includes("premium_currency") ||
+        resourceJson.includes("gems") ||
+        resourceJson.includes("hard_currency");
+
+      const metaSystems: string[] = [];
+      const lowerMonetType = monetType.toLowerCase();
+      if (lowerMonetType === "f2p" || lowerMonetType === "free_to_play") {
+        metaSystems.push("daily quests", "weekly quests", "battle pass");
+        if (hasPremiumCurrency) metaSystems.push("premium battle pass track");
+      } else if (lowerMonetType === "b2p" || lowerMonetType === "buy_to_play") {
+        metaSystems.push("NG+", "multiple save slots", "achievement system");
+      } else if (lowerMonetType === "subscription") {
+        metaSystems.push("seasons", "monthly events", "subscriber-only cosmetics");
+      } else if (lowerMonetType === "hybrid") {
+        metaSystems.push("daily quests", "battle pass", "NG+");
+      } else {
+        // Template fallback by genre.
+        if (genre === "mmorpg" || genre === "idle") {
+          metaSystems.push(
+            "daily quests", "weekly quests", "battle pass", "seasons", "events"
+          );
+        } else if (genre === "rpg" || genre === "adventure") {
+          metaSystems.push("NG+", "save slots", "achievement system", "holiday events");
+        } else if (genre === "shooter" || genre === "fighting") {
+          metaSystems.push("ranked seasons", "battle pass", "limited-time events");
+        } else {
+          metaSystems.push("achievements", "save slots");
+        }
+      }
+
+      const hasUpstreamData = Boolean(monetType) || hasPremiumCurrency;
+      const ngPlusApplicable =
+        genre === "rpg" ||
+        genre === "adventure" ||
+        lowerMonetType === "b2p" ||
+        lowerMonetType === "buy_to_play";
+      const content = isRu
+        ? `## Мета-игра\n\nМета-игровые системы «${name}» — то, что существует «поверх» основного core loop.\n\nСистемы:\n${metaSystems.map((s) => `- ${s}`).join("\n")}\n\n${monetType ? `Монетизация: ${monetType} → определяет набор meta-систем.` : "Монетизация не задана — набор систем выведен из жанра."}${hasPremiumCurrency ? " Обнаружена premium-валюта — battle pass с premium-треком целесообразен." : ""}\n\nSave slots: 3 (по умолчанию). NG+: ${ngPlusApplicable ? "да, перенос прокачки" : "не применимо"}.`
+        : `## Meta-Game\n\nMeta-game systems of "${name}" — things that exist "above" the core loop.\n\nSystems:\n${metaSystems.map((s) => `- ${s}`).join("\n")}\n\n${monetType ? `Monetization: ${monetType} → determines the set of meta-systems.` : "Monetization not set — systems derived from genre."}${hasPremiumCurrency ? " Premium currency detected — battle pass with premium track is appropriate." : ""}\n\nSave slots: 3 (default). NG+: ${ngPlusApplicable ? "yes, progression carries over" : "not applicable"}.`;
+      return {
+        content,
+        source: hasUpstreamData ? "auto_fill" : "template",
+        requires_review: !hasUpstreamData,
+      };
+    }
+    case "tech_requirements": {
+      // Derive from concept.platform (onePager.platforms) and genre.
+      // Min/recommended specs, target platforms with OS versions, network
+      // requirements, storage size, peripheral support.
+      const platforms = onePager.platforms as string[] | undefined;
+      const platformList =
+        Array.isArray(platforms) && platforms.length > 0 ? platforms : [];
+
+      const hasConsole = platformList.some(
+        (p) => typeof p === "string" && /ps|xbox|playstation|nintendo|switch/i.test(p)
+      );
+      const hasMobile = platformList.some(
+        (p) => typeof p === "string" && /android|ios|mobile|tablet/i.test(p)
+      );
+
+      // Genre-based storage/VRAM estimates.
+      const storageEstimate =
+        genre === "rpg" || genre === "mmorpg"
+          ? "50-100 GB"
+          : genre === "shooter" || genre === "adventure"
+            ? "30-60 GB"
+            : genre === "puzzle" || genre === "idle"
+              ? "1-5 GB"
+              : "10-30 GB";
+      const vramEstimate =
+        genre === "rpg" || genre === "mmorpg" || genre === "shooter"
+          ? "6-8 GB"
+          : genre === "puzzle" || genre === "idle"
+            ? "1-2 GB"
+            : "4-6 GB";
+
+      const minSpecs = hasMobile
+        ? "iOS 14+ / Android 10+, 3 GB RAM, Snapdragon 660+ / Apple A12+"
+        : hasConsole
+          ? "Console certification (Sony TRC, Microsoft TCR, Nintendo Lotcheck)"
+          : `OS: Windows 10 64-bit, CPU: Intel i5-6600 / AMD Ryzen 5 1600, RAM: 8 GB, GPU: GTX 1060 / RX 580, Storage: ${storageEstimate}`;
+      const recSpecs = hasMobile
+        ? "iOS 16+ / Android 12+, 6 GB RAM, Snapdragon 888+ / Apple A15+"
+        : hasConsole
+          ? "Same as minimum (console hardware is fixed)"
+          : `OS: Windows 11 64-bit, CPU: Intel i7-10700 / AMD Ryzen 7 3700X, RAM: 16 GB, GPU: RTX 3060 / RX 6700 XT (VRAM ${vramEstimate}), Storage: SSD ${storageEstimate}`;
+
+      const networkReq =
+        genre === "mmorpg"
+          ? "Broadband 5+ Mbps down / 1+ Mbps up, latency < 100ms to regional servers, persistent connection required"
+          : genre === "shooter" || genre === "fighting"
+            ? "Broadband 10+ Mbps down / 2+ Mbps up, latency < 50ms for competitive play"
+            : genre === "idle"
+              ? "Periodic connection (every 24h) for sync, otherwise offline-capable"
+              : "Optional: cloud save sync, asynchronous features";
+
+      const peripheralSupport = hasMobile
+        ? "Touch, optional Bluetooth controller (MFi / Android-compatible)"
+        : hasConsole
+          ? "DualSense / Xbox Wireless Controller, optional keyboard+mouse on Xbox"
+          : "Keyboard + Mouse, Xbox-compatible gamepad, optional racing wheel / HOTAS (genre-dependent)";
+
+      const platformsLine =
+        platformList.length > 0
+          ? (isRu
+              ? `Целевые платформы: ${platformList.join(", ")}.`
+              : `Target platforms: ${platformList.join(", ")}.`)
+          : (isRu
+              ? "Целевые платформы: не заданы — выведены из жанра."
+              : "Target platforms: not set — derived from genre.");
+      const content = isRu
+        ? `## Технические требования\n\nМинимальные требования: ${minSpecs}.\n\nРекомендуемые требования: ${recSpecs}.\n\nСеть: ${networkReq}.\n\nПериферия: ${peripheralSupport}.\n\n${platformsLine}`
+        : `## Technical Requirements\n\nMinimum specs: ${minSpecs}.\n\nRecommended specs: ${recSpecs}.\n\nNetwork: ${networkReq}.\n\nPeripherals: ${peripheralSupport}.\n\n${platformsLine}`;
+      return {
+        content,
+        source: platformList.length > 0 ? "auto_fill" : "template",
+        requires_review: platformList.length === 0,
+      };
+    }
+    case "license_ip": {
+      // Derive from concept.usp + idea (project.description) — if mentions
+      // existing franchise → licensed; otherwise original IP.
+      const sourceText = `${usp} ${description} ${concept?.usp || ""}`.toLowerCase();
+      const franchiseKeywords = [
+        "fan game", "fangame", "mod for", "based on", "licensed", "license",
+        "franchise", "ip of", "copyright", "trademark",
+        "warcraft", "star wars", "marvel", "dc comics", "lord of the rings",
+        "tolkien", "harry potter", "dungeons & dragons", "d& d",
+        "переделка", "фанатская", "по мотивам", "по лицензии", "франшиз",
+        "авторские права",
+      ];
+      const detectedKeyword = franchiseKeywords.find((kw) =>
+        sourceText.includes(kw)
+      );
+      const isLicensed = Boolean(detectedKeyword);
+      const studioName = "the studio"; // Placeholder — no studio field in ProjectData.
+      const hasUpstreamData = Boolean(concept?.usp) || Boolean(description);
+
+      const content = isLicensed
+        ? (isRu
+            ? `## Лицензия / IP\n\n«${name}» — лицензированный продукт. Обнаружены маркеры существующей франшизы в концепции (совпадение: «${detectedKeyword}»).\n\nТип лицензии: ${(detectedKeyword || "").includes("fan") || (detectedKeyword || "").includes("фанат") ? "fan-work (некоммерческая)" : "коммерческая лицензия"}.\n\nПрава: IP принадлежит третьей стороне; ${studioName} имеет лицензию на использование в указанных территориях/платформах.\n\nTrademark: все товарные знаки и логотипы — собственность соответствующих владельцев. Использование в маркетинговых материалах согласовывается с licensor.\n\nРоялти/rev share: определяется отдельным лицензионным соглашением. Юридический обзор обязателен до релиза.`
+            : `## License / IP\n\n"${name}" is a licensed product. Franchise markers detected in the concept (match: "${detectedKeyword}").\n\nLicense type: ${(detectedKeyword || "").includes("fan") ? "fan-work (non-commercial)" : "commercial license"}.\n\nRights: IP belongs to a third party; ${studioName} holds a license for use in specified territories/platforms.\n\nTrademark: all trademarks and logos are the property of their respective owners. Use in marketing materials is coordinated with the licensor.\n\nRoyalty/rev share: determined by a separate license agreement. Legal review is required before release.`)
+        : (isRu
+            ? `## Лицензия / IP\n\n«${name}» — оригинальная интеллектуальная собственность. Полные права принадлежат ${studioName}.\n\nТип IP: Original IP.\n\nПрава: ${studioName} владеет всеми авторскими правами, товарными знаками и связанными правами на название, персонажей, мир и механики игры.\n\nThird-party licenses: используются только стандартные middleware (движок, аудио-библиотеки) — каждая с собственной EULA.\n\nTrademark: регистрация товарного знака «${name}» в ключевых юрисдикциях (RU, US, EU) рекомендуется до релиза.`
+            : `## License / IP\n\n"${name}" is an original intellectual property. Full ownership belongs to ${studioName}.\n\nIP type: Original IP.\n\nRights: ${studioName} owns all copyrights, trademarks, and associated rights to the game's title, characters, world, and mechanics.\n\nThird-party licenses: only standard middleware is used (engine, audio libraries) — each with its own EULA.\n\nTrademark: registering the "${name}" trademark in key jurisdictions (RU, US, EU) is recommended before release.`);
+      return {
+        content,
+        source: hasUpstreamData ? "auto_fill" : "template",
+        requires_review: !hasUpstreamData,
+      };
+    }
     default:
       return {
         content: placeholder,

@@ -17,7 +17,7 @@ import {
 } from "@/lib/api-helpers";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import { assertStageOutput, STAGE_CONTRACT_VERSION } from "@/lib/contracts/stage-contracts";
-import { createArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
+import { createArtifactEnvelope, type ArtifactEnvelope } from "@/lib/contracts/artifact-envelope";
 
 export interface ChecklistIssue {
   severity: string; // error | warning | info
@@ -131,6 +131,14 @@ export interface ChecklistResult {
       skipped: boolean;
       issues: ChecklistIssue[];
     };
+    // R-AUDIT-FIX (#9 follow-up): 6 new Bible check fields were set in runtime
+    // but missing from the TypeScript interface.
+    shell_filters_check?: { skipped: boolean; issues: ChecklistIssue[] };
+    upton_check?: { skipped: boolean; issues: ChecklistIssue[] };
+    rolling_morris_check?: { skipped: boolean; issues: ChecklistIssue[] };
+    bond_methods_check?: { skipped: boolean; issues: ChecklistIssue[] };
+    fullerton_check?: { skipped: boolean; issues: ChecklistIssue[] };
+    narrative_types_check?: { skipped: boolean; issues: ChecklistIssue[] };
     summary?: {
       overall_score: number;
       readiness: string; // ready | almost | not_ready
@@ -141,6 +149,11 @@ export interface ChecklistResult {
       }>;
       quick_wins: Array<{ description: string; effort: string }>;
     };
+    // R-AUDIT-FIX (#9 follow-up): field was set in runtime but missing from
+    // the TypeScript interface, causing tsc errors in tests that read it.
+    contract_version: typeof STAGE_CONTRACT_VERSION;
+    artifact: ArtifactEnvelope;
+    algorithm_metadata: ReturnType<typeof getStageAlgorithmMetadata>;
     stages_completed: number[];
     latency_ms: number;
   };

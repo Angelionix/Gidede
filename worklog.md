@@ -3243,3 +3243,48 @@ Stage Summary:
   - src/lib/economy/graph-simulation.ts (+13 lines, -2 lines)
   - src/lib/economy/graph-simulation.test.ts (+42 lines)
   - src/app/api/v1/economy/design/route.ts (~+110 lines, ~-40 lines [multi-run sim + graphSimResult wiring + fallback marking])
+
+
+---
+Task ID: fix-7-gdd-spec-sections
+Agent: general-purpose (fix-7-gdd-spec-sections)
+Task: Add 6 missing Bible-spec GDD sections (license_ip, difficulty, difficulty_curve, social_features, meta_game, tech_requirements)
+
+Work Log:
+- Read /home/z/my-project/Gidede/worklog.md prior `audit-fixes-batch-1` entry — confirmed #7 (GDD missing spec sections) was deferred for this exact task.
+- Read full route.ts (1614 lines → 1946 lines after edits) and confirmed the `full_gdd` FORMAT_SECTIONS array had 45 entries but was missing 6 of the 38 Bible 11.3.3 sections: license_ip (#6), difficulty (#13), difficulty_curve (#27), social_features (#33), meta_game (#34), tech_requirements (#35).
+- Read Bible 11.3.3 (lines 141-187 of bible_2_11_gdd_templates_checklists.md) — confirmed the 38 Rogers sections in 8 blocks. Read Bible 11.3.4 (lines 191-225) — confirmed modular spec is M-01..M-13 (none of the 6 new sections are listed as modules, so modular format left unchanged per task constraint).
+- Read AUDIT_REPORT.md §6 (GDD) for context on prior flags.
+- Edited `FORMAT_SECTIONS.full_gdd`:
+  - `difficulty` after `progression` (block 2 #13)
+  - `license_ip` after `monetization` (block 1 #6 — placed near monetization/legal per task)
+  - `tech_requirements` after `platforms` (block 8 #35)
+  - `social_features` after `game_modes` (block 7 #33)
+  - `difficulty_curve` after `tech_tree` (block 5 #27)
+  - `meta_game` after `live_ops_plan` (block 7 #34 — near monetization/live_ops_plan per task)
+  - Updated count comment from "21 to 38" → "21 to 51 (Bible 11.3.3 — 38 Rogers sections + 13 extra project-management sections)".
+- Added 6 new cases to `deriveSectionContent` switch (immediately before `default:`), each with 3+ sentences of derived-or-templated content:
+  - `difficulty`: derives from `progression.validation.checks` (passed/total) + `progression.tierCount` + genre-based difficulty level map (RPG: Easy/Normal/Hard/Nightmare, puzzle: Casual/Normal/Expert, etc.). Lists difficulty modifiers (enemy HP/damage, checkpoint frequency) + accessibility options (remappable controls, QTE skip, assistive mode). Source=auto_fill when progression exists.
+  - `difficulty_curve`: derives from `progression.curves.difficulty` (curve type, formula, growth_rate parameter) + `progression.tierModel.tiers[].difficulty_curve` (per-tier curve list). Cites perceived_difficulty_table tracking + ±15% flow-balance threshold. Template fallback cites the linear-then-exponential principle from the task spec + references balance.costPowerCurves for skill ceiling. Source=auto_fill when difficulty curve exists.
+  - `social_features`: derives from `concept.mechanicSet.social` (lists social mechanics by name) + `mda.primaryAesthetic/secondaryAesthetic` (fellowship → social is core). Distinguishes online multiplayer (game_modes/multiplayer) from meta-social systems. Genre-based defaults (MMORPG → full social suite; puzzle → leaderboards only). Moderation/privacy notes appended.
+  - `meta_game`: derives from `economy.monetizationModel` (F2P → daily quests + battle pass; B2P → NG+ + save slots; subscription → seasons; hybrid → mix) + `economy.resourceModel` JSON scan for `premium_currency`/`gems`/`hard_currency` (adds premium battle pass track). Genre-based fallback. NG+ applicability check based on genre+monetization.
+  - `tech_requirements`: derives from `onePager.platforms` (string array). Detects platform family (PC/Console/Mobile) via regex. Genre-based storage/VRAM estimates (RPG/MMORPG: 50-100GB; puzzle/idle: 1-5GB). Min/rec specs, network reqs by genre (MMORPG: persistent 5+Mbps/<100ms; shooter: 10+Mbps/<50ms competitive; idle: periodic 24h sync; other: optional cloud save), peripheral support.
+  - `license_ip`: derives from `concept.usp` + `description` + `concept.usp` (combined lowercase scan) against 23 franchise keywords (English + Russian: "fan game", "fangame", "licensed", "franchise", "warcraft", "star wars", "marvel", "tolkien", "фанатская", "по лицензии", "франшиз", etc.). Licensed → commercial/fan-work classification with rights/trademark/royalty notes. Original IP (default) → ownership/middleware EULA/trademark registration recommendation.
+- Updated `SECTION_TO_ARTIFACT` mapping for the 6 new sections:
+  - difficulty → progression
+  - difficulty_curve → progression
+  - social_features → concept
+  - meta_game → economy
+  - tech_requirements → concept
+  - license_ip → concept
+- Verified: `bun run typecheck` clean (no errors). `bun run vitest run src/lib/gdd/ src/lib/contracts/ src/lib/golden-fixtures/` → 6 test files / 45 tests, all passed (1.33s). Full vitest suite: 79 test files / 946 tests, all passed (13.52s). No regressions.
+- No fixture updates needed — pipeline-golden.test.ts and e2e-pipeline-fixtures.test.ts do not assert on `full_gdd` section count or specific section names.
+
+Stage Summary:
+- All 6 missing Bible 11.3.3 sections are now in `FORMAT_SECTIONS.full_gdd` and have working `deriveSectionContent` implementations with upstream-data derivation where available.
+- Final `full_gdd` section count: **51** (was 45; +6). The "claims 38" mismatch is resolved — actually exceeds the Bible's 38 Rogers sections because the array also carries 13 extra project-management sections (narrative/world/story_mechanics/branching_structure/themes/tone_voice/ux/ux_flow/ui_mockups/localization/testing_plan/risks/team_fit) that the codebase added beyond the Rogers template.
+- Source-field semantics: each new section returns `source: "auto_fill"` when upstream data exists (counted in coverage_score) and `source: "template"` when only genre-based fallback is used (not counted, requires_review=true). This matches the existing R6-02/R6-04 coverage rule.
+- Files modified:
+  - `src/app/api/v1/gdd/generate/route.ts` (+331 lines net: +336 new deriveSectionContent cases, +6 SECTION_TO_ARTIFACT entries, +6 FORMAT_SECTIONS entries, -1 comment line replaced with 3-line comment block)
+- Test results: typecheck clean; 946/946 vitest tests pass.
+- No deviations from the plan.

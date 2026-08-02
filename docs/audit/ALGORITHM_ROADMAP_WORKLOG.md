@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R7-05` — LLM adapter conformance suite.
-- **Зависимости:** `R7-04` завершена; 12 statistical tests проверяют CI coverage, reproducibility, tolerance.
-- **Ожидаемый результат:** любой adapter проходит единый набор тестов.
-- **После неё:** `R7-06` — stale/gate/resume E2E.
+- **Следующая задача:** `R7-06` — stale/gate/resume E2E.
+- **Зависимости:** `R7-05` завершена; 14 conformance tests покрывают LlmClient contract.
+- **Ожидаемый результат:** изменение Concept корректно перестраивает downstream.
+- **После неё:** `R7-07` — algorithm trace UI, `R7-08` — CI thresholds.
 
 
 ## Статус roadmap
@@ -95,7 +95,8 @@
 | R7-02 | DONE | 9 E2E fixture tests: 6 жанров × RU/EN × 8 стадий, idea preserved verbatim, genre forwarded | 892 tests, TypeScript, scoped ESLint |
 | R7-03 | DONE | 13 property tests: Nash sum/bounds, composite score monotonicity/bounds, graph conservation, RPS distinctness | 905 tests, TypeScript, scoped ESLint |
 | R7-04 | DONE | 12 statistical tests: CI coverage, reproducibility, tolerance, CI widening/narrowing | 917 tests, TypeScript, scoped ESLint |
-| R7-05…R7-08 | TODO | См. активный roadmap | — |
+| R7-05 | DONE | 14 LLM adapter conformance tests: createCompletion, streaming, isAvailable, capabilities, health, listModels, providerId/modelId, error handling | 931 tests, TypeScript, scoped ESLint |
+| R7-06…R7-08 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -108,6 +109,44 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R7-05 — DONE
+
+Что сделано:
+
+- создан `src/lib/llm/conformance-suite.test.ts` с 14 conformance tests;
+- tests покрывают полный LlmClient contract из `src/lib/llm/types.ts`:
+  - `createCompletion` (non-streaming): возвращает response с choices[0].message.content; response.model — string; response.usage optional но при наличии имеет totalTokens;
+  - `createCompletion` (streaming): возвращает AsyncIterable of LlmStreamChunk; chunks имеют delta.content;
+  - `isAvailable`: возвращает boolean;
+  - `getCapabilities`: возвращает LlmCapabilities с streaming/jsonMode/tools/modelDiscovery boolean flags;
+  - `healthCheck`: возвращает LlmProviderHealth с status (healthy/unavailable/unknown), latencyMs, checkedAt;
+  - `listModels`: возвращает array of LlmModelDescriptor с id и label;
+  - `providerId` — non-empty string; `modelId` — string или null;
+  - error handling: createCompletion не выбрасывает для valid input; unavailable client → isAvailable=false; unhealthy client → status=unavailable;
+- mock client используется для валидации самого suite; реальные adapters тестируются через подстановку своей factory.
+
+Изменённые области:
+
+- `src/lib/llm/conformance-suite.test.ts` (новый, 14 тестов).
+
+Проверки:
+
+- `bun run test` — 78 файлов, 931 тест пройдено (было 917; +14 conformance);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- createCompletion non-streaming → response with content;
+- createCompletion streaming → AsyncIterable with chunks;
+- isAvailable → boolean;
+- getCapabilities → 4 boolean flags;
+- healthCheck → status/latencyMs/checkedAt;
+- listModels → array of {id, label};
+- error handling: unavailable/unhealthy clients handled correctly;
+- следующей задачей назначена `R7-06`.
 
 ### 2026-08-01 — R7-04 — DONE
 

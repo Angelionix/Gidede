@@ -38,6 +38,44 @@ import {
 import { generatePrototypeInsights, generateCustomMechanic } from "@/lib/ai-service";
 import { createPrototypeArtifact, PrototypeLineageError } from "@/lib/prototype-lineage";
 
+/**
+ * Infer mechanic IDs for the new compiler based on prototype type.
+ * Maps each prototype type to the mechanics that the IR compiler should resolve.
+ */
+function inferMechanicIds(
+  resolvedType: string,
+  mechanicNames: string[] | undefined,
+): string[] {
+  // Type-based defaults: each type maps to canonical mechanic IDs.
+  const typeToMechanics: Record<string, string[]> = {
+    engine: ["locomotion", "collect"],
+    economy: ["locomotion", "collect"],
+    ecology: ["locomotion", "collect", "survival"],
+    tower_defense: ["locomotion", "combat", "collect"],
+    rhythm: ["locomotion"],
+    puzzle: ["locomotion"],
+    platformer: ["locomotion", "collect"],
+    stealth: ["locomotion", "survival"],
+    deck_builder: ["locomotion", "collect"],
+    survival_horror: ["locomotion", "survival", "collect"],
+  };
+  const mechanics = typeToMechanics[resolvedType] || ["locomotion", "collect"];
+  // If mechanicNames are available, try to map them to canonical IDs.
+  if (mechanicNames && mechanicNames.length > 0) {
+    const extra: string[] = [];
+    for (const name of mechanicNames.slice(0, 5)) {
+      const lower = name.toLowerCase();
+      if (lower.includes("двиг") || lower.includes("move") || lower.includes("ход")) extra.push("locomotion");
+      else if (lower.includes("сбор") || lower.includes("collect") || lower.includes("pickup")) extra.push("collect");
+      else if (lower.includes("бой") || lower.includes("combat") || lower.includes("attack")) extra.push("combat");
+      else if (lower.includes("выжив") || lower.includes("survival") || lower.includes("avoid")) extra.push("survival");
+    }
+    // Merge unique.
+    return [...new Set([...mechanics, ...extra])];
+  }
+  return mechanics;
+}
+
 export async function POST(request: NextRequest) {
   const user = await getCurrentUser(request);
   if (!user) return UNAUTH();
@@ -166,6 +204,71 @@ export async function POST(request: NextRequest) {
       goal: config.goalText,
       typeOverride,
     });
+
+    // === NEW: PrototypeIR compiler path (Phase 2) ===
+    // When use_compiler=true, use the new compilePrototype() which generates
+    // direct playable HTML from the IR. Falls back to legacy on error.
+    const useCompiler = body?.use_compiler === true || body?.use_compiler === "true";
+    if (useCompiler) {
+      try {
+        const { compilePrototype } = await import("@/lib/prototype-compiler");
+        const compilerInput = {
+          projectId: project.id,
+          coreLoopArtifactRef: "cl@1.0.0",
+          conceptArtifactRef: "concept@1.0.0",
+          genre: project.genre || "unknown",
+          structuralType: resolvedType,
+          steps: (config.steps || []).map((action, i) => ({
+            id: `step-${i + 1}`,
+            action,
+            mechanicIds: inferMechanicIds(resolvedType, config.mechanicNames),
+            resourcesConsumed: [],
+            resourcesProduced: [],
+            feedbackType: "neutral" as const,
+            durationEstimateSec: 5,
+          })),
+          resourceGraph: { edges: [] },
+          funHypothesis: null,
+          buildOptions: {
+            dimensions: [mode] as Array<"2d" | "3d">,
+            targetSessionSec: 30,
+            difficulty: "baseline" as const,
+          },
+        };
+        const result = compilePrototype(compilerInput, { skipSimulationGates: true });
+        if (result.builds["2d"]?.html) {
+          return NextResponse.json({
+            playable: true,
+            html: result.builds["2d"].html,
+            config: {
+              type: resolvedType,
+              mode: config.mode,
+              steps: config.steps,
+              resource: dataParams.resourceName ?? config.resourceName,
+              goal: config.goalText,
+              data_params: dataParams,
+              data_params_source: Object.keys(dataParams).length > 0
+                ? "balance+progression+economy"
+                : "defaults",
+            },
+            is_template_prototype: false,
+            resolved_type: resolvedType,
+            compiler_status: result.status,
+            compiler_artifact: result.artifact,
+            genre: config.genre || project.genre || null,
+            mechanic_names: config.mechanicNames || null,
+            ai_insights: null,
+            custom_mechanic: null,
+            ai_generated: false,
+            prototype_artifact: prototypeArtifact,
+            project_id: project.id,
+            project_name: project.name,
+          });
+        }
+      } catch (e) {
+        console.error("[prototypes/generate] compiler error, falling back to legacy:", e);
+      }
+    }
 
     // R-PROTO-TYPES: for the 4 NEW types (platformer, stealth, deck_builder,
     // survival_horror), use the graph-builder path directly. For the 6

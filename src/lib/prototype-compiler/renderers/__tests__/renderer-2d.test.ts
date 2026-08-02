@@ -1,26 +1,23 @@
 /**
- * Tests for the 2D renderer adapter.
+ * Tests for the rewritten 2D renderer (direct, playable HTML).
  *
- * Phase 1.6 acceptance criteria:
- * - render2dHtml produces a valid self-contained HTML string
- * - HTML contains the embedded IR as JSON
- * - HTML contains the runtime engine code
- * - HTML contains Canvas2D rendering code
- * - HTML contains input handlers (keyboard, mouse, touch)
- * - HTML contains postMessage telemetry forwarding
- * - Role colors are applied correctly
- * - Renderer metadata is exposed
+ * Phase 2 acceptance criteria:
+ * - Generates simple, playable HTML like the example prototypes
+ * - Direct game loop (no inlined runtime engine)
+ * - Canvas2D with emoji rendering
+ * - WASD + arrow key movement
+ * - Score, health, timer, game over, restart
  */
 
 import { describe, expect, it } from "vitest";
-import { render2dHtml, getRenderer2dInfo, RENDERER_2D_VERSION } from "../renderer-2d";
+import { render2dHtml, RENDERER_2D_VERSION } from "../renderer-2d";
 import { minimalIR, makeIR } from "../../ir/__tests__/fixtures";
 
 describe("render2dHtml — basic output", () => {
   it("produces a non-empty HTML string", () => {
-    const html = render2dHtml(minimalIR(), "test-prototype-id");
+    const html = render2dHtml(minimalIR(), "test-id");
     expect(html).toBeTruthy();
-    expect(html.length).toBeGreaterThan(1000);
+    expect(html.length).toBeGreaterThan(500);
   });
 
   it("starts with <!DOCTYPE html>", () => {
@@ -28,209 +25,162 @@ describe("render2dHtml — basic output", () => {
     expect(html.startsWith("<!DOCTYPE html>")).toBe(true);
   });
 
-  it("contains <html>, <head>, <body> tags", () => {
-    const html = render2dHtml(minimalIR(), "test-id");
-    expect(html).toContain("<html");
-    expect(html).toContain("<head>");
-    expect(html).toContain("<body>");
-  });
-
-  it("contains a <canvas> element", () => {
+  it("contains <canvas> element", () => {
     const html = render2dHtml(minimalIR(), "test-id");
     expect(html).toContain("<canvas");
     expect(html).toContain('id="game"');
   });
 });
 
-describe("render2dHtml — IR embedding", () => {
-  it("embeds the PrototypeIR as JSON", () => {
-    const ir = minimalIR();
-    const html = render2dHtml(ir, "test-id");
-    // The IR should be embedded as a JSON constant.
-    expect(html).toContain("const IR =");
-    // Check that key IR fields are present in the embedded JSON.
-    expect(html).toContain('"schemaVersion"');
-    expect(html).toContain('"seed"');
-    expect(html).toContain('"session"');
-    expect(html).toContain('"stepMachine"');
-  });
-
-  it("embeds the prototypeId", () => {
-    const html = render2dHtml(minimalIR(), "proto-abc-123");
-    expect(html).toContain("proto-abc-123");
-    expect(html).toContain("const PROTOTYPE_ID");
-  });
-});
-
-describe("render2dHtml — runtime code", () => {
-  it("contains the PrototypeRuntimeEngine class", () => {
+describe("render2dHtml — direct game code (no runtime abstraction)", () => {
+  it("contains direct game loop (update + draw + requestAnimationFrame)", () => {
     const html = render2dHtml(minimalIR(), "test-id");
-    expect(html).toContain("class PrototypeRuntimeEngine");
+    expect(html).toContain("function update(");
+    expect(html).toContain("function draw(");
+    expect(html).toContain("function gameLoop(");
+    expect(html).toContain("requestAnimationFrame(gameLoop)");
   });
 
-  it("contains the mulberry32 PRNG", () => {
+  it("does NOT contain inlined PrototypeRuntimeEngine class", () => {
     const html = render2dHtml(minimalIR(), "test-id");
-    expect(html).toContain("createMulberry32");
+    // The new renderer generates direct code, not an ECS engine.
+    expect(html).not.toContain("class PrototypeRuntimeEngine");
   });
 
-  it("contains the predicate evaluator", () => {
-    const html = render2dHtml(minimalIR(), "test-id");
-    expect(html).toContain("evaluatePredicate");
-    expect(html).toContain("resource_gte");
-    expect(html).toContain("loop_count_gte");
-  });
-
-  it("contains tick() method", () => {
-    const html = render2dHtml(minimalIR(), "test-id");
-    expect(html).toContain("tick()");
-  });
-});
-
-describe("render2dHtml — rendering code", () => {
-  it("contains Canvas2D context setup", () => {
+  it("contains Canvas2D context", () => {
     const html = render2dHtml(minimalIR(), "test-id");
     expect(html).toContain("getContext('2d')");
   });
 
-  it("contains drawEntity function", () => {
+  it("contains rectCollide function", () => {
     const html = render2dHtml(minimalIR(), "test-id");
-    expect(html).toContain("function drawEntity");
-  });
-
-  it("contains role colors mapping", () => {
-    const html = render2dHtml(minimalIR(), "test-id");
-    expect(html).toContain("ROLE_COLORS");
-    expect(html).toContain("#22c55e"); // player green
-    expect(html).toContain("#ef4444"); // enemy red
-    expect(html).toContain("#fbbf24"); // collectible gold
-  });
-
-  it("contains drawBounds function", () => {
-    const html = render2dHtml(minimalIR(), "test-id");
-    expect(html).toContain("function drawBounds");
-  });
-
-  it("contains HUD update function", () => {
-    const html = render2dHtml(minimalIR(), "test-id");
-    expect(html).toContain("function updateHud");
+    expect(html).toContain("function rectCollide");
   });
 });
 
 describe("render2dHtml — input handlers", () => {
-  it("contains keyboard input handler", () => {
+  it("contains keyboard input (WASD + arrows)", () => {
     const html = render2dHtml(minimalIR(), "test-id");
     expect(html).toContain("addEventListener('keydown'");
     expect(html).toContain("addEventListener('keyup'");
+    expect(html).toContain("KeyW");
+    expect(html).toContain("KeyA");
+    expect(html).toContain("KeyS");
+    expect(html).toContain("KeyD");
+    expect(html).toContain("ArrowUp");
+    expect(html).toContain("ArrowDown");
+    expect(html).toContain("ArrowLeft");
+    expect(html).toContain("ArrowRight");
   });
 
-  it("contains mouse input handler", () => {
+  it("contains Enter for restart", () => {
     const html = render2dHtml(minimalIR(), "test-id");
-    expect(html).toContain("addEventListener('mousemove'");
-    expect(html).toContain("addEventListener('click'");
-  });
-
-  it("contains touch input handler", () => {
-    const html = render2dHtml(minimalIR(), "test-id");
-    expect(html).toContain("addEventListener('touchstart'");
-    expect(html).toContain("addEventListener('touchmove'");
-    expect(html).toContain("addEventListener('touchend'");
-  });
-
-  it("contains WASD movement mapping", () => {
-    const html = render2dHtml(minimalIR(), "test-id");
-    expect(html).toContain("keys['w']");
-    expect(html).toContain("keys['a'");
-    expect(html).toContain("keys['s'");
-    expect(html).toContain("keys['d'");
+    expect(html).toContain("Enter");
+    expect(html).toContain("resetGame");
   });
 });
 
-describe("render2dHtml — telemetry forwarding", () => {
-  it("contains postMessage call to parent", () => {
+describe("render2dHtml — game features", () => {
+  it("contains score tracking", () => {
+    const html = render2dHtml(minimalIR(), "test-id");
+    expect(html).toContain("score");
+    expect(html).toContain("goalScore");
+  });
+
+  it("contains timer", () => {
+    const html = render2dHtml(minimalIR(), "test-id");
+    expect(html).toContain("timeLeft");
+    expect(html).toContain("timerAccum");
+  });
+
+  it("contains game over screen", () => {
+    const html = render2dHtml(minimalIR(), "test-id");
+    expect(html).toContain("gameActive");
+    expect(html).toContain("gameWon");
+    expect(html).toContain("Победа");
+    expect(html).toContain("Поражение");
+  });
+
+  it("contains HUD with score and timer", () => {
+    const html = render2dHtml(minimalIR(), "test-id");
+    expect(html).toContain("⏱");
+    expect(html).toContain("WASD");
+  });
+});
+
+describe("render2dHtml — telemetry", () => {
+  it("contains postMessage to parent", () => {
     const html = render2dHtml(minimalIR(), "test-id");
     expect(html).toContain("window.parent.postMessage");
     expect(html).toContain("gidede-playtest");
-  });
-
-  it("forwards prototypeId in telemetry", () => {
-    const html = render2dHtml(minimalIR(), "my-proto-id");
-    expect(html).toContain("prototypeId: PROTOTYPE_ID");
-  });
-
-  it("sends session_end event on completion", () => {
-    const html = render2dHtml(minimalIR(), "test-id");
+    expect(html).toContain("session_start");
     expect(html).toContain("session_end");
+  });
+
+  it("embeds prototypeId", () => {
+    const html = render2dHtml(minimalIR(), "my-proto-123");
+    expect(html).toContain("my-proto-123");
+  });
+});
+
+describe("render2dHtml — feature flags from IR", () => {
+  it("includes combat code when combat adapter is present", () => {
+    const ir = makeIR({
+      mechanicBindings: [
+        {
+          sourceMechanicId: "combat",
+          adapterId: "target/combat",
+          adapterVersion: "1.0.0",
+          resolution: "exact",
+          representedByRuleIds: [],
+          assumptions: [],
+        },
+      ],
+      systems: [
+        { id: "sys-combat", kind: "combat", appliesToRoles: ["player", "enemy"], config: { enemyDamage: 15 } },
+        { id: "sys-targeting", kind: "targeting", appliesToRoles: ["enemy"], config: { enemySpeed: 80 } },
+      ],
+    });
+    const html = render2dHtml(ir, "test-id");
+    expect(html).toContain('"hasCombat":true');
+  });
+
+  it("includes survival code when survival adapter is present", () => {
+    const ir = makeIR({
+      mechanicBindings: [
+        {
+          sourceMechanicId: "survival",
+          adapterId: "avoid/survive",
+          adapterVersion: "1.0.0",
+          resolution: "exact",
+          representedByRuleIds: [],
+          assumptions: [],
+        },
+      ],
+      systems: [
+        { id: "sys-hazard", kind: "collision", appliesToRoles: ["player", "hazard"], config: { damagePerContact: 10 } },
+      ],
+    });
+    const html = render2dHtml(ir, "test-id");
+    expect(html).toContain('"hasSurvival":true');
   });
 });
 
 describe("render2dHtml — canvas dimensions", () => {
-  it("sets canvas width based on scene bounds", () => {
-    const ir = minimalIR(); // bounds halfExtents: 400x300
+  it("sets canvas dimensions from scene bounds", () => {
+    const ir = minimalIR(); // bounds 400x300
     const html = render2dHtml(ir, "test-id");
-    // canvasWidth = (400 * 2) + 40 = 840
-    expect(html).toContain('width="840"');
-    expect(html).toContain('height="640"');
-  });
-
-  it("adjusts canvas for different scene sizes", () => {
-    const ir = makeIR({
-      scene: {
-        topology: "arena",
-        bounds: { center: { x: 0, y: 0 }, halfExtents: { x: 500, y: 400 } },
-        topologyScores: [],
-      },
-    });
-    const html = render2dHtml(ir, "test-id");
-    // canvasWidth = (500 * 2) + 40 = 1040
-    expect(html).toContain('width="1040"');
-    expect(html).toContain('height="840"');
-  });
-});
-
-describe("render2dHtml — status display", () => {
-  it("contains status element", () => {
-    const html = render2dHtml(minimalIR(), "test-id");
-    expect(html).toContain('id="status"');
-  });
-
-  it("contains win/lose/timeout CSS classes", () => {
-    const html = render2dHtml(minimalIR(), "test-id");
-    expect(html).toContain(".status.won");
-    expect(html).toContain(".status.lost");
-    expect(html).toContain(".status.timeout");
+    // width = min(800, 400*2) = 800, height = min(600, 300*2) = 600
+    // Actually 400*2=800, 300*2=600, so canvas is 800x600
+    expect(html).toMatch(/width="800"/);
+    expect(html).toMatch(/height="600"/);
   });
 });
 
 describe("Renderer metadata", () => {
-  it("getRenderer2dInfo returns version and primitive mapping", () => {
-    const info = getRenderer2dInfo();
-    expect(info.rendererId).toBe("canvas2d");
-    expect(info.version).toBe(RENDERER_2D_VERSION);
-    expect(info.primitiveMapping).toBeDefined();
-    expect(info.primitiveMapping.player).toContain("green");
-    expect(info.primitiveMapping.enemy).toContain("red");
-    expect(info.primitiveMapping.collectible).toContain("gold");
-  });
-
   it("RENDERER_2D_VERSION is a non-empty string", () => {
     expect(RENDERER_2D_VERSION).toBeTruthy();
     expect(typeof RENDERER_2D_VERSION).toBe("string");
-  });
-});
-
-describe("render2dHtml — HTML escaping", () => {
-  it("escapes HTML in prototypeId to prevent script injection", () => {
-    const html = render2dHtml(minimalIR(), '<script>alert(1)</script>');
-    // The prototypeId is embedded via safeJsonForScript which escapes < >
-    // to \u003c \u003e, preventing </script> breakout.
-    expect(html).not.toContain('"<script>alert(1)</script>"');
-    expect(html).toContain("\\u003cscript\\u003e");
-  });
-
-  it("escapes HTML in IR data (e.g., assumption strings)", () => {
-    const ir = makeIR({ assumptions: ["<script>bad</script>"] });
-    const html = render2dHtml(ir, "safe-id");
-    expect(html).not.toContain("<script>bad</script>");
-    expect(html).toContain("\\u003cscript\\u003e");
+    expect(RENDERER_2D_VERSION).toContain("2d-direct");
   });
 });

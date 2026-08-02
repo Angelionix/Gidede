@@ -28,6 +28,8 @@ interface PrototypeResponse {
   };
   /** Фаза 0: честный флаг — прототип построен из шаблона, не из Core Loop mechanics. */
   is_template_prototype?: boolean;
+  /** Фаза 2: статус нового компилятора (playable/needs_mapping/invalid). */
+  compiler_status?: string;
   /** Фаза 0: полный resolved type (включая новые 4 типа). */
   resolved_type?: string;
   /** Фаза 0: жанр из Concept. */
@@ -93,6 +95,7 @@ export default function PrototypesPage() {
   const [selectedProject, setSelectedProject] = useState<string>("");
   const [mode, setMode] = useState<"2d" | "3d">("2d");
   const [useAi, setUseAi] = useState(false);
+  const [useCompiler, setUseCompiler] = useState(true); // Phase 2: new compiler by default
   const [typeOverride, setTypeOverride] = useState<string>("auto");
   const [autoSaved, setAutoSaved] = useState(false);
   const [retryCount, setRetryCount] = useState(0);
@@ -186,6 +189,7 @@ export default function PrototypesPage() {
           project_id: selectedProject,
           mode,
           use_ai: useAi,
+          use_compiler: useCompiler,
           ...(typeOverride !== "auto" ? { type: typeOverride } : {}),
         }),
       });
@@ -367,6 +371,20 @@ export default function PrototypesPage() {
             >
               <Wand2 className="h-3.5 w-3.5" />
               AI-инсайты
+            </button>
+            <div className="w-px h-5 bg-border mx-1" />
+            <button
+              type="button"
+              onClick={() => setUseCompiler(!useCompiler)}
+              className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-all ${
+                useCompiler
+                  ? "border-emerald-500 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400"
+                  : "border-border text-muted-foreground hover:bg-muted/50"
+              }`}
+              title="Использовать новый PrototypeIR compiler (генерирует прямой играбельный HTML)"
+            >
+              <Sparkles className="h-3.5 w-3.5" />
+              {useCompiler ? "IR Compiler" : "Legacy"}
             </button>
             <div className="w-px h-5 bg-border mx-1" />
             <Button

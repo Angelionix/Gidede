@@ -46,6 +46,7 @@ import { compileStepMachine } from "./compiler/step-machine";
 import { selectTopology, synthesizeWorld } from "./compiler/scene-grammar";
 import { validatePrototype, computeCoverageReport } from "./compiler/validation";
 import { render2dHtml } from "./renderers/renderer-2d";
+import { render3dHtml } from "./renderers/renderer-3d";
 
 // ============================================================
 // Public API
@@ -268,16 +269,24 @@ export function compilePrototype(
   }
 
   // --------------------------------------------------------
-  // Step 10: Render 2D HTML (only if playable or needs_mapping)
+  // Step 10: Render HTML (2D and/or 3D, only if playable or needs_mapping)
   // --------------------------------------------------------
   const artifactId = `proto-${seed.substring(0, 12)}`;
-  let html2d: string | undefined;
+  const builds: PrototypeBuildResult["builds"] = {};
   if (status === "playable" || status === "needs_mapping") {
-    try {
-      html2d = render2dHtml(ir, artifactId);
-    } catch (e) {
-      // Renderer failure → build_failed.
-      return buildFailedResult(ir, inputHash, `2D renderer failed: ${e instanceof Error ? e.message : String(e)}`);
+    if (input.buildOptions.dimensions.includes("2d")) {
+      try {
+        builds["2d"] = { html: render2dHtml(ir, artifactId), rendererVersion: "2d-direct-2.0.0" };
+      } catch (e) {
+        return buildFailedResult(ir, inputHash, `2D renderer failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    if (input.buildOptions.dimensions.includes("3d")) {
+      try {
+        builds["3d"] = { html: render3dHtml(ir, artifactId), rendererVersion: "3d-three-2.0.0" };
+      } catch (e) {
+        return buildFailedResult(ir, inputHash, `3D renderer failed: ${e instanceof Error ? e.message : String(e)}`);
+      }
     }
   }
 
@@ -301,7 +310,7 @@ export function compilePrototype(
   return {
     status,
     ir,
-    builds: html2d ? { "2d": { html: html2d, rendererVersion: "2d-canvas-1.0.0" } } : {},
+    builds,
     coverage,
     validation,
     artifact,

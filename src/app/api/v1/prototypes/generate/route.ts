@@ -244,10 +244,12 @@ export async function POST(request: NextRequest) {
           },
         };
         const result = compilePrototype(compilerInput, { skipSimulationGates: true });
-        if (result.builds["2d"]?.html) {
+        // Return 2D or 3D HTML based on mode.
+        const buildHtml = result.builds[mode]?.html || result.builds["2d"]?.html;
+        if (buildHtml) {
           return NextResponse.json({
             playable: true,
-            html: result.builds["2d"].html,
+            html: buildHtml,
             config: {
               type: resolvedType,
               mode: config.mode,

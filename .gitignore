@@ -87,3 +87,8 @@ worklog.local.md
 # Скриншоты и видеозаписи из agent-browser
 /tmp/
 *.screenshot.png
+
+# Local SQLite database
+prisma/dev.db
+prisma/*.db
+dev.log

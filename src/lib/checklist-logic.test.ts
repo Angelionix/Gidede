@@ -427,18 +427,18 @@ describe("checklist-logic", () => {
       expect(lowMatchIssue?.description).toContain("0.30");
     });
 
-    // BUG: iteration_count is declared in the ProjectData.mdaProfile interface
-    // but runMdaCheck never inspects it. The task spec says "Issues generated
-    // when iteration_count is suspiciously low" — the implementation does not
-    // do this. Skipping with a comment; see worklog for details.
-    it.skip("issues generated when iteration_count is suspiciously low", async () => {
+    // R-AUDIT-FIX (#9 bug 1): iteration_count is now inspected by runMdaCheck.
+    // iteration_count=0 → "mda_zero_iterations" warning.
+    // iteration_count=1 → "mda_low_iterations" warning.
+    // iteration_count>=2 → score += 0.05.
+    it("issues generated when iteration_count is 0", async () => {
       const project: ProjectData = {
         ...minimalProject,
         mdaProfile: {
           primaryAesthetic: "challenge",
           secondaryAesthetic: null,
           overallMatch: 0.8,
-          iterationCount: 0, // suspiciously low
+          iterationCount: 0, // suspiciously low — never iterated
           targetDynamics: null,
           mechanicSet: JSON.stringify({ m1: {} }),
           lensValidation: null,
@@ -449,7 +449,50 @@ describe("checklist-logic", () => {
       };
       const result = await runChecklistValidation(project, "mda-check");
       const issues = result.profile.mda_check?.issues ?? [];
-      expect(issues.some((i) => i.issue_type.includes("iteration"))).toBe(true);
+      expect(issues.some((i) => i.issue_type === "mda_zero_iterations")).toBe(true);
+    });
+
+    it("issues generated when iteration_count is 1 (single pass, no convergence)", async () => {
+      const project: ProjectData = {
+        ...minimalProject,
+        mdaProfile: {
+          primaryAesthetic: "challenge",
+          secondaryAesthetic: null,
+          overallMatch: 0.8,
+          iterationCount: 1,
+          targetDynamics: null,
+          mechanicSet: JSON.stringify({ m1: {} }),
+          lensValidation: null,
+          bondValidation: null,
+          ludonarrativeCheck: null,
+          fullProfile: null,
+        },
+      };
+      const result = await runChecklistValidation(project, "mda-check");
+      const issues = result.profile.mda_check?.issues ?? [];
+      expect(issues.some((i) => i.issue_type === "mda_low_iterations")).toBe(true);
+    });
+
+    it("no iteration issues when iteration_count >= 2", async () => {
+      const project: ProjectData = {
+        ...minimalProject,
+        mdaProfile: {
+          primaryAesthetic: "challenge",
+          secondaryAesthetic: null,
+          overallMatch: 0.8,
+          iterationCount: 3,
+          targetDynamics: null,
+          mechanicSet: JSON.stringify({ m1: {} }),
+          lensValidation: null,
+          bondValidation: null,
+          ludonarrativeCheck: null,
+          fullProfile: null,
+        },
+      };
+      const result = await runChecklistValidation(project, "mda-check");
+      const issues = result.profile.mda_check?.issues ?? [];
+      expect(issues.some((i) => i.issue_type === "mda_zero_iterations")).toBe(false);
+      expect(issues.some((i) => i.issue_type === "mda_low_iterations")).toBe(false);
     });
 
     it("score increases with healthier MDA profile (weak vs strong)", async () => {
@@ -485,10 +528,11 @@ describe("checklist-logic", () => {
       };
       const weak = await runChecklistValidation(weakProject, "mda-check");
       const strong = await runChecklistValidation(strongProject, "mda-check");
-      // Weak: 0.5 + 0.2 - 0.2 = 0.5
+      // Weak: 0.5 + 0.2 (mechanics) - 0.2 (low match) = 0.5
       expect(weak.profile.mda_check?.overall_mda_score).toBeCloseTo(0.5, 3);
-      // Strong: 0.5 + 0.2 + 0.15 + 0.1 = 0.95
-      expect(strong.profile.mda_check?.overall_mda_score).toBeCloseTo(0.95, 3);
+      // Strong: 0.5 + 0.2 (mechanics) + 0.15 (high match) + 0.05 (iterations>=2)
+      //        + 0.1 (lens) = 1.0 (clamped)
+      expect(strong.profile.mda_check?.overall_mda_score).toBeCloseTo(1.0, 3);
       expect(strong.profile.mda_check!.overall_mda_score).toBeGreaterThan(
         weak.profile.mda_check!.overall_mda_score,
       );
@@ -907,38 +951,32 @@ describe("checklist-logic", () => {
 
   describe("G. Summary computation", () => {
     it("overall_score is the unweighted average of 6 check scores", async () => {
-      // fullReadyProject: mda=0.95, balance=0.8, narrative=0.8, economy=0.6, lens=0.6, progression=1.0
+      // fullReadyProject: mda=1.0, balance=0.8, narrative=0.8, economy=0.9, lens=0.9, progression=1.0
       //
-      // BUG: economyScore and lensScore are 0.6 (not 0.9) because runEconomyCheck
-      // and runLensCheck always add an "ok" info issue when there are no other
-      // issues. The score formula `issues.length === 0 ? 0.9 : ...` can never
-      // be 0.9 because issues.length is always >= 1 (the "ok" issue).
-      // See worklog for details.
+      // R-AUDIT-FIX (#9 bug 2): economyScore and lensScore are now 0.9 (not 0.6)
+      // because the scoreFromIssues helper filters out "info" severity issues
+      // before scoring. A check with only "ok" info issues is a clean check.
+      // R-AUDIT-FIX (#9 bug 1): mdaScore is now 1.0 (not 0.95) because
+      // iteration_count>=2 adds +0.05 (clamped to 1.0).
       //
-      // avg = (0.95 + 0.8 + 0.8 + 0.6 + 0.6 + 1.0) / 6 = 4.75 / 6 = 0.7917 → 0.792
+      // avg = (1.0 + 0.8 + 0.8 + 0.9 + 0.9 + 1.0) / 6 = 5.4 / 6 = 0.9
       const result = await runChecklistValidation(fullReadyProject, "validate");
-      expect(result.profile.summary?.overall_score).toBeCloseTo(0.792, 3);
+      expect(result.profile.summary?.overall_score).toBeCloseTo(0.9, 3);
     });
 
-    // BUG: The "ready" readiness level (overall_score >= 0.8) is mathematically
-    // unreachable. The maximum achievable overall_score is 0.792 (see test above)
-    // because economyScore and lensScore are capped at 0.6 — their checks always
-    // add an "ok" info issue, so issues.length is never 0, so the score formula
-    // `issues.length === 0 ? 0.9 : ...` always evaluates to the 0.6 branch.
-    //
-    // Max sum = 0.95 + 0.8 + 0.8 + 0.6 + 0.6 + 1.0 = 4.75 → overall = 0.792 < 0.8.
-    // Skipping this test; see worklog for details.
-    it.skip('readiness is "ready" when overall >= 0.8, no errors, and playtest gate passed', async () => {
+    // R-AUDIT-FIX (#9 bug 2): "ready" is now reachable because economyScore and
+    // lensScore can reach 0.9 (filtering info issues). overall_score can now
+    // exceed 0.8.
+    it('readiness is "ready" when overall >= 0.8, no errors, and playtest gate passed', async () => {
       const result = await runChecklistValidation(fullReadyProject, "validate");
       expect(result.profile.summary?.overall_score).toBeGreaterThanOrEqual(0.8);
       expect(result.profile.summary?.readiness).toBe("ready");
       expect(result.readinessLevel).toBe("ready");
     });
 
-    // BUG: The playtest-gate downgrade branch (`overall >= 0.8 && !playtestGatePassed
-    // → "almost"`) is dead code because overall can never reach 0.8 (see above).
-    // Skipping this test; see worklog for details.
-    it.skip('readiness is "almost" when overall >= 0.8 but playtest gate not passed', async () => {
+    // R-AUDIT-FIX (#9 bug 2): playtest-gate downgrade branch is now reachable
+    // because overall_score can reach 0.8+.
+    it('readiness is "almost" when overall >= 0.8 but playtest gate not passed', async () => {
       const noPlaytest: ProjectData = {
         ...fullReadyProject,
         id: "proj-no-playtest",
@@ -1125,9 +1163,10 @@ describe("checklist-logic", () => {
       // Summary should be populated.
       expect(result.profile.summary).toBeDefined();
       expect(result.profile.summary?.overall_score).toBeGreaterThan(0);
-      // BUG: readiness is "almost" (not "ready") because the max achievable
-      // overall_score is 0.792 < 0.8. See G. Summary computation tests and worklog.
-      expect(result.profile.summary?.readiness).toBe("almost");
+      // R-AUDIT-FIX (#9 bug 2): with the scoreFromIssues helper filtering
+      // info issues, economyScore and lensScore can reach 0.9, and overall_score
+      // can exceed 0.8 → readiness="ready" is now achievable.
+      expect(result.profile.summary?.readiness).toBe("ready");
     });
 
     it("run with only Concept present → most checks skipped, but no crash", async () => {

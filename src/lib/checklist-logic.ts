@@ -254,6 +254,31 @@ function runMdaCheck(project: ProjectData): {
     }
   }
 
+  // R-AUDIT-FIX (#9 bug 1): iteration_count was declared in ProjectData but
+  // never read by runMdaCheck. Bible 3.5.2 requires meaningful MDA iteration
+  // (target → mechanics → predict aesthetics → compare → adjust). iteration_count
+  // < 2 means the loop never actually iterated, so the "convergence" claim is
+  // unverified. iteration_count === 0 is suspicious (may indicate a stub).
+  if (mda.iterationCount != null) {
+    if (mda.iterationCount === 0) {
+      issues.push({
+        severity: "warning",
+        issue_type: "mda_zero_iterations",
+        description: "MDA iteration count is 0 — convergence claim is unverified",
+        suggestion: "Re-run MDA analysis to perform at least one iteration pass",
+      });
+    } else if (mda.iterationCount < 2) {
+      issues.push({
+        severity: "warning",
+        issue_type: "mda_low_iterations",
+        description: `MDA iteration count is ${mda.iterationCount} — loop did not converge through multiple passes`,
+        suggestion: "Bible 3.5.2 recommends ≥2 iterations for meaningful aesthetic→mechanic alignment",
+      });
+    } else {
+      score += 0.05;
+    }
+  }
+
   const lensVal = mda.lensValidation
     ? safeJsonParse<{ overall_score?: number }>(mda.lensValidation, {})
     : null;
@@ -998,12 +1023,27 @@ export async function runChecklistValidation(
   // R6-07: compute economy and lens scores for buildSummary, including
   // Progression as a new scored check. R6-09: skipped/missing checks now
   // get score 0 (was 0.5 — falsely inflated readiness for incomplete projects).
-  const economyScore = economyCheck.skipped
-    ? 0  // R6-09: missing stage = 0, not 0.5
-    : (economyCheck.issues.length === 0 ? 0.9 : economyCheck.issues.some((i) => i.severity === "error") ? 0.2 : 0.6);
-  const lensScore = lensCheck.skipped
-    ? 0  // R6-09: missing stage = 0, not 0.5
-    : (lensCheck.issues.length === 0 ? 0.9 : lensCheck.issues.some((i) => i.severity === "error") ? 0.2 : 0.6);
+  //
+  // R-AUDIT-FIX (#9 bug 2): the original formula
+  //   `issues.length === 0 ? 0.9 : ...`
+  // was unreachable because runEconomyCheck, runLensCheck, runMdaCheck,
+  // runBalanceCheck, runNarrativeCheck ALL append a severity="info" "ok"
+  // issue when no real issues exist (e.g. "Линз-аудит пройден"). This meant
+  // issues.length was always ≥ 1, so the 0.9 branch never fired — the max
+  // achievable score was 0.6, making readiness="ready" (≥0.8) unreachable.
+  // The fix uses severity-based logic instead of length-based: filter out
+  // "info" severity issues (which are confirmations, not problems) before
+  // scoring. A check with only info issues is a clean check → 0.9.
+  const scoreFromIssues = (issues: ChecklistIssue[], skipped: boolean): number => {
+    if (skipped) return 0;  // R6-09: missing stage = 0, not 0.5
+    const realIssues = issues.filter((i) => i.severity !== "info");
+    if (realIssues.length === 0) return 0.9;
+    if (realIssues.some((i) => i.severity === "error")) return 0.2;
+    return 0.6;
+  };
+
+  const economyScore = scoreFromIssues(economyCheck.issues, economyCheck.skipped);
+  const lensScore = scoreFromIssues(lensCheck.issues, lensCheck.skipped);
   // R6-07: Progression check — score from progression presence and validation.
   const progressionScore = project.progression
     ? (() => {

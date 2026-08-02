@@ -273,6 +273,16 @@ function declareNodeVariable(node: GraphNode, ctx: CompileContext): void {
     case "hud":
       // no per-node state needed
       break;
+    // R-NODE-EXPANSION: Physics nodes — need arrays and timers.
+    case "projectile":
+      ctx.varLines.push(`let ${v}_projectiles = [];`);
+      break;
+    case "movingPlatform":
+      ctx.varLines.push(`let ${v}_platform = { pos: vec2(${num(props.x1, 100)}, ${num(props.y1, 100)}), t: 0 };`);
+      break;
+    case "gravityZone":
+      // No per-node state; gravity is applied inline via resolveOutputExpr.
+      break;
     default:
       // events, flow, output — no top-level variable needed
       break;
@@ -346,6 +356,22 @@ function emitRenderCode(node: GraphNode, ctx: CompileContext): void {
     }
     case "hud": {
       // HUD is rendered via emitHud() reading __hud map. No per-node render.
+      break;
+    }
+    // R-NODE-EXPANSION: Physics render code.
+    case "projectile": {
+      // Draw all active projectiles as small yellow circles.
+      ctx.renderLines.push(`  ${v}_projectiles.forEach(p => { drawCircle(p.pos, 4, new Color(1, 0.8, 0.2, 1)); });`);
+      break;
+    }
+    case "movingPlatform": {
+      // Draw the platform as a horizontal bar at its current position.
+      ctx.renderLines.push(`  drawRect(${v}_platform.pos, vec2(60, 8), new Color(0.6, 0.5, 0.3, 1), 0, new Color(0.8, 0.7, 0.4, 1), 2);`);
+      break;
+    }
+    case "gravityZone": {
+      // Draw a translucent circle to visualize the zone.
+      ctx.renderLines.push(`  drawCircle(vec2(${num(props.x1 ?? 200, 200)}, ${num(props.y1 ?? 150, 150)}), ${num(props.radius, 100)}, new Color(0.5, 0.3, 0.8, 0.2));`);
       break;
     }
     default:
@@ -882,6 +908,74 @@ function emitNodeBody(
       emitFollowers(node, ctx, lines, indent);
       break;
     }
+
+    // ============================================================
+    // R-NODE-EXPANSION: Physics (3 new nodes)
+    // ============================================================
+    case "projectile": {
+      const pos = resolveDataInput(node.id, "position", ctx, props);
+      const dir = resolveDataInput(node.id, "direction", ctx, props);
+      const speed = num(props.speed, 300);
+      const damage = num(props.damage, 25);
+      const lifetime = num(props.lifetime, 2.0);
+      lines.push(`${indent}// projectile ${node.id} spawn`);
+      // Spawn a new projectile: { pos, vel, life, damage }.
+      // direction is a vec2; normalize it and multiply by speed.
+      lines.push(`${indent}{ const _d = ${dir}; const _len = Math.sqrt(_d.x*_d.x + _d.y*_d.y) || 1; ${v}_projectiles.push({ pos: vec2(${pos}.x, ${pos}.y), vel: vec2(_d.x/_len*${speed}, _d.y/_len*${speed}), life: ${lifetime}, damage: ${damage} }); }`);
+      // Move projectiles + check lifetime + check collision with enemies.
+      lines.push(`${indent}for (let _pi = ${v}_projectiles.length-1; _pi >= 0; _pi--) {`);
+      lines.push(`${indent}  const _p = ${v}_projectiles[_pi];`);
+      lines.push(`${indent}  _p.pos = _p.pos.add(_p.vel.multiply(timeDelta));`);
+      lines.push(`${indent}  _p.life -= timeDelta;`);
+      lines.push(`${indent}  if (_p.life <= 0 || _p.pos.x < 0 || _p.pos.x > canvasWidth || _p.pos.y < 0 || _p.pos.y > canvasHeight) { ${v}_projectiles.splice(_pi, 1); continue; }`);
+      // Check collision with enemies (shared array).
+      lines.push(`${indent}  for (let _ei = enemies.length-1; _ei >= 0; _ei--) {`);
+      lines.push(`${indent}    if (enemies[_ei].pos.subtract(_p.pos).length() < 18) {`);
+      lines.push(`${indent}      enemies.splice(_ei, 1); ${v}_projectiles.splice(_pi, 1); sfxHit();`);
+      // Emit onHit followers.
+      emitFollowersByHandle(node, "onHit", ctx, lines, indent + "      ");
+      lines.push(`${indent}      break;`);
+      lines.push(`${indent}    }`);
+      lines.push(`${indent}  }`);
+      lines.push(`${indent}}`);
+      break;
+    }
+
+    case "movingPlatform": {
+      const x1 = num(props.x1, 100);
+      const y1 = num(props.y1, 100);
+      const x2 = num(props.x2, 300);
+      const y2 = num(props.y2, 100);
+      const speed = num(props.speed, 1.0);
+      const mode = str(props.mode, "pingpong");
+      lines.push(`${indent}// movingPlatform ${node.id} update`);
+      lines.push(`${indent}${v}_platform.t += timeDelta * ${speed};`);
+      if (mode === "loop") {
+        // Loop: t mod 1, linear from p1 to p2.
+        lines.push(`${indent}{ const _tt = ${v}_platform.t % 1; ${v}_platform.pos = vec2(${x1} + (${x2}-${x1})*_tt, ${y1} + (${y2}-${y1})*_tt); }`);
+      } else {
+        // pingpong: sin wave for smooth back-and-forth.
+        lines.push(`${indent}{ const _tt = (Math.sin(${v}_platform.t * Math.PI) + 1) / 2; ${v}_platform.pos = vec2(${x1} + (${x2}-${x1})*_tt, ${y1} + (${y2}-${y1})*_tt); }`);
+      }
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
+
+    case "gravityZone": {
+      const gx = num(props.gravityX, 0);
+      const gy = num(props.gravityY, -200);
+      const radius = num(props.radius, 100);
+      const zoneX = num(props.x1 ?? 200, 200);
+      const zoneY = num(props.y1 ?? 150, 150);
+      lines.push(`${indent}// gravityZone ${node.id} apply`);
+      // Apply gravity to player and enemies within radius.
+      lines.push(`${indent}{ const _zc = vec2(${zoneX}, ${zoneY});`);
+      lines.push(`${indent}  if (player.pos.subtract(_zc).length() < ${radius}) { player.pos = player.pos.add(vec2(${gx}*timeDelta, ${gy}*timeDelta)); }`);
+      lines.push(`${indent}  enemies.forEach(e => { if (e.pos.subtract(_zc).length() < ${radius}) { e.pos = e.pos.add(vec2(${gx}*timeDelta, ${gy}*timeDelta)); } });`);
+      lines.push(`${indent}}`);
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
   }
 }
 
@@ -1137,6 +1231,19 @@ function resolveOutputExpr(
     case "loadState": {
       if (pinId === "value") {
         return `${v}_loaded`;
+      }
+      break;
+    }
+    // R-NODE-EXPANSION: Physics nodes — inline resolution for position output.
+    case "projectile": {
+      if (pinId === "position") {
+        return `${v}_projectiles.length > 0 ? ${v}_projectiles[0].pos : vec2(0,0)`;
+      }
+      break;
+    }
+    case "movingPlatform": {
+      if (pinId === "position") {
+        return `${v}_platform.pos`;
       }
       break;
     }

@@ -48,7 +48,11 @@ export type NodeType =
   | "drawText"
   | "drawBar"
   | "showMessage"
-  | "hud";
+  | "hud"
+  // R-NODE-EXPANSION: Physics (3 new nodes)
+  | "projectile"
+  | "movingPlatform"
+  | "gravityZone";
 
 export type PinType = "exec" | "number" | "string" | "boolean" | "vec2" | "entity" | "array";
 
@@ -635,6 +639,48 @@ export const NODE_DEFINITIONS: Record<NodeType, NodeDefinition> = {
     ],
     outputs: [{ id: "exec", label: "→", type: "exec" }],
     defaultProperties: { key: "score", label: "Score" },
+  },
+
+  // ============================================================
+  // R-NODE-EXPANSION: Physics (3 new nodes, category=entity)
+  // These extend the entity category with physics-driven game objects.
+  // ============================================================
+  projectile: {
+    type: "projectile",
+    label: "Projectile",
+    icon: "🚀",
+    category: "entity",
+    color: "#f59e0b",
+    inputs: [
+      { id: "exec", label: "→", type: "exec" },
+      { id: "position", label: "pos", type: "vec2" },
+      { id: "direction", label: "dir", type: "vec2" },
+    ],
+    outputs: [
+      { id: "position", label: "pos", type: "vec2" },
+      { id: "onHit", label: "hit", type: "exec" },
+    ],
+    defaultProperties: { speed: 300, damage: 25, lifetime: 2.0 },
+  },
+  movingPlatform: {
+    type: "movingPlatform",
+    label: "Moving Platform",
+    icon: "🛤️",
+    category: "entity",
+    color: "#f59e0b",
+    inputs: [{ id: "exec", label: "→", type: "exec" }],
+    outputs: [{ id: "position", label: "pos", type: "vec2" }],
+    defaultProperties: { x1: 100, y1: 100, x2: 300, y2: 100, speed: 1.0, mode: "pingpong" },
+  },
+  gravityZone: {
+    type: "gravityZone",
+    label: "Gravity Zone",
+    icon: "🌀",
+    category: "entity",
+    color: "#f59e0b",
+    inputs: [{ id: "exec", label: "→", type: "exec" }],
+    outputs: [{ id: "exec", label: "→", type: "exec" }],
+    defaultProperties: { gravityX: 0, gravityY: -200, radius: 100 },
   },
 };
 

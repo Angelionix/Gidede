@@ -750,3 +750,184 @@ describe("R-NODE-EXPANSION Step 4: compilation of UI nodes", () => {
     expect(r.html).toContain("drawRect");
   });
 });
+
+// ============================================================
+// R-NODE-EXPANSION Step 5: Physics (3 new nodes)
+// ============================================================
+
+describe("R-NODE-EXPANSION Step 5: Physics node definitions", () => {
+  const physicsNodes = ["projectile", "movingPlatform", "gravityZone"] as const;
+
+  for (const type of physicsNodes) {
+    it(`${type}: is in NODE_DEFINITIONS with category=entity`, () => {
+      const def = NODE_DEFINITIONS[type];
+      expect(def).toBeDefined();
+      expect(def.category).toBe("entity");
+      expect(def.color).toBe("#f59e0b"); // orange for entity
+    });
+  }
+
+  it("projectile has exec + position + direction inputs, position + onHit outputs", () => {
+    const def = NODE_DEFINITIONS.projectile;
+    expect(def.inputs.find((p) => p.id === "position" && p.type === "vec2")).toBeDefined();
+    expect(def.inputs.find((p) => p.id === "direction" && p.type === "vec2")).toBeDefined();
+    expect(def.outputs.find((p) => p.id === "position" && p.type === "vec2")).toBeDefined();
+    expect(def.outputs.find((p) => p.id === "onHit" && p.type === "exec")).toBeDefined();
+  });
+
+  it("projectile has speed, damage, lifetime defaults", () => {
+    expect(NODE_DEFINITIONS.projectile.defaultProperties.speed).toBe(300);
+    expect(NODE_DEFINITIONS.projectile.defaultProperties.damage).toBe(25);
+    expect(NODE_DEFINITIONS.projectile.defaultProperties.lifetime).toBe(2.0);
+  });
+
+  it("movingPlatform has x1,y1,x2,y2,speed,mode defaults", () => {
+    const d = NODE_DEFINITIONS.movingPlatform.defaultProperties;
+    expect(d.x1).toBe(100);
+    expect(d.y1).toBe(100);
+    expect(d.x2).toBe(300);
+    expect(d.y2).toBe(100);
+    expect(d.speed).toBe(1.0);
+    expect(d.mode).toBe("pingpong");
+  });
+
+  it("gravityZone has gravityX, gravityY, radius defaults", () => {
+    const d = NODE_DEFINITIONS.gravityZone.defaultProperties;
+    expect(d.gravityX).toBe(0);
+    expect(d.gravityY).toBe(-200);
+    expect(d.radius).toBe(100);
+  });
+});
+
+describe("R-NODE-EXPANSION Step 5: compilation of Physics nodes", () => {
+  it("projectile declares _projectiles array and spawns projectile on exec", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("p", "projectile", 200, 50, { speed: 400, damage: 30, lifetime: 1.5 }),
+        makeNode("w", "win", 400, 50),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "p", toHandle: null },
+        { from: "p", fromHandle: "exec", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    expect(r.html).toContain("_projectiles");
+    // Spawn pushes a new projectile object
+    expect(r.html).toContain(".push(");
+    // Movement: pos.add(vel.multiply(timeDelta))
+    expect(r.html).toContain(".multiply(timeDelta)");
+    // Lifetime decay
+    expect(r.html).toContain("_p.life");
+  });
+
+  it("projectile checks collision with enemies and emits onHit", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("e", "enemy", 200, 50),
+        makeNode("p", "projectile", 350, 50),
+        makeNode("c", "counter", 500, 50, { threshold: 1 }),
+        makeNode("w", "win", 650, 50),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "e", toHandle: null },
+        { from: "start", fromHandle: "exec", to: "p", toHandle: null },
+        { from: "p", fromHandle: "onHit", to: "c", toHandle: "increment" },
+        { from: "c", fromHandle: "onThreshold", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    expect(r.html).toContain("enemies");
+    expect(r.html).toContain("sfxHit()");
+  });
+
+  it("movingPlatform declares _platform object with pos and t", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("mp", "movingPlatform", 200, 50, { x1: 50, y1: 100, x2: 350, y2: 100, mode: "pingpong" }),
+        makeNode("w", "win", 400, 50),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "mp", toHandle: null },
+        { from: "mp", fromHandle: "exec", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    expect(r.html).toContain("_platform");
+    // pingpong mode uses Math.sin
+    expect(r.html).toContain("Math.sin");
+    // Update advances t
+    expect(r.html).toContain("_platform.t");
+  });
+
+  it("movingPlatform loop mode uses modulo", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("mp", "movingPlatform", 200, 50, { mode: "loop" }),
+        makeNode("w", "win", 400, 50),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "mp", toHandle: null },
+        { from: "mp", fromHandle: "exec", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    // Loop mode uses % 1
+    expect(r.html).toContain("% 1");
+  });
+
+  it("gravityZone applies gravity to player and enemies within radius", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("p", "player", 200, 50),
+        makeNode("gz", "gravityZone", 350, 50, { gravityX: 0, gravityY: -300, radius: 150 }),
+        makeNode("w", "win", 500, 50),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "p", toHandle: null },
+        { from: "start", fromHandle: "exec", to: "gz", toHandle: null },
+        { from: "gz", fromHandle: "exec", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    expect(r.html).toContain("gravityZone");
+    // Gravity applied to player
+    expect(r.html).toContain("player.pos");
+    // Gravity applied to enemies
+    expect(r.html).toContain("enemies");
+    // Distance check for radius
+    expect(r.html).toContain(".length() < 150");
+  });
+
+  it("projectile can be spawned on key press", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("player", "player", 200, 50),
+        makeNode("key", "onKey", 200, 150, { keyCode: "Space" }),
+        makeNode("p", "projectile", 350, 150, { speed: 500 }),
+        makeNode("w", "win", 500, 150),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "player", toHandle: null },
+        { from: "start", fromHandle: "exec", to: "key", toHandle: null },
+        { from: "key", fromHandle: "exec", to: "p", toHandle: null },
+        { from: "p", fromHandle: "exec", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    expect(r.html).toContain("_projectiles");
+    expect(r.html).toContain("Space");
+  });
+});

@@ -2,8 +2,20 @@
  * POST /api/v1/prototypes/generate
  *
  * Генерирует HTML-прототип кор-лупа из данных проекта.
- * Body: { project_id: string }
+ * Body: { project_id: string, mode?: '2d'|'3d', use_ai?: bool, type?: string }
  * Response: { html: string, config: {...}, playable: true }
+ *
+ * R-PROTO-DATA: теперь читает Balance/Progression/Economy артефакты проекта
+ * и использует их для data-driven параметров прототипа (playerSpeed, enemyDamage,
+ * counterThreshold, resourceName и т.д.). Раньше все engine-прототипы были
+ * одинаковыми (hardcoded defaults); теперь они содержательно различаются
+ * между проектами.
+ *
+ * R-PROTO-TYPES: теперь поддерживает 10 типов прототипов (было 6):
+ *   engine, economy, ecology, tower_defense, rhythm, puzzle (оригинальные)
+ *   platformer, stealth, deck_builder, survival_horror (новые)
+ * Новые типы используют graph-builder path (compileGraph), legacy inline
+ * templates не доступны для них.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -17,7 +29,12 @@ import {
 import {
   buildPrototypeConfig,
   generatePrototypeHtml,
+  generatePrototypeFromGraph,
 } from "@/lib/prototype-generator";
+import {
+  extractPrototypeParams,
+  resolvePrototypeType,
+} from "@/lib/prototype-params";
 import { generatePrototypeInsights, generateCustomMechanic } from "@/lib/ai-service";
 import { createPrototypeArtifact, PrototypeLineageError } from "@/lib/prototype-lineage";
 
@@ -50,18 +67,52 @@ export async function POST(request: NextRequest) {
       genre: string | null;
       description: string | null;
       pipelineState: string | null;
+      concept?: {
+        aestheticProfile: string | null;
+        mechanicSet: string | null;
+      } | null;
       coreLoop?: {
         structuralType: string | null;
         steps: string | null;
         stepsData: string | null;
         inputData: string | null;
       } | null;
+      balanceResult?: {
+        overallBalanceScore: number | null;
+        elementCount: number | null;
+        fullResult: string | null;
+      } | null;
+      progression?: {
+        totalLevels: number | null;
+        tierCount: number | null;
+        curveType: string | null;
+        fullProfile: string | null;
+      } | null;
+      economy?: {
+        resourceCount: number | null;
+        hasPathology: boolean;
+        resourceModel: string | null;
+        fullProfile: string | null;
+      } | null;
     };
 
+    // R-PROTO-DATA: extract params from upstream artifacts (Balance,
+    // Progression, Economy). Returns {} if artifacts are missing.
+    const dataParams = extractPrototypeParams(project);
+
+    // R-PROTO-TYPES: resolve prototype type from override / core loop / genre.
+    const resolvedType = resolvePrototypeType(
+      typeOverride,
+      project.coreLoop?.structuralType,
+      project.genre,
+    );
+
+    // Build config (still needed for legacy generatePrototypeHtml path and
+    // for the response.config field).
     const cl = project.coreLoop;
     const config = buildPrototypeConfig(
       {
-        structuralType: typeOverride || cl?.structuralType || "engine",
+        structuralType: resolvedType,
         steps: cl?.steps
           ? (JSON.parse(cl.steps) as string[] | { name?: string; description?: string; action?: string }[])
           : cl?.stepsData
@@ -74,13 +125,44 @@ export async function POST(request: NextRequest) {
 
     const prototypeArtifact = createPrototypeArtifact(project.id, project.pipelineState, {
       mode: config.mode,
-      type: config.type,
+      type: resolvedType,
       steps: config.steps,
-      resource: config.resourceName,
+      resource: dataParams.resourceName ?? config.resourceName,
       goal: config.goalText,
       typeOverride,
     });
-    const html = generatePrototypeHtml(config, prototypeArtifact.prototypeId);
+
+    // R-PROTO-TYPES: for the 4 NEW types (platformer, stealth, deck_builder,
+    // survival_horror), use the graph-builder path directly. For the 6
+    // original types, generatePrototypeHtml tries graph first, falls back
+    // to legacy inline templates if graph compilation fails.
+    const NEW_TYPES = ["platformer", "stealth", "deck_builder", "survival_horror"];
+    let html: string;
+    if (NEW_TYPES.includes(resolvedType)) {
+      const result = generatePrototypeFromGraph(
+        resolvedType,
+        mode,
+        config.steps,
+        dataParams,
+        prototypeArtifact.prototypeId,
+      );
+      if (!result.valid) {
+        return NextResponse.json({
+          detail: "Прототип не скомпилировался",
+          errors: result.errors,
+        }, { status: 500 });
+      }
+      html = result.html;
+    } else {
+      // For the 6 original types, generatePrototypeHtml uses graph path
+      // with legacy fallback.
+      // Merge data-driven params into config for the legacy path.
+      const configWithData = {
+        ...config,
+        type: resolvedType as typeof config.type,
+      };
+      html = generatePrototypeHtml(configWithData, prototypeArtifact.prototypeId);
+    }
 
     // Optional AI insights for the prototype
     let aiInsights: string | null = null;
@@ -89,7 +171,7 @@ export async function POST(request: NextRequest) {
       aiInsights = await generatePrototypeInsights({
         projectName: project.name,
         genre: project.genre || "—",
-        coreLoopType: config.type,
+        coreLoopType: resolvedType,
         steps: config.steps,
         mode: config.mode,
         idea: project.description || undefined,
@@ -97,7 +179,7 @@ export async function POST(request: NextRequest) {
       customMechanic = await generateCustomMechanic({
         projectName: project.name,
         genre: project.genre || "—",
-        coreLoopType: config.type,
+        coreLoopType: resolvedType,
         mode: config.mode,
         idea: project.description || undefined,
       });
@@ -107,11 +189,17 @@ export async function POST(request: NextRequest) {
       playable: true,
       html,
       config: {
-        type: config.type,
+        type: resolvedType,
         mode: config.mode,
         steps: config.steps,
-        resource: config.resourceName,
+        resource: dataParams.resourceName ?? config.resourceName,
         goal: config.goalText,
+        // R-PROTO-DATA: expose the data-driven params so the client can
+        // show them in the UI ("Player speed: 220 (from Balance)").
+        data_params: dataParams,
+        data_params_source: Object.keys(dataParams).length > 0
+          ? "balance+progression+economy"
+          : "defaults",
       },
       ai_insights: aiInsights,
       custom_mechanic: customMechanic,

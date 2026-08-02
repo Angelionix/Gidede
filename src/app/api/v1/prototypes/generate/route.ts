@@ -49,26 +49,34 @@ function inferMechanicIds(
   // Type-based defaults: each type maps to canonical mechanic IDs.
   const typeToMechanics: Record<string, string[]> = {
     engine: ["locomotion", "collect"],
-    economy: ["locomotion", "collect"],
+    economy: ["locomotion", "collect", "convert"],
     ecology: ["locomotion", "collect", "survival"],
-    tower_defense: ["locomotion", "combat", "collect"],
-    rhythm: ["locomotion"],
-    puzzle: ["locomotion"],
+    tower_defense: ["locomotion", "combat", "collect", "defend", "build"],
+    rhythm: ["locomotion", "timing"],
+    puzzle: ["locomotion", "puzzle"],
     platformer: ["locomotion", "collect"],
-    stealth: ["locomotion", "survival"],
-    deck_builder: ["locomotion", "collect"],
-    survival_horror: ["locomotion", "survival", "collect"],
+    stealth: ["locomotion", "survival", "interact"],
+    deck_builder: ["locomotion", "collect", "upgrade"],
+    survival_horror: ["locomotion", "survival", "collect", "upgrade"],
   };
   const mechanics = typeToMechanics[resolvedType] || ["locomotion", "collect"];
   // If mechanicNames are available, try to map them to canonical IDs.
   if (mechanicNames && mechanicNames.length > 0) {
     const extra: string[] = [];
-    for (const name of mechanicNames.slice(0, 5)) {
+    for (const name of mechanicNames.slice(0, 8)) {
       const lower = name.toLowerCase();
-      if (lower.includes("двиг") || lower.includes("move") || lower.includes("ход")) extra.push("locomotion");
-      else if (lower.includes("сбор") || lower.includes("collect") || lower.includes("pickup")) extra.push("collect");
-      else if (lower.includes("бой") || lower.includes("combat") || lower.includes("attack")) extra.push("combat");
-      else if (lower.includes("выжив") || lower.includes("survival") || lower.includes("avoid")) extra.push("survival");
+      if (lower.includes("двиг") || lower.includes("move") || lower.includes("ход") || lower.includes("прыж")) extra.push("locomotion");
+      else if (lower.includes("сбор") || lower.includes("collect") || lower.includes("pickup") || lower.includes("собир")) extra.push("collect");
+      else if (lower.includes("бой") || lower.includes("combat") || lower.includes("attack") || lower.includes("стрельб") || lower.includes("атак")) extra.push("combat");
+      else if (lower.includes("выжив") || lower.includes("survival") || lower.includes("avoid") || lower.includes("уклон")) extra.push("survival");
+      else if (lower.includes("взаим") || lower.includes("interact") || lower.includes("актив") || lower.includes("deliver") || lower.includes("достав")) extra.push("interact");
+      else if (lower.includes("крафт") || lower.includes("craft") || lower.includes("конверт") || lower.includes("trade") || lower.includes("торг")) extra.push("convert");
+      else if (lower.includes("стро") || lower.includes("build") || lower.includes("place") || lower.includes("размещ")) extra.push("build");
+      else if (lower.includes("защит") || lower.includes("defend") || lower.includes("guard") || lower.includes("охран")) extra.push("defend");
+      else if (lower.includes("улучш") || lower.includes("upgrade") || lower.includes("level") || lower.includes("прокач")) extra.push("upgrade");
+      else if (lower.includes("поворот") || lower.includes("rotate") || lower.includes("transform") || lower.includes("трансф")) extra.push("transform");
+      else if (lower.includes("паззл") || lower.includes("puzzle") || lower.includes("match") || lower.includes("головолом")) extra.push("puzzle");
+      else if (lower.includes("ритм") || lower.includes("rhythm") || lower.includes("timing") || lower.includes("beat") || lower.includes("тайминг")) extra.push("timing");
     }
     // Merge unique.
     return [...new Set([...mechanics, ...extra])];

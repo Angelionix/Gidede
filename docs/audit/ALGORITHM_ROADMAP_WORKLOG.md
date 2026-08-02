@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** Фаза R6 (GDD и финальная валидация) — начать с `R6-01` (удалить/делегировать stub GDD routes).
-- **Зависимости:** Фаза R5 (Balance, Progression, Economy) завершена — все 16 задач R5-01…R5-16 выполнены.
-- **Ожидаемый результат:** один canonical GDD generator; source types честные; critical issues — hard gate.
-- **После неё:** R6-02…R6-11 — полный рефакторинг GDD и Checklist.
+- **Следующая задача:** `R6-02` — ввести source types `artifact`, `template`, `llm`, `manual`, `placeholder`.
+- **Зависимости:** `R6-01` завершена; `generate-full` делегирует каноническому `/gdd/generate`.
+- **Ожидаемый результат:** template никогда не маркируется AI; placeholder не считается filled.
+- **После неё:** `R6-03` — секция хранит source artifact/version и review status.
 
 ## Статус roadmap
 
@@ -79,7 +79,8 @@
 | R5-14 | DONE | faucetDrain producingFlows filter: только target_id (was target_id OR resource) | 848 tests, TypeScript, scoped ESLint |
 | R5-15 | DONE | Machinations graph execution (nodes + flows + state_connections) с реальной resource-flow sim | 862 tests, TypeScript, scoped ESLint |
 | R5-16 | DONE | Economy AI enrichment перенесён до persist (ai_insights теперь сохраняется в БД) | 848 tests, TypeScript, scoped ESLint |
-| R6…R7 | TODO | См. активный roadmap | — |
+| R6-01 | DONE | `generate-full` делегирует каноническому `/gdd/generate` (один canonical generator) | 862 tests, TypeScript, scoped ESLint |
+| R6-02…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -92,6 +93,33 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R6-01 — DONE
+
+Что сделано:
+
+- `generate-full/route.ts` переписан: вместо stub-ответа с 3 полями (title, genre, synopsis), теперь делегирует каноническому `/api/v1/gdd/generate` через internal fetch с forwarded auth header;
+- один canonical GDD generator (`/api/v1/gdd/generate`) — `generate-full` больше не дублирует логику;
+- нормализация формата через `normalizeGddFormat` + `isGddDocumentFormat` (та же validation что в canonical route);
+- response `generate-full` идентичен response `generate`.
+
+Изменённые области:
+
+- `src/app/api/v1/gdd/generate-full/route.ts` — полная переписка (stub → delegate).
+
+Проверки:
+
+- `bun run test` — 72 файла, 862 теста пройдено (без изменений);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- `generate-full` больше не возвращает упрощённый 3-field stub;
+- response идентичен canonical `/gdd/generate`;
+- один canonical generator (DRY);
+- следующей задачей назначена `R6-02`.
 
 ### 2026-08-01 — R5-15 — DONE
 

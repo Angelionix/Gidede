@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R7-06` — stale/gate/resume E2E.
-- **Зависимости:** `R7-05` завершена; 14 conformance tests покрывают LlmClient contract.
-- **Ожидаемый результат:** изменение Concept корректно перестраивает downstream.
-- **После неё:** `R7-07` — algorithm trace UI, `R7-08` — CI thresholds.
+- **Следующая задача:** `R7-07` — algorithm trace UI, `R7-08` — CI thresholds.
+- **Зависимости:** `R7-06` завершена; 9 stale/gate/resume E2E tests покрывают propagation, fallback, resume.
+- **Ожидаемый результат:** пользователь видит method, assumptions, evidence и confidence; CI thresholds настроены.
+- **После неё:** завершение roadmap.
 
 
 ## Статус roadmap
@@ -96,7 +96,8 @@
 | R7-03 | DONE | 13 property tests: Nash sum/bounds, composite score monotonicity/bounds, graph conservation, RPS distinctness | 905 tests, TypeScript, scoped ESLint |
 | R7-04 | DONE | 12 statistical tests: CI coverage, reproducibility, tolerance, CI widening/narrowing | 917 tests, TypeScript, scoped ESLint |
 | R7-05 | DONE | 14 LLM adapter conformance tests: createCompletion, streaming, isAvailable, capabilities, health, listModels, providerId/modelId, error handling | 931 tests, TypeScript, scoped ESLint |
-| R7-06…R7-08 | TODO | См. активный roadmap | — |
+| R7-06 | DONE | 9 stale/gate/resume E2E tests: genre propagation, aesthetics change, fallback, resume, GDD stale detection | 940 tests, TypeScript, scoped ESLint |
+| R7-07…R7-08 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -109,6 +110,35 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R7-06 — DONE
+
+Что сделано:
+
+- создан `src/lib/stale-gate-resume-e2e.test.ts` с 9 E2E tests;
+- stale propagation: изменение Concept genre (rpg→shooter) меняет genre forwarded to Core Loop; изменение aesthetics меняет target_aesthetics to MDA; изменение mechanic_set меняет mechanics;
+- quality gates: missing Concept → Core Loop fallback to derived mechanics (source="fallback"); missing Concept → MDA default aesthetics; missing Balance → Progression hardcoded cost defaults;
+- resume: upstream_versions from Concept forwarded to all 7 downstream stages; adding Balance to context adds balance_dominance to MDA request;
+- GDD stale detection: разные artifact versions (v1 vs v2) produce разные inputHashes → stale detection сработает.
+
+Изменённые области:
+
+- `src/lib/stale-gate-resume-e2e.test.ts` (новый, 9 тестов).
+
+Проверки:
+
+- `bun run test` — 79 файлов, 940 тестов пройдено (было 931; +9 E2E);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- Concept change (genre/aesthetics/mechanics) → downstream stages get updated values;
+- missing upstream → graceful fallback (not crash);
+- upstream_versions propagate to all downstream stages;
+- GDD stale detection logic works (different inputHashes);
+- следующей задачей назначены `R7-07` + `R7-08`.
 
 ### 2026-08-01 — R7-05 — DONE
 

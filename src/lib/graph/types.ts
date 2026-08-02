@@ -24,7 +24,16 @@ export type NodeType =
   | "array"
   | "win"
   | "lose"
-  | "comment";
+  | "comment"
+  // R-NODE-EXPANSION: Math & Logic (8 new nodes)
+  | "clamp"
+  | "lerp"
+  | "distance"
+  | "angle"
+  | "compare"
+  | "boolOp"
+  | "switch"
+  | "getValue";
 
 export type PinType = "exec" | "number" | "string" | "boolean" | "vec2" | "entity" | "array";
 
@@ -346,6 +355,118 @@ export const NODE_DEFINITIONS: Record<NodeType, NodeDefinition> = {
     inputs: [],
     outputs: [],
     defaultProperties: { text: "Comment..." },
+  },
+
+  // ============================================================
+  // R-NODE-EXPANSION: Math & Logic (8 new nodes)
+  // ============================================================
+  clamp: {
+    type: "clamp",
+    label: "Clamp",
+    icon: "📏",
+    category: "data",
+    color: "#10b981",
+    inputs: [
+      { id: "value", label: "v", type: "number" },
+      { id: "min", label: "min", type: "number" },
+      { id: "max", label: "max", type: "number" },
+    ],
+    outputs: [{ id: "result", label: "result", type: "number" }],
+    defaultProperties: { min: 0, max: 100 },
+  },
+  lerp: {
+    type: "lerp",
+    label: "Lerp",
+    icon: "📈",
+    category: "data",
+    color: "#10b981",
+    inputs: [
+      { id: "a", label: "a", type: "number" },
+      { id: "b", label: "b", type: "number" },
+      { id: "t", label: "t", type: "number" },
+    ],
+    outputs: [{ id: "result", label: "result", type: "number" }],
+    defaultProperties: { a: 0, b: 100, t: 0.5 },
+  },
+  distance: {
+    type: "distance",
+    label: "Distance",
+    icon: "📐",
+    category: "data",
+    color: "#10b981",
+    inputs: [
+      { id: "a", label: "a", type: "vec2" },
+      { id: "b", label: "b", type: "vec2" },
+    ],
+    outputs: [{ id: "result", label: "dist", type: "number" }],
+    defaultProperties: {},
+  },
+  angle: {
+    type: "angle",
+    label: "Angle",
+    icon: "🧭",
+    category: "data",
+    color: "#10b981",
+    inputs: [
+      { id: "a", label: "a", type: "vec2" },
+      { id: "b", label: "b", type: "vec2" },
+    ],
+    outputs: [{ id: "result", label: "angle", type: "number" }],
+    defaultProperties: {},
+  },
+  compare: {
+    type: "compare",
+    label: "Compare",
+    icon: "⚖️",
+    category: "data",
+    color: "#10b981",
+    inputs: [
+      { id: "a", label: "a", type: "number" },
+      { id: "b", label: "b", type: "number" },
+    ],
+    outputs: [{ id: "result", label: "result", type: "boolean" }],
+    defaultProperties: { operation: "==" },
+  },
+  boolOp: {
+    type: "boolOp",
+    label: "Bool Op",
+    icon: "🔗",
+    category: "data",
+    color: "#10b981",
+    inputs: [
+      { id: "a", label: "a", type: "boolean" },
+      { id: "b", label: "b", type: "boolean" },
+    ],
+    outputs: [{ id: "result", label: "result", type: "boolean" }],
+    defaultProperties: { operation: "AND" },
+  },
+  switch: {
+    type: "switch",
+    label: "Switch",
+    icon: "🔀",
+    category: "flow",
+    color: "#8b5cf6",
+    inputs: [
+      { id: "exec", label: "→", type: "exec" },
+      { id: "index", label: "idx", type: "number" },
+    ],
+    outputs: [
+      { id: "out0", label: "0", type: "exec" },
+      { id: "out1", label: "1", type: "exec" },
+      { id: "out2", label: "2", type: "exec" },
+      { id: "out3", label: "3", type: "exec" },
+    ],
+    defaultProperties: {},
+  },
+  getValue: {
+    type: "getValue",
+    label: "Get Value",
+    icon: "📥",
+    category: "data",
+    color: "#10b981",
+    inputs: [{ id: "trigger", label: "→", type: "exec" }],
+    outputs: [{ id: "value", label: "value", type: "number" }],
+    defaultProperties: { varName: "score", defaultValue: 0 },
   },
 };
 

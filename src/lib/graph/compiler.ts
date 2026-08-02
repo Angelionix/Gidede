@@ -205,6 +205,19 @@ function declareNodeVariable(node: GraphNode, ctx: CompileContext): void {
     case "comment":
       // no variable
       break;
+    // R-NODE-EXPANSION: Math & Logic nodes — reserve result vars.
+    case "clamp":
+    case "lerp":
+    case "distance":
+    case "angle":
+    case "compare":
+    case "boolOp":
+    case "getValue":
+      ctx.varLines.push(`let ${v}_result = 0;`);
+      break;
+    case "switch":
+      // no variable needed; branching is inline
+      break;
     default:
       // events, flow, output — no top-level variable needed
       break;
@@ -526,6 +539,125 @@ function emitNodeBody(
       // no code, just a comment in source
       lines.push(`${indent}// ${str(props.text, "comment")}`);
       break;
+
+    // ============================================================
+    // R-NODE-EXPANSION: Math & Logic (8 new nodes)
+    // ============================================================
+    case "clamp": {
+      const val = resolveDataInput(node.id, "value", ctx, props);
+      const minV = resolveDataInput(node.id, "min", ctx, props);
+      const maxV = resolveDataInput(node.id, "max", ctx, props);
+      lines.push(`${indent}// clamp ${node.id}`);
+      lines.push(`${indent}${v}_result = Math.max(${minV}, Math.min(${maxV}, ${val}));`);
+      ctx.valueCache.set(`${node.id}:result`, `${v}_result`);
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
+
+    case "lerp": {
+      const a = resolveDataInput(node.id, "a", ctx, props);
+      const b = resolveDataInput(node.id, "b", ctx, props);
+      const t = resolveDataInput(node.id, "t", ctx, props);
+      lines.push(`${indent}// lerp ${node.id}`);
+      lines.push(`${indent}${v}_result = (${a}) + ((${b}) - (${a})) * clamp(${t}, 0, 1);`);
+      ctx.valueCache.set(`${node.id}:result`, `${v}_result`);
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
+
+    case "distance": {
+      const a = resolveDataInput(node.id, "a", ctx, props);
+      const b = resolveDataInput(node.id, "b", ctx, props);
+      lines.push(`${indent}// distance ${node.id}`);
+      lines.push(`${indent}{ const _dx = (${a}).x - (${b}).x; const _dy = (${a}).y - (${b}).y; ${v}_result = Math.sqrt(_dx*_dx + _dy*_dy); }`);
+      ctx.valueCache.set(`${node.id}:result`, `${v}_result`);
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
+
+    case "angle": {
+      const a = resolveDataInput(node.id, "a", ctx, props);
+      const b = resolveDataInput(node.id, "b", ctx, props);
+      lines.push(`${indent}// angle ${node.id}`);
+      lines.push(`${indent}{ const _dx = (${b}).x - (${a}).x; const _dy = (${b}).y - (${a}).y; ${v}_result = Math.atan2(_dy, _dx); }`);
+      ctx.valueCache.set(`${node.id}:result`, `${v}_result`);
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
+
+    case "compare": {
+      const a = resolveDataInput(node.id, "a", ctx, props);
+      const b = resolveDataInput(node.id, "b", ctx, props);
+      const op = str(props.operation, "==");
+      let expr: string;
+      switch (op) {
+        case "!=": expr = `(${a}) !== (${b})`; break;
+        case "<": expr = `(${a}) < (${b})`; break;
+        case ">": expr = `(${a}) > (${b})`; break;
+        case "<=": expr = `(${a}) <= (${b})`; break;
+        case ">=": expr = `(${a}) >= (${b})`; break;
+        case "==":
+        default: expr = `(${a}) === (${b})`; break;
+      }
+      lines.push(`${indent}// compare ${node.id} ${op}`);
+      lines.push(`${indent}${v}_result = ${expr};`);
+      ctx.valueCache.set(`${node.id}:result`, `${v}_result`);
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
+
+    case "boolOp": {
+      const a = resolveDataInput(node.id, "a", ctx, props);
+      const b = resolveDataInput(node.id, "b", ctx, props);
+      const op = str(props.operation, "AND");
+      let expr: string;
+      switch (op) {
+        case "OR": expr = `(${a}) || (${b})`; break;
+        case "NOT": expr = `!(${a})`; break;
+        case "XOR": expr = `(${a}) !== (${b})`; break;
+        case "AND":
+        default: expr = `(${a}) && (${b})`; break;
+      }
+      lines.push(`${indent}// boolOp ${node.id} ${op}`);
+      lines.push(`${indent}${v}_result = ${expr};`);
+      ctx.valueCache.set(`${node.id}:result`, `${v}_result`);
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
+
+    case "switch": {
+      const idx = resolveDataInput(node.id, "index", ctx, props);
+      lines.push(`${indent}// switch ${node.id}`);
+      lines.push(`${indent}switch (Math.floor(${idx})) {`);
+      lines.push(`${indent}  case 0:`);
+      emitFollowersByHandle(node, "out0", ctx, lines, indent + "    ");
+      lines.push(`${indent}    break;`);
+      lines.push(`${indent}  case 1:`);
+      emitFollowersByHandle(node, "out1", ctx, lines, indent + "    ");
+      lines.push(`${indent}    break;`);
+      lines.push(`${indent}  case 2:`);
+      emitFollowersByHandle(node, "out2", ctx, lines, indent + "    ");
+      lines.push(`${indent}    break;`);
+      lines.push(`${indent}  case 3:`);
+      emitFollowersByHandle(node, "out3", ctx, lines, indent + "    ");
+      lines.push(`${indent}    break;`);
+      lines.push(`${indent}  default:`);
+      lines.push(`${indent}    // no match`);
+      lines.push(`${indent}}`);
+      break;
+    }
+
+    case "getValue": {
+      const varName = str(props.varName, "score");
+      const defVal = num(props.defaultValue, 0);
+      lines.push(`${indent}// getValue ${node.id} var=${varName}`);
+      // Read from a graph-scope variable (declared elsewhere or fallback to default).
+      // We use a global object __vars to avoid polluting the global namespace.
+      lines.push(`${indent}${v}_result = (typeof __vars !== 'undefined' && __vars[${JSON.stringify(varName)}] !== undefined) ? __vars[${JSON.stringify(varName)}] : ${defVal};`);
+      ctx.valueCache.set(`${node.id}:value`, `${v}_result`);
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
   }
 }
 
@@ -656,6 +788,79 @@ function resolveOutputExpr(
     case "onTick":
       if (pinId === "deltaTime") return "timeDelta";
       break;
+    // R-NODE-EXPANSION: inline resolution for Math & Logic nodes.
+    case "clamp": {
+      if (pinId === "result") {
+        const val = resolveDataInput(node.id, "value", ctx, props);
+        const minV = resolveDataInput(node.id, "min", ctx, props);
+        const maxV = resolveDataInput(node.id, "max", ctx, props);
+        return `Math.max(${minV}, Math.min(${maxV}, ${val}))`;
+      }
+      break;
+    }
+    case "lerp": {
+      if (pinId === "result") {
+        const a = resolveDataInput(node.id, "a", ctx, props);
+        const b = resolveDataInput(node.id, "b", ctx, props);
+        const t = resolveDataInput(node.id, "t", ctx, props);
+        return `((${a}) + ((${b}) - (${a})) * Math.max(0, Math.min(1, ${t})))`;
+      }
+      break;
+    }
+    case "distance": {
+      if (pinId === "result") {
+        const a = resolveDataInput(node.id, "a", ctx, props);
+        const b = resolveDataInput(node.id, "b", ctx, props);
+        return `Math.sqrt(Math.pow((${a}).x - (${b}).x, 2) + Math.pow((${a}).y - (${b}).y, 2))`;
+      }
+      break;
+    }
+    case "angle": {
+      if (pinId === "result") {
+        const a = resolveDataInput(node.id, "a", ctx, props);
+        const b = resolveDataInput(node.id, "b", ctx, props);
+        return `Math.atan2((${b}).y - (${a}).y, (${b}).x - (${a}).x)`;
+      }
+      break;
+    }
+    case "compare": {
+      if (pinId === "result") {
+        const a = resolveDataInput(node.id, "a", ctx, props);
+        const b = resolveDataInput(node.id, "b", ctx, props);
+        const op = str(props.operation, "==");
+        switch (op) {
+          case "!=": return `((${a}) !== (${b}))`;
+          case "<": return `((${a}) < (${b}))`;
+          case ">": return `((${a}) > (${b}))`;
+          case "<=": return `((${a}) <= (${b}))`;
+          case ">=": return `((${a}) >= (${b}))`;
+          default: return `((${a}) === (${b}))`;
+        }
+      }
+      break;
+    }
+    case "boolOp": {
+      if (pinId === "result") {
+        const a = resolveDataInput(node.id, "a", ctx, props);
+        const b = resolveDataInput(node.id, "b", ctx, props);
+        const op = str(props.operation, "AND");
+        switch (op) {
+          case "OR": return `((${a}) || (${b}))`;
+          case "NOT": return `(!(${a}))`;
+          case "XOR": return `((${a}) !== (${b}))`;
+          default: return `((${a}) && (${b}))`;
+        }
+      }
+      break;
+    }
+    case "getValue": {
+      if (pinId === "value") {
+        const varName = str(props.varName, "score");
+        const defVal = num(props.defaultValue, 0);
+        return `(typeof __vars !== 'undefined' && __vars[${JSON.stringify(varName)}] !== undefined) ? __vars[${JSON.stringify(varName)}] : ${defVal}`;
+      }
+      break;
+    }
   }
   return null;
 }

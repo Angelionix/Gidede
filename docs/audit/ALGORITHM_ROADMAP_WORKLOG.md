@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R7-02` — E2E RU/EN pipeline fixtures.
-- **Зависимости:** `R7-01` завершена; 13 cross-stage boundary contract tests покрывают все extractor'ы и forwarding paths.
-- **Ожидаемый результат:** результаты различимы по жанру и входным данным.
-- **После неё:** `R7-03` — property tests для curves/resource conservation/payoff.
+- **Следующая задача:** `R7-03` — property tests для curves/resource conservation/payoff.
+- **Зависимости:** `R7-02` завершена; 9 E2E fixture tests покрывают 6 жанров × RU/EN × 8 стадий.
+- **Ожидаемый результат:** проверяются invariants, а не snapshots.
+- **После неё:** `R7-04` — statistical tests и confidence bounds.
 
 
 ## Статус roadmap
@@ -92,7 +92,8 @@
 | R6-06 | DONE | Per-section LLM generation (template/placeholder → llm); review_status всегда "needs_review" | 870 tests, TypeScript, scoped ESLint |
 | R6-10 | DONE | Prototype/playtest/freshness gates: "ready" требует playtest evidence + prototype + fresh stages | 870 tests, TypeScript, scoped ESLint |
 | R7-01 | DONE | 13 cross-stage boundary contract tests (Concept→Core/MDA, MDA→Balance, Balance→Progression/MDA, CoreLoop→Economy) | 883 tests, TypeScript, scoped ESLint |
-| R7-02…R7-08 | TODO | См. активный roadmap | — |
+| R7-02 | DONE | 9 E2E fixture tests: 6 жанров × RU/EN × 8 стадий, idea preserved verbatim, genre forwarded | 892 tests, TypeScript, scoped ESLint |
+| R7-03…R7-08 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -105,6 +106,33 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R7-02 — DONE
+
+Что сделано:
+
+- создан `src/lib/golden-fixtures/e2e-pipeline-fixtures.test.ts` с 9 E2E fixture tests;
+- tests прогоняют `buildStageRequestBody` для всех 8 стадий с каждым из 6 golden fixtures (6 жанров) в обоих локалях (RU/EN);
+- проверяется: RU/EN идеи различимы, идея preserved verbatim, genre forwarded во все downstream stages, stage order preserved, ни одна стадия не крашится.
+
+Изменённые области:
+
+- `src/lib/golden-fixtures/e2e-pipeline-fixtures.test.ts` (новый, 9 тестов).
+
+Проверки:
+
+- `bun run test` — 75 файлов, 892 теста пройдено (было 883; +9 E2E fixtures);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- 6 жанров × RU/EN × 8 стадий — все проходят без crash;
+- RU idea ≠ EN idea (различимы по языку);
+- genre forwarded во все downstream stages;
+- stage order preserved;
+- следующей задачей назначена `R7-03`.
 
 ### 2026-08-01 — R7-01 — DONE
 

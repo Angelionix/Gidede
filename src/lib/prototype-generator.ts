@@ -1,14 +1,20 @@
 /**
  * Gidede — Генератор прототипов кор-лупа (2D + 3D).
  *
+ * R-PROTO-UNIFY: теперь есть два пути генерации HTML:
+ *   1. (новый, recommended) buildPrototypeGraph() → compileGraph() — использует
+ *      единый компилятор графа, разделяемый с node-редактором. Это закрывает
+ *      архитектурный разрыв между двумя независимыми системами генерации HTML.
+ *      Поддерживает 10 типов прототипов (engine, economy, ecology, tower_defense,
+ *      rhythm, puzzle, platformer, stealth, deck_builder, survival_horror).
+ *   2. (legacy) generate2dHtml / generate3dHtml — inline-шаблоны. Сохранены
+ *      как fallback и для типов прототипов, не покрываемых графом (на данный
+ *      момент все 6 оригинальных типов покрываются графом, но legacy-путь
+ *      используется как fallback, если compileGraph вернул invalid).
+ *
  * Превращает данные ProjectCoreLoop (шаги, ресурсы, тип) в интерактивный
  * HTML-прототип, который можно поиграть прямо в браузере, чтобы протестировать
  * «30 секунд веселья» (алгоритм 3.2, Этап 4).
- *
- * Поддерживает 3 структурных типа:
- * - engine: ресурс генерируется со временем → копится (farming-like)
- * - economy: конвертация ресурсов (crafting-like)
- * - ecology: конкуренция/давление (survival-like)
  *
  * Два режима:
  * - 2D: LittleJS (WebGL2 + Canvas2D, физика, частицы, звук)
@@ -16,6 +22,10 @@
  *
  * Прототип — self-contained HTML, встраивается в <iframe srcDoc=...>.
  */
+
+import { buildPrototypeGraph, type PrototypeType, type PrototypeParams } from "./prototype-graph-builder";
+import { compileGraph } from "./graph/compiler";
+import type { NodeGraph } from "./graph/types";
 
 interface CoreLoopStep {
   name?: string;
@@ -1124,10 +1134,88 @@ function generate3dHtml(config: PrototypeConfig): string {
  * Сгенерировать self-contained HTML прототипа кор-лупа.
  * mode="2d" → LittleJS, mode="3d" → Three.js.
  * Встраивается в <iframe srcDoc={html}> на странице /prototypes.
+ *
+ * R-PROTO-UNIFY: теперь предпочитает путь через graph builder + compileGraph.
+ * Legacy inline-шаблоны используются только как fallback, если graph compiler
+ * вернул invalid (что не должно происходить для встроенных типов, но безопасно
+ * иметь fallback).
  */
 export function generatePrototypeHtml(config: PrototypeConfig, prototypeId = ""): string {
   const versionedConfig = { ...config, prototypeId };
+
+  // R-PROTO-UNIFY: try graph-based generation first.
+  // Only the 6 original types are in PrototypeConfig["type"]; the 4 new types
+  // (platformer, stealth, deck_builder, survival_horror) come through a
+  // separate path (buildPrototypeFromGraph).
+  const graphSupportedTypes: PrototypeType[] = [
+    "engine", "economy", "ecology", "tower_defense", "rhythm", "puzzle",
+  ];
+  if (graphSupportedTypes.includes(config.type as PrototypeType)) {
+    try {
+      const graph = buildPrototypeGraph({
+        type: config.type as PrototypeType,
+        mode: config.mode,
+        steps: config.steps,
+        params: {
+          resourceName: config.resourceName,
+          resourceIcon: config.resourceIcon,
+          goalScore: config.type === "ecology" || config.type === "tower_defense" ? 100 : undefined,
+          survivalSeconds: config.type === "rhythm" || config.type === "puzzle" ? 30 : 30,
+        },
+      });
+      const result = compileGraph(graph);
+      if (result.valid && result.html) {
+        // Inject prototypeId into the HTML for postMessage tracking.
+        return result.html.replace(
+          "window.parent.postMessage({ type: 'gidede-playtest'",
+          `window.parent.postMessage({ type: 'gidede-playtest', prototypeId: '${prototypeId}',`,
+        );
+      }
+      // If graph compilation failed, fall through to legacy.
+      console.warn("[prototype-generator] graph compilation failed, falling back to legacy templates:", result.errors);
+    } catch (e) {
+      console.warn("[prototype-generator] graph-based generation threw, falling back to legacy:", e);
+    }
+  }
+
+  // Legacy fallback: inline templates.
   return config.mode === "3d"
     ? generate3dHtml(versionedConfig)
     : generate2dHtml(versionedConfig);
+}
+
+/**
+ * R-PROTO-UNIFY: Generate a prototype for ANY of the 10 supported types,
+ * including the 4 new ones (platformer, stealth, deck_builder, survival_horror)
+ * that are not in the original PrototypeConfig["type"] union.
+ *
+ * This is the recommended entry point for new code. It always uses the graph
+ * builder + compileGraph() path — no legacy fallback.
+ *
+ * @param type    One of 10 supported prototype types.
+ * @param mode    "2d" or "3d".
+ * @param steps   Human-readable core loop step names (up to 5).
+ * @param params  Optional parameters from upstream artifacts (Balance,
+ *                Progression, Economy). When omitted, sensible defaults
+ *                are used.
+ * @param prototypeId  UUID for playtest tracking.
+ * @returns       Self-contained HTML string, or empty string if compilation failed.
+ */
+export function generatePrototypeFromGraph(
+  type: PrototypeType,
+  mode: "2d" | "3d",
+  steps: string[],
+  params?: PrototypeParams,
+  prototypeId = "",
+): { html: string; graph: NodeGraph; valid: boolean; errors: string[] } {
+  const graph = buildPrototypeGraph({ type, mode, steps, params });
+  const result = compileGraph(graph);
+  let html = result.html;
+  if (html && prototypeId) {
+    html = html.replace(
+      "window.parent.postMessage({ type: 'gidede-playtest'",
+      `window.parent.postMessage({ type: 'gidede-playtest', prototypeId: '${prototypeId}',`,
+    );
+  }
+  return { html, graph, valid: result.valid, errors: result.errors };
 }

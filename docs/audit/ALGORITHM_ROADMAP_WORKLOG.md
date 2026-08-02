@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R6-02` — ввести source types `artifact`, `template`, `llm`, `manual`, `placeholder`.
-- **Зависимости:** `R6-01` завершена; `generate-full` делегирует каноническому `/gdd/generate`.
-- **Ожидаемый результат:** template никогда не маркируется AI; placeholder не считается filled.
-- **После неё:** `R6-03` — секция хранит source artifact/version и review status.
+- **Следующая задача:** `R6-03` — секция хранит source artifact/version и review status.
+- **Зависимости:** `R6-02` завершена; source types честные (template не маркируется AI, coverage считает только auto_fill).
+- **Ожидаемый результат:** видно происхождение каждой формулы и утверждения.
+- **После неё:** `R6-04` — placeholder/TBD не считается complete (частично выполнено в R6-02).
 
 ## Статус roadmap
 
@@ -80,7 +80,8 @@
 | R5-15 | DONE | Machinations graph execution (nodes + flows + state_connections) с реальной resource-flow sim | 862 tests, TypeScript, scoped ESLint |
 | R5-16 | DONE | Economy AI enrichment перенесён до persist (ai_insights теперь сохраняется в БД) | 848 tests, TypeScript, scoped ESLint |
 | R6-01 | DONE | `generate-full` делегирует каноническому `/gdd/generate` (один canonical generator) | 862 tests, TypeScript, scoped ESLint |
-| R6-02…R7 | TODO | См. активный roadmap | — |
+| R6-02 | DONE | Source types: `auto_fill`/`template`/`llm`/`manual`/`placeholder`; template не маркируется AI; coverage считает только auto_fill | 862 tests, TypeScript, scoped ESLint |
+| R6-03…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -93,6 +94,38 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R6-02 — DONE
+
+Что сделано:
+
+- все `"ai_generate"` source labels в `deriveSectionContent` заменены на `"template"` (43 вхождения) — эти секции являются hardcoded genre-based templates, а не AI-generated; `"ai_generate"` был semantically wrong;
+- dead code `"ai_enrich"` (никогда не производился `deriveSectionContent`) заменён на `"llm"` в coverage computation — зарезервировано для будущего per-section LLM generation (R6-06);
+- `"placeholder"` добавлен как валидный source type для секций с TBD/empty content;
+- coverage_score теперь считает ТОЛЬКО `"auto_fill"` (real upstream data) — template, placeholder и manual НЕ считаются filled (R6-04 частично выполнено);
+- per-section coverage: `auto_fill` → 1.0, `manual` → 0.0, `template`/`placeholder`/`llm` → 0.0 (was 0.5 — misleading);
+- `activeMappings` updated: `ai_enrich` теперь checks `"llm"`, `ai_generate` checks `"template"`;
+- `algorithm-metadata` обновлён: coverage_score provenance описывает что только auto_fill считается filled.
+
+Изменённые области:
+
+- `src/app/api/v1/gdd/generate/route.ts` — global rename `"ai_generate"` → `"template"`, `"ai_enrich"` → `"llm"`, coverage computation, per-section coverage;
+- `src/lib/algorithm-metadata.ts` — updated coverage_score provenance.
+
+Проверки:
+
+- `bun run test` — 72 файла, 862 теста пройдено (без изменений);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- template никогда не маркируется как AI (source="template", не "ai_generate");
+- coverage считает только auto_fill (real upstream data);
+- placeholder/manual/template получают coverage 0.0 (не 0.5);
+- `"llm"` зарезервирован для будущего per-section LLM generation;
+- следующей задачей назначена `R6-03`.
 
 ### 2026-08-01 — R6-01 — DONE
 

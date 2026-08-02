@@ -355,7 +355,7 @@ function deriveSectionContent(
     requiresReview = false
   ): { content: string; source: string; requires_review: boolean } => {
     if (val === null || val === undefined || val === "") {
-      return { content: fallback, source: "ai_generate", requires_review: true };
+      return { content: fallback, source: "template", requires_review: true };
     }
     if (typeof val === "string") {
       return { content: val, source: sourceLabel, requires_review: requiresReview };
@@ -381,7 +381,7 @@ function deriveSectionContent(
           (isRu
             ? `${name} — это ${genre}, который предлагает уникальный опыт в своём жанре.`
             : `${name} is a ${genre} that offers a unique experience in its genre.`),
-        source: concept?.usp ? "auto_fill" : "ai_generate",
+        source: concept?.usp ? "auto_fill" : "template",
         requires_review: !concept?.usp,
       };
     case "concept":
@@ -421,7 +421,7 @@ function deriveSectionContent(
         content: isRu
           ? `Основной цикл «${name}» — типичная для жанра ${genre} последовательность действий.`
           : `Core loop of "${name}" is a typical ${genre} action sequence.`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     }
@@ -439,7 +439,7 @@ function deriveSectionContent(
         content: isRu
           ? `Механики «${name}» строятся вокруг жанровых конвенций ${genre}.`
           : `Mechanics of "${name}" build around ${genre} genre conventions.`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     }
@@ -463,7 +463,7 @@ function deriveSectionContent(
         content: isRu
           ? `Эстетика «${name}» определяется жанром ${genre}.`
           : `Aesthetics of "${name}" are defined by the ${genre} genre.`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     }
@@ -480,7 +480,7 @@ function deriveSectionContent(
         content: isRu
           ? `Баланс «${name}» TBD.`
           : `Balance of "${name}" TBD.`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     }
@@ -496,7 +496,7 @@ function deriveSectionContent(
         content: isRu
           ? `Прогрессия «${name}» в разработке.`
           : `Progression of "${name}" under development.`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     }
@@ -512,7 +512,7 @@ function deriveSectionContent(
         content: isRu
           ? `Экономика «${name}» TBD.`
           : `Economy of "${name}" TBD.`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     }
@@ -525,7 +525,7 @@ function deriveSectionContent(
       const narrativeContent = isRu
         ? `## Нарратив\n\nИгра «${name}» в жанре ${genre} использует нарративные элементы для усиления эстетики «${mda?.primaryAesthetic || concept?.primaryAesthetic || "challenge"}».\n\n${Object.keys(ludonarrative).length > 0 ? `**Ludonarrative анализ:** ${ludonarrative.result || "—"}\n${ludonarrative.description || ""}` : "Ludonarrative анализ не проводился."}`
         : `## Narrative\n\nGame "${name}" in ${genre} genre uses narrative elements to reinforce aesthetic "${mda?.primaryAesthetic || concept?.primaryAesthetic || "challenge"}".\n\n${Object.keys(ludonarrative).length > 0 ? `**Ludonarrative analysis:** ${ludonarrative.result || "—"}\n${ludonarrative.description || ""}` : "Ludonarrative analysis not conducted."}`;
-      return { content: narrativeContent, source: Object.keys(ludonarrative).length > 0 ? "auto_fill" : "ai_generate", requires_review: Object.keys(ludonarrative).length === 0 };
+      return { content: narrativeContent, source: Object.keys(ludonarrative).length > 0 ? "auto_fill" : "template", requires_review: Object.keys(ludonarrative).length === 0 };
     }
     case "world_overview": {
       const aestheticProfile = concept?.aestheticProfile
@@ -535,7 +535,7 @@ function deriveSectionContent(
         content: isRu
           ? `## Обзор мира\n\nМир «${name}» построен вокруг эстетики «${aestheticProfile.primary || mda?.primaryAesthetic || "challenge"}». Жанр: ${genre}.\n\nМир включает:\n- Основные локации\n- Культуры и фракции\n- Исторические события\n- Географию и климат`
           : `## World Overview\n\nThe world of "${name}" is built around aesthetic "${aestheticProfile.primary || mda?.primaryAesthetic || "challenge"}". Genre: ${genre}.\n\nThe world includes:\n- Key locations\n- Cultures and factions\n- Historical events\n- Geography and climate`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     }
@@ -548,7 +548,7 @@ function deriveSectionContent(
         content: isRu
           ? `## Персонажи\n\n${hasPartyManagement ? "Игра включает систему управления группой персонажей." : "Игрок управляет главным героем."}\n\nОсновные типы персонажей:\n- Главный герой\n- NPC${hasPartyManagement ? "\n- Спутники" : ""}\n- Антагонисты\n\n${mda?.primaryAesthetic ? `Эстетический фокус: ${mda.primaryAesthetic}` : ""}`
           : `## Characters\n\n${hasPartyManagement ? "Game includes party management system." : "Player controls a main character."}\n\nKey character types:\n- Protagonist\n- NPCs${hasPartyManagement ? "\n- Companions" : ""}\n- Antagonists\n\n${mda?.primaryAesthetic ? `Aesthetic focus: ${mda.primaryAesthetic}` : ""}`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     }
@@ -560,7 +560,7 @@ function deriveSectionContent(
         content: isRu
           ? `## Сюжетные арки\n\nСюжет «${name}» следует структуре, основанной на core loop из ${coreSteps.length || "нескольких"} шагов.\n\nОсновные арки:\n1. Завязка — введение в мир и конфликт\n2. Развитие — усложнение через gameplay\n3. Кульминация — финальное противостояние\n4. Развязка — разрешение конфликта\n\nЖанр: ${genre}`
           : `## Plot Arcs\n\nThe plot of "${name}" follows a structure based on the core loop of ${coreSteps.length || "several"} steps.\n\nMain arcs:\n1. Setup — introduction to world and conflict\n2. Development — complication through gameplay\n3. Climax — final confrontation\n4. Resolution — conflict resolution\n\nGenre: ${genre}`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     }
@@ -583,7 +583,7 @@ function deriveSectionContent(
         content: isRu
           ? `## Темы\n\nОсновные темы «${name}»:\n- ${themeMap[primary] || "Универсальные темы"}\n- Взаимодействие механик и нарратива\n- Эмоциональное путешествие игрока\n\nPrimary aesthetic: ${primary}`
           : `## Themes\n\nMain themes of "${name}":\n- ${themeMap[primary] || "Universal themes"}\n- Mechanics-narrative interaction\n- Player's emotional journey\n\nPrimary aesthetic: ${primary}`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     }
@@ -592,7 +592,7 @@ function deriveSectionContent(
         content: isRu
           ? `## Тон и голос\n\nТон «${name}» определяется жанром ${genre} и эстетикой «${mda?.primaryAesthetic || "challenge"}».\n\nТональность:\n- Диалоги: ${genre === "horror" ? "напряжённые, сдержанные" : genre === "rpg" ? "многогранные, глубокие" : "динамичные, лаконичные"}\n- Описание: ${genre === "horror" ? "атмосферное, мрачное" : "сбалансированное"}\n- UI текст: краткий, функциональный`
           : `## Tone and Voice\n\nThe tone of "${name}" is defined by genre ${genre} and aesthetic "${mda?.primaryAesthetic || "challenge"}".\n\nTonal qualities:\n- Dialogue: ${genre === "horror" ? "tense, restrained" : genre === "rpg" ? "multifaceted, deep" : "dynamic, concise"}\n- Description: ${genre === "horror" ? "atmospheric, dark" : "balanced"}\n- UI text: brief, functional`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     }
@@ -602,7 +602,7 @@ function deriveSectionContent(
         content: isRu
           ? `## Сюжетные механики\n\nСюжетные механики «${name}» интегрированы с core loop типа «${coreLoopType}».\n\nМеханики:\n- Квесты и задания\n- Диалоговые деревья\n- Сюжетные триггеры\n- Branching choices (если применимо)\n\nТип цикла: ${coreLoopType}`
           : `## Story Mechanics\n\nStory mechanics of "${name}" are integrated with the ${coreLoopType} core loop.\n\nMechanics:\n- Quests and missions\n- Dialogue trees\n- Story triggers\n- Branching choices (if applicable)\n\nLoop type: ${coreLoopType}`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     }
@@ -615,7 +615,7 @@ function deriveSectionContent(
         content: isRu
           ? `## Ветвление сюжета\n\n${hasBranching ? "Игра включает систему ветвящегося сюжета." : "Игра следует линейной структуре с локальными выборами."}\n\nСтруктура:\n- Основная линия: линейная\n- Побочные квесты: ${hasBranching ? "несколько веток" : "линейные"}\n- Концовки: ${hasBranching ? "множественные" : "одна основная + вариации"}\n\nЖанр: ${genre}`
           : `## Branching Structure\n\n${hasBranching ? "Game includes branching narrative system." : "Game follows a linear structure with local choices."}\n\nStructure:\n- Main storyline: linear\n- Side quests: ${hasBranching ? "multiple branches" : "linear"}\n- Endings: ${hasBranching ? "multiple" : "one main + variations"}\n\nGenre: ${genre}`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     }
@@ -629,7 +629,7 @@ function deriveSectionContent(
         content: isRu
           ? `Целевая аудитория «${name}» — игроки жанра ${genre}.${dynamicsText ? "\n\nПрофиль динамики:\n```json\n" + dynamicsText + "\n```" : ""}`
           : `Target audience of "${name}" — players of the ${genre} genre.${dynamicsText ? "\n\nDynamics profile:\n```json\n" + dynamicsText + "\n```" : ""}`,
-        source: dynamicsText ? "auto_fill" : "ai_generate",
+        source: dynamicsText ? "auto_fill" : "template",
         requires_review: !dynamicsText,
       };
     }
@@ -651,7 +651,7 @@ function deriveSectionContent(
         content: isRu
           ? `Монетизация «${name}» TBD.`
           : `Monetization of "${name}" TBD.`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     }
@@ -663,7 +663,7 @@ function deriveSectionContent(
           : isRu
             ? `Платформы «${name}» TBD.`
             : `Platforms of "${name}" TBD.`,
-        source: Array.isArray(platforms) && platforms.length > 0 ? "auto_fill" : "ai_generate",
+        source: Array.isArray(platforms) && platforms.length > 0 ? "auto_fill" : "template",
         requires_review: !(Array.isArray(platforms) && platforms.length > 0),
       };
     }
@@ -678,7 +678,7 @@ function deriveSectionContent(
         content: isRu
           ? `## ${sectionName}\n\nUX/UI для «${name}» в жанре ${genre}. Требует детального прототипирования.\n\nКлючевые экраны:\n- Главное меню\n- HUD (игровой интерфейс)\n- Меню паузы\n- Экран инвентаря${genre === "rpg" || genre === "mmorpg" ? "\n- Карта мира" : ""}\n\nУправление: ${genre === "shooter" ? "клавиатура + мышь / геймпад" : genre === "puzzle" ? "мышь / тач" : "универсальное"}`
           : `## ${sectionName}\n\nUX/UI for "${name}" in ${genre} genre. Requires detailed prototyping.\n\nKey screens:\n- Main menu\n- HUD (game interface)\n- Pause menu\n- Inventory screen${genre === "rpg" || genre === "mmorpg" ? "\n- World map" : ""}\n\nControls: ${genre === "shooter" ? "keyboard + mouse / gamepad" : genre === "puzzle" ? "mouse / touch" : "universal"}`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     case "tech_notes":
@@ -688,7 +688,7 @@ function deriveSectionContent(
         content: isRu
           ? `## ${sectionName}\n\nТехнологический стек «${name}»:\n- Движок: TBD (Unity / Unreal / кастомный)\n- Язык: C# / C++ / TypeScript\n- Сеть: ${genre === "mmorpg" ? "высоконагруженный сервер" : "опционально"}\n- Платформы: PC${genre === "shooter" || genre === "fighting" ? " / Console" : ""}\n- Сохранения: облачные + локальные`
           : `## ${sectionName}\n\nTechnology stack for "${name}":\n- Engine: TBD (Unity / Unreal / custom)\n- Language: C# / C++ / TypeScript\n- Network: ${genre === "mmorpg" ? "high-load server" : "optional"}\n- Platforms: PC${genre === "shooter" || genre === "fighting" ? " / Console" : ""}\n- Saves: cloud + local`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     case "art_bible":
@@ -698,7 +698,7 @@ function deriveSectionContent(
         content: isRu
           ? `## ${sectionName}\n\nВизуальный стиль «${name}»:\n- Эстетика: ${mda?.primaryAesthetic || "challenge"}\n- Палитра: ${genre === "horror" ? "тёмные тона, контрастные акценты" : genre === "puzzle" ? "яркие, чистые цвета" : "сбалансированная палитра"}\n- Стиль: ${genre === "puzzle" || genre === "idle" ? "минималистичный" : genre === "horror" ? "реалистичный, мрачный" : "стилизованный"}\n- Анимация: ${genre === "fighting" || genre === "rhythm" ? "покадровая + плавная" : "скелетная"}`
           : `## ${sectionName}\n\nVisual style for "${name}":\n- Aesthetic: ${mda?.primaryAesthetic || "challenge"}\n- Palette: ${genre === "horror" ? "dark tones, contrasting accents" : genre === "puzzle" ? "bright, clean colors" : "balanced palette"}\n- Style: ${genre === "puzzle" || genre === "idle" ? "minimalist" : genre === "horror" ? "realistic, dark" : "stylized"}\n- Animation: ${genre === "fighting" || genre === "rhythm" ? "frame-by-frame + smooth" : "skeletal"}`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     case "sound":
@@ -707,7 +707,7 @@ function deriveSectionContent(
         content: isRu
           ? `## ${sectionName}\n\nЗвуковое design «${name}»:\n- Музыка: ${genre === "rhythm" ? "основной геймплейный элемент" : genre === "horror" ? "атмосферные эмбиенты" : "адаптивная"}\n- SFX: ${genre === "shooter" || genre === "fighting" ? "детализированные боевые эффекты" : "универсальные игровые звуки"}\n- Озвучка: ${genre === "rpg" || genre === "adventure" ? "полная озвучка диалогов" : "текст + ключевые фразы"}\n- Аудио-дизайнер: TBD`
           : `## ${sectionName}\n\nSound design for "${name}":\n- Music: ${genre === "rhythm" ? "core gameplay element" : genre === "horror" ? "atmospheric ambients" : "adaptive"}\n- SFX: ${genre === "shooter" || genre === "fighting" ? "detailed combat effects" : "universal game sounds"}\n- Voice: ${genre === "rpg" || genre === "adventure" ? "full dialogue voiceover" : "text + key phrases"}\n- Audio designer: TBD`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     case "controls":
@@ -716,7 +716,7 @@ function deriveSectionContent(
         content: isRu
           ? `## ${sectionName}\n\n${sectionName === "controls" ? "Управление" : "Камера"} для «${name}» в жанре ${genre}.\n\n${sectionName === "controls" ? `Схема управления:\n- ${genre === "shooter" ? "WASD + мышь (PC), двойной стик (Console)" : genre === "fighting" ? "6 кнопок + D-pad" : "клавиатура / геймпад"}\n- Назначение кнопок: TBD\n- Accessibility: настраиваемые привязки` : `Настройки камеры:\n- Тип: ${genre === "shooter" ? "FPS/TPS" : genre === "strategy" ? "RTS top-down" : genre === "fighting" ? "2.5D боковая" : "3rd person"}\n- Дистанция: ${genre === "strategy" ? "далёкая" : "средняя"}\n- Управление: ${genre === "shooter" || genre === "mmorpg" ? "поворот мышью/стиком" : "автоматическое"}`}`
           : `## ${sectionName}\n\n${sectionName === "controls" ? "Controls" : "Camera"} for "${name}" in ${genre} genre.\n\n${sectionName === "controls" ? `Control scheme:\n- ${genre === "shooter" ? "WASD + mouse (PC), dual stick (Console)" : genre === "fighting" ? "6 buttons + D-pad" : "keyboard / gamepad"}\n- Button mapping: TBD\n- Accessibility: remappable bindings` : `Camera settings:\n- Type: ${genre === "shooter" ? "FPS/TPS" : genre === "strategy" ? "RTS top-down" : genre === "fighting" ? "2.5D side" : "3rd person"}\n- Distance: ${genre === "strategy" ? "far" : "medium"}\n- Control: ${genre === "shooter" || genre === "mmorpg" ? "mouse/stick rotation" : "automatic"}`}`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     case "game_modes":
@@ -724,7 +724,7 @@ function deriveSectionContent(
         content: isRu
           ? `## Игровые режимы\n\nРежимы «${name}»:\n- Single Player: основной${genre === "shooter" || genre === "fighting" ? "" : " (единственный)"}\n${genre === "shooter" || genre === "fighting" ? "- Multiplayer: PvP" : ""}${genre === "mmorpg" ? "- MMO: массовый онлайн" : ""}\n- Difficulty: Easy / Normal / Hard${genre === "strategy" ? " / Insane" : ""}`
           : `## Game Modes\n\nModes of "${name}":\n- Single Player: main${genre === "shooter" || genre === "fighting" ? "" : " (only)"}\n${genre === "shooter" || genre === "fighting" ? "- Multiplayer: PvP" : ""}${genre === "mmorpg" ? "- MMO: massive online" : ""}\n- Difficulty: Easy / Normal / Hard${genre === "strategy" ? " / Insane" : ""}`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     case "dialogues":
@@ -732,7 +732,7 @@ function deriveSectionContent(
         content: isRu
           ? `## Диалоги\n\nСистема диалогов «${name}»:\n- Тип: ${genre === "rpg" || genre === "adventure" ? "диалоговые деревья с выбором" : "линейные реплики"}\n- Озвучка: ${genre === "rpg" ? "полная" : "частичная"}\n- Локализация: RU + EN\n- Количество NPC: TBD`
           : `## Dialogues\n\nDialogue system for "${name}":\n- Type: ${genre === "rpg" || genre === "adventure" ? "dialogue trees with choices" : "linear lines"}\n- Voiceover: ${genre === "rpg" ? "full" : "partial"}\n- Localization: RU + EN\n- NPC count: TBD`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     case "quests":
@@ -740,7 +740,7 @@ function deriveSectionContent(
         content: isRu
           ? `## Квесты\n\nКвестовая система «${name}»:\n- Основные квесты: ${progression?.totalLevels || "TBD"} уровней\n- Побочные квесты: ~${Math.round((progression?.totalLevels || 50) * 0.5)}\n- Daily/Weekly: ${genre === "mmorpg" || genre === "idle" ? "да" : "нет"}\n- Структура: ${genre === "rpg" ? "ветвящиеся" : "линейные"}`
           : `## Quests\n\nQuest system for "${name}":\n- Main quests: ${progression?.totalLevels || "TBD"} levels\n- Side quests: ~${Math.round((progression?.totalLevels || 50) * 0.5)}\n- Daily/Weekly: ${genre === "mmorpg" || genre === "idle" ? "yes" : "no"}\n- Structure: ${genre === "rpg" ? "branching" : "linear"}`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     case "lore_and_world":
@@ -748,7 +748,7 @@ function deriveSectionContent(
         content: isRu
           ? `## Лор и мир\n\nИстория мира «${name}»:\n- Эпоха: ${genre === "horror" ? "современность" : genre === "strategy" ? "средневековье/фантастика" : "вымышленный мир"}\n- Фракции: ${genre === "strategy" || genre === "mmorpg" ? "3-5 основных" : "1-2"}\n- Культура: TBD\n- Bestiary: ${genre === "rpg" || genre === "horror" ? "требуется" : "минимальный"}`
           : `## Lore and World\n\nWorld history of "${name}":\n- Era: ${genre === "horror" ? "modern" : genre === "strategy" ? "medieval/sci-fi" : "fictional world"}\n- Factions: ${genre === "strategy" || genre === "mmorpg" ? "3-5 major" : "1-2"}\n- Culture: TBD\n- Bestiary: ${genre === "rpg" || genre === "horror" ? "required" : "minimal"}`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     case "level_design":
@@ -758,7 +758,7 @@ function deriveSectionContent(
         content: isRu
           ? `## ${sectionName}\n\n${sectionName === "level_design" ? "Дизайн уровней" : sectionName === "navigation" ? "Навигация" : "Боевые пространства"} для «${name}»:\n- Структура: ${genre === "puzzle" ? "решётка" : genre === "strategy" ? "гексагональная карта" : "линейная + открытые зоны"}\n- Масштаб: ${progression?.totalLevels || 50} уровней/зон\n- Темп: ${genre === "shooter" ? "быстрый" : genre === "puzzle" ? "медленный" : "сбалансированный"}`
           : `## ${sectionName}\n\n${sectionName === "level_design" ? "Level design" : sectionName === "navigation" ? "Navigation" : "Combat spaces"} for "${name}":\n- Structure: ${genre === "puzzle" ? "grid" : genre === "strategy" ? "hex map" : "linear + open zones"}\n- Scale: ${progression?.totalLevels || 50} levels/zones\n- Pacing: ${genre === "shooter" ? "fast" : genre === "puzzle" ? "slow" : "balanced"}`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     case "resources":
@@ -767,7 +767,7 @@ function deriveSectionContent(
         content: isRu
           ? `## ${sectionName}\n\n${sectionName === "resources" ? "Ресурсы" : "Дерево технологий"} для «${name}»:\n${economy ? `- Ресурсов в экономике: ${economy.resourceCount || "TBD"}\n- Тип системы: ${economy.systemType || "TBD"}` : ""}\n${progression ? `- Тиров: ${progression.tierCount || "TBD"}\n- Тип кривой: ${progression.curveType || "TBD"}` : ""}`
           : `## ${sectionName}\n\n${sectionName === "resources" ? "Resources" : "Tech tree"} for "${name}":\n${economy ? `- Resources in economy: ${economy.resourceCount || "TBD"}\n- System type: ${economy.systemType || "TBD"}` : ""}\n${progression ? `- Tiers: ${progression.tierCount || "TBD"}\n- Curve type: ${progression.curveType || "TBD"}` : ""}`,
-        source: economy || progression ? "auto_fill" : "ai_generate",
+        source: economy || progression ? "auto_fill" : "template",
         requires_review: !economy && !progression,
       };
     case "localization":
@@ -775,7 +775,7 @@ function deriveSectionContent(
         content: isRu
           ? `## Локализация\n\nЛокализация «${name}»:\n- Языки: RU, EN${genre === "mmorpg" || genre === "rpg" ? ", DE, FR, ES, JP, CN" : ""}\n- Текст: полный перевод\n- Озвучка: ${genre === "rpg" || genre === "adventure" ? "RU + EN" : "EN только"}\n- Дата завершения локализации: за 2 месяца до релиза`
           : `## Localization\n\nLocalization for "${name}":\n- Languages: RU, EN${genre === "mmorpg" || genre === "rpg" ? ", DE, FR, ES, JP, CN" : ""}\n- Text: full translation\n- Voice: ${genre === "rpg" || genre === "adventure" ? "RU + EN" : "EN only"}\n- Localization completion: 2 months before release`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     case "testing_plan":
@@ -783,7 +783,7 @@ function deriveSectionContent(
         content: isRu
           ? `## План тестирования\n\nТестирование «${name}»:\n- Unit тесты: критические механики\n- Integration: пайплайн (concept → GDD)\n- Playtest: 5 итераций по 10 игроков\n- Beta: ${genre === "mmorpg" ? "закрытая бета за 3 месяца" : "открытая бета за 1 месяц"}\n- Автоматизация: CI/CD pipeline`
           : `## Testing Plan\n\nTesting for "${name}":\n- Unit tests: critical mechanics\n- Integration: pipeline (concept → GDD)\n- Playtest: 5 iterations × 10 players\n- Beta: ${genre === "mmorpg" ? "closed beta 3 months before" : "open beta 1 month before"}\n- Automation: CI/CD pipeline`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     case "risks":
@@ -791,7 +791,7 @@ function deriveSectionContent(
         content: isRu
           ? `## Риски\n\nОсновные риски «${name}»:\n- Scope creep: ${genre === "rpg" || genre === "mmorpg" ? "высокий" : "средний"}\n- Технические: ${genre === "mmorpg" ? "сетевая инфраструктура" : "оптимизация"}\n- Дизайн: баланс экономики (${economy?.hasPathology ? "патологии обнаружены" : "OK"})\n- Расписание: buffer 20%`
           : `## Risks\n\nMain risks for "${name}":\n- Scope creep: ${genre === "rpg" || genre === "mmorpg" ? "high" : "medium"}\n- Technical: ${genre === "mmorpg" ? "network infrastructure" : "optimization"}\n- Design: economy balance (${economy?.hasPathology ? "pathologies detected" : "OK"})\n- Schedule: 20% buffer`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     case "team_fit":
@@ -799,7 +799,7 @@ function deriveSectionContent(
         content: isRu
           ? `## Команда\n\nКоманда для «${name}»:\n- Геймдизайнер: 1\n- Программист: ${genre === "mmorpg" ? "3-5" : "2-3"}\n- Художник: ${genre === "puzzle" ? "1" : "2-3"}\n- Звук: 1 (или аутсорс)\n- QA: 1-2\n- Продюсер: 1 (совместитель)`
           : `## Team\n\nTeam for "${name}":\n- Game designer: 1\n- Programmer: ${genre === "mmorpg" ? "3-5" : "2-3"}\n- Artist: ${genre === "puzzle" ? "1" : "2-3"}\n- Audio: 1 (or outsource)\n- QA: 1-2\n- Producer: 1 (part-time)`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     case "live_ops_plan":
@@ -808,7 +808,7 @@ function deriveSectionContent(
         content: isRu
           ? `## ${sectionName === "live_ops_plan" ? "Live Ops" : "Production Plan"}\n\n${sectionName === "live_ops_plan" ? `Live ops для «${name}»:\n- Сезоны: ${genre === "mmorpg" || genre === "idle" ? "каждые 3 месяца" : "не применимо"}\n- Events: ${genre === "mmorpg" ? "ежемесячные" : "праздничные"}\n- Монетизация: ${economy?.monetizationModel ? JSON.parse(economy.monetizationModel).type || "TBD" : "TBD"}` : `Production plan для «${name}»:\n- Pre-production: 2 месяца\n- Production: ${genre === "rpg" || genre === "mmorpg" ? "12-18" : "6-10"} месяцев\n- Alpha: за 3 месяца до релиза\n- Beta: за 1 месяц до релиза\n- Gold: релиз`}`
           : `## ${sectionName === "live_ops_plan" ? "Live Ops" : "Production Plan"}\n\n${sectionName === "live_ops_plan" ? `Live ops for "${name}":\n- Seasons: ${genre === "mmorpg" || genre === "idle" ? "every 3 months" : "N/A"}\n- Events: ${genre === "mmorpg" ? "monthly" : "holiday"}\n- Monetization: ${economy?.monetizationModel ? JSON.parse(economy.monetizationModel).type || "TBD" : "TBD"}` : `Production plan for "${name}":\n- Pre-production: 2 months\n- Production: ${genre === "rpg" || genre === "mmorpg" ? "12-18" : "6-10"} months\n- Alpha: 3 months before release\n- Beta: 1 month before release\n- Gold: release`}`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     case "milestones":
@@ -816,7 +816,7 @@ function deriveSectionContent(
         content: isRu
           ? `## Milestones\n\nMilestones «${name}»:\n1. Prototype (4 недели)\n2. Vertical Slice (8 недель)\n3. Alpha (50% контента)\n4. Beta (feature complete)\n5. Gold Master\n6. Launch\n\nТекущая стадия: preproduction`
           : `## Milestones\n\nMilestones for "${name}":\n1. Prototype (4 weeks)\n2. Vertical Slice (8 weeks)\n3. Alpha (50% content)\n4. Beta (feature complete)\n5. Gold Master\n6. Launch\n\nCurrent stage: preproduction`,
-        source: "ai_generate",
+        source: "template",
         requires_review: true,
       };
     default:
@@ -883,7 +883,7 @@ function buildConsistencyReport(
   // Check 2: section_pair mismatches
   if (sections["core_loop"] && sections["mechanics"]) {
     if (
-      sections["core_loop"].source === "ai_generate" &&
+      sections["core_loop"].source === "template" &&
       sections["mechanics"].source === "auto_fill"
     ) {
       issues.push({
@@ -973,7 +973,7 @@ function buildConsistencyReport(
     });
   }
   // Check 7: AI-generated sections quality
-  const aiGenCount = sectionOrder.filter((k) => sections[k]?.source === "ai_generate").length;
+  const aiGenCount = sectionOrder.filter((k) => sections[k]?.source === "template").length;
   if (aiGenCount > sectionOrder.length * 0.7) {
     issues.push({
       severity: "info",
@@ -1140,8 +1140,8 @@ export async function POST(request: NextRequest) {
       activeMappings[sectionName] = {
         source: filled.source,
         auto_fill: filled.source === "auto_fill",
-        ai_enrich: filled.source === "ai_enrich",
-        ai_generate: filled.source === "ai_generate",
+        ai_enrich: filled.source === "llm",
+        ai_generate: filled.source === "template",
         ai_suggest: false,
         manual: filled.source === "manual",
         diagram: false,
@@ -1153,7 +1153,7 @@ export async function POST(request: NextRequest) {
       if (filled.source === "auto_fill") {
         readiness = "ready";
         autoFillable.push(sectionName);
-      } else if (filled.source === "ai_generate" || filled.source === "ai_enrich") {
+      } else if (filled.source === "template" || filled.source === "llm" || filled.source === "placeholder") {
         readiness = "ai_generatable";
         aiGeneratable.push(sectionName);
       } else {
@@ -1162,16 +1162,19 @@ export async function POST(request: NextRequest) {
       }
       sectionReadiness[sectionName] = {
         status: readiness,
-        coverage: filled.source === "auto_fill" ? 1.0 : filled.source === "manual" ? 0.0 : 0.5,
+        // R6-02/R6-04: coverage 1.0 only for auto_fill (real upstream data);
+        // template and placeholder get 0.0 (not real content).
+        coverage: filled.source === "auto_fill" ? 1.0 : filled.source === "manual" ? 0.0 : 0.0,
         auto_fillable: filled.source === "auto_fill",
       };
     }
 
-    // TASK-6.13: Real coverage_score — counts auto_fill AND ai_enrich (was only auto_fill).
+    // R6-02/R6-04: coverage_score counts ONLY auto_fill (real upstream data).
+    // template, placeholder and manual are NOT counted as filled.
     const detailFactor = DETAIL_FACTOR[detailLevel] || 1.0;
     const enrichedCount = sectionsList.filter((s) => {
       const src = sectionCache[s]?.source;
-      return src === "auto_fill" || src === "ai_enrich";
+      return src === "auto_fill";
     }).length;
     const coverageScore = enrichedCount / Math.max(1, sectionsList.length);
 
@@ -1199,13 +1202,13 @@ export async function POST(request: NextRequest) {
       const filled = sectionCache[sectionName] || deriveSectionContent(sectionName, proj, language);
       // Adjust content length based on detail factor
       let content = filled.content;
-      if (detailFactor > 1.5 && filled.source === "ai_generate") {
+      if (detailFactor > 1.5 && filled.source === "template") {
         content =
           content +
           (language === "ru"
             ? "\n\n_Расширенное описание для детального уровня:_ смежные аспекты, влияющие на эту секцию, включают кросс-дисциплинарные зависимости и долгосрочные последствия для проекта."
             : "\n\n_Extended description for detailed level:_ related aspects affecting this section include cross-disciplinary dependencies and long-term consequences for the project.");
-      } else if (detailFactor < 0.7 && filled.source === "ai_generate") {
+      } else if (detailFactor < 0.7 && filled.source === "template") {
         content = content.split("\n")[0];
       }
       sectionsContent[sectionName] = {
@@ -1226,8 +1229,8 @@ export async function POST(request: NextRequest) {
     const enrichedSections: Record<string, unknown> = {};
     const generatedSections: Record<string, unknown> = {};
     for (const [k, v] of Object.entries(sectionsContent)) {
-      if (v.source === "ai_enrich") enrichedSections[k] = v;
-      if (v.source === "ai_generate") generatedSections[k] = v;
+      if (v.source === "llm") enrichedSections[k] = v;
+      if (v.source === "template") generatedSections[k] = v;
     }
     const aiEnriched = {
       enriched_sections: enrichedSections,

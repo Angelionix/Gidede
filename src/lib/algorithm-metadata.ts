@@ -214,7 +214,7 @@ const SCORE_METADATA_BY_STAGE = {
   gdd: {
     "coverage_score": score(
       "template",
-      "Coverage counts sections labelled auto_fill or ai_enrich regardless of semantic completeness.",
+      "Coverage counts ONLY sections labelled auto_fill (real upstream data). Template, placeholder and manual sections are NOT counted as filled (R6-02/R6-04).",
     ),
     "data_mapping.coverage_score": score(
       "template",

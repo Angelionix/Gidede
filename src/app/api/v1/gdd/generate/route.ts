@@ -331,6 +331,10 @@ interface ProjectData {
     monetizationModel: string | null;
     fullProfile: string | null;
   } | null;
+  gdd?: {
+    sections: string | null;
+    fullProfile: string | null;
+  } | null;
 }
 
 function deriveSectionContent(
@@ -1237,6 +1241,8 @@ export async function POST(request: NextRequest) {
       source_artifact?: string | null;
       source_artifact_version?: string | null;
       review_status?: string;
+      stale?: boolean;
+      stale_reason?: string;
     }> = {};
     for (const sectionName of sectionsList) {
       // TASK-6.10: use cached result instead of calling deriveSectionContent again.
@@ -1281,10 +1287,38 @@ export async function POST(request: NextRequest) {
       };
     }
 
+    // R6-05: auto-invalidation — detect stale sections by comparing the current
+    // upstream artifact versions against the versions stored in the existing
+    // GDD's sections. When an upstream artifact has changed since the last GDD
+    // generation, all sections derived from it are marked `stale: true`.
+    const staleSections: string[] = [];
+    if (proj.gdd?.sections) {
+      try {
+        const existingSections = JSON.parse(proj.gdd.sections) as Record<string, {
+          source_artifact?: string | null;
+          source_artifact_version?: string | null;
+        }>;
+        for (const [sectionName, section] of Object.entries(sectionsContent)) {
+          const existing = existingSections[sectionName];
+          if (!existing || !section.source_artifact) continue;
+          // Compare the stored version with the current version.
+          if (existing.source_artifact_version
+            && section.source_artifact_version
+            && existing.source_artifact_version !== section.source_artifact_version) {
+            section.stale = true;
+            section.stale_reason = `upstream "${section.source_artifact}" version changed (${existing.source_artifact_version} → ${section.source_artifact_version})`;
+            staleSections.push(sectionName);
+          }
+        }
+      } catch { /* ignore parse errors — treat as no stale data */ }
+    }
+
     const autoFilledSections = {
       sections: sectionsContent,
       count: Object.keys(sectionsContent).length,
       total_coverage: Number(coverageScore.toFixed(3)),
+      stale_sections: staleSections,
+      stale_count: staleSections.length,
     };
 
     // --- AI enriched (placeholder; treat AI-generated as enriched too) ---

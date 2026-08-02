@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R6-05` — автоинвалидация GDD sections при upstream changes.
-- **Зависимости:** `R6-03` завершена; каждая секция хранит `source_artifact`, `source_artifact_version`, `review_status`.
-- **Ожидаемый результат:** изменение upstream помечает только зависимые sections stale.
-- **После неё:** `R6-06` (per-section LLM с review) и `R6-10` (prototype/playtest/freshness gates).
+- **Следующая задача:** `R6-06` — per-section LLM generation только с review.
+- **Зависимости:** `R6-05` завершена; GDD sections автоматически помечаются stale при изменении upstream artifact version.
+- **Ожидаемый результат:** LLM section не становится accepted автоматически; требуется явный review.
+- **После неё:** `R6-10` — prototype/playtest/freshness gates для readiness.
 
 ## Статус roadmap
 
@@ -87,7 +87,8 @@
 | R6-09 | DONE | Missing/skipped stage → score 0 (was 0.5 — falsely inflated readiness) | 862 tests, TypeScript, scoped ESLint |
 | R6-11 | DONE | OK messages честно сообщают "5 of 7" вместо "7 пройден" (Rolling/Morris и Bond) | 862 tests, TypeScript, scoped ESLint |
 | R6-03 | DONE | Каждая секция хранит source_artifact, source_artifact_version и review_status | 862 tests, TypeScript, scoped ESLint |
-| R6-05, R6-06, R6-10…R7 | TODO | См. активный roadmap | — |
+| R6-05 | DONE | Auto-invalidation: sections с изменённым upstream artifact version помечаются stale | 862 tests, TypeScript, scoped ESLint |
+| R6-06, R6-10…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -100,6 +101,34 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R6-05 — DONE
+
+Что сделано:
+
+- при генерации GDD сравнивается `source_artifact_version` каждой секции с версией, сохранённой в существующем GDD (из `proj.gdd.sections`);
+- если upstream artifact version изменилась (например, Balance перегенерирован с новой версией), все секции зависящие от этого artifact помечаются `stale: true` с `stale_reason`;
+- `autoFilledSections` получает `stale_sections` (массив имён stale секций) и `stale_count`;
+- `ProjectData` расширен `gdd?: { sections, fullProfile }` field;
+- `sectionsContent` type расширен `stale?: boolean` и `stale_reason?: string`.
+
+Изменённые области:
+
+- `src/app/api/v1/gdd/generate/route.ts` — `ProjectData.gdd`, stale detection logic, `stale_sections`/`stale_count` в output.
+
+Проверки:
+
+- `bun run test` — 72 файла, 862 теста пройдено (без изменений);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- изменение upstream artifact version → зависимые секции stale;
+- секции без upstream artifact (template/manual) не помечаются stale;
+- `stale_sections` и `stale_count` persistируются;
+- следующей задачей назначена `R6-06`.
 
 ### 2026-08-01 — R6-03 — DONE
 

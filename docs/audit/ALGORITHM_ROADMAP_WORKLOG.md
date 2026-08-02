@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R7-03` — property tests для curves/resource conservation/payoff.
-- **Зависимости:** `R7-02` завершена; 9 E2E fixture tests покрывают 6 жанров × RU/EN × 8 стадий.
-- **Ожидаемый результат:** проверяются invariants, а не snapshots.
-- **После неё:** `R7-04` — statistical tests и confidence bounds.
+- **Следующая задача:** `R7-04` — statistical tests и confidence bounds.
+- **Зависимости:** `R7-03` завершена; 13 property tests проверяют invariants Nash/composite score/graph bounds/RPS cycles.
+- **Ожидаемый результат:** симуляции имеют допустимые допуски.
+- **После неё:** `R7-05` — LLM adapter conformance suite.
 
 
 ## Статус roadmap
@@ -93,7 +93,8 @@
 | R6-10 | DONE | Prototype/playtest/freshness gates: "ready" требует playtest evidence + prototype + fresh stages | 870 tests, TypeScript, scoped ESLint |
 | R7-01 | DONE | 13 cross-stage boundary contract tests (Concept→Core/MDA, MDA→Balance, Balance→Progression/MDA, CoreLoop→Economy) | 883 tests, TypeScript, scoped ESLint |
 | R7-02 | DONE | 9 E2E fixture tests: 6 жанров × RU/EN × 8 стадий, idea preserved verbatim, genre forwarded | 892 tests, TypeScript, scoped ESLint |
-| R7-03…R7-08 | TODO | См. активный roadmap | — |
+| R7-03 | DONE | 13 property tests: Nash sum/bounds, composite score monotonicity/bounds, graph conservation, RPS distinctness | 905 tests, TypeScript, scoped ESLint |
+| R7-04…R7-08 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -106,6 +107,35 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R7-03 — DONE
+
+Что сделано:
+
+- создан `src/lib/property-tests.test.ts` с 13 property tests проверяющими domain invariants (не snapshots);
+- Nash equilibrium: probabilities sum to 1 для 20 random 2×2 matrices; все probabilities in [0, 1]; single-strategy → [1.0];
+- Composite balance score: всегда in [0, 1] для 6×6×2 комбинаций stability/OP/UP; score decreases monotonically when more issues added; critical issues cap at 0.3;
+- Graph simulation resource conservation: values never exceed max bound; never go below min bound; stability_index in [0, 1]; runaway/stall frequencies in [0, 1];
+- RPS cycles: cycle strength is finite; no cycles when one strategy dominates; cycle indices are distinct within each cycle.
+
+Изменённые области:
+
+- `src/lib/property-tests.test.ts` (новый, 13 тестов).
+
+Проверки:
+
+- `bun run test` — 76 файлов, 905 тестов пройдено (было 892; +13 property tests);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- Nash probabilities sum to 1 для любых 2×2 payoff matrices (20 random tests);
+- composite score bounded [0, 1] и monotonically decreasing;
+- graph simulation respects bounds (conservation);
+- RPS cycle indices distinct;
+- следующей задачей назначена `R7-04`.
 
 ### 2026-08-01 — R7-02 — DONE
 

@@ -1136,6 +1136,18 @@ export async function POST(request: NextRequest) {
     for (const sectionName of sectionsList) {
       // TASK-6.10: call deriveSectionContent once and cache result.
       const filled = deriveSectionContent(sectionName, proj, language);
+      // R6-04: detect TBD/placeholder content and relabel as "placeholder"
+      // so it's not counted as complete. Checks for common TBD markers.
+      const contentTrimmed = (filled.content || "").trim();
+      const isTbd = contentTrimmed.length === 0
+        || /^tbd$/i.test(contentTrimmed)
+        || /TBD/.test(contentTrimmed)
+        || /не определены/.test(contentTrimmed)
+        || /недостаточно данных/.test(contentTrimmed)
+        || /не сформулирован/.test(contentTrimmed);
+      if (isTbd && filled.source !== "auto_fill") {
+        filled.source = "placeholder";
+      }
       sectionCache[sectionName] = filled;
       activeMappings[sectionName] = {
         source: filled.source,

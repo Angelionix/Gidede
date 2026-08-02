@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R6-03` — секция хранит source artifact/version и review status.
-- **Зависимости:** `R6-02` завершена; source types честные (template не маркируется AI, coverage считает только auto_fill).
-- **Ожидаемый результат:** видно происхождение каждой формулы и утверждения.
-- **После неё:** `R6-04` — placeholder/TBD не считается complete (частично выполнено в R6-02).
+- **Следующая задача:** `R6-11` — дописать или честно переименовать неполные 7-point checks.
+- **Зависимости:** `R6-04`, `R6-07`, `R6-08`, `R6-09` завершены; readiness включает Progression, critical issues — hard gate, missing stages → 0 (не 0.5), placeholder не считается complete.
+- **Ожидаемый результат:** OK message соответствует выполненным пунктам (Rolling/Morris 5/7, Bond 5/7).
+- **После неё:** `R6-03`, `R6-05`, `R6-06`, `R6-10` — оставшиеся задачи GDD/checklist.
 
 ## Статус roadmap
 
@@ -81,7 +81,11 @@
 | R5-16 | DONE | Economy AI enrichment перенесён до persist (ai_insights теперь сохраняется в БД) | 848 tests, TypeScript, scoped ESLint |
 | R6-01 | DONE | `generate-full` делегирует каноническому `/gdd/generate` (один canonical generator) | 862 tests, TypeScript, scoped ESLint |
 | R6-02 | DONE | Source types: `auto_fill`/`template`/`llm`/`manual`/`placeholder`; template не маркируется AI; coverage считает только auto_fill | 862 tests, TypeScript, scoped ESLint |
-| R6-03…R7 | TODO | См. активный roadmap | — |
+| R6-04 | DONE | TBD/placeholder content detected and relabelled; not counted as complete | 862 tests, TypeScript, scoped ESLint |
+| R6-07 | DONE | Progression included in readiness model (6 checks, was 5) | 862 tests, TypeScript, scoped ESLint |
+| R6-08 | DONE | criticalIssueCount > 0 forbids "ready" (hard gate) | 862 tests, TypeScript, scoped ESLint |
+| R6-09 | DONE | Missing/skipped stage → score 0 (was 0.5 — falsely inflated readiness) | 862 tests, TypeScript, scoped ESLint |
+| R6-03, R6-05, R6-06, R6-10, R6-11…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -94,6 +98,35 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R6-04 + R6-07 + R6-08 + R6-09 — DONE
+
+Что сделано:
+
+- **R6-04**: TBD/placeholder content detection — post-processing pass в GDD generate route проверяет content на TBD markers (empty, "TBD", "не определены", "недостаточно данных", "не сформулирован") и relabels source as `"placeholder"` (если не `auto_fill`); placeholder не считается filled (coverage = 0.0);
+- **R6-07**: Progression включён в readiness model — `buildSummary` теперь принимает `progressionScore` (6-й scored check); overall = mean of 6 checks (was 5);
+- **R6-08**: hard gate — `criticalIssueCount > 0` (severity "error") запрещает `"ready"`; проект с critical issues не может быть "ready" независимо от score;
+- **R6-09**: missing/skipped stages → score 0 (was 0.5) — Economy и Lens checks получали 0.5 когда stage missing, что ложно inflated readiness для неполных проектов; теперь 0.
+
+Изменённые области:
+
+- `src/lib/checklist-logic.ts` — `buildSummary` с progressionScore, critical-issue hard gate, missing-stage → 0;
+- `src/app/api/v1/gdd/generate/route.ts` — TBD/placeholder detection post-processing.
+
+Проверки:
+
+- `bun run test` — 72 файла, 862 теста пройдено (без изменений);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- TBD content → source="placeholder", coverage=0.0;
+- Progression missing → progressionScore=0, overall снижается;
+- Economy/Lens missing → score 0 (was 0.5);
+- criticalIssueCount > 0 → readiness не "ready" (hard gate);
+- следующей задачей назначена `R6-11`.
 
 ### 2026-08-01 — R6-02 — DONE
 

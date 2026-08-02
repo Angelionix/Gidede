@@ -795,7 +795,8 @@ function buildSummary(
   narrativeScore: number,
   allIssues: ChecklistIssue[],
   economyScore: number,
-  lensScore: number
+  lensScore: number,
+  progressionScore: number,  // R6-07: new parameter
 ): {
   overall_score: number;
   readiness: string;
@@ -806,15 +807,20 @@ function buildSummary(
   }>;
   quick_wins: Array<{ description: string; effort: string }>;
 } {
-  // TASK-6b.12 FIXED: removed hardcoded +0.1 baseline boost and fixed weights.
-  // Before: mdaScore*0.3 + balanceScore*0.3 + narrativeScore*0.3 + 0.1 (always ≥ 0.1)
-  // After: equal weights across all 5 checks, no baseline boost.
+  // R6-07: equal weights across all 6 checks (was 5 — Progression now included).
   const overall = Number(
-    clamp((mdaScore + balanceScore + narrativeScore + economyScore + lensScore) / 5).toFixed(3)
+    clamp((mdaScore + balanceScore + narrativeScore + economyScore + lensScore + progressionScore) / 6).toFixed(3)
   );
 
-  const readiness =
-    overall >= 0.8 ? "ready" : overall >= 0.5 ? "almost" : "not_ready";
+  // R6-08: hard gate — critical issues (severity "error") forbid "ready".
+  const criticalIssueCount = allIssues.filter((i) => i.severity === "error").length;
+  let readiness: string;
+  if (criticalIssueCount > 0) {
+    // R6-08: cannot be "ready" when critical issues exist, regardless of score.
+    readiness = overall >= 0.5 ? "almost" : "not_ready";
+  } else {
+    readiness = overall >= 0.8 ? "ready" : overall >= 0.5 ? "almost" : "not_ready";
+  }
 
   // Sort issues by severity (error > warning > info)
   const sevRank: Record<string, number> = {
@@ -941,9 +947,25 @@ export async function runChecklistValidation(
     ...(narrativeTypesCheck.skipped ? [] : narrativeTypesCheck.issues),
   ];
 
-  // TASK-6b.12: compute economy and lens scores for buildSummary.
-  const economyScore = economyCheck.skipped ? 0.5 : (economyCheck.issues.length === 0 ? 0.9 : economyCheck.issues.some((i) => i.severity === "error") ? 0.2 : 0.6);
-  const lensScore = lensCheck.skipped ? 0.5 : (lensCheck.issues.length === 0 ? 0.9 : lensCheck.issues.some((i) => i.severity === "error") ? 0.2 : 0.6);
+  // R6-07: compute economy and lens scores for buildSummary, including
+  // Progression as a new scored check. R6-09: skipped/missing checks now
+  // get score 0 (was 0.5 — falsely inflated readiness for incomplete projects).
+  const economyScore = economyCheck.skipped
+    ? 0  // R6-09: missing stage = 0, not 0.5
+    : (economyCheck.issues.length === 0 ? 0.9 : economyCheck.issues.some((i) => i.severity === "error") ? 0.2 : 0.6);
+  const lensScore = lensCheck.skipped
+    ? 0  // R6-09: missing stage = 0, not 0.5
+    : (lensCheck.issues.length === 0 ? 0.9 : lensCheck.issues.some((i) => i.severity === "error") ? 0.2 : 0.6);
+  // R6-07: Progression check — score from progression presence and validation.
+  const progressionScore = project.progression
+    ? (() => {
+        const progValidation = safeJsonParse<{ checks?: Record<string, boolean> }>(project.progression.validation, {});
+        const checks = progValidation?.checks ?? {};
+        const checkValues = Object.values(checks);
+        const passedCount = checkValues.filter(Boolean).length;
+        return checkValues.length > 0 ? passedCount / checkValues.length : 0.5;
+      })()
+    : 0;  // R6-09: missing stage = 0
 
   const summary = buildSummary(
     mdaCheck.overall_mda_score,
@@ -951,7 +973,8 @@ export async function runChecklistValidation(
     narrativeCheck.overall_narrative_score,
     allIssues,
     economyScore,
-    lensScore
+    lensScore,
+    progressionScore,  // R6-07: new parameter
   );
 
   // Build the persisted issues list (with id + remediation)

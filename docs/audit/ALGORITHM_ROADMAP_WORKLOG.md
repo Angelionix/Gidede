@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R7-04` — statistical tests и confidence bounds.
-- **Зависимости:** `R7-03` завершена; 13 property tests проверяют invariants Nash/composite score/graph bounds/RPS cycles.
-- **Ожидаемый результат:** симуляции имеют допустимые допуски.
-- **После неё:** `R7-05` — LLM adapter conformance suite.
+- **Следующая задача:** `R7-05` — LLM adapter conformance suite.
+- **Зависимости:** `R7-04` завершена; 12 statistical tests проверяют CI coverage, reproducibility, tolerance.
+- **Ожидаемый результат:** любой adapter проходит единый набор тестов.
+- **После неё:** `R7-06` — stale/gate/resume E2E.
 
 
 ## Статус roadmap
@@ -94,7 +94,8 @@
 | R7-01 | DONE | 13 cross-stage boundary contract tests (Concept→Core/MDA, MDA→Balance, Balance→Progression/MDA, CoreLoop→Economy) | 883 tests, TypeScript, scoped ESLint |
 | R7-02 | DONE | 9 E2E fixture tests: 6 жанров × RU/EN × 8 стадий, idea preserved verbatim, genre forwarded | 892 tests, TypeScript, scoped ESLint |
 | R7-03 | DONE | 13 property tests: Nash sum/bounds, composite score monotonicity/bounds, graph conservation, RPS distinctness | 905 tests, TypeScript, scoped ESLint |
-| R7-04…R7-08 | TODO | См. активный roadmap | — |
+| R7-04 | DONE | 12 statistical tests: CI coverage, reproducibility, tolerance, CI widening/narrowing | 917 tests, TypeScript, scoped ESLint |
+| R7-05…R7-08 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -107,6 +108,35 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R7-04 — DONE
+
+Что сделано:
+
+- создан `src/lib/statistical-tests.test.ts` с 12 statistical tests;
+- CI coverage: 95% CI содержит true mean для known distribution; CI widens с higher confidence (90→95→99); CI narrows с larger sample size; zero-variance → point CI;
+- multi-run reproducibility: same baseSeed → identical aggregate statistics (exact equality); different baseSeed → different statistics; 10 runs produce 10 independent samples;
+- statistical tolerance: mean of pseudo-uniform [0,1) ≈ 0.5 (±0.15 for n=100); std of constant = 0; std of [1,2,3,4,5] ≈ 1.581;
+- aggregateRuns CI: CI contains sample mean; CI bounds are finite numbers.
+
+Изменённые области:
+
+- `src/lib/statistical-tests.test.ts` (новый, 12 тестов).
+
+Проверки:
+
+- `bun run test` — 77 файлов, 917 тестов пройдено (было 905; +12 statistical);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- 95% CI содержит true mean;
+- CI widening/narrowing monotonic;
+- multi-run sim reproducible (same seed → same stats);
+- std и mean математически корректны;
+- следующей задачей назначена `R7-05`.
 
 ### 2026-08-01 — R7-03 — DONE
 

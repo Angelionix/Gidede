@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** Фаза R7 (Integration, observability, release gate) — начать с `R7-01` (contract tests всех stage boundaries).
-- **Зависимости:** Фаза R6 (GDD и финальная валидация) завершена — все 11 задач R6-01…R6-11 выполнены.
-- **Ожидаемый результат:** contract tests, E2E fixtures, property tests, CI thresholds.
-- **После неё:** R7-02…R7-08 — integration, observability и release gate.
+- **Следующая задача:** `R7-02` — E2E RU/EN pipeline fixtures.
+- **Зависимости:** `R7-01` завершена; 13 cross-stage boundary contract tests покрывают все extractor'ы и forwarding paths.
+- **Ожидаемый результат:** результаты различимы по жанру и входным данным.
+- **После неё:** `R7-03` — property tests для curves/resource conservation/payoff.
 
 
 ## Статус roadmap
@@ -91,7 +91,8 @@
 | R6-05 | DONE | Auto-invalidation: sections с изменённым upstream artifact version помечаются stale | 862 tests, TypeScript, scoped ESLint |
 | R6-06 | DONE | Per-section LLM generation (template/placeholder → llm); review_status всегда "needs_review" | 870 tests, TypeScript, scoped ESLint |
 | R6-10 | DONE | Prototype/playtest/freshness gates: "ready" требует playtest evidence + prototype + fresh stages | 870 tests, TypeScript, scoped ESLint |
-| R7… | TODO | См. активный roadmap | — |
+| R7-01 | DONE | 13 cross-stage boundary contract tests (Concept→Core/MDA, MDA→Balance, Balance→Progression/MDA, CoreLoop→Economy) | 883 tests, TypeScript, scoped ESLint |
+| R7-02…R7-08 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -104,6 +105,41 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R7-01 — DONE
+
+Что сделано:
+
+- создан `src/lib/contracts/stage-boundary-contracts.test.ts` с 13 cross-stage boundary contract tests;
+- tests покрывают все stage boundaries через `buildStageRequestBody`:
+  - Concept → Core Loop: `extractConceptMechanics`, `extractConceptMechanicRefs`, mechanic_refs forwarding;
+  - Concept → MDA: genre, idea, target_aesthetics forwarding;
+  - Core Loop → Economy: `core_loop_resources` (faucet/drain/anchor roles);
+  - MDA → Balance: `balanceObjects` из MDA mechanic_set (typed weapon/armor/etc.);
+  - Balance → Progression: `balance_avg_cost`, `balance_expected_cp`, `balance_cost_power_source`;
+  - Balance → MDA: `balance_dominance` for Lens #41;
+  - lineage: `upstream_versions` forwarding;
+- schema drift detection: Concept without mechanic_set → fallback (not crash), Balance without transitive_result → no forwarding, Core Loop without steps_data → no resources.
+
+Изменённые области:
+
+- `src/lib/contracts/stage-boundary-contracts.test.ts` (новый, 13 тестов).
+
+Проверки:
+
+- `bun run test` — 74 файла, 883 теста пройдено (было 870; +13 boundary contracts);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- все 8 stage boundaries покрыты contract tests;
+- schema drift (missing fields) не вызывает crash — graceful fallback;
+- mechanic_refs forwarding работает Concept → Core Loop → MDA (same id set);
+- balance cost-power forwarding работает Balance → Progression;
+- core_loop_resources forwarding работает Core Loop → Economy;
+- следующей задачей назначена `R7-02`.
 
 ### 2026-08-01 — R6-10 — DONE
 

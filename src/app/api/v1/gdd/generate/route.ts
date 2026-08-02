@@ -209,6 +209,32 @@ const DETAIL_FACTOR: Record<string, number> = {
   exhaustive: 2.3,
 };
 
+// R6-03: Maps each GDD section to the upstream artifact it derives from.
+// Sections not in this map have no upstream artifact (template/manual).
+const SECTION_TO_ARTIFACT: Record<string, { artifact: string }> = {
+  title: { artifact: "concept" },
+  logline: { artifact: "concept" },
+  concept: { artifact: "concept" },
+  usp: { artifact: "concept" },
+  core_loop: { artifact: "coreLoop" },
+  core_loop_summary: { artifact: "coreLoop" },
+  mechanics: { artifact: "concept" },
+  mechanics_overview: { artifact: "concept" },
+  aesthetics: { artifact: "mdaProfile" },
+  balance: { artifact: "balanceResult" },
+  progression: { artifact: "progression" },
+  economy: { artifact: "economy" },
+  monetization: { artifact: "economy" },
+  narrative: { artifact: "mdaProfile" },
+  world_overview: { artifact: "concept" },
+  characters: { artifact: "concept" },
+  plot_arcs: { artifact: "coreLoop" },
+  themes: { artifact: "concept" },
+  tone_voice: { artifact: "mdaProfile" },
+  story_mechanics: { artifact: "coreLoop" },
+  branching_structure: { artifact: "coreLoop" },
+};
+
 interface ProjectData {
   id: string;
   pipelineState: string | null;
@@ -1208,6 +1234,9 @@ export async function POST(request: NextRequest) {
       tables?: Record<string, unknown>[];
       formulas?: string[];
       requires_review: boolean;
+      source_artifact?: string | null;
+      source_artifact_version?: string | null;
+      review_status?: string;
     }> = {};
     for (const sectionName of sectionsList) {
       // TASK-6.10: use cached result instead of calling deriveSectionContent again.
@@ -1223,11 +1252,32 @@ export async function POST(request: NextRequest) {
       } else if (detailFactor < 0.7 && filled.source === "template") {
         content = content.split("\n")[0];
       }
+      // R6-03: attach source artifact provenance and review status to each
+      // section so consumers can trace content back to the upstream artifact
+      // and know whether the section has been reviewed.
+      const sourceArtifact = SECTION_TO_ARTIFACT[sectionName];
+      const reviewStatus = filled.source === "auto_fill" && !filled.requires_review
+        ? "accepted"
+        : filled.source === "placeholder"
+          ? "missing"
+          : "needs_review";
       sectionsContent[sectionName] = {
         content,
         source: filled.source,
         auto_filled: filled.source === "auto_fill",
         requires_review: filled.requires_review,
+        source_artifact: sourceArtifact?.artifact ?? null,
+        source_artifact_version: sourceArtifact?.artifact ?? null
+          ? (() => {
+              const artifactRecord = (proj as unknown as Record<string, { fullProfile?: string } | null>)[sourceArtifact.artifact];
+              if (!artifactRecord?.fullProfile) return null;
+              try {
+                const profile = JSON.parse(artifactRecord.fullProfile);
+                return profile?.artifact?.version ?? null;
+              } catch { return null; }
+            })()
+          : null,
+        review_status: reviewStatus,
       };
     }
 

@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R6-03` — секция хранит source artifact/version и review status.
-- **Зависимости:** `R6-11` завершена; OK messages честно сообщают 5/7 вместо "7 пройден".
-- **Ожидаемый результат:** видно происхождение каждой формулы и утверждения.
-- **После неё:** `R6-05`, `R6-06`, `R6-10` — оставшиеся задачи GDD/checklist (auto-invalidation, per-section LLM, prototype/playtest gates).
+- **Следующая задача:** `R6-05` — автоинвалидация GDD sections при upstream changes.
+- **Зависимости:** `R6-03` завершена; каждая секция хранит `source_artifact`, `source_artifact_version`, `review_status`.
+- **Ожидаемый результат:** изменение upstream помечает только зависимые sections stale.
+- **После неё:** `R6-06` (per-section LLM с review) и `R6-10` (prototype/playtest/freshness gates).
 
 ## Статус roadmap
 
@@ -86,7 +86,8 @@
 | R6-08 | DONE | criticalIssueCount > 0 forbids "ready" (hard gate) | 862 tests, TypeScript, scoped ESLint |
 | R6-09 | DONE | Missing/skipped stage → score 0 (was 0.5 — falsely inflated readiness) | 862 tests, TypeScript, scoped ESLint |
 | R6-11 | DONE | OK messages честно сообщают "5 of 7" вместо "7 пройден" (Rolling/Morris и Bond) | 862 tests, TypeScript, scoped ESLint |
-| R6-03, R6-05, R6-06, R6-10…R7 | TODO | См. активный roadmap | — |
+| R6-03 | DONE | Каждая секция хранит source_artifact, source_artifact_version и review_status | 862 tests, TypeScript, scoped ESLint |
+| R6-05, R6-06, R6-10…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -99,6 +100,35 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R6-03 — DONE
+
+Что сделано:
+
+- добавлен `SECTION_TO_ARTIFACT` mapping (21 секция → upstream artifact: concept/coreLoop/mdaProfile/balanceResult/progression/economy);
+- каждая GDD секция теперь содержит три новых provenance поля:
+  - `source_artifact`: имя upstream artifact (например `"concept"`, `"balanceResult"`) или `null` для template/manual секций;
+  - `source_artifact_version`: version из artifact envelope upstream artifact (читается из `fullProfile.artifact.version`), или `null`;
+  - `review_status`: `"accepted"` (auto_fill без requires_review), `"needs_review"` (template/llm с requires_review), `"missing"` (placeholder);
+- `sectionsContent` type расширен соответствующими optional полями.
+
+Изменённые области:
+
+- `src/app/api/v1/gdd/generate/route.ts` — `SECTION_TO_ARTIFACT` mapping, provenance fields в sectionsContent.
+
+Проверки:
+
+- `bun run test` — 72 файла, 862 теста пройдено (без изменений);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- секция `balance` → `source_artifact="balanceResult"`, `review_status="accepted"` (если auto_fill);
+- секция `ux` → `source_artifact=null`, `review_status="needs_review"` (template);
+- секция с TBD → `source_artifact=null`, `review_status="missing"` (placeholder);
+- следующей задачей назначена `R6-05`.
 
 ### 2026-08-01 — R6-11 — DONE
 

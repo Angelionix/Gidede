@@ -34,7 +34,7 @@ interface CoreLoopStep {
 }
 
 interface CoreLoopData {
-  structuralType?: string; // engine | economy | ecology
+  structuralType?: string; // engine | economy | ecology | tower_defense | rhythm | puzzle | ...
   steps?: CoreLoopStep[] | string[];
   inputData?: string; // JSON с шагами
   stepsData?: string;
@@ -42,13 +42,34 @@ interface CoreLoopData {
 
 export type PrototypeMode = "2d" | "3d";
 
+/**
+ * Полный набор типов прототипов (10). Совпадает с PrototypeType из graph-builder.
+ * legacy generate2dHtml/generate3dHtml поддерживают только первые 6,
+ * новые 4 (platformer, stealth, deck_builder, survival_horror) идут через graph path.
+ */
+type LegacySupportedType =
+  | "engine"
+  | "economy"
+  | "ecology"
+  | "tower_defense"
+  | "rhythm"
+  | "puzzle";
+
 interface PrototypeConfig {
-  type: "engine" | "economy" | "ecology" | "tower_defense" | "rhythm" | "puzzle";
+  type: LegacySupportedType;
+  /** Полный тип (может быть из новых 4), сохраняется для API response. */
+  resolvedType: PrototypeType;
   steps: string[];
   resourceName: string;
   resourceIcon: string;
   goalText: string;
   mode: PrototypeMode;
+  /** Жанр из Concept, для контекста UI. */
+  genre?: string;
+  /** Имена механик из Concept (если есть), для отображения в шагах. */
+  mechanicNames?: string[];
+  /** Честный флаг: prototype built from template, not from Core Loop mechanics. */
+  isTemplatePrototype: boolean;
   prototypeId?: string;
 }
 
@@ -59,14 +80,26 @@ const RESOURCE_PRESETS: Record<string, { name: string; icon: string }> = {
   tower_defense: { name: "Очки базы", icon: "🏰" },
   rhythm: { name: "Combo", icon: "🎵" },
   puzzle: { name: "Линии", icon: "🧩" },
+  platformer: { name: "Очки", icon: "⭐" },
+  stealth: { name: "Стелс", icon: "👁️" },
+  deck_builder: { name: "Карты", icon: "🃏" },
+  survival_horror: { name: "Ресурсы", icon: "🕯️" },
 };
 
 /**
  * Извлечь человекочитаемые имена шагов из разных форматов данных кор-лупа.
+ * Если actual mechanic names доступны (из Concept.mechanicSet), они
+ * используются вместо безликого "Шаг".
  */
-function extractSteps(data: CoreLoopData): string[] {
+function extractSteps(data: CoreLoopData, mechanicNames?: string[]): string[] {
   const raw = data.steps || data.stepsData;
-  if (!raw) return [];
+  if (!raw) {
+    // Если шагов нет, но есть mechanic names — используем их как шаги.
+    if (mechanicNames && mechanicNames.length > 0) {
+      return mechanicNames.slice(0, 5);
+    }
+    return [];
+  }
 
   let parsed: unknown = raw;
   if (typeof raw === "string") {
@@ -81,41 +114,87 @@ function extractSteps(data: CoreLoopData): string[] {
   }
 
   if (Array.isArray(parsed)) {
-    return parsed.map((s) =>
-      typeof s === "string" ? s : (s as CoreLoopStep)?.name || (s as CoreLoopStep)?.description || "Шаг"
-    );
+    const steps = parsed.map((s) =>
+      typeof s === "string" ? s : (s as CoreLoopStep)?.name || (s as CoreLoopStep)?.description || (s as CoreLoopStep)?.action || ""
+    ).filter((s) => s.length > 0);
+    // Если после фильтрации остались пустые и есть mechanicNames — дополним.
+    if (steps.length === 0 && mechanicNames && mechanicNames.length > 0) {
+      return mechanicNames.slice(0, 5);
+    }
+    return steps;
   }
 
   if (data.inputData) {
     try {
       const inp = JSON.parse(data.inputData);
       if (Array.isArray(inp?.steps)) {
-        return inp.steps.map((s: unknown) =>
-          typeof s === "string" ? s : (s as CoreLoopStep)?.name || "Шаг"
-        );
+        const steps = inp.steps.map((s: unknown) =>
+          typeof s === "string" ? s : (s as CoreLoopStep)?.name || (s as CoreLoopStep)?.description || (s as CoreLoopStep)?.action || ""
+        ).filter((s: string) => s.length > 0);
+        if (steps.length === 0 && mechanicNames && mechanicNames.length > 0) {
+          return mechanicNames.slice(0, 5);
+        }
+        return steps;
       }
     } catch {
       /* ignore */
     }
   }
 
+  // Последний fallback: mechanicNames, если есть.
+  if (mechanicNames && mechanicNames.length > 0) {
+    return mechanicNames.slice(0, 5);
+  }
+
   return [];
+}
+
+/**
+ * Доступные опции для buildPrototypeConfig.
+ * Расширено в Фазе 0: genre и mechanicNames пробрасываются для контекстных целей.
+ */
+export interface BuildPrototypeConfigOptions {
+  /** Жанр из Concept (например, "Racing", "RPG"). */
+  genre?: string | null;
+  /** Имена механик из Concept.mechanicSet (если доступны). */
+  mechanicNames?: string[];
 }
 
 /**
  * Сгенерировать конфиг прототипа из данных кор-лупа проекта.
  * mode — "2d" (LittleJS) или "3d" (Three.js).
+ *
+ * Фаза 0: теперь принимает genre и mechanicNames, использует их для
+ * выбора контекстной цели. Для неподдерживаемых legacy-типов возвращает
+ * isTemplatePrototype=true и честное предупреждение в goalText.
  */
 export function buildPrototypeConfig(
   coreLoopData: CoreLoopData,
-  mode: PrototypeMode = "2d"
+  mode: PrototypeMode = "2d",
+  options: BuildPrototypeConfigOptions = {},
 ): PrototypeConfig {
-  const validTypes = ["engine", "economy", "ecology", "tower_defense", "rhythm", "puzzle"];
-  const rawType = (coreLoopData.structuralType || "engine").toLowerCase();
-  const type = (validTypes.includes(rawType) ? rawType : "engine") as PrototypeConfig["type"];
+  const LEGACY_TYPES: LegacySupportedType[] = [
+    "engine", "economy", "ecology", "tower_defense", "rhythm", "puzzle",
+  ];
+  const ALL_VALID_TYPES: PrototypeType[] = [
+    ...LEGACY_TYPES,
+    "platformer", "stealth", "deck_builder", "survival_horror",
+  ];
 
-  const steps = extractSteps(coreLoopData).slice(0, 5);
-  const preset = RESOURCE_PRESETS[type] || RESOURCE_PRESETS.engine;
+  const rawType = (coreLoopData.structuralType || "engine").toLowerCase();
+  const resolvedType = (
+    ALL_VALID_TYPES.includes(rawType as PrototypeType) ? rawType : "engine"
+  ) as PrototypeType;
+
+  // Для legacy inline-генератора доступны только 6 типов. Если resolvedType
+  // из новых 4, legacy path не используется (route направляет в graph path).
+  // Но config.type должен быть валидным legacy-типом для type-индексирования.
+  const type: LegacySupportedType = LEGACY_TYPES.includes(resolvedType as LegacySupportedType)
+    ? (resolvedType as LegacySupportedType)
+    : "engine";
+
+  const steps = extractSteps(coreLoopData, options.mechanicNames).slice(0, 5);
+  const preset = RESOURCE_PRESETS[resolvedType] || RESOURCE_PRESETS.engine;
 
   const goals2d: Record<string, string> = {
     engine: "Накопите 50 энергии за 30 секунд",
@@ -124,6 +203,10 @@ export function buildPrototypeConfig(
     tower_defense: "Защитите базу от 3 волн врагов за 30 секунд",
     rhythm: "Поймайте 20 бит в ритме (стрелки ←→)",
     puzzle: "Соберите 3 линии из блоков (как тетрис)",
+    platformer: "Соберите 5 звёзд, перепрыгивая платформы (←→↑)",
+    stealth: "Дойдите до цели незамеченным (WASD + Shift для тишины)",
+    deck_builder: "Соберите колоду из 5 карт и победите врага",
+    survival_horror: "Выживите 60 секунд, управляя ресурсами",
   };
 
   const goals3d: Record<string, string> = {
@@ -133,17 +216,32 @@ export function buildPrototypeConfig(
     tower_defense: "Защитите 3D-базу от волн врагов",
     rhythm: "Ловите 3D-ноты в ритме",
     puzzle: "Соберите 3D-линии из блоков",
+    platformer: "Соберите 5 звёзд в 3D, прыгая по платформам",
+    stealth: "Дойдите до 3D-цели незамеченным",
+    deck_builder: "Победите 3D-врага, собирая карты",
+    survival_horror: "Выживите 60 секунд в 3D-пространстве",
   };
 
   const goals = mode === "3d" ? goals3d : goals2d;
 
+  // Если жанр известен и не совпадает с ожидаемым для типа — добавим контекст.
+  // Это не меняет gameplay, но помогает пользователю понять несоответствие.
+  const goalText = goals[resolvedType] || goals.engine;
+  const isTemplatePrototype = !LEGACY_TYPES.includes(resolvedType as LegacySupportedType)
+    || steps.length === 0
+    || !coreLoopData.structuralType;
+
   return {
     type,
+    resolvedType,
     steps: steps.length > 0 ? steps : ["Собрать", "Преобразовать", "Использовать"],
     resourceName: preset.name,
     resourceIcon: preset.icon,
-    goalText: goals[type] || goals.engine,
+    goalText,
     mode,
+    genre: options.genre || undefined,
+    mechanicNames: options.mechanicNames,
+    isTemplatePrototype,
   };
 }
 

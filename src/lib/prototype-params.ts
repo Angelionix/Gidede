@@ -337,7 +337,10 @@ export function resolvePrototypeType(
       sandbox: "economy",
       horror: "survival_horror",
       survival_horror: "survival_horror",
-      racing: "rhythm", // racing ≈ rhythm in terms of timing-based input
+      // Фаза 0: racing → ecology (управление + уклонение), а не rhythm.
+      // rhythm = timed input (musical), racing = continuous control + avoid.
+      racing: "ecology",
+      simulation: "economy",
       card: "deck_builder",
       mmorpg: "ecology",
     };

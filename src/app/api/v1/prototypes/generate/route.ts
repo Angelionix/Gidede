@@ -109,7 +109,38 @@ export async function POST(request: NextRequest) {
 
     // Build config (still needed for legacy generatePrototypeHtml path and
     // for the response.config field).
+    // Фаза 0: теперь передаём genre и mechanicNames из Concept, чтобы цель
+    // прототипа была контекстной, а шаги показывали actual mechanic names.
     const cl = project.coreLoop;
+    const conceptMechanicSet = project.concept?.mechanicSet;
+    let mechanicNames: string[] | undefined;
+    if (conceptMechanicSet) {
+      try {
+        const parsed = JSON.parse(conceptMechanicSet) as {
+          base?: Array<{ name?: string }>;
+          combat?: Array<{ name?: string }>;
+          progression?: Array<{ name?: string }>;
+          spatial?: Array<{ name?: string }>;
+          social?: Array<{ name?: string }>;
+        };
+        const allCategories = [
+          ...(parsed.base ?? []),
+          ...(parsed.combat ?? []),
+          ...(parsed.progression ?? []),
+          ...(parsed.spatial ?? []),
+          ...(parsed.social ?? []),
+        ];
+        const names = allCategories
+          .map((m) => m?.name)
+          .filter((n): n is string => typeof n === "string" && n.length > 0);
+        if (names.length > 0) {
+          mechanicNames = names;
+        }
+      } catch {
+        // ignore malformed mechanicSet
+      }
+    }
+
     const config = buildPrototypeConfig(
       {
         structuralType: resolvedType,
@@ -120,7 +151,11 @@ export async function POST(request: NextRequest) {
             : undefined,
         inputData: cl?.inputData || undefined,
       },
-      mode
+      mode,
+      {
+        genre: project.genre,
+        mechanicNames,
+      },
     );
 
     const prototypeArtifact = createPrototypeArtifact(project.id, project.pipelineState, {
@@ -201,6 +236,13 @@ export async function POST(request: NextRequest) {
           ? "balance+progression+economy"
           : "defaults",
       },
+      // Фаза 0: честный флаг template prototype. UI должен показывать
+      // предупреждение, что этот прототип построен из шаблона, а не из
+      // реальных механик Core Loop.
+      is_template_prototype: config.isTemplatePrototype,
+      resolved_type: resolvedType,
+      genre: config.genre || project.genre || null,
+      mechanic_names: config.mechanicNames || null,
       ai_insights: aiInsights,
       custom_mechanic: customMechanic,
       ai_generated: useAi && aiInsights !== null,

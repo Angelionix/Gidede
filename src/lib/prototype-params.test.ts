@@ -314,7 +314,10 @@ describe("resolvePrototypeType — type resolution precedence", () => {
     expect(resolvePrototypeType(null, null, "Puzzle")).toBe("puzzle");
     expect(resolvePrototypeType(null, null, "Tower Defense")).toBe("tower_defense");
     expect(resolvePrototypeType(null, null, "Horror")).toBe("survival_horror");
-    expect(resolvePrototypeType(null, null, "Racing")).toBe("rhythm");
+    // Фаза 0: racing → ecology (continuous control + avoid), а не rhythm
+    // (rhythm = timed musical input, что не подходит для гонок).
+    expect(resolvePrototypeType(null, null, "Racing")).toBe("ecology");
+    expect(resolvePrototypeType(null, null, "Simulation")).toBe("economy");
   });
 
   it("returns 'engine' default when nothing matches", () => {

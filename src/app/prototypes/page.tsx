@@ -26,6 +26,14 @@ interface PrototypeResponse {
     resource: string;
     goal: string;
   };
+  /** Фаза 0: честный флаг — прототип построен из шаблона, не из Core Loop mechanics. */
+  is_template_prototype?: boolean;
+  /** Фаза 0: полный resolved type (включая новые 4 типа). */
+  resolved_type?: string;
+  /** Фаза 0: жанр из Concept. */
+  genre?: string | null;
+  /** Фаза 0: имена механик из Concept (если были использованы в шагах). */
+  mechanic_names?: string[] | null;
   ai_insights: string | null;
   custom_mechanic: { mechanicName: string; description: string; codeSnippet: string } | null;
   ai_generated: boolean;
@@ -469,6 +477,26 @@ export default function PrototypesPage() {
               </div>
             </CardHeader>
             <CardContent>
+              {/* Фаза 0: честное предупреждение о template prototype */}
+              {prototype.is_template_prototype && (
+                <div className="mb-3 rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2.5 text-sm text-amber-900 dark:border-amber-700/60 dark:bg-amber-950/40 dark:text-amber-200">
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <div className="flex-1">
+                      <p className="font-medium">Это шаблонный прототип, не проверка Core Loop</p>
+                      <p className="mt-0.5 text-xs text-amber-800/90 dark:text-amber-300/80">
+                        Прототип построен из готового шаблона типа «{prototype.resolved_type || prototype.config.type}»,
+                        а не из реальных механик вашего Core Loop. Цель и правила — типовые для этого типа,
+                        они не доказывают, что выбранные вами механики образуют играбельный цикл.
+                        {prototype.mechanic_names && prototype.mechanic_names.length > 0 && (
+                          <> Шаги показывают имена механик из Concept: {prototype.mechanic_names.slice(0, 5).join(", ")}.</>
+                        )}
+                        {" "}Полноценная проверка механик появится после миграции на PrototypeIR compiler (см. roadmap).
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              )}
               {compareMode && secondPrototype ? (
                 /* Compare mode: two iframes side-by-side */
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

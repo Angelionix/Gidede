@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R6-06` — per-section LLM generation только с review.
-- **Зависимости:** `R6-05` завершена; GDD sections автоматически помечаются stale при изменении upstream artifact version.
-- **Ожидаемый результат:** LLM section не становится accepted автоматически; требуется явный review.
-- **После неё:** `R6-10` — prototype/playtest/freshness gates для readiness.
+- **Следующая задача:** `R6-10` — prototype/playtest/freshness gates для readiness.
+- **Зависимости:** `R6-06` завершена; per-section LLM generation с обязательным review_status="needs_review".
+- **Ожидаемый результат:** Ready требует accepted playtest evidence.
+- **После неё:** Фаза R6 завершена, переход к Фазе R7 (Integration, observability, release gate).
 
 ## Статус roadmap
 
@@ -88,7 +88,8 @@
 | R6-11 | DONE | OK messages честно сообщают "5 of 7" вместо "7 пройден" (Rolling/Morris и Bond) | 862 tests, TypeScript, scoped ESLint |
 | R6-03 | DONE | Каждая секция хранит source_artifact, source_artifact_version и review_status | 862 tests, TypeScript, scoped ESLint |
 | R6-05 | DONE | Auto-invalidation: sections с изменённым upstream artifact version помечаются stale | 862 tests, TypeScript, scoped ESLint |
-| R6-06, R6-10…R7 | TODO | См. активный roadmap | — |
+| R6-06 | DONE | Per-section LLM generation (template/placeholder → llm); review_status всегда "needs_review" | 870 tests, TypeScript, scoped ESLint |
+| R6-10…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -101,6 +102,36 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R6-06 — DONE
+
+Что сделано:
+
+- создан модуль `src/lib/gdd/section-llm.ts` с `generateSectionWithLlm` и `shouldUseLlmForSection`;
+- `generateSectionWithLlm(request)` — вызывает LLM через `getLlmClientForStage("gdd")` для генерации одной секции GDD; возвращает `LlmSectionResult` с `source: "llm"`, `review_status: "needs_review"`, `generated_by`, `generation_timestamp`;
+- `shouldUseLlmForSection(source, hasUpstreamArtifact, useAi)` — eligibility check: только template/placeholder секции с upstream artifact при `useAi=true` подходят; auto_fill и manual исключаются;
+- GDD route при `useAi=true` обходит sectionsContent, для eligible секций вызывает `generateSectionWithLlm`, заменяет content и помечает `source="llm"`, `review_status="needs_review"`, `requires_review=true`;
+- LLM-generated секции НИКОГДА не становятся `"accepted"` автоматически — type-level guarantee через `LlmSectionResult.review_status: "needs_review"`.
+
+Изменённые области:
+
+- `src/lib/gdd/section-llm.ts` (новый, 100 строк) и `section-llm.test.ts` (новый, 8 тестов);
+- `src/app/api/v1/gdd/generate/route.ts` — per-section LLM loop, import.
+
+Проверки:
+
+- `bun run test` — 73 файла, 870 тестов пройдено (было 862; +8 section-llm);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- template + upstream + useAi → LLM generation triggered;
+- auto_fill → NOT eligible (already has real data);
+- LLM result всегда `review_status: "needs_review"` (compile-time type guarantee);
+- graceful fallback (null) при LLM unavailability;
+- следующей задачей назначена `R6-10`.
 
 ### 2026-08-01 — R6-05 — DONE
 

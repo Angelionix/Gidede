@@ -31,6 +31,7 @@ import {
   VALIDATION_ERROR,
 } from "@/lib/api-helpers";
 import { enrichGdd } from "@/lib/ai-service";
+import { generateSectionWithLlm, shouldUseLlmForSection } from "@/lib/gdd/section-llm";
 import { getStageAlgorithmMetadata } from "@/lib/algorithm-metadata";
 import {
   assertStageOutput,
@@ -1311,6 +1312,32 @@ export async function POST(request: NextRequest) {
           }
         }
       } catch { /* ignore parse errors — treat as no stale data */ }
+    }
+
+    // R6-06: per-section LLM generation for template/placeholder sections with
+    // upstream artifacts. LLM-generated content ALWAYS has review_status
+    // "needs_review" — it never becomes "accepted" automatically.
+    if (useAi) {
+      for (const [sectionName, section] of Object.entries(sectionsContent)) {
+        const hasUpstream = Boolean(section.source_artifact);
+        if (!shouldUseLlmForSection(section.source, hasUpstream, true)) continue;
+
+        const llmResult = await generateSectionWithLlm({
+          sectionName,
+          sectionDescription: `GDD section derived from ${section.source_artifact}`,
+          projectName: proj.name || "Untitled",
+          genre: proj.genre || "rpg",
+          upstreamContext: section.content.slice(0, 500),
+          language,
+        });
+
+        if (llmResult) {
+          section.content = llmResult.content;
+          section.source = "llm";
+          section.review_status = "needs_review";
+          section.requires_review = true;
+        }
+      }
     }
 
     const autoFilledSections = {

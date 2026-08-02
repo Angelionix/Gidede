@@ -104,7 +104,7 @@
     }
 
     function notifyParent(outcome, score, duration) {
-      try { window.parent.postMessage({ type: 'gidede-playtest', outcome: outcome, score: score||null, duration: duration||30, prototypeType: 'puzzle', prototypeId: '778b1556-2b1a-43d5-abd9-42b1cf62c817', mode: '2d' }, '*'); } catch(e) {}
+      try { window.parent.postMessage({ type: 'gidede-playtest', outcome: outcome, score: score||null, duration: duration||30, prototypeType: 'puzzle', prototypeId: 'db9d5e46-8204-4604-8398-0d9b2d52ff10', mode: '2d' }, '*'); } catch(e) {}
     }
     function win(score) { running=false; resultText.textContent='🎉 Победа!'; overlay.classList.add('show'); notifyParent('win', score, Math.max(0, 30-timeLeft)); }
     function lose(score) { running=false; resultText.textContent='💀 Поражение'; overlay.classList.add('show'); notifyParent('lose', score, Math.max(0, 30-timeLeft)); }

@@ -1418,6 +1418,353 @@ export const MECHANICS_DB: Mechanic[] = [
       'challenge'
     ],
     'genres': ['farming', 'fighting', 'mmorpg', 'racing', 'shooter', 'simulation', 'sports']
+  },
+  // ============================================================
+  // R-MDB-EXPANSION: 45 new mechanics extending genre coverage.
+  // Goal: bring tower_defense (was 3), rhythm (was 2), racing (was 6),
+  // sandbox, simulation, metroidvania, puzzle to a minimum of 8 mechanics
+  // each so buildMechanicSetForGenres uses the in-genre pool (not the
+  // fallback to all 128 mechanics which produces compatibility_score=0).
+  // Sources: SW.BAND Кн. 15 patterns, Adams/Dormans Кн. 4 structural types,
+  // Shell Кн. 1 seven foundational mechanics, plus genre-specific research
+  // (TD: multi-target/crowd control/spawn paths; Rhythm: beat sync/notecharts;
+  // Racing: vehicle dynamics/drifting/power-ups).
+  // ============================================================
+  {
+    'group': 'Базовые',
+    'name': 'Замок и ключ',
+    'desc': 'Прогрессия через gated obstacles — игрок получает способность/ключ, открывающий ранее недоступную область. Создаёт нелинейную структуру с возвратами.',
+    'aesthetics': ['discovery', 'challenge', 'narrative'],
+    'genres': ['metroidvania', 'adventure', 'puzzle', 'action_rpg', 'jrpg', 'platformer', 'rpg']
+  },
+  {
+    'group': 'Базовые',
+    'name': 'Спавн врагов',
+    'desc': 'Система генерации врагов по расписанию или триггерам. Определяет темп и сложность: волны, бесконечный спавн, условные триггеры.',
+    'aesthetics': ['challenge', 'submission', 'sensation'],
+    'genres': ['tower_defense', 'shooter', 'action', 'horror', 'roguelike', 'mmorpg', 'strategy']
+  },
+  {
+    'group': 'Боевые',
+    'name': 'Мульти-таргет атаки',
+    'desc': 'Атаки, поражающие несколько целей одновременно: пробивание, цепные реакции, AoE. Меняет приоритет целей — группа слабых врагов становится выгоднее одного сильного.',
+    'aesthetics': ['challenge', 'sensation', 'fantasy'],
+    'genres': ['tower_defense', 'action', 'rpg', 'mmorpg', 'strategy', 'rts', 'moba', 'shooter']
+  },
+  {
+    'group': 'Боевые',
+    'name': 'Контроль толпы',
+    'desc': 'Механики замедления, оглушения или группирования врагов для эффективного уничтожения. Сочетается с мульти-таргет атаками.',
+    'aesthetics': ['challenge', 'fantasy', 'submission'],
+    'genres': ['tower_defense', 'action', 'rpg', 'mmorpg', 'strategy', 'rts', 'tactical_rpg', 'moba']
+  },
+  {
+    'group': 'Боевые',
+    'name': 'Точечный урон',
+    'desc': 'Высокий урон по одной цели. Контраст к AoE: требует выбора приоритетной цели, создаёт ситуативный выбор тактики.',
+    'aesthetics': ['challenge', 'fantasy'],
+    'genres': ['tower_defense', 'shooter', 'action', 'rpg', 'mmorpg', 'strategy', 'rts', 'tactical_rpg']
+  },
+  {
+    'group': 'Боевые',
+    'name': 'Стрельба по траекториям',
+    'desc': 'Боевая система с физикой снарядов: параболические траектории, упреждение, рикошеты. Требует пространственного мышления.',
+    'aesthetics': ['challenge', 'sensation', 'submission'],
+    'genres': ['tower_defense', 'shooter', 'action', 'strategy', 'rts']
+  },
+  {
+    'group': 'Территория',
+    'name': 'Пути врагов',
+    'desc': 'Предопределённые маршруты движения врагов от точки спавна до цели. Игрок не атакует напрямую — строит препятствия и башни вдоль пути.',
+    'aesthetics': ['challenge', 'submission', 'discovery'],
+    'genres': ['tower_defense', 'strategy', 'rts', 'tactical_rpg']
+  },
+  {
+    'group': 'Территория',
+    'name': 'Защитные сооружения',
+    'desc': 'Стационарные конструкции для отражения атак: стены, башни, ловушки, баррикады. Игрок планирует расположение для максимального покрытия.',
+    'aesthetics': ['challenge', 'expression', 'submission'],
+    'genres': ['tower_defense', 'strategy', 'rts', 'survival_horror', 'sandbox', 'tactical_rpg']
+  },
+  {
+    'group': 'Территория',
+    'name': 'Узловые точки',
+    'desc': 'Стратегические узлы на карте, контроль над которыми даёт бонусы или доступ к ресурсам. Создаёт потоковые бои вокруг ключевых локаций.',
+    'aesthetics': ['challenge', 'fellowship', 'submission'],
+    'genres': ['tower_defense', 'shooter', 'strategy', 'rts', 'mmorpg', 'moba', 'tactical_rpg', 'action']
+  },
+  {
+    'group': 'Территория',
+    'name': 'Трасса',
+    'desc': 'Линейное или замкнутое пространство для гонок с чекпойнтами, короткими путями и препятствиями. Определяет ритм соревнования.',
+    'aesthetics': ['sensation', 'challenge', 'submission'],
+    'genres': ['racing', 'sports', 'action', 'sandbox']
+  },
+  {
+    'group': 'Движение',
+    'name': 'Дрейф и занос',
+    'desc': 'Механика управляемого заноса в поворотах: игрок балансирует между потерей сцепления и скоростью. Создаёт кинестетическое удовольствие от вождения.',
+    'aesthetics': ['sensation', 'challenge', 'submission'],
+    'genres': ['racing', 'sports', 'action']
+  },
+  {
+    'group': 'Движение',
+    'name': 'Стены и лазание',
+    'desc': 'Перемещение по вертикальным поверхностям, лазание, паркур. Расширяет пространство исследования и создаёт вертикальный геймплей.',
+    'aesthetics': ['discovery', 'challenge', 'sensation'],
+    'genres': ['metroidvania', 'platformer', 'action', 'action_rpg', 'adventure', 'sandbox']
+  },
+  {
+    'group': 'Движение',
+    'name': 'Рывок и уклонение',
+    'desc': 'Быстрый рывок для уклонения или сближения. Создаёт танцевальный ритм боя: атака-уклонение-атака.',
+    'aesthetics': ['challenge', 'sensation', 'submission'],
+    'genres': ['metroidvania', 'action', 'shooter', 'rpg', 'soulslike', 'fighting', 'platformer', 'roguelike']
+  },
+  {
+    'group': 'Движение',
+    'name': 'Прыжки и платформинг',
+    'desc': 'Точное перемещение по платформам с расчётом тайминга и траектории. Фундаментальная механика платформеров и метроидваний.',
+    'aesthetics': ['challenge', 'sensation', 'discovery'],
+    'genres': ['metroidvania', 'platformer', 'action', 'puzzle', 'sandbox']
+  },
+  {
+    'group': 'Движение',
+    'name': 'Полёт и левитация',
+    'desc': 'Свободное перемещение в воздухе: глайдеры, джетпаки, магия. Открывает 3D-исследование и принципиально меняет навигацию.',
+    'aesthetics': ['sensation', 'fantasy', 'discovery'],
+    'genres': ['metroidvania', 'action', 'adventure', 'sandbox', 'mmorpg', 'simulation', 'shooter']
+  },
+  {
+    'group': 'Движение',
+    'name': 'Вождение транспорта',
+    'desc': 'Управление автомобилем, кораблём или животным с уникальной физикой. Кинестетическое удовольствие от контроля тяжёлой машины.',
+    'aesthetics': ['sensation', 'submission', 'challenge'],
+    'genres': ['racing', 'simulation', 'sandbox', 'action', 'adventure', 'sports']
+  },
+  {
+    'group': 'Время',
+    'name': 'Бит-синхронизация',
+    'desc': 'Игрок нажимает кнопки в ритм музыке. Точность тайминга определяет эффективность: perfect/good/miss. Основа rhythm-жанра.',
+    'aesthetics': ['sensation', 'submission', 'challenge'],
+    'genres': ['rhythm', 'action', 'party']
+  },
+  {
+    'group': 'Время',
+    'name': 'Нотные чарты',
+    'desc': 'Предопределённая последовательность нот для песни. Создаёт «паркур» для пальцев: паттерны становятся узнаваемыми и отрабатываются до автоматизма.',
+    'aesthetics': ['submission', 'challenge', 'sensation'],
+    'genres': ['rhythm', 'party', 'action']
+  },
+  {
+    'group': 'Время',
+    'name': 'Музыкальные сигналы',
+    'desc': 'Визуальные и звуковые подсказки, синхронизированные с битом. Обучают игрока ритму и подготавливают к сложным секциям.',
+    'aesthetics': ['sensation', 'submission', 'discovery'],
+    'genres': ['rhythm', 'action', 'puzzle', 'platformer']
+  },
+  {
+    'group': 'Время',
+    'name': 'Темповое ускорение',
+    'desc': 'Постепенное или ступенчатое ускорение темпа игры. Создаёт нарастающее напряжение и проверяет предел мастерства.',
+    'aesthetics': ['challenge', 'sensation', 'submission'],
+    'genres': ['rhythm', 'action', 'shooter', 'puzzle', 'roguelike', 'tower_defense']
+  },
+  {
+    'group': 'Время',
+    'name': 'Волны врагов',
+    'desc': 'Дискретные периоды спавна врагов с паузами между ними. Даёт игроку время перестроить тактику и создаёт чёткие фазы боя.',
+    'aesthetics': ['challenge', 'submission', 'sensation'],
+    'genres': ['tower_defense', 'action', 'shooter', 'strategy', 'horror', 'roguelike', 'rts']
+  },
+  {
+    'group': 'Навыки',
+    'name': 'Комбо-цепочки',
+    'desc': 'Последовательности действий, усиливающих друг друга при правильном тайминге. Поощряют мастерство и создание экспрессивных sequence-атак.',
+    'aesthetics': ['challenge', 'sensation', 'expression'],
+    'genres': ['rhythm', 'action', 'fighting', 'shooter', 'platformer', 'metroidvania']
+  },
+  {
+    'group': 'Навыки',
+    'name': 'Тайминг-окна',
+    'desc': 'Короткие временные окна для идеального действия: парирование, perfect dodge, critical hit. Создаёт risk/reward tension.',
+    'aesthetics': ['challenge', 'sensation', 'submission'],
+    'genres': ['rhythm', 'action', 'fighting', 'soulslike', 'rpg', 'shooter', 'metroidvania', 'platformer']
+  },
+  {
+    'group': 'Навыки',
+    'name': 'Тренировка реакции',
+    'desc': 'Механики, требующие быстрой реакции на визуальные/звуковые стимулы. Развивает рефлексы и создаёт адреналиновый темп.',
+    'aesthetics': ['challenge', 'sensation', 'submission'],
+    'genres': ['rhythm', 'shooter', 'action', 'fighting', 'tower_defense']
+  },
+  {
+    'group': 'Навыки',
+    'name': 'Дрифт-мастерство',
+    'desc': 'Продвинутое управление заносом с накоплением очков стиля. Вознаграждает игроков за риск и точность в экстремальных режимах.',
+    'aesthetics': ['challenge', 'expression', 'sensation'],
+    'genres': ['racing', 'sports', 'action']
+  },
+  {
+    'group': 'Прогрессия',
+    'name': 'Открытие способностей',
+    'desc': 'Новые способности (двойной прыжок, рывок, морф-бол) открывают ранее недоступные области. Ключевая прогрессия метроидваний.',
+    'aesthetics': ['discovery', 'challenge', 'fantasy'],
+    'genres': ['metroidvania', 'action', 'action_rpg', 'platformer', 'adventure', 'rpg', 'sandbox']
+  },
+  {
+    'group': 'Прогрессия',
+    'name': 'Карта прогрессии',
+    'desc': 'Визуализация открытых/неоткрытых областей с маркерами способностей. Помогает игроку планировать возвращения и находить секреты.',
+    'aesthetics': ['discovery', 'submission', 'challenge'],
+    'genres': ['metroidvania', 'adventure', 'rpg', 'mmorpg', 'sandbox', 'action_rpg', 'roguelike']
+  },
+  {
+    'group': 'Прогрессия',
+    'name': 'Каталог существ',
+    'desc': 'Каталог встреченных врагов с их характеристиками, слабостями и стратегиями. Поощряет исследование и системное понимание.',
+    'aesthetics': ['discovery', 'submission', 'challenge'],
+    'genres': ['metroidvania', 'rpg', 'mmorpg', 'action_rpg', 'jrpg', 'roguelike']
+  },
+  {
+    'group': 'Прогрессия',
+    'name': 'Тюнинг и апгрейд',
+    'desc': 'Кастомизация характеристик транспорта/персонажа: двигатель, броня, оружие. Создаёт долгосрочную прогрессию и выражение стиля.',
+    'aesthetics': ['expression', 'submission', 'challenge'],
+    'genres': ['racing', 'simulation', 'shooter', 'action', 'rpg', 'mmorpg', 'sandbox', 'sports']
+  },
+  {
+    'group': 'Прогрессия',
+    'name': 'Открытие трасс',
+    'desc': 'Прогрессия через новые трассы/треки, открываемые по мере роста мастерства или побед. Создаёт структурированный путь развития.',
+    'aesthetics': ['challenge', 'discovery', 'submission'],
+    'genres': ['racing', 'sports', 'simulation', 'sandbox']
+  },
+  {
+    'group': 'Экономика',
+    'name': 'Внутроигровой магазин',
+    'desc': 'Покупка виртуальных товаров за реальные деньги: косметика, ускорители, контент. Основа монетизации F2P-игр.',
+    'aesthetics': ['expression', 'submission'],
+    'genres': ['mmorpg', 'mobile', 'shooter', 'strategy', 'rpg', 'simulation', 'sports', 'moba', 'party']
+  },
+  {
+    'group': 'Экономика',
+    'name': 'Случайные награды',
+    'desc': 'Случайные награды за валюту/ключи. Создают азартный элемент и удержание, но вызывают этические вопросы (pay-to-win, азартные игры).',
+    'aesthetics': ['submission', 'expression', 'discovery'],
+    'genres': ['shooter', 'mmorpg', 'mobile', 'sports', 'moba', 'rpg', 'action']
+  },
+  {
+    'group': 'Экономика',
+    'name': 'Сезонные награды',
+    'desc': 'Временные награды, доступные только в течение сезона. Создают FOMO и срочность возвращения в игру.',
+    'aesthetics': ['submission', 'expression', 'challenge'],
+    'genres': ['shooter', 'mmorpg', 'mobile', 'sports', 'moba', 'racing', 'fighting', 'action']
+  },
+  {
+    'group': 'Экономика',
+    'name': 'Бустеры и ускорители',
+    'desc': 'Временные множители прогрессии (XP, loot). Снижают гринд для нетерпеливых игроков, монетизируют время.',
+    'aesthetics': ['submission', 'challenge'],
+    'genres': ['mmorpg', 'mobile', 'rpg', 'shooter', 'moba', 'simulation', 'sports', 'strategy']
+  },
+  {
+    'group': 'Информация',
+    'name': 'Подсказки и туториалы',
+    'desc': 'Внутриигровые инструкции, объясняющие механики. Критично для онбординга: первые 5 минут определяют удержание.',
+    'aesthetics': ['submission', 'discovery', 'narrative'],
+    'genres': ['puzzle', 'tower_defense', 'rhythm', 'strategy', 'rpg', 'mmorpg', 'simulation', 'sandbox', 'rts', 'tactical_rpg']
+  },
+  {
+    'group': 'Информация',
+    'name': 'Картирование',
+    'desc': 'Открытие карты через исследование: туман войны, маркеры, иконки. Создаёт мета-цель «открыть всю карту».',
+    'aesthetics': ['discovery', 'submission', 'challenge'],
+    'genres': ['metroidvania', 'rpg', 'mmorpg', 'strategy', 'rts', 'sandbox', 'adventure', 'roguelike']
+  },
+  {
+    'group': 'Информация',
+    'name': 'Разведка и туман войны',
+    'desc': 'Скрытие информации до её обнаружения: юниты-разведчики, наблюдательные пункты. Создаёт стратегическую неопределённость.',
+    'aesthetics': ['challenge', 'discovery', 'submission'],
+    'genres': ['strategy', 'rts', 'tactical_rpg', 'mmorpg', 'tower_defense', 'moba']
+  },
+  {
+    'group': 'Информация',
+    'name': 'Дневник и логи',
+    'desc': 'Запись событий, диалогов, найденных предметов. Помогает отслеживать прогресс и погружает в лор.',
+    'aesthetics': ['narrative', 'discovery', 'submission'],
+    'genres': ['rpg', 'mmorpg', 'horror', 'metroidvania', 'adventure', 'jrpg', 'visual_novel', 'survival_horror']
+  },
+  {
+    'group': 'Пространство',
+    'name': 'Открытый мир',
+    'desc': 'Большое пространство для свободного исследования без жёстких направлений. Создаёт чувство свободы и эмерджентности.',
+    'aesthetics': ['discovery', 'fantasy', 'submission'],
+    'genres': ['sandbox', 'mmorpg', 'rpg', 'action_rpg', 'adventure', 'simulation', 'metroidvania', 'shooter']
+  },
+  {
+    'group': 'Пространство',
+    'name': 'Процедурная генерация',
+    'desc': 'Алгоритмическая генерация контента: уровни, миры, враги. Обеспечивает реиграбельность и уникальность каждого прохождения.',
+    'aesthetics': ['discovery', 'challenge', 'submission'],
+    'genres': ['roguelike', 'sandbox', 'mmorpg', 'strategy', 'survival_horror', 'tower_defense', 'action']
+  },
+  {
+    'group': 'Пространство',
+    'name': 'Биомы и окружение',
+    'desc': 'Различные зоны с уникальной экологией, ресурсами и вызовами. Создаёт разнообразие и стратегический выбор локации.',
+    'aesthetics': ['discovery', 'fantasy', 'sensation'],
+    'genres': ['sandbox', 'mmorpg', 'survival_horror', 'simulation', 'metroidvania', 'adventure', 'rpg', 'strategy']
+  },
+  {
+    'group': 'Социальные',
+    'name': 'Кооператив',
+    'desc': 'Совместная игра 2+ игроков: общие цели, разделение ролей. Создаёт чувство товарищества и общих достижений.',
+    'aesthetics': ['fellowship', 'challenge', 'expression'],
+    'genres': ['shooter', 'mmorpg', 'action', 'rpg', 'sandbox', 'tower_defense', 'survival_horror', 'party', 'roguelike']
+  },
+  {
+    'group': 'Социальные',
+    'name': 'Асимметричный мультиплеер',
+    'desc': 'Игроки с разными ролями/способностями: убийца vs жертвы, монстр vs команда. Создаёт уникальную социальную динамику.',
+    'aesthetics': ['fellowship', 'challenge', 'narrative'],
+    'genres': ['horror', 'action', 'shooter', 'mmorpg', 'party', 'strategy', 'survival_horror']
+  },
+  {
+    'group': 'Социальные',
+    'name': 'Рейтинговые матчи',
+    'desc': 'Соревновательный режим с системой рейтинга (ELO, дивизионы). Создаёт долгосрочную мотивацию и чёткие цели мастерства.',
+    'aesthetics': ['challenge', 'fellowship', 'submission'],
+    'genres': ['shooter', 'moba', 'fighting', 'racing', 'sports', 'strategy', 'rts', 'party', 'action']
+  },
+  {
+    'group': 'Социальные',
+    'name': 'Турниры и эвенты',
+    'desc': 'Периодические соревнования с уникальными наградами. Поддерживают сообщество и создают моменты пиковой активности.',
+    'aesthetics': ['fellowship', 'challenge', 'expression'],
+    'genres': ['shooter', 'moba', 'fighting', 'racing', 'sports', 'strategy', 'mmorpg', 'party']
+  },
+  {
+    'group': 'Мета',
+    'name': 'Ежедневные задания',
+    'desc': 'Периодические микро-цели для удержания игрока: «сыграй 3 матча», «убей 50 врагов». Создают привычку возвращения.',
+    'aesthetics': ['submission', 'challenge'],
+    'genres': ['mmorpg', 'shooter', 'mobile', 'moba', 'rpg', 'strategy', 'sports', 'simulation', 'racing']
+  },
+  {
+    'group': 'Мета',
+    'name': 'Достижения и трофеи',
+    'desc': 'Мета-цели за пределами основного геймплея: «пройди без смертей», «найди все секреты». Расширяют реиграбельность и поощряют мастерство.',
+    'aesthetics': ['challenge', 'expression', 'submission'],
+    'genres': ['rpg', 'mmorpg', 'shooter', 'action', 'metroidvania', 'platformer', 'sandbox', 'adventure', 'puzzle', 'strategy']
+  },
+  {
+    'group': 'Мета',
+    'name': 'NG+ и новые циклы',
+    'desc': 'Повторное прохождение с сохранением прогресса/способностей на повышенной сложности. Продлевает жизнь игры и поощряет мастерство.',
+    'aesthetics': ['challenge', 'submission', 'discovery'],
+    'genres': ['rpg', 'action_rpg', 'jrpg', 'metroidvania', 'soulslike', 'action', 'roguelike', 'strategy']
   }
 ];
 

@@ -132,28 +132,6 @@ A roguelike game where every decision reshapes the world — combining "A dark r
       "desc": "Система начисления очков и мета-целей, мотивирующая игрока к повторным действиям и совершенствованию результатов.",
       "cross_genre": true,
       "source": "mechanics_db"
-    },
-    {
-      "id": "son",
-      "name": "Сон",
-      "group": "Выживание",
-      "category": "base",
-      "desc": "Необходимость отдыха для восстановления характеристик. Создаёт цикл активности и отдыха, управляя темпом игры.",
-      "matched_genres": [
-        "roguelike"
-      ],
-      "source": "mechanics_db"
-    },
-    {
-      "id": "permasmert",
-      "name": "Пермасмерть",
-      "group": "Выживание",
-      "category": "base",
-      "desc": "Безвозвратная потеря персонажа при смерти. Максимальная ставка риска, кардинально меняющая отношение к каждому решению.",
-      "matched_genres": [
-        "roguelike"
-      ],
-      "source": "mechanics_db"
     }
   ],
   "combat": [
@@ -206,6 +184,17 @@ A roguelike game where every decision reshapes the world — combining "A dark r
   ],
   "spatial": [
     {
+      "id": "protsedurnaya_generatsiya",
+      "name": "Процедурная генерация",
+      "group": "Пространство",
+      "category": "spatial",
+      "desc": "Алгоритмическая генерация контента: уровни, миры, враги. Обеспечивает реиграбельность и уникальность каждого прохождения.",
+      "matched_genres": [
+        "roguelike"
+      ],
+      "source": "mechanics_db"
+    },
+    {
       "id": "ryvok",
       "name": "Рывок",
       "group": "Движение",
@@ -250,6 +239,17 @@ A roguelike game where every decision reshapes the world — combining "A dark r
         "roguelike"
       ],
       "source": "mechanics_db"
+    },
+    {
+      "id": "kooperativ",
+      "name": "Кооператив",
+      "group": "Социальные",
+      "category": "social",
+      "desc": "Совместная игра 2+ игроков: общие цели, разделение ролей. Создаёт чувство товарищества и общих достижений.",
+      "matched_genres": [
+        "roguelike"
+      ],
+      "source": "mechanics_db"
     }
   ],
   "total_count": 14,
@@ -260,7 +260,7 @@ A roguelike game where every decision reshapes the world — combining "A dark r
       "score": 0.85
     },
     {
-      "name": "Враги ↔ Рывок",
+      "name": "Враги ↔ Процедурная генерация",
       "score": 0.72
     },
     {
@@ -627,6 +627,7 @@ UX/UI для «Shadow_Depths» в жанре RPG. Требует детальн�
 Функции:
 - Крафт
 - Зелья
+- Кооператив
 
 Игра не имеет онлайн-мультиплеера — социальные функции носят асинхронный характер (например, гостевые визиты, обмен UGC).
 

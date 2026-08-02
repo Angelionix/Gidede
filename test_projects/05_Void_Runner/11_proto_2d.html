@@ -70,7 +70,7 @@
     }
 
     function notifyParent(outcome, score, duration) {
-      try { window.parent.postMessage({ type: 'gidede-playtest', outcome: outcome, score: score||null, duration: duration||30, prototypeType: 'engine', prototypeId: '9f24e037-e562-4923-808b-ca7cd99a07d1', mode: '2d' }, '*'); } catch(e) {}
+      try { window.parent.postMessage({ type: 'gidede-playtest', outcome: outcome, score: score||null, duration: duration||30, prototypeType: 'engine', prototypeId: 'e0c342c9-694f-4b53-b90b-6252c7a190cd', mode: '2d' }, '*'); } catch(e) {}
     }
     function win(score) { running=false; resultText.textContent='🎉 Победа!'; overlay.classList.add('show'); notifyParent('win', score, Math.max(0, 30-timeLeft)); }
     function lose(score) { running=false; resultText.textContent='💀 Поражение'; overlay.classList.add('show'); notifyParent('lose', score, Math.max(0, 30-timeLeft)); }

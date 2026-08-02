@@ -94,11 +94,36 @@ A rhythm game where every decision reshapes the world — combining "Rhythm game
 {
   "base": [
     {
-      "id": "izuchenie_mira",
-      "name": "Изучение мира",
-      "group": "Базовые",
+      "id": "taymer",
+      "name": "Таймер",
+      "group": "Время",
       "category": "base",
-      "desc": "Игрок исследует игровое пространство, открывая новые локации и объекты. Фундаментальная механика, определяющая паттерны перемещения и обнаружения.",
+      "desc": "Ограничение времени на выполнение действий. Создаёт давление и приоритизацию, повышая интенсивность опыта.",
+      "matched_genres": [
+        "rhythm"
+      ],
+      "source": "mechanics_db"
+    },
+    {
+      "id": "bit_sinhronizatsiya",
+      "name": "Бит-синхронизация",
+      "group": "Время",
+      "category": "base",
+      "desc": "Игрок нажимает кнопки в ритм музыке. Точность тайминга определяет эффективность: perfect/good/miss. Основа rhythm-жанра.",
+      "matched_genres": [
+        "rhythm"
+      ],
+      "source": "mechanics_db"
+    },
+    {
+      "id": "podskazki_i_tutorialy",
+      "name": "Подсказки и туториалы",
+      "group": "Информация",
+      "category": "base",
+      "desc": "Внутриигровые инструкции, объясняющие механики. Критично для онбординга: первые 5 минут определяют удержание.",
+      "matched_genres": [
+        "rhythm"
+      ],
       "source": "mechanics_db"
     },
     {
@@ -107,23 +132,6 @@ A rhythm game where every decision reshapes the world — combining "Rhythm game
       "group": "Базовые",
       "category": "base",
       "desc": "Система начисления очков и мета-целей, мотивирующая игрока к повторным действиям и совершенствованию результатов.",
-      "source": "mechanics_db"
-    },
-    {
-      "id": "inventar",
-      "name": "Инвентарь",
-      "group": "Базовые",
-      "category": "base",
-      "desc": "Система хранения и управления предметами. Управление ограниченным пространством создаёт стратегические решения о приоритетах.",
-      "cross_genre": true,
-      "source": "mechanics_db"
-    },
-    {
-      "id": "golovolomki",
-      "name": "Головоломки",
-      "group": "Базовые",
-      "category": "base",
-      "desc": "Интеллектуальные задачи, требующие логики, наблюдательности или пространственного мышления для решения.",
       "cross_genre": true,
       "source": "mechanics_db"
     }
@@ -139,103 +147,91 @@ A rhythm game where every decision reshapes the world — combining "Rhythm game
         "rhythm"
       ],
       "source": "mechanics_db"
-    },
-    {
-      "id": "bronya",
-      "name": "Броня",
-      "group": "Боевые",
-      "category": "combat",
-      "desc": "Защитный слой, снижающий получаемый урон. Создаёт тактический ресурс управления выживаемостью и визуальную прогрессию.",
-      "source": "mechanics_db"
     }
   ],
   "progression": [
     {
-      "id": "ochki_opyta",
-      "name": "Очки опыта",
-      "group": "Прогрессия",
+      "id": "kombo_tsepochki",
+      "name": "Комбо-цепочки",
+      "group": "Навыки",
       "category": "progression",
-      "desc": "Количественная мера прогресса персонажа, накапливаемая через действия. Управляет темпом роста и создаёт петлю «действие → награда → рост».",
+      "desc": "Последовательности действий, усиливающих друг друга при правильном тайминге. Поощряют мастерство и создание экспрессивных sequence-атак.",
+      "matched_genres": [
+        "rhythm"
+      ],
       "source": "mechanics_db"
     },
     {
-      "id": "perki",
-      "name": "Перки",
-      "group": "Прогрессия",
+      "id": "tayming_okna",
+      "name": "Тайминг-окна",
+      "group": "Навыки",
       "category": "progression",
-      "desc": "Пассивные или активные бонусы, получаемые при определённых условиях. Добавляют вариативность билда и персонализацию персонажа.",
+      "desc": "Короткие временные окна для идеального действия: парирование, perfect dodge, critical hit. Создаёт risk/reward tension.",
+      "matched_genres": [
+        "rhythm"
+      ],
       "source": "mechanics_db"
     }
   ],
   "spatial": [
     {
-      "id": "karta_mira",
-      "name": "Карта мира",
-      "group": "Пространство",
+      "id": "map_exploration",
+      "name": "map_exploration",
+      "group": "spatial",
       "category": "spatial",
-      "desc": "Обзорная карта игрового мира для навигации и планирования маршрутов. Создаёт ощущение масштаба и связности мира.",
-      "source": "mechanics_db"
+      "source": "genre_default"
     },
     {
-      "id": "zona_igry",
-      "name": "Зона игры",
-      "group": "Пространство",
+      "id": "objective_navigation",
+      "name": "objective_navigation",
+      "group": "spatial",
       "category": "spatial",
-      "desc": "Ограниченное игровое пространство с определёнными правилами. Создаёт арену для взаимодействия и фокусирует игровой опыт.",
-      "source": "mechanics_db"
+      "source": "genre_default"
     },
     {
-      "id": "pryzhki",
-      "name": "Прыжки",
-      "group": "Движение",
+      "id": "spawn_points",
+      "name": "spawn_points",
+      "group": "spatial",
       "category": "spatial",
-      "desc": "Базовая механика вертикального перемещения. Создаёт платформенные задачи и расширяет пространство взаимодействия.",
-      "source": "mechanics_db"
-    },
-    {
-      "id": "dvoynoy_pryzhok",
-      "name": "Двойной прыжок",
-      "group": "Движение",
-      "category": "spatial",
-      "desc": "Второй прыжок в воздухе, расширяющий пространство манёвра. Открывает новые маршруты и увеличивает свободу перемещения.",
-      "source": "mechanics_db"
+      "source": "genre_default"
     }
   ],
   "social": [
     {
-      "id": "ekonomika",
-      "name": "Экономика",
-      "group": "Экономика",
+      "id": "leaderboard",
+      "name": "leaderboard",
+      "group": "social",
       "category": "social",
-      "desc": "Система производства, распределения и потребления ресурсов в игре. Определяет цикл ценности и обмена между игроком и миром.",
-      "source": "mechanics_db"
+      "source": "genre_default"
     },
     {
-      "id": "torg",
-      "name": "Торг",
-      "group": "Экономика",
+      "id": "achievement_share",
+      "name": "achievement_share",
+      "group": "social",
       "category": "social",
-      "desc": "Обмен предметами или валютой с NPC или игроками. Создаёт социальное взаимодействие и систему оценки ценности.",
-      "source": "mechanics_db"
+      "source": "genre_default"
+    },
+    {
+      "id": "coop_progression",
+      "name": "coop_progression",
+      "group": "social",
+      "category": "social",
+      "source": "genre_default"
     }
   ],
-  "total_count": 14,
+  "total_count": 13,
   "conflicts_resolved": [],
   "synergies_detected": [
     {
-      "name": "Очки опыта ↔ Комбо",
+      "name": "Комбо-цепочки ↔ Комбо",
       "score": 0.85
     },
     {
-      "name": "Изучение мира ↔ Карта мира",
+      "name": "Таймер ↔ map_exploration",
       "score": 0.72
     },
     {
-      "name": "Инвентарь (cross-genre: adventure, horror) ↔ primary aesthetic",
-      "score": 0.65
-    },
-    {
-      "name": "Головоломки (cross-genre: adventure, educational) ↔ primary aesthetic",
+      "name": "Достижения и очки (cross-genre: action, adventure) ↔ primary aesthetic",
       "score": 0.65
     }
   ],
@@ -243,41 +239,21 @@ A rhythm game where every decision reshapes the world — combining "Rhythm game
   "mechanics_db_source": "MechanicsDB (SW.BAND, 128 механик)",
   "cross_genre_mechanics": [
     {
-      "name": "Инвентарь",
+      "name": "Достижения и очки",
       "group": "Базовые",
-      "desc": "Система хранения и управления предметами. Управление ограниченным пространством создаёт стратегические решения о приоритетах.",
+      "desc": "Система начисления очков и мета-целей, мотивирующая игрока к повторным действиям и совершенствованию результатов.",
       "original_genres": [
+        "action",
         "adventure",
-        "horror",
         "mmorpg",
-        "roguelike",
+        "platformer",
         "rpg",
-        "survival_horror"
-      ],
-      "matched_aesthetics": [
-        "submission",
-        "expression",
-        "discovery"
-      ]
-    },
-    {
-      "name": "Головоломки",
-      "group": "Базовые",
-      "desc": "Интеллектуальные задачи, требующие логики, наблюдательности или пространственного мышления для решения.",
-      "original_genres": [
-        "adventure",
-        "educational",
-        "metroidvania",
-        "puzzle",
-        "rts",
-        "strategy",
-        "tactical_rpg",
-        "tbs"
+        "shooter"
       ],
       "matched_aesthetics": [
         "challenge",
-        "discovery",
-        "submission"
+        "submission",
+        "expression"
       ]
     }
   ],
@@ -592,8 +568,9 @@ UX/UI для «Rhythm_of_War» в жанре Rhythm. Требует деталь
 Социальные системы «Rhythm_of_War» (жанр: Rhythm): определены как ядро опыта.
 
 Функции:
-- Экономика
-- Торг
+- leaderboard
+- achievement_share
+- coop_progression
 
 Игра не имеет онлайн-мультиплеера — социальные функции носят асинхронный характер (например, гостевые визиты, обмен UGC).
 

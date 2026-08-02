@@ -22,8 +22,11 @@ import {
 } from "./mechanics-db";
 
 describe("MechanicsDB — integrity", () => {
-  it("contains 128 mechanics", () => {
-    expect(MECHANICS_DB.length).toBe(128);
+  it("contains 176 mechanics (128 original + 48 R-MDB-EXPANSION)", () => {
+    // R-MDB-EXPANSION: 48 new mechanics added to extend genre coverage for
+    // tower_defense, rhythm, racing, sandbox, simulation, metroidvania.
+    // Was 128; now 176.
+    expect(MECHANICS_DB.length).toBe(176);
   });
 
   it("contains 15 groups", () => {
@@ -52,9 +55,107 @@ describe("MechanicsDB — integrity", () => {
 
   it("getMechanicsDBStats returns correct totals", () => {
     const stats = getMechanicsDBStats();
-    expect(stats.total).toBe(128);
+    // R-MDB-EXPANSION: total was 128; now 176. Groups unchanged at 15.
+    expect(stats.total).toBe(176);
     expect(stats.groups).toBe(15);
     expect(Object.keys(stats.mechanicsPerGroup).length).toBe(15);
+  });
+
+  it("R-MDB-EXPANSION: weak genres now have ≥8 mechanics each", () => {
+    // Before expansion: tower_defense=3, rhythm=2, racing=6.
+    // After expansion: all should be ≥8 so buildMechanicSetForGenres uses
+    // the in-genre pool (not the fallback that produces compatibility_score=0).
+    const weakGenres = ["tower_defense", "rhythm", "racing"];
+    for (const genre of weakGenres) {
+      const mechanics = findMechanicsByGenre(genre);
+      expect(mechanics.length).toBeGreaterThanOrEqual(8);
+    }
+  });
+
+  it("R-MDB-EXPANSION: tower_defense has dedicated TD-specific mechanics", () => {
+    const tdMechanics = findMechanicsByGenre("tower_defense");
+    const tdNames = tdMechanics.map((m) => m.name);
+    const expectedNew = [
+      "Спавн врагов",
+      "Мульти-таргет атаки",
+      "Контроль толпы",
+      "Пути врагов",
+      "Защитные сооружения",
+      "Узловые точки",
+      "Волны врагов",
+    ];
+    for (const name of expectedNew) {
+      expect(tdNames).toContain(name);
+    }
+  });
+
+  it("R-MDB-EXPANSION: rhythm has dedicated rhythm-specific mechanics", () => {
+    const rhythmMechanics = findMechanicsByGenre("rhythm");
+    const rhythmNames = rhythmMechanics.map((m) => m.name);
+    const expectedNew = [
+      "Бит-синхронизация",
+      "Нотные чарты",
+      "Музыкальные сигналы",
+      "Комбо-цепочки",
+      "Тайминг-окна",
+    ];
+    for (const name of expectedNew) {
+      expect(rhythmNames).toContain(name);
+    }
+  });
+
+  it("R-MDB-EXPANSION: racing has dedicated racing-specific mechanics", () => {
+    const racingMechanics = findMechanicsByGenre("racing");
+    const racingNames = racingMechanics.map((m) => m.name);
+    const expectedNew = [
+      "Трасса",
+      "Дрейф и занос",
+      "Вождение транспорта",
+      "Дрифт-мастерство",
+      "Тюнинг и апгрейд",
+      "Открытие трасс",
+    ];
+    for (const name of expectedNew) {
+      expect(racingNames).toContain(name);
+    }
+  });
+
+  it("R-MDB-EXPANSION: buildMechanicSetForGenres returns non-zero score for tower_defense", () => {
+    const r = buildMechanicSetForGenres(["tower_defense"], [], {});
+    expect(r.total_count).toBeGreaterThan(0);
+    expect(r.compatibility_score).toBeGreaterThan(0);
+    expect(r.genre_coverage).toBe(1);
+  });
+
+  it("R-MDB-EXPANSION: buildMechanicSetForGenres returns non-zero score for rhythm", () => {
+    const r = buildMechanicSetForGenres(["rhythm"], [], {});
+    expect(r.total_count).toBeGreaterThan(0);
+    expect(r.compatibility_score).toBeGreaterThan(0);
+    expect(r.genre_coverage).toBe(1);
+  });
+
+  it("R-MDB-EXPANSION: buildMechanicSetForGenres returns non-zero score for racing", () => {
+    const r = buildMechanicSetForGenres(["racing"], [], {});
+    expect(r.total_count).toBeGreaterThan(0);
+    expect(r.compatibility_score).toBeGreaterThan(0);
+    expect(r.genre_coverage).toBe(1);
+  });
+
+  it("R-MDB-EXPANSION: no duplicate mechanic names (all unique)", () => {
+    const names = MECHANICS_DB.map((m) => m.name);
+    const duplicates = names.filter((n, i) => names.indexOf(n) !== i);
+    expect(duplicates).toEqual([]);
+  });
+
+  it("R-MDB-EXPANSION: all mechanics have valid aesthetics from the 8 LeBlanc set", () => {
+    const validAesthetics = new Set([
+      "sensation", "fantasy", "narrative", "challenge",
+      "fellowship", "discovery", "expression", "submission",
+    ]);
+    const invalid = MECHANICS_DB.filter((m) =>
+      m.aesthetics.some((a) => !validAesthetics.has(a))
+    );
+    expect(invalid).toEqual([]);
   });
 });
 

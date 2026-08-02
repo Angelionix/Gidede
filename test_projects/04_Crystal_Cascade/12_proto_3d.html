@@ -160,7 +160,7 @@
     let timeLeft = 30;
     let running = true;
     function notifyParent(outcome, score, duration) {
-      try { window.parent.postMessage({ type: 'gidede-playtest', outcome: outcome, score: score||null, duration: duration||30, prototypeType: 'puzzle', prototypeId: '45d8ff41-c0bb-4da4-b095-8894232561a9', mode: '3d' }, '*'); } catch(e) {}
+      try { window.parent.postMessage({ type: 'gidede-playtest', outcome: outcome, score: score||null, duration: duration||30, prototypeType: 'puzzle', prototypeId: '952c1f31-2a13-4336-a963-1763551439e3', mode: '3d' }, '*'); } catch(e) {}
     }
     function win(score) { running=false; resultText.textContent='🎉 Победа!'; overlay.classList.add('show'); notifyParent('win', score, Math.max(0, 30-timeLeft)); }
     function lose(score) { running=false; resultText.textContent='💀 Поражение'; overlay.classList.add('show'); notifyParent('lose', score, Math.max(0, 30-timeLeft)); }

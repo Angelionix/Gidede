@@ -94,11 +94,23 @@ A tower_defense game where every decision reshapes the world — combining "Towe
 {
   "base": [
     {
+      "id": "spavn_vragov",
+      "name": "Спавн врагов",
+      "group": "Базовые",
+      "category": "base",
+      "desc": "Система генерации врагов по расписанию или триггерам. Определяет темп и сложность: волны, бесконечный спавн, условные триггеры.",
+      "matched_genres": [
+        "tower_defense"
+      ],
+      "source": "mechanics_db"
+    },
+    {
       "id": "izuchenie_mira",
       "name": "Изучение мира",
       "group": "Базовые",
       "category": "base",
       "desc": "Игрок исследует игровое пространство, открывая новые локации и объекты. Фундаментальная механика, определяющая паттерны перемещения и обнаружения.",
+      "cross_genre": true,
       "source": "mechanics_db"
     },
     {
@@ -107,112 +119,136 @@ A tower_defense game where every decision reshapes the world — combining "Towe
       "group": "Базовые",
       "category": "base",
       "desc": "Система начисления очков и мета-целей, мотивирующая игрока к повторным действиям и совершенствованию результатов.",
-      "source": "mechanics_db"
-    },
-    {
-      "id": "inventar",
-      "name": "Инвентарь",
-      "group": "Базовые",
-      "category": "base",
-      "desc": "Система хранения и управления предметами. Управление ограниченным пространством создаёт стратегические решения о приоритетах.",
       "cross_genre": true,
       "source": "mechanics_db"
     },
     {
-      "id": "golovolomki",
-      "name": "Головоломки",
-      "group": "Базовые",
+      "id": "taymer",
+      "name": "Таймер",
+      "group": "Время",
       "category": "base",
-      "desc": "Интеллектуальные задачи, требующие логики, наблюдательности или пространственного мышления для решения.",
-      "cross_genre": true,
+      "desc": "Ограничение времени на выполнение действий. Создаёт давление и приоритизацию, повышая интенсивность опыта.",
+      "matched_genres": [
+        "tower_defense"
+      ],
+      "source": "mechanics_db"
+    },
+    {
+      "id": "tempovoe_uskorenie",
+      "name": "Темповое ускорение",
+      "group": "Время",
+      "category": "base",
+      "desc": "Постепенное или ступенчатое ускорение темпа игры. Создаёт нарастающее напряжение и проверяет предел мастерства.",
+      "matched_genres": [
+        "tower_defense"
+      ],
+      "source": "mechanics_db"
+    },
+    {
+      "id": "podskazki_i_tutorialy",
+      "name": "Подсказки и туториалы",
+      "group": "Информация",
+      "category": "base",
+      "desc": "Внутриигровые инструкции, объясняющие механики. Критично для онбординга: первые 5 минут определяют удержание.",
+      "matched_genres": [
+        "tower_defense"
+      ],
+      "source": "mechanics_db"
+    },
+    {
+      "id": "razvedka_i_tuman_voyny",
+      "name": "Разведка и туман войны",
+      "group": "Информация",
+      "category": "base",
+      "desc": "Скрытие информации до её обнаружения: юниты-разведчики, наблюдательные пункты. Создаёт стратегическую неопределённость.",
+      "matched_genres": [
+        "tower_defense"
+      ],
       "source": "mechanics_db"
     }
   ],
   "combat": [
     {
-      "id": "bronya",
-      "name": "Броня",
+      "id": "multi_target_ataki",
+      "name": "Мульти-таргет атаки",
       "group": "Боевые",
       "category": "combat",
-      "desc": "Защитный слой, снижающий получаемый урон. Создаёт тактический ресурс управления выживаемостью и визуальную прогрессию.",
+      "desc": "Атаки, поражающие несколько целей одновременно: пробивание, цепные реакции, AoE. Меняет приоритет целей — группа слабых врагов становится выгоднее одного сильного.",
+      "matched_genres": [
+        "tower_defense"
+      ],
       "source": "mechanics_db"
     },
     {
-      "id": "zapas_patronov",
-      "name": "Запас патронов",
+      "id": "kontrol_tolpy",
+      "name": "Контроль толпы",
       "group": "Боевые",
       "category": "combat",
-      "desc": "Ограниченный боезапас, создающий ресурсный дефицит в бою. Заставляет принимать решения о расходе и поиске пополнения.",
+      "desc": "Механики замедления, оглушения или группирования врагов для эффективного уничтожения. Сочетается с мульти-таргет атаками.",
+      "matched_genres": [
+        "tower_defense"
+      ],
       "source": "mechanics_db"
     }
   ],
   "progression": [
     {
-      "id": "ochki_opyta",
-      "name": "Очки опыта",
-      "group": "Прогрессия",
+      "id": "trenirovka_reaktsii",
+      "name": "Тренировка реакции",
+      "group": "Навыки",
       "category": "progression",
-      "desc": "Количественная мера прогресса персонажа, накапливаемая через действия. Управляет темпом роста и создаёт петлю «действие → награда → рост».",
-      "source": "mechanics_db"
-    },
-    {
-      "id": "perki",
-      "name": "Перки",
-      "group": "Прогрессия",
-      "category": "progression",
-      "desc": "Пассивные или активные бонусы, получаемые при определённых условиях. Добавляют вариативность билда и персонализацию персонажа.",
+      "desc": "Механики, требующие быстрой реакции на визуальные/звуковые стимулы. Развивает рефлексы и создаёт адреналиновый темп.",
+      "matched_genres": [
+        "tower_defense"
+      ],
       "source": "mechanics_db"
     }
   ],
   "spatial": [
     {
-      "id": "karta_mira",
-      "name": "Карта мира",
+      "id": "protsedurnaya_generatsiya",
+      "name": "Процедурная генерация",
       "group": "Пространство",
       "category": "spatial",
-      "desc": "Обзорная карта игрового мира для навигации и планирования маршрутов. Создаёт ощущение масштаба и связности мира.",
+      "desc": "Алгоритмическая генерация контента: уровни, миры, враги. Обеспечивает реиграбельность и уникальность каждого прохождения.",
+      "matched_genres": [
+        "tower_defense"
+      ],
       "source": "mechanics_db"
     },
     {
-      "id": "zona_igry",
-      "name": "Зона игры",
-      "group": "Пространство",
+      "id": "oborona_bazy",
+      "name": "Оборона базы",
+      "group": "Территория",
       "category": "spatial",
-      "desc": "Ограниченное игровое пространство с определёнными правилами. Создаёт арену для взаимодействия и фокусирует игровой опыт.",
+      "desc": "Защита своей территории от нападения. Создаёт динамику подготовки и реакции на угрозы.",
+      "matched_genres": [
+        "tower_defense"
+      ],
       "source": "mechanics_db"
     },
     {
-      "id": "pryzhki",
-      "name": "Прыжки",
-      "group": "Движение",
+      "id": "patrulirovanie",
+      "name": "Патрулирование",
+      "group": "Территория",
       "category": "spatial",
-      "desc": "Базовая механика вертикального перемещения. Создаёт платформенные задачи и расширяет пространство взаимодействия.",
-      "source": "mechanics_db"
-    },
-    {
-      "id": "dvoynoy_pryzhok",
-      "name": "Двойной прыжок",
-      "group": "Движение",
-      "category": "spatial",
-      "desc": "Второй прыжок в воздухе, расширяющий пространство манёвра. Открывает новые маршруты и увеличивает свободу перемещения.",
+      "desc": "Регулярное обход территории для обнаружения угроз. Создаёт ритм безопасности и бдительности.",
+      "matched_genres": [
+        "tower_defense"
+      ],
       "source": "mechanics_db"
     }
   ],
   "social": [
     {
-      "id": "ekonomika",
-      "name": "Экономика",
-      "group": "Экономика",
+      "id": "kooperativ",
+      "name": "Кооператив",
+      "group": "Социальные",
       "category": "social",
-      "desc": "Система производства, распределения и потребления ресурсов в игре. Определяет цикл ценности и обмена между игроком и миром.",
-      "source": "mechanics_db"
-    },
-    {
-      "id": "torg",
-      "name": "Торг",
-      "group": "Экономика",
-      "category": "social",
-      "desc": "Обмен предметами или валютой с NPC или игроками. Создаёт социальное взаимодействие и систему оценки ценности.",
+      "desc": "Совместная игра 2+ игроков: общие цели, разделение ролей. Создаёт чувство товарищества и общих достижений.",
+      "matched_genres": [
+        "tower_defense"
+      ],
       "source": "mechanics_db"
     }
   ],
@@ -220,68 +256,68 @@ A tower_defense game where every decision reshapes the world — combining "Towe
   "conflicts_resolved": [],
   "synergies_detected": [
     {
-      "name": "Очки опыта ↔ Броня",
+      "name": "Тренировка реакции ↔ Мульти-таргет атаки",
       "score": 0.85
     },
     {
-      "name": "Изучение мира ↔ Карта мира",
+      "name": "Спавн врагов ↔ Процедурная генерация",
       "score": 0.72
     },
     {
-      "name": "Инвентарь (cross-genre: adventure, horror) ↔ primary aesthetic",
+      "name": "Изучение мира (cross-genre: adventure, horror) ↔ primary aesthetic",
       "score": 0.65
     },
     {
-      "name": "Головоломки (cross-genre: adventure, educational) ↔ primary aesthetic",
+      "name": "Достижения и очки (cross-genre: action, adventure) ↔ primary aesthetic",
       "score": 0.65
     }
   ],
-  "compatibility_score": 0,
+  "compatibility_score": 100,
   "mechanics_db_source": "MechanicsDB (SW.BAND, 128 механик)",
   "cross_genre_mechanics": [
     {
-      "name": "Инвентарь",
+      "name": "Изучение мира",
       "group": "Базовые",
-      "desc": "Система хранения и управления предметами. Управление ограниченным пространством создаёт стратегические решения о приоритетах.",
+      "desc": "Игрок исследует игровое пространство, открывая новые локации и объекты. Фундаментальная механика, определяющая паттерны перемещения и обнаружения.",
       "original_genres": [
         "adventure",
         "horror",
+        "jrpg",
+        "metroidvania",
         "mmorpg",
-        "roguelike",
+        "puzzle",
         "rpg",
-        "survival_horror"
+        "sandbox"
       ],
       "matched_aesthetics": [
-        "submission",
-        "expression",
-        "discovery"
+        "discovery",
+        "fantasy",
+        "sensation"
       ]
     },
     {
-      "name": "Головоломки",
+      "name": "Достижения и очки",
       "group": "Базовые",
-      "desc": "Интеллектуальные задачи, требующие логики, наблюдательности или пространственного мышления для решения.",
+      "desc": "Система начисления очков и мета-целей, мотивирующая игрока к повторным действиям и совершенствованию результатов.",
       "original_genres": [
+        "action",
         "adventure",
-        "educational",
-        "metroidvania",
-        "puzzle",
-        "rts",
-        "strategy",
-        "tactical_rpg",
-        "tbs"
+        "mmorpg",
+        "platformer",
+        "rpg",
+        "shooter"
       ],
       "matched_aesthetics": [
         "challenge",
-        "discovery",
-        "submission"
+        "submission",
+        "expression"
       ]
     }
   ],
   "genres_searched": [
     "tower_defense"
   ],
-  "genre_coverage": 0,
+  "genre_coverage": 1,
   "hybrid_bonus": 0,
   "cross_genre_role": "none"
 }
@@ -589,8 +625,7 @@ UX/UI для «Sky_Fortress» в жанре Tower Defense. Требует дет
 Социальные системы «Sky_Fortress» (жанр: Tower Defense): определены как ядро опыта.
 
 Функции:
-- Экономика
-- Торг
+- Кооператив
 
 Игра не имеет онлайн-мультиплеера — социальные функции носят асинхронный характер (например, гостевые визиты, обмен UGC).
 

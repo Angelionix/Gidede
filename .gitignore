@@ -62,6 +62,12 @@ agent-ctx/
 upload/
 download/
 
+# Local sandbox dev artifacts (НЕ пушить)
+start-dev.sh
+run_pipeline_adapted.sh
+test_pipeline_run/
+pipeline_test_output.log
+
 # Skills (external)
 skills/
 

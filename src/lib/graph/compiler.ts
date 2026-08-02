@@ -218,6 +218,20 @@ function declareNodeVariable(node: GraphNode, ctx: CompileContext): void {
     case "switch":
       // no variable needed; branching is inline
       break;
+    // R-NODE-EXPANSION: Variables & State nodes — no per-node vars, but
+    // declare the shared __vars object once if any state node is present.
+    case "setVar":
+    case "getVar":
+    case "saveState":
+    case "loadState":
+      if (!ctx.varLines.some((l) => l.startsWith("let __vars ="))) {
+        ctx.varLines.push(`let __vars = {};`);
+      }
+      // loadState needs a result var to expose the loaded value.
+      if (node.type === "loadState") {
+        ctx.varLines.push(`let ${v}_loaded = 0;`);
+      }
+      break;
     default:
       // events, flow, output — no top-level variable needed
       break;
@@ -658,6 +672,44 @@ function emitNodeBody(
       emitFollowers(node, ctx, lines, indent);
       break;
     }
+
+    // ============================================================
+    // R-NODE-EXPANSION: Variables & State (4 new nodes)
+    // ============================================================
+    case "setVar": {
+      const varName = str(props.varName, "score");
+      const val = resolveDataInput(node.id, "value", ctx, props);
+      lines.push(`${indent}// setVar ${node.id} ${varName}`);
+      lines.push(`${indent}__vars[${JSON.stringify(varName)}] = ${val};`);
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
+
+    case "getVar": {
+      // Pure data node — no exec body. Resolution happens via resolveOutputExpr.
+      // Nothing to emit here.
+      break;
+    }
+
+    case "saveState": {
+      const key = str(props.key, "progress");
+      const val = resolveDataInput(node.id, "value", ctx, props);
+      lines.push(`${indent}// saveState ${node.id} key=${key}`);
+      // Persist to localStorage. Wrap in try/catch for sandboxed iframes.
+      lines.push(`${indent}try { localStorage.setItem(${JSON.stringify(key)}, String(${val})); } catch(e) {}`);
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
+
+    case "loadState": {
+      const key = str(props.key, "progress");
+      const defVal = num(props.defaultValue, 0);
+      lines.push(`${indent}// loadState ${node.id} key=${key}`);
+      lines.push(`${indent}try { const _s = localStorage.getItem(${JSON.stringify(key)}); ${v}_loaded = _s !== null ? Number(_s) : ${defVal}; } catch(e) { ${v}_loaded = ${defVal}; }`);
+      ctx.valueCache.set(`${node.id}:value`, `${v}_loaded`);
+      emitFollowers(node, ctx, lines, indent);
+      break;
+    }
   }
 }
 
@@ -858,6 +910,21 @@ function resolveOutputExpr(
         const varName = str(props.varName, "score");
         const defVal = num(props.defaultValue, 0);
         return `(typeof __vars !== 'undefined' && __vars[${JSON.stringify(varName)}] !== undefined) ? __vars[${JSON.stringify(varName)}] : ${defVal}`;
+      }
+      break;
+    }
+    // R-NODE-EXPANSION: Variables & State — inline resolution.
+    case "getVar": {
+      if (pinId === "value") {
+        const varName = str(props.varName, "score");
+        const defVal = num(props.defaultValue, 0);
+        return `(typeof __vars !== 'undefined' && __vars[${JSON.stringify(varName)}] !== undefined) ? __vars[${JSON.stringify(varName)}] : ${defVal}`;
+      }
+      break;
+    }
+    case "loadState": {
+      if (pinId === "value") {
+        return `${v}_loaded`;
       }
       break;
     }

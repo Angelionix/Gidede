@@ -286,3 +286,165 @@ describe("R-NODE-EXPANSION: validator compatibility", () => {
     expect(r.valid).toBe(true);
   });
 });
+
+// ============================================================
+// R-NODE-EXPANSION Step 2: Variables & State (4 new nodes)
+// ============================================================
+
+describe("R-NODE-EXPANSION Step 2: Variables & State node definitions", () => {
+  const stateNodes = ["setVar", "getVar", "saveState", "loadState"] as const;
+
+  for (const type of stateNodes) {
+    it(`${type}: is in NODE_DEFINITIONS with category=state`, () => {
+      const def = NODE_DEFINITIONS[type];
+      expect(def).toBeDefined();
+      expect(def.category).toBe("state");
+      expect(def.color).toBe("#f97316"); // orange for state
+    });
+  }
+
+  it("setVar has exec input + value input + exec output", () => {
+    const def = NODE_DEFINITIONS.setVar;
+    expect(def.inputs.find((p) => p.id === "exec" && p.type === "exec")).toBeDefined();
+    expect(def.inputs.find((p) => p.id === "value" && p.type === "number")).toBeDefined();
+    expect(def.outputs.find((p) => p.type === "exec")).toBeDefined();
+  });
+
+  it("getVar has no inputs, value output (pure data node)", () => {
+    const def = NODE_DEFINITIONS.getVar;
+    expect(def.inputs).toEqual([]);
+    expect(def.outputs[0].type).toBe("number");
+  });
+
+  it("saveState has key and value defaultProperties", () => {
+    expect(NODE_DEFINITIONS.saveState.defaultProperties.key).toBe("progress");
+    expect(NODE_DEFINITIONS.saveState.defaultProperties.value).toBe(0);
+  });
+
+  it("loadState has exec + value outputs", () => {
+    const def = NODE_DEFINITIONS.loadState;
+    expect(def.outputs.find((p) => p.type === "exec")).toBeDefined();
+    expect(def.outputs.find((p) => p.id === "value" && p.type === "number")).toBeDefined();
+  });
+});
+
+describe("R-NODE-EXPANSION Step 2: compilation of Variables & State nodes", () => {
+  it("setVar emits __vars[name] = value assignment", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("sv", "setVar", 200, 50, { varName: "score" }),
+        makeNode("w", "win", 400, 50),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "sv", toHandle: null },
+        { from: "sv", fromHandle: "exec", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    expect(r.html).toContain("__vars[");
+    expect(r.html).toContain('"score"');
+  });
+
+  it("getVar emits __vars lookup via inline resolution", () => {
+    // getVar is a pure data node — connect its value to a branch condition.
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("gv", "getVar", 200, 50, { varName: "score", defaultValue: 0 }),
+        makeNode("b", "branch", 350, 50),
+        makeNode("w", "win", 500, 30),
+      ],
+      [
+        { from: "gv", fromHandle: "value", to: "b", toHandle: "condition" },
+        { from: "start", fromHandle: "exec", to: "b", toHandle: null },
+        { from: "b", fromHandle: "true", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    expect(r.html).toContain("__vars");
+  });
+
+  it("saveState emits localStorage.setItem", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("ss", "saveState", 200, 50, { key: "progress", value: 100 }),
+        makeNode("w", "win", 400, 50),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "ss", toHandle: null },
+        { from: "ss", fromHandle: "exec", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    expect(r.html).toContain("localStorage.setItem");
+    expect(r.html).toContain('"progress"');
+  });
+
+  it("loadState emits localStorage.getItem with try/catch", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("ls", "loadState", 200, 50, { key: "progress", defaultValue: 0 }),
+        makeNode("w", "win", 400, 50),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "ls", toHandle: null },
+        { from: "ls", fromHandle: "exec", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    expect(r.html).toContain("localStorage.getItem");
+    expect(r.html).toContain("try");
+    expect(r.html).toContain("catch");
+  });
+
+  it("setVar + getVar round-trip: set then read same variable", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("sv", "setVar", 200, 50, { varName: "kills" }),
+        makeNode("gv", "getVar", 350, 50, { varName: "kills", defaultValue: 0 }),
+        makeNode("b", "branch", 500, 50),
+        makeNode("w", "win", 650, 30),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "sv", toHandle: null },
+        { from: "sv", fromHandle: "exec", to: "b", toHandle: null },
+        { from: "gv", fromHandle: "value", to: "b", toHandle: "condition" },
+        { from: "b", fromHandle: "true", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    expect(r.html).toContain("__vars[");
+    expect(r.html).toContain('"kills"');
+  });
+
+  it("shared __vars object is declared once even with multiple state nodes", () => {
+    const g = makeGraph(
+      [
+        makeNode("start", "onGameStart"),
+        makeNode("sv1", "setVar", 200, 50, { varName: "a" }),
+        makeNode("sv2", "setVar", 350, 50, { varName: "b" }),
+        makeNode("gv", "getVar", 500, 50, { varName: "a" }),
+        makeNode("w", "win", 650, 50),
+      ],
+      [
+        { from: "start", fromHandle: "exec", to: "sv1", toHandle: null },
+        { from: "sv1", fromHandle: "exec", to: "sv2", toHandle: null },
+        { from: "sv2", fromHandle: "exec", to: "w", toHandle: "trigger" },
+      ],
+    );
+    const r = compileGraph(g);
+    expect(r.valid).toBe(true);
+    // Count occurrences of "let __vars = " — should be exactly 1.
+    const matches = r.html.match(/let __vars = \{\}/g) || [];
+    expect(matches.length).toBe(1);
+  });
+});

@@ -33,7 +33,12 @@ export type NodeType =
   | "compare"
   | "boolOp"
   | "switch"
-  | "getValue";
+  | "getValue"
+  // R-NODE-EXPANSION: Variables & State (4 new nodes)
+  | "setVar"
+  | "getVar"
+  | "saveState"
+  | "loadState";
 
 export type PinType = "exec" | "number" | "string" | "boolean" | "vec2" | "entity" | "array";
 
@@ -47,7 +52,8 @@ export interface NodeDefinition {
   type: NodeType;
   label: string;
   icon: string;
-  category: "event" | "entity" | "flow" | "data" | "output";
+  // R-NODE-EXPANSION: added "state" category for Variables & State nodes.
+  category: "event" | "entity" | "flow" | "data" | "output" | "state";
   color: string;
   inputs: NodePin[];
   outputs: NodePin[];
@@ -468,6 +474,56 @@ export const NODE_DEFINITIONS: Record<NodeType, NodeDefinition> = {
     outputs: [{ id: "value", label: "value", type: "number" }],
     defaultProperties: { varName: "score", defaultValue: 0 },
   },
+
+  // ============================================================
+  // R-NODE-EXPANSION: Variables & State (4 new nodes, category=state)
+  // ============================================================
+  setVar: {
+    type: "setVar",
+    label: "Set Variable",
+    icon: "📤",
+    category: "state",
+    color: "#f97316",
+    inputs: [
+      { id: "exec", label: "→", type: "exec" },
+      { id: "value", label: "value", type: "number" },
+    ],
+    outputs: [{ id: "exec", label: "→", type: "exec" }],
+    defaultProperties: { varName: "score" },
+  },
+  getVar: {
+    type: "getVar",
+    label: "Get Variable",
+    icon: "📥",
+    category: "state",
+    color: "#f97316",
+    inputs: [],
+    outputs: [{ id: "value", label: "value", type: "number" }],
+    defaultProperties: { varName: "score", defaultValue: 0 },
+  },
+  saveState: {
+    type: "saveState",
+    label: "Save State",
+    icon: "💾",
+    category: "state",
+    color: "#f97316",
+    inputs: [{ id: "exec", label: "→", type: "exec" }],
+    outputs: [{ id: "exec", label: "→", type: "exec" }],
+    defaultProperties: { key: "progress", value: 0 },
+  },
+  loadState: {
+    type: "loadState",
+    label: "Load State",
+    icon: "📂",
+    category: "state",
+    color: "#f97316",
+    inputs: [{ id: "exec", label: "→", type: "exec" }],
+    outputs: [
+      { id: "exec", label: "→", type: "exec" },
+      { id: "value", label: "value", type: "number" },
+    ],
+    defaultProperties: { key: "progress", defaultValue: 0 },
+  },
 };
 
 export const NODE_CATEGORIES = [
@@ -475,6 +531,7 @@ export const NODE_CATEGORIES = [
   { id: "entity", label: "Entities", color: "#f59e0b" },
   { id: "flow", label: "Flow Control", color: "#8b5cf6" },
   { id: "data", label: "Data", color: "#10b981" },
+  { id: "state", label: "Variables & State", color: "#f97316" },
   { id: "output", label: "Output", color: "#ef4444" },
 ] as const;
 

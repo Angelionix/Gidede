@@ -283,14 +283,22 @@ import { createLocomotionAdapter } from "../adapters/locomotion";
 import { createCollectAdapter } from "../adapters/collect";
 import { createCombatAdapter } from "../adapters/combat";
 import { createSurvivalAdapter } from "../adapters/survival";
+import { createInteractAdapter } from "../adapters/interact";
+import { createConvertAdapter } from "../adapters/convert";
+import { createBuildAdapter } from "../adapters/build";
+import { createDefendAdapter } from "../adapters/defend";
+import { createUpgradeAdapter } from "../adapters/upgrade";
+import { createTransformAdapter } from "../adapters/transform";
+import { createPuzzleAdapter } from "../adapters/puzzle";
+import { createTimingAdapter } from "../adapters/timing";
 
 /**
- * Register the 4 built-in adapters (Phase 1.2 MVP).
+ * Register all 12 built-in adapters (Phase 2: 8 new adapters added).
  * Called automatically on first getMechanicAdapterRegistry() use.
  */
 function registerBuiltInAdapters(reg: MechanicAdapterRegistry): void {
+  // Phase 1 adapters (4)
   reg.register(createLocomotionAdapter(), [
-    // Aliases: common alternative names for movement mechanics.
     "move", "dodge", "jump", "run", "walk", "fly", "swim",
   ]);
   reg.register(createCollectAdapter(), [
@@ -301,6 +309,31 @@ function registerBuiltInAdapters(reg: MechanicAdapterRegistry): void {
   ]);
   reg.register(createSurvivalAdapter(), [
     "stealth", "evade", "hazard", "hide", "sneak",
+  ]);
+  // Phase 2 adapters (8 new)
+  reg.register(createInteractAdapter(), [
+    "activate", "carry", "deposit", "deliver", "talk", "use",
+  ]);
+  reg.register(createConvertAdapter(), [
+    "craft", "trade", "combine", "refine", "smelt", "cook",
+  ]);
+  reg.register(createBuildAdapter(), [
+    "place", "construct", "deploy",
+  ]);
+  reg.register(createDefendAdapter(), [
+    "protect", "guard", "wave_defense", "fortify",
+  ]);
+  reg.register(createUpgradeAdapter(), [
+    "improve", "level", "enhance", "boost",
+  ]);
+  reg.register(createTransformAdapter(), [
+    "push", "redirect", "flip", "turn",
+  ]);
+  reg.register(createPuzzleAdapter(), [
+    "match", "connect", "route", "solve", "align",
+  ]);
+  reg.register(createTimingAdapter(), [
+    "rhythm", "timed_input", "beat", "sync",
   ]);
 }
 

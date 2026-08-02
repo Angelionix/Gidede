@@ -20,6 +20,14 @@ import { createLocomotionAdapter } from "../locomotion";
 import { createCollectAdapter } from "../collect";
 import { createCombatAdapter } from "../combat";
 import { createSurvivalAdapter } from "../survival";
+import { createInteractAdapter } from "../interact";
+import { createConvertAdapter } from "../convert";
+import { createBuildAdapter } from "../build";
+import { createDefendAdapter } from "../defend";
+import { createUpgradeAdapter } from "../upgrade";
+import { createTransformAdapter } from "../transform";
+import { createPuzzleAdapter } from "../puzzle";
+import { createTimingAdapter } from "../timing";
 
 function makeContext(overrides: Partial<MechanicCompileContext> = {}): MechanicCompileContext {
   return {
@@ -80,23 +88,39 @@ describe("MechanicAdapterRegistry — resolution", () => {
     expect(result?.adapter.adapterId).toBe("collect");
   });
 
-  it("resolves all 4 built-in adapters", () => {
+  it("resolves all 12 built-in adapters", () => {
     const reg = getMechanicAdapterRegistry();
     expect(reg.resolve("locomotion")?.adapter.adapterId).toBe("locomotion");
-    expect(reg.resolve("collect")?.adapter.adapterId).toBe("target/combat" === "collect" ? "collect" : "collect");
+    expect(reg.resolve("collect")?.adapter.adapterId).toBe("collect");
     expect(reg.resolve("combat")?.adapter.adapterId).toBe("target/combat");
     expect(reg.resolve("survival")?.adapter.adapterId).toBe("avoid/survive");
+    expect(reg.resolve("interact")?.adapter.adapterId).toBe("interact/deliver");
+    expect(reg.resolve("convert")?.adapter.adapterId).toBe("convert/craft");
+    expect(reg.resolve("build")?.adapter.adapterId).toBe("build/place");
+    expect(reg.resolve("defend")?.adapter.adapterId).toBe("defend");
+    expect(reg.resolve("upgrade")?.adapter.adapterId).toBe("upgrade");
+    expect(reg.resolve("transform")?.adapter.adapterId).toBe("transform");
+    expect(reg.resolve("puzzle")?.adapter.adapterId).toBe("puzzle");
+    expect(reg.resolve("timing")?.adapter.adapterId).toBe("timing");
   });
 
-  it("list() returns all registered adapters", () => {
+  it("list() returns all 12 registered adapters", () => {
     const reg = getMechanicAdapterRegistry();
     const list = reg.list();
-    expect(list).toHaveLength(4);
+    expect(list).toHaveLength(12);
     const ids = list.map((a) => a.adapterId);
     expect(ids).toContain("locomotion");
     expect(ids).toContain("collect");
     expect(ids).toContain("target/combat");
     expect(ids).toContain("avoid/survive");
+    expect(ids).toContain("interact/deliver");
+    expect(ids).toContain("convert/craft");
+    expect(ids).toContain("build/place");
+    expect(ids).toContain("defend");
+    expect(ids).toContain("upgrade");
+    expect(ids).toContain("transform");
+    expect(ids).toContain("puzzle");
+    expect(ids).toContain("timing");
   });
 });
 
@@ -323,5 +347,86 @@ describe("Registry — duplicate registration", () => {
       mechanicIds: ["locomotion"],
     };
     expect(() => reg.register(dup)).toThrow(/already registered/);
+  });
+});
+
+describe("Interact adapter", () => {
+  it("compiles interaction zone + goal + carry resource", () => {
+    const adapter = createInteractAdapter();
+    const fragment = adapter.compile(makeContext());
+    expect(fragment.requiredEntities.some((e) => e.role === "interaction_zone")).toBe(true);
+    expect(fragment.requiredEntities.some((e) => e.role === "goal")).toBe(true);
+    expect(fragment.controls.some((c) => c.action === "interact")).toBe(true);
+    expect(fragment.requiredResources.some((r) => r.name === "Carried")).toBe(true);
+  });
+});
+
+describe("Convert adapter", () => {
+  it("compiles raw + crafted resources and convert rule", () => {
+    const adapter = createConvertAdapter();
+    const fragment = adapter.compile(makeContext());
+    expect(fragment.requiredResources.some((r) => r.name === "Raw")).toBe(true);
+    expect(fragment.requiredResources.some((r) => r.name === "Crafted")).toBe(true);
+    expect(fragment.systems.some((s) => s.kind === "convert")).toBe(true);
+    expect(fragment.controls.some((c) => c.action === "secondary_action")).toBe(true);
+  });
+});
+
+describe("Build adapter", () => {
+  it("compiles materials resource + place control", () => {
+    const adapter = createBuildAdapter();
+    const fragment = adapter.compile(makeContext());
+    expect(fragment.requiredResources.some((r) => r.name === "Materials")).toBe(true);
+    expect(fragment.controls.some((c) => c.action === "place")).toBe(true);
+    expect(fragment.controls.some((c) => c.action === "rotate")).toBe(true);
+  });
+});
+
+describe("Defend adapter", () => {
+  it("compiles base entity + base HP resource", () => {
+    const adapter = createDefendAdapter();
+    const fragment = adapter.compile(makeContext());
+    expect(fragment.requiredEntities.some((e) => e.role === "base")).toBe(true);
+    expect(fragment.requiredResources.some((r) => r.name === "Base HP")).toBe(true);
+    expect(fragment.systems.some((s) => s.kind === "spawn")).toBe(true);
+  });
+});
+
+describe("Upgrade adapter", () => {
+  it("compiles upgrade + level resources", () => {
+    const adapter = createUpgradeAdapter();
+    const fragment = adapter.compile(makeContext());
+    expect(fragment.requiredResources.some((r) => r.name === "Upgrades")).toBe(true);
+    expect(fragment.requiredResources.some((r) => r.name === "Level")).toBe(true);
+    expect(fragment.controls.some((c) => c.action === "secondary_action")).toBe(true);
+  });
+});
+
+describe("Transform adapter", () => {
+  it("compiles transformable obstacle + rotate control", () => {
+    const adapter = createTransformAdapter();
+    const fragment = adapter.compile(makeContext());
+    expect(fragment.requiredEntities.some((e) => e.role === "obstacle")).toBe(true);
+    expect(fragment.controls.some((c) => c.action === "rotate")).toBe(true);
+  });
+});
+
+describe("Puzzle adapter", () => {
+  it("compiles puzzle tiles + matches resource", () => {
+    const adapter = createPuzzleAdapter();
+    const fragment = adapter.compile(makeContext());
+    expect(fragment.requiredEntities.length).toBeGreaterThan(0);
+    expect(fragment.requiredResources.some((r) => r.name === "Matches")).toBe(true);
+    expect(fragment.systems.some((s) => s.kind === "puzzle_state")).toBe(true);
+  });
+});
+
+describe("Timing adapter", () => {
+  it("compiles combo + misses resources and timing system", () => {
+    const adapter = createTimingAdapter();
+    const fragment = adapter.compile(makeContext());
+    expect(fragment.requiredResources.some((r) => r.name === "Combo")).toBe(true);
+    expect(fragment.requiredResources.some((r) => r.name === "Misses")).toBe(true);
+    expect(fragment.systems.some((s) => s.kind === "timing")).toBe(true);
   });
 });

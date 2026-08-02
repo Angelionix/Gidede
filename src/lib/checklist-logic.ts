@@ -640,7 +640,9 @@ function runRollingMorrisCheck(project: ProjectData): { skipped: boolean; issues
   }
 
   if (issues.length === 0) {
-    issues.push({ severity: "info", issue_type: "rm_ok", description: "7-point Rolling/Morris пройден", suggestion: "Перепроверяйте при добавлении контента" });
+    // R6-11: honestly report the implemented point count. Points 4 (Q-factor)
+    // and 5 (SPS) are not yet implemented — only 5 of 7 points are checked.
+    issues.push({ severity: "info", issue_type: "rm_ok", description: "5 of 7 Rolling/Morris points passed (points 4 Q-factor и 5 SPS не реализованы)", suggestion: "Перепроверяйте при добавлении контента; Q-factor и SPS проверяются вручную" });
   }
   return { skipped: false, issues };
 }
@@ -680,7 +682,9 @@ function runBondMethodsCheck(project: ProjectData): { skipped: boolean; issues: 
   }
 
   if (issues.length === 0) {
-    issues.push({ severity: "info", issue_type: "bond_ok", description: "7 методов Бонд пройдены", suggestion: "Перепроверяйте при изменении дизайна" });
+    // R6-11: honestly report the implemented method count. Methods 5 (Technology)
+    // and 6 (Social/multiplayer) are not yet implemented — only 5 of 7 are checked.
+    issues.push({ severity: "info", issue_type: "bond_ok", description: "5 of 7 Bond methods passed (methods 5 Technology и 6 Social не реализованы)", suggestion: "Перепроверяйте при изменении дизайна; Technology и Social проверяются вручную" });
   }
   return { skipped: false, issues };
 }

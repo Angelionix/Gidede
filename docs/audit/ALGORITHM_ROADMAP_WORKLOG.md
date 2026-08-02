@@ -11,10 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R6-11` — дописать или честно переименовать неполные 7-point checks.
-- **Зависимости:** `R6-04`, `R6-07`, `R6-08`, `R6-09` завершены; readiness включает Progression, critical issues — hard gate, missing stages → 0 (не 0.5), placeholder не считается complete.
-- **Ожидаемый результат:** OK message соответствует выполненным пунктам (Rolling/Morris 5/7, Bond 5/7).
-- **После неё:** `R6-03`, `R6-05`, `R6-06`, `R6-10` — оставшиеся задачи GDD/checklist.
+- **Следующая задача:** `R6-03` — секция хранит source artifact/version и review status.
+- **Зависимости:** `R6-11` завершена; OK messages честно сообщают 5/7 вместо "7 пройден".
+- **Ожидаемый результат:** видно происхождение каждой формулы и утверждения.
+- **После неё:** `R6-05`, `R6-06`, `R6-10` — оставшиеся задачи GDD/checklist (auto-invalidation, per-section LLM, prototype/playtest gates).
 
 ## Статус roadmap
 
@@ -85,7 +85,8 @@
 | R6-07 | DONE | Progression included in readiness model (6 checks, was 5) | 862 tests, TypeScript, scoped ESLint |
 | R6-08 | DONE | criticalIssueCount > 0 forbids "ready" (hard gate) | 862 tests, TypeScript, scoped ESLint |
 | R6-09 | DONE | Missing/skipped stage → score 0 (was 0.5 — falsely inflated readiness) | 862 tests, TypeScript, scoped ESLint |
-| R6-03, R6-05, R6-06, R6-10, R6-11…R7 | TODO | См. активный roadmap | — |
+| R6-11 | DONE | OK messages честно сообщают "5 of 7" вместо "7 пройден" (Rolling/Morris и Bond) | 862 tests, TypeScript, scoped ESLint |
+| R6-03, R6-05, R6-06, R6-10…R7 | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -98,6 +99,33 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R6-11 — DONE
+
+Что сделано:
+
+- Rolling/Morris OK message: было `"7-point Rolling/Morris пройден"` → стало `"5 of 7 Rolling/Morris points passed (points 4 Q-factor и 5 SPS не реализованы)"`;
+- Bond OK message: было `"7 методов Бонд пройдены"` → стало `"5 of 7 Bond methods passed (methods 5 Technology и 6 Social не реализованы)"`;
+- OK messages теперь честно сообщают сколько пунктов реализовано и какие отсутствуют;
+- suggestions updated: `"Q-factor и SPS проверяются вручную"` / `"Technology и Social проверяются вручную"`.
+
+Изменённые области:
+
+- `src/lib/checklist-logic.ts` — `runRollingMorrisCheck` и `runBondMethodsCheck` OK messages.
+
+Проверки:
+
+- `bun run test` — 72 файла, 862 теста пройдено (без изменений);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- Rolling/Morris OK: "5 of 7" (не "7 пройден");
+- Bond OK: "5 of 7" (не "7 методов пройдены");
+- нереализованные пункты явно названы (Q-factor, SPS, Technology, Social);
+- следующей задачей назначена `R6-03`.
 
 ### 2026-08-01 — R6-04 + R6-07 + R6-08 + R6-09 — DONE
 

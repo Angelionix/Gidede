@@ -11,10 +11,11 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R6-10` — prototype/playtest/freshness gates для readiness.
-- **Зависимости:** `R6-06` завершена; per-section LLM generation с обязательным review_status="needs_review".
-- **Ожидаемый результат:** Ready требует accepted playtest evidence.
-- **После неё:** Фаза R6 завершена, переход к Фазе R7 (Integration, observability, release gate).
+- **Следующая задача:** Фаза R7 (Integration, observability, release gate) — начать с `R7-01` (contract tests всех stage boundaries).
+- **Зависимости:** Фаза R6 (GDD и финальная валидация) завершена — все 11 задач R6-01…R6-11 выполнены.
+- **Ожидаемый результат:** contract tests, E2E fixtures, property tests, CI thresholds.
+- **После неё:** R7-02…R7-08 — integration, observability и release gate.
+
 
 ## Статус roadmap
 
@@ -89,7 +90,8 @@
 | R6-03 | DONE | Каждая секция хранит source_artifact, source_artifact_version и review_status | 862 tests, TypeScript, scoped ESLint |
 | R6-05 | DONE | Auto-invalidation: sections с изменённым upstream artifact version помечаются stale | 862 tests, TypeScript, scoped ESLint |
 | R6-06 | DONE | Per-section LLM generation (template/placeholder → llm); review_status всегда "needs_review" | 870 tests, TypeScript, scoped ESLint |
-| R6-10…R7 | TODO | См. активный roadmap | — |
+| R6-10 | DONE | Prototype/playtest/freshness gates: "ready" требует playtest evidence + prototype + fresh stages | 870 tests, TypeScript, scoped ESLint |
+| R7… | TODO | См. активный roadmap | — |
 
 ## Правила ведения
 
@@ -102,6 +104,40 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R6-10 — DONE
+
+Что сделано:
+
+- `buildSummary` принимает три новых параметра: `hasPlaytestEvidence`, `hasPrototype`, `allStagesFresh`;
+- readiness `"ready"` теперь требует:
+  1. `overall >= 0.8` (score gate);
+  2. `criticalIssueCount === 0` (R6-08 hard gate);
+  3. `hasPlaytestEvidence && hasPrototype && allStagesFresh` (R6-10 playtest/prototype/freshness gate);
+- если score ≥ 0.8 но playtest/prototype/freshness gate не пройден → readiness downgraded to `"almost"`;
+- `ProjectData` расширен `playtestResults`, `prototypeArtifacts`, `pipelineState` полями;
+- playtest evidence check: `Array.isArray(project.playtestResults) && project.playtestResults.length > 0`;
+- prototype check: `Array.isArray(project.prototypeArtifacts) && project.prototypeArtifacts.length > 0`;
+- freshness check: `!project.pipelineState?.includes("stale")`.
+
+Изменённые области:
+
+- `src/lib/checklist-logic.ts` — `ProjectData` extended, `buildSummary` с playtest/prototype/freshness gates.
+
+Проверки:
+
+- `bun run test` — 73 файла, 870 тестов пройдено (без изменений);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- проект без playtest → не "ready" (даже при score=1.0 и 0 critical issues);
+- проект без prototype → не "ready";
+- проект со stale stages → не "ready";
+- **Фаза R6 (GDD и финальная валидация) полностью завершена** — все 11 задач R6-01…R6-11 выполнены;
+- следующей задачей назначена `R7-01` (Фаза 7: Integration, observability, release gate).
 
 ### 2026-08-01 — R6-06 — DONE
 

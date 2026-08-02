@@ -95,6 +95,10 @@ interface ProjectData {
     sections: string | null;
     fullProfile: string | null;
   } | null;
+  // R6-10: playtest/prototype evidence for readiness gate.
+  playtestResults?: unknown[];
+  prototypeArtifacts?: unknown[];
+  pipelineState?: string | null;
 }
 
 export interface ChecklistResult {
@@ -800,7 +804,10 @@ function buildSummary(
   allIssues: ChecklistIssue[],
   economyScore: number,
   lensScore: number,
-  progressionScore: number,  // R6-07: new parameter
+  progressionScore: number,
+  hasPlaytestEvidence: boolean,  // R6-10: playtest gate
+  hasPrototype: boolean,         // R6-10: prototype gate
+  allStagesFresh: boolean,       // R6-10: freshness gate
 ): {
   overall_score: number;
   readiness: string;
@@ -818,10 +825,18 @@ function buildSummary(
 
   // R6-08: hard gate — critical issues (severity "error") forbid "ready".
   const criticalIssueCount = allIssues.filter((i) => i.severity === "error").length;
+
+  // R6-10: prototype/playtest/freshness gates — "ready" requires all three.
+  const playtestGatePassed = hasPlaytestEvidence && hasPrototype && allStagesFresh;
+
   let readiness: string;
   if (criticalIssueCount > 0) {
     // R6-08: cannot be "ready" when critical issues exist, regardless of score.
     readiness = overall >= 0.5 ? "almost" : "not_ready";
+  } else if (overall >= 0.8 && !playtestGatePassed) {
+    // R6-10: score is high enough for "ready" but playtest/prototype/freshness
+    // gate not passed → downgrade to "almost" with a reason.
+    readiness = "almost";
   } else {
     readiness = overall >= 0.8 ? "ready" : overall >= 0.5 ? "almost" : "not_ready";
   }
@@ -971,6 +986,12 @@ export async function runChecklistValidation(
       })()
     : 0;  // R6-09: missing stage = 0
 
+  // R6-10: check playtest/prototype/freshness evidence for the readiness gate.
+  const hasPlaytestEvidence = Array.isArray(project.playtestResults) && project.playtestResults.length > 0;
+  const hasPrototype = Array.isArray(project.prototypeArtifacts) && project.prototypeArtifacts.length > 0;
+  // Freshness: check if pipelineState has any stale stages.
+  const allStagesFresh = !project.pipelineState?.includes("stale");
+
   const summary = buildSummary(
     mdaCheck.overall_mda_score,
     balanceCheck.overall_balance_score,
@@ -978,7 +999,10 @@ export async function runChecklistValidation(
     allIssues,
     economyScore,
     lensScore,
-    progressionScore,  // R6-07: new parameter
+    progressionScore,
+    hasPlaytestEvidence,
+    hasPrototype,
+    allStagesFresh,
   );
 
   // Build the persisted issues list (with id + remediation)

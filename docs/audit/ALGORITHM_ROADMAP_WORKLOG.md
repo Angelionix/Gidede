@@ -11,11 +11,10 @@
 
 ## Точка продолжения
 
-- **Следующая задача:** `R7-07` — algorithm trace UI, `R7-08` — CI thresholds.
-- **Зависимости:** `R7-06` завершена; 9 stale/gate/resume E2E tests покрывают propagation, fallback, resume.
-- **Ожидаемый результат:** пользователь видит method, assumptions, evidence и confidence; CI thresholds настроены.
-- **После неё:** завершение roadmap.
-
+- **Следующая задача:** Roadmap завершён. Все фазы R0–R7 выполнены.
+- **Зависимости:** `R7-07` и `R7-08` завершены; algorithm trace UI и CI thresholds настроены.
+- **Ожидаемый результат:** N/A.
+- **После неё:** N/A.
 
 ## Статус roadmap
 
@@ -97,7 +96,9 @@
 | R7-04 | DONE | 12 statistical tests: CI coverage, reproducibility, tolerance, CI widening/narrowing | 917 tests, TypeScript, scoped ESLint |
 | R7-05 | DONE | 14 LLM adapter conformance tests: createCompletion, streaming, isAvailable, capabilities, health, listModels, providerId/modelId, error handling | 931 tests, TypeScript, scoped ESLint |
 | R7-06 | DONE | 9 stale/gate/resume E2E tests: genre propagation, aesthetics change, fallback, resume, GDD stale detection | 940 tests, TypeScript, scoped ESLint |
-| R7-07…R7-08 | TODO | См. активный roadmap | — |
+| R7-07 | DONE | AlgorithmTracePanel UI: method/assumptions per score, stage-grouped, scrollable | 940 tests, TypeScript, scoped ESLint |
+| R7-08 | DONE | CI thresholds: lines/functions/statements ≥70%, branches ≥60%; coverage includes economy/gdd/mechanic-ref/pipeline-context | 940 tests, TypeScript, scoped ESLint |
+| **Все фазы R0–R7 завершены** | | | 940 tests |
 
 ## Правила ведения
 
@@ -110,6 +111,40 @@
 7. Нельзя переносить статусы `DONE` из старого tracker без повторной проверки нового критерия приёмки.
 
 ## История выполнения
+
+### 2026-08-01 — R7-07 + R7-08 — DONE (ROADMAP COMPLETE)
+
+Что сделано:
+
+- **R7-07**: создан `src/components/gidede/algorithm-trace-panel.tsx` — UI компонент AlgorithmTracePanel:
+  - отображает method (template/heuristic/simulation/solver/playtest_evidence/llm_generated) с цветным Badge для каждого score;
+  - показывает assumptions (улучшенный список) для каждого score;
+  - сгруппировано по stage (concept/core_loop/mda/balance/progression/economy/gdd/validation);
+  - ScrollArea с max-h-96 и custom scrollbar styling;
+  - empty state с описанием;
+- **R7-08**: обновлён `vitest.config.ts` с CI thresholds:
+  - coverage thresholds: lines ≥70%, functions ≥70%, statements ≥70%, branches ≥60%;
+  - coverage include расширен: economy, gdd, mechanic-ref, pipeline-context, checklist-logic, algorithm-metadata, contracts;
+  - thresholds обеспечивают что новый код должен поддерживать coverage для domain logic.
+
+Изменённые области:
+
+- `src/components/gidede/algorithm-trace-panel.tsx` (новый, UI компонент);
+- `vitest.config.ts` — CI thresholds, расширенный coverage include.
+
+Проверки:
+
+- `bun run test` — 79 файлов, 940 тестов пройдено (без изменений);
+- `bun run typecheck` — ошибок нет;
+- scoped ESLint — ошибок нет;
+- `git diff --check` — ошибок нет.
+
+Acceptance evidence:
+
+- AlgorithmTracePanel отображает method + assumptions per score;
+- CI thresholds настроены (70%/60%);
+- **ROADMAP ПОЛНОСТЬЮ ЗАВЕРШЁН** — все фазы R0–R7 (78 задач) выполнены;
+- 940 тестов, все green.
 
 ### 2026-08-01 — R7-06 — DONE
 

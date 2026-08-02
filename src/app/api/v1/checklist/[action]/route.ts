@@ -18,16 +18,34 @@ import { runChecklistValidation } from "@/lib/checklist-logic";
 
 const VALID_ACTIONS = new Set([
   "validate",
+  // Original 5 per-block checks.
   "mda-check",
   "balance-check",
   "narrative-check",
   "economy-check",
   "lens-check",
+  // Short aliases for the original 5.
   "mda",
   "balance",
   "narrative",
   "economy",
   "lenses",
+  // R-AUDIT-FIX: 6 new Bible checklist types (TASK-6b.3-9) were added to
+  // checklist-logic.ts ALL_CHECKLISTS but were missing from VALID_ACTIONS,
+  // so POST /checklist/<name>-check returned 422. Now whitelisted.
+  "shell_filters-check",
+  "upton-check",
+  "rolling_morris-check",
+  "bond_methods-check",
+  "fullerton-check",
+  "narrative_types-check",
+  // Short aliases for the 6 new checks.
+  "shell_filters",
+  "upton",
+  "rolling_morris",
+  "bond_methods",
+  "fullerton",
+  "narrative_types",
 ]);
 
 export async function POST(

@@ -26,11 +26,47 @@ describe("solveNash2x2 — closed-form 2×2 zero-sum Nash", () => {
     expect(r.strategy[1]).toBeCloseTo(0.5, 4);
   });
 
-  it("solves a game where one strategy is strongly preferred", () => {
-    // [[10, 0], [0, 1]] → p* = (1-0)/(10-0-0+1) = 1/11 ≈ 0.0909
+  it("solves an asymmetric mixed-strategy game (no dominance)", () => {
+    // [[10, 0], [0, 1]] → no strict dominance (10>0 but 0<1).
+    // p* = (1-0)/(10-0-0+1) = 1/11 ≈ 0.0909
     const r = solveNash2x2([[10, 0], [0, 1]]);
     expect(r.strategy[0]).toBeCloseTo(1 / 11, 3);
     expect(r.strategy[1]).toBeCloseTo(10 / 11, 3);
+  });
+
+  it("detects strict row-0 dominance and returns pure strategy [1, 0]", () => {
+    // [[2, 1], [0, 0]] — row 0 strictly dominates row 1 (2>0 && 1>0).
+    // Without dominance detection, the formula returns p*=(0-0)/(2-1-0+0)=0 → [0,1],
+    // which is WRONG (the dominant row 0 should be played with probability 1).
+    const r = solveNash2x2([[2, 1], [0, 0]]);
+    expect(r.strategy[0]).toBe(1);
+    expect(r.strategy[1]).toBe(0);
+    expect(r.reason).toContain("row 0 strictly dominates");
+  });
+
+  it("detects strict row-1 dominance and returns pure strategy [0, 1]", () => {
+    // [[0, 0], [2, 1]] — row 1 strictly dominates row 0 (2>0 && 1>0).
+    // Without dominance detection, the formula returns p*=(1-0)/(0-0-2+1)=-1/(-1)=1 → [1,0],
+    // which is WRONG (the dominant row 1 should be played with probability 1).
+    const r = solveNash2x2([[0, 0], [2, 1]]);
+    expect(r.strategy[0]).toBe(0);
+    expect(r.strategy[1]).toBe(1);
+    expect(r.reason).toContain("row 1 strictly dominates");
+  });
+
+  it("detects dominance in mixed-magnitude payoffs", () => {
+    // [[5, 2], [3, 1]] — row 0 dominates (5>3 && 2>1).
+    const r = solveNash2x2([[5, 2], [3, 1]]);
+    expect(r.strategy[0]).toBe(1);
+    expect(r.strategy[1]).toBe(0);
+  });
+
+  it("does not falsely detect dominance when rows are incomparable", () => {
+    // [[10, 0], [0, 1]] — 10>0 but 0<1, so NO dominance → interior mixed eq.
+    const r = solveNash2x2([[10, 0], [0, 1]]);
+    expect(r.reason).not.toContain("strictly dominates");
+    expect(r.strategy[0]).toBeGreaterThan(0);
+    expect(r.strategy[1]).toBeGreaterThan(0);
   });
 
   it("handles degenerate game (denominator ≈ 0) with uniform fallback", () => {

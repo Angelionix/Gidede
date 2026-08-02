@@ -341,12 +341,21 @@ function buildMechanicSet(
   const social = filterToMax(socialSet).map((name) => ({ mechanic_name: name }));
 
   // Aesthetic coverage
+  // R-AUDIT-FIX: was `(AESTHETIC_TO_DYNAMICS[aesthetic] || [])[0]` — only
+  // considered the FIRST dynamic per aesthetic, missing 2/3 of the mechanic
+  // pool. Now iterates ALL dynamics via getMechanicsForAesthetic, matching
+  // the fix already applied to buildClassicMDA and iteration-loop.ts.
   const aesthetics = ["sensation", "fantasy", "narrative", "challenge", "fellowship", "discovery", "expression", "submission"];
   const aestheticCoverage = aesthetics.map((aesthetic) => {
-    // Count how many mechanics in this set map to this aesthetic
-    const mechs = DYNAMICS_TO_MECHANICS[
-      (AESTHETIC_TO_DYNAMICS[aesthetic] || [])[0] || ""
-    ] || [];
+    // Collect mechanics across ALL dynamics of this aesthetic (deduped).
+    const dynamics = AESTHETIC_TO_DYNAMICS[aesthetic] || [];
+    const mechsSet = new Set<string>();
+    for (const dyn of dynamics) {
+      for (const m of DYNAMICS_TO_MECHANICS[dyn] || []) {
+        mechsSet.add(m);
+      }
+    }
+    const mechs = Array.from(mechsSet);
     const count = [base, combat, progression, spatial, social].reduce(
       (sum, group) =>
         sum +
@@ -736,113 +745,11 @@ function buildLensValidation(
   };
 }
 
-// TASK-3.15: broadened type to avoid `as unknown as` casts.
-function buildBondValidation(
-  mechanicSet: { compatibility_score: number; [key: string]: unknown },
-  aesthetics: { primary: string; [key: string]: unknown }
-) {
-  const elements = ["Механика", "История", "Эстетика", "Технология"];
-  const levels = ["Фиксированный", "Динамический", "Культурный"];
-
-  // Build 4x3 matrix
-  const matrix: Array<{ element: string; level: string; content: string }> = [];
-  const contents: Record<string, Record<string, string>> = {
-    "Механика": {
-      "Фиксированный": "Базовые механики: движение, атака, способность",
-      "Динамический": "Комбо-системы, эмерджентные взаимодействия",
-      "Культурный": "Мета-стратегии, обсуждаемые сообществом",
-    },
-    "История": {
-      "Фиксированный": "Главный сюжет и предыстория мира",
-      "Динамический": "Эмерджентные истории игрока",
-      "Культурный": "Фанатские теории и интерпретации",
-    },
-    "Эстетика": {
-      "Фиксированный": `Целевая эстетика: ${aesthetics.primary}`,
-      "Динамический": "Эмоциональные пики в моменты геймплея",
-      "Культурный": "Мемы, фан-арт, обсуждения",
-    },
-    "Технология": {
-      "Фиксированный": "Игровой движок, сетевой код",
-      "Динамический": "Физика, ИИ, процедурная генерация",
-      "Культурный": "Моды, инструменты сообщества",
-    },
-  };
-
-  for (const element of elements) {
-    for (const level of levels) {
-      matrix.push({
-        element,
-        level,
-        content: contents[element][level],
-      });
-    }
-  }
-
-  // Row consistency (per level — horizontal)
-  const rowConsistency = levels.map((level) => ({
-    level,
-    score: 0.7 + (mechanicSet.compatibility_score / 100) * 0.2,
-    dissonances: [] as Array<{ element: string; issue: string }>,
-  }));
-
-  // Column consistency (per element — vertical)
-  const colConsistency = elements.map((element) => ({
-    element,
-    score: 0.65 + (mechanicSet.compatibility_score / 100) * 0.25,
-    description: `${element} согласованно на всех трёх уровнях`,
-  }));
-
-  // TASK-3.8 FIXED: compute ludonarrative result instead of hardcoding "Гармония".
-  // Before: always "Гармония" regardless of mechanic set.
-  // After: Гармония (compat≥75) / Ирония (compat≥50) / Диссонанс (compat<50).
-  const compatRatio = mechanicSet.compatibility_score / 100;
-  let ludonarrativeResult: string;
-  let ludonarrativeDescription: string;
-  let ludonarrativeCorrection: string;
-  if (compatRatio >= 0.75) {
-    ludonarrativeResult = "Гармония";
-    ludonarrativeDescription = `Механики и нарратив согласованно выражают эстетику "${aesthetics.primary}".`;
-    ludonarrativeCorrection = "Усилить нарративные отсылки в боевых эпизодах для закрепления эстетики";
-  } else if (compatRatio >= 0.5) {
-    ludonarrativeResult = "Ирония";
-    ludonarrativeDescription = `Механики и нарратив имеют некоторое напряжение — игровой тон не полностью соответствует заявленной эстетике "${aesthetics.primary}".`;
-    ludonarrativeCorrection = "Выровнять тон механик с нарративом: добавить механики, поддерживающие целевую эстетику";
-  } else {
-    ludonarrativeResult = "Диссонанс";
-    ludonarrativeDescription = `Механики и нарратив конфликтуют — игровой опыт противоречит заявленной эстетике "${aesthetics.primary}".`;
-    ludonarrativeCorrection = "Кардинально пересмотреть набор механик для соответствия целевой эстетике";
-  }
-
-  // Ludonarrative analysis
-  const ludonarrative = {
-    result: ludonarrativeResult,
-    description: ludonarrativeDescription,
-    mechanic_narrative_pairs: [
-      { mechanic: "combat", narrative: "main_conflict", consistency: Number(Math.min(1, compatRatio + 0.1).toFixed(2)) },
-      { mechanic: "progression", narrative: "character_growth", consistency: Number(Math.min(1, compatRatio + 0.05).toFixed(2)) },
-      { mechanic: "exploration", narrative: "world_discovery", consistency: Number(compatRatio.toFixed(2)) },
-    ],
-    correction: ludonarrativeCorrection,
-  };
-
-  const overallConsistency = Number(
-    (
-      (rowConsistency.reduce((s, r) => s + r.score, 0) / rowConsistency.length) *
-      0.5 +
-      (colConsistency.reduce((s, r) => s + r.score, 0) / colConsistency.length) *
-        0.5
-    ).toFixed(3)
-  );
-
-  return {
-    matrix,
-    row_consistency: rowConsistency,
-    col_consistency: colConsistency,
-    ludonarrative,
-    overall_consistency: overallConsistency,
-  };
-}
+// R-AUDIT-CLEANUP: removed dead `buildBondValidation` function (106 lines).
+// It was defined here but never called — the route uses
+// `buildBondValidationFromArtifacts` from `@/lib/mda/bond-matrix` instead
+// (imported at the top of this file, called at line ~1145). TASK-3.18 in the
+// refactor plan claimed this was removed, but it wasn't.
 
 // TASK-3.16: Build real machinationsModel graph from mechanic set + classic MDA result.
 // Before: saved empty graph { nodes: [], resource_flows: [], state_connections: [], feedback_loops: [] }.

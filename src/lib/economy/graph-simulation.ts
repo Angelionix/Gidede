@@ -169,8 +169,22 @@ export function runGraphSimulation(
     const b = bounds[node.id];
     const r = ranges[node.id];
     if (r.max >= b.max * 0.95) runawayCount++;
+    // R-AUDIT-FIX: stall detection. Was:
+    //   `if (r.min <= init * 0.05 || r.min <= b.min) stallCount++;`
+    // which always evaluated to true for resources with `initial_value=0`
+    // and `bounds.min=0` (common for `xp`, `score`, `shop`) — the condition
+    // `r.min <= 0` is always true because r.min starts at 0 and only
+    // decreases or stays. Resources that legitimately start at 0 and grow
+    // during simulation were always flagged as stalled.
+    // Now uses relative change (mirrors the single-pool simulate() fix):
+    // a resource is stalled if its value moved less than 5% of its
+    // initial_value (or less than 5% of its capacity for init=0 resources).
     const init = resourceMap.get(node.id)?.initial_value ?? 100;
-    if (r.min <= init * 0.05 || r.min <= b.min) stallCount++;
+    const capacity = b.max - b.min;
+    const valueChange = Math.abs(r.max - r.min);
+    const reference = init > 0 ? init : capacity > 0 ? capacity : 1;
+    const relativeChange = valueChange / reference;
+    if (relativeChange < 0.05) stallCount++;
   }
 
   const totalNodes = Math.max(1, nodes.length);

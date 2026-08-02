@@ -425,12 +425,17 @@ function findConversionChains(resources: ResourceDef[]): {
 
 function detectPathologies(
   resources: ResourceDef[],
-  faucetDrain: Record<string, { faucet: number; drain: number; ratio: number }>
+  faucetDrain: Record<string, { faucet: number; drain: number; ratio: number; is_fallback?: boolean }>
 ): Pathology[] {
   const pathologies: Pathology[] = [];
 
   // Inflation: ratio > 1.5 for anchor
   for (const [name, data] of Object.entries(faucetDrain)) {
+    // R-AUDIT-FIX (#10): skip pathology detection for fallback entries.
+    // When a resource has no graph flows, faucet/drain are class-based
+    // heuristics — diagnosing "Инфляция" from a heuristic ratio would
+    // recreate the circulus vitiosus pattern flagged in the original audit.
+    if (data.is_fallback) continue;
     if (data.ratio > 1.5) {
       pathologies.push({
         name: "Инфляция",
@@ -525,7 +530,7 @@ function computeOverallSeverity(pathologies: Pathology[]): string {
 
 function proposeAdjustments(
   pathologies: Pathology[],
-  faucetDrain: Record<string, { faucet: number; drain: number; ratio: number }>
+  faucetDrain: Record<string, { faucet: number; drain: number; ratio: number; is_fallback?: boolean }>
 ): Adjustment[] {
   const adjustments: Adjustment[] = [];
   for (const p of pathologies) {
@@ -589,7 +594,8 @@ function simulate(
   resources: ResourceDef[],
   faucetDrain: Record<string, { faucet: number; drain: number; ratio: number }>,
   ticks: number,
-  seed: number
+  seed: number,
+  numRuns = 10
 ): {
   config: Record<string, unknown>;
   aggregated: {
@@ -612,42 +618,77 @@ function simulate(
   };
   snapshots_count: number;
 } {
-  // TASK-5b.6: deterministic PRNG instead of Math.random().
+  // R-AUDIT-FIX (#1): was running a single pass but reporting `num_runs: 10`
+  // in the config — misleading. Now runs `numRuns` independent passes with
+  // different seeds (baseSeed + runIndex * golden ratio constant, same pattern
+  // as src/lib/balance/multi-run-sim.ts) and averages the per-resource curves.
+  // Diagnostics (runaway/stall frequency, stability, build_gap) are computed
+  // from the averaged curves, so they reflect the actual distribution of
+  // outcomes across runs rather than a single sample.
   const rng = mulberry32(seed);
-  const curves: Record<string, number[]> = {};
-  const ranges: Record<string, { min: number; max: number }> = {};
-  let runawayCount = 0;
-  let stallCount = 0;
-
+  const avgCurves: Record<string, number[]> = {};
+  const avgRanges: Record<string, { min: number; max: number }> = {};
   for (const r of resources) {
-    let value = r.initial_value;
-    const series: number[] = [];
-    let rMax = value;
-    let rMin = value;
-    for (let t = 0; t < ticks; t++) {
-      const d = faucetDrain[r.name] || { faucet: 0.3, drain: 0.3, ratio: 1 };
-      // TASK-5b.6: deterministic noise via mulberry32 (was Math.random).
-      const noise = (rng() - 0.5) * 0.2;
-      value = value + d.faucet - d.drain + noise;
-      value = Math.max(r.bounds.min, Math.min(r.bounds.max, value));
-      series.push(Number(value.toFixed(2)));
-      rMax = Math.max(rMax, value);
-      rMin = Math.min(rMin, value);
-    }
-    curves[r.name] = series;
-    ranges[r.name] = { min: Number(rMin.toFixed(2)), max: Number(rMax.toFixed(2)) };
-    // TASK-5b.5 FIXED: stallCount threshold — relative change, not absolute range.
-    // Before: rMax <= bounds.min + (bounds.max - bounds.min) * 0.05
-    //   For gold/hp with bounds.max=10000, threshold = 500. Values 50→55 → always stalled.
-    // After: stall = resource value changes < 5% of initial_value over the simulation.
-    const valueChange = Math.abs(rMax - rMin);
-    const relativeChange = r.initial_value > 0 ? valueChange / r.initial_value : 0;
-    if (rMax >= r.bounds.max * 0.95) runawayCount++;
-    if (relativeChange < 0.05) stallCount++;
+    avgCurves[r.name] = new Array(ticks).fill(0);
+    avgRanges[r.name] = { min: Infinity, max: -Infinity };
   }
 
-  const runawayFreq = runawayCount / Math.max(1, resources.length);
-  const stallFreq = stallCount / Math.max(1, resources.length);
+  let totalRunaway = 0;
+  let totalStall = 0;
+
+  for (let run = 0; run < numRuns; run++) {
+    // Per-run seed: deterministic, depends on base seed + run index.
+    const runSeed = seed + run * 0x9e3779b9;
+    const runRng = mulberry32(runSeed);
+    const runCurves: Record<string, number[]> = {};
+    const runRanges: Record<string, { min: number; max: number }> = {};
+    let runRunaway = 0;
+    let runStall = 0;
+
+    for (const r of resources) {
+      let value = r.initial_value;
+      const series: number[] = [];
+      let rMax = value;
+      let rMin = value;
+      for (let t = 0; t < ticks; t++) {
+        const d = faucetDrain[r.name] || { faucet: 0.3, drain: 0.3, ratio: 1 };
+        const noise = (runRng() - 0.5) * 0.2;
+        value = value + d.faucet - d.drain + noise;
+        value = Math.max(r.bounds.min, Math.min(r.bounds.max, value));
+        series.push(Number(value.toFixed(2)));
+        rMax = Math.max(rMax, value);
+        rMin = Math.min(rMin, value);
+      }
+      runCurves[r.name] = series;
+      runRanges[r.name] = { min: Number(rMin.toFixed(2)), max: Number(rMax.toFixed(2)) };
+      const valueChange = Math.abs(rMax - rMin);
+      const relativeChange = r.initial_value > 0 ? valueChange / r.initial_value : 0;
+      if (rMax >= r.bounds.max * 0.95) runRunaway++;
+      if (relativeChange < 0.05) runStall++;
+    }
+
+    // Accumulate per-resource stats for averaging.
+    for (const r of resources) {
+      for (let t = 0; t < ticks; t++) {
+        avgCurves[r.name][t] += runCurves[r.name][t] / numRuns;
+      }
+      avgRanges[r.name].min = Math.min(avgRanges[r.name].min, runRanges[r.name].min);
+      avgRanges[r.name].max = Math.max(avgRanges[r.name].max, runRanges[r.name].max);
+    }
+    totalRunaway += runRunaway;
+    totalStall += runStall;
+  }
+
+  // Round averaged curves.
+  for (const r of resources) {
+    avgCurves[r.name] = avgCurves[r.name].map((v) => Number(v.toFixed(2)));
+    if (!isFinite(avgRanges[r.name].min)) avgRanges[r.name].min = 0;
+    if (!isFinite(avgRanges[r.name].max)) avgRanges[r.name].max = 0;
+  }
+
+  // Average frequencies across runs.
+  const runawayFreq = totalRunaway / (numRuns * Math.max(1, resources.length));
+  const stallFreq = totalStall / (numRuns * Math.max(1, resources.length));
   const stability = Number(
     Math.max(0, 1 - (runawayFreq + stallFreq) / 2).toFixed(3)
   );
@@ -668,18 +709,21 @@ function simulate(
     critical_issues: criticalIssues,
   };
 
+  // Suppress unused warning for the legacy single-run rng (kept for seed stability).
+  void rng;
+
   return {
-    config: { ticks, num_runs: 10, recording_interval: 5 },
+    config: { ticks, num_runs: numRuns, recording_interval: 5 },
     aggregated: {
-      avg_resource_curves: curves,
-      resource_ranges: ranges,
-      runaway_frequency: runawayFreq,
-      stall_frequency: stallFreq,
+      avg_resource_curves: avgCurves,
+      resource_ranges: avgRanges,
+      runaway_frequency: Number(runawayFreq.toFixed(3)),
+      stall_frequency: Number(stallFreq.toFixed(3)),
       stability_index: stability,
       build_gap: buildGap,
     },
     quality,
-    snapshots_count: ticks,
+    snapshots_count: ticks * numRuns,
   };
 }
 
@@ -847,7 +891,14 @@ export async function POST(request: NextRequest) {
     // TASK-5b.4 FIXED: faucet/drain derived from actual resource flows in machinations graph.
     // Before: hardcoded by class (catalytic=1.0, currency=0.8, etc.) — circulus vitiosus.
     // After: count actual flows producing (faucet) and consuming (drain) each resource.
-    const faucetDrain: Record<string, { faucet: number; drain: number; ratio: number }> = {};
+    // R-AUDIT-FIX (#10): when a resource has no flows, the fallback class-based
+    // values are still used for diagnostics (pathology detection via ratio),
+    // but the entry is marked `is_fallback: true` so downstream consumers know
+    // this is a heuristic, not measured behavior. The single-pool simulation
+    // now uses faucet=0, drain=0 for fallback resources — a resource with no
+    // flows in the graph should not move in the simulation either.
+    const faucetDrain: Record<string, { faucet: number; drain: number; ratio: number; is_fallback: boolean }> = {};
+    const simFaucetDrain: Record<string, { faucet: number; drain: number; ratio: number }> = {};
     for (const r of resources) {
       // R5-14: fixed producingFlows filter. Was `f.target_id === r.name || f.resource === r.name`
       // — the second clause incorrectly matched outbound flows carrying r.name as
@@ -860,16 +911,24 @@ export async function POST(request: NextRequest) {
       const consumingFlows = machinations.resource_flows.filter(
         (f) => f.source_id === r.name
       );
+      const hasFlows = producingFlows.length > 0 || consumingFlows.length > 0;
       // Faucet = sum of producing flow rates (or fallback to class-based if no flows).
+      const fallbackFaucet = r.is_catalytic ? 0.8 : r.resource_class === "currency" ? 0.6 : 0.4;
+      const fallbackDrain = r.is_consumable ? 0.5 : r.resource_class === "currency" ? 0.5 : 0.3;
       const faucet = producingFlows.length > 0
         ? Number(producingFlows.reduce((s, f) => s + f.rate, 0).toFixed(3))
-        : r.is_catalytic ? 0.8 : r.resource_class === "currency" ? 0.6 : 0.4;
+        : fallbackFaucet;
       // Drain = sum of consuming flow rates (or fallback).
       const drain = consumingFlows.length > 0
         ? Number(consumingFlows.reduce((s, f) => s + f.rate, 0).toFixed(3))
-        : r.is_consumable ? 0.5 : r.resource_class === "currency" ? 0.5 : 0.3;
+        : fallbackDrain;
       const ratio = drain > 0 ? Number((faucet / drain).toFixed(3)) : 0;
-      faucetDrain[r.name] = { faucet, drain, ratio };
+      faucetDrain[r.name] = { faucet, drain, ratio, is_fallback: !hasFlows };
+      // For single-pool simulation: use real values when flows exist, 0 otherwise.
+      // A resource with no graph flows should not move in the simulation either.
+      simFaucetDrain[r.name] = hasFlows
+        ? { faucet, drain, ratio }
+        : { faucet: 0, drain: 0, ratio: 0 };
     }
 
     // --- Diagnostics ---
@@ -900,7 +959,11 @@ export async function POST(request: NextRequest) {
     // --- Simulation ---
     // TASK-5b.6: deterministic seed from projectId for reproducible results.
     const simSeed = hashString(proj.id || "economy-default-seed");
-    const simResult = simulate(resources, faucetDrain, 50, simSeed);
+    // R-AUDIT-FIX (#10): pass simFaucetDrain (which zeros out faucet/drain for
+    // resources without graph flows) instead of faucetDrain (which keeps the
+    // class-based fallback). This prevents single-pool simulation from
+    // hallucinating movement for disconnected resources.
+    const simResult = simulate(resources, simFaucetDrain, 50, simSeed);
 
     // R5-15: execute the Machinations graph (nodes + resource_flows +
     // state_connections) as a real resource-flow simulation, not just
@@ -931,6 +994,15 @@ export async function POST(request: NextRequest) {
     );
 
     // TASK-5b.9: 12-point validation checklist (Bible 6.13.4).
+    // R-AUDIT-FIX (#2): checklist now consults BOTH the single-pool simResult
+    // AND the graph_sim_result. Stability (#8) and runaway (#12) are taken as
+    // the WORST of the two — if either simulation shows instability, the
+    // checklist fails. Before this fix, graph_sim_result was computed but
+    // never consumed, making it purely cosmetic.
+    const graphStability = graphSimResult.stability_index;
+    const graphRunawayFreq = graphSimResult.runaway_frequency;
+    const effectiveStability = Math.min(simResult.aggregated.stability_index, graphStability);
+    const effectiveRunawayFreq = Math.max(simResult.aggregated.runaway_frequency, graphRunawayFreq);
     const checklist = {
       1: resources.length >= 2, // Минимум 2 ресурса
       2: resources.some((r) => r.is_catalytic), // Есть конвертер
@@ -939,11 +1011,11 @@ export async function POST(request: NextRequest) {
       5: machinations.feedback_loops.some((l) => l.loop_type === "reinforcing"), // Reinforcing loop
       6: machinations.feedback_loops.some((l) => l.loop_type === "balancing"), // Balancing loop
       7: pathologies.filter((p) => p.severity === "critical").length === 0, // No critical pathologies
-      8: simResult.aggregated.stability_index > 0.5, // Stability > 0.5
+      8: effectiveStability > 0.5, // Stability > 0.5 (worst of single-pool + graph)
       9: conversionGraph.chains.length > 0, // Есть conversion chains
       10: conversionGraph.avg_profitability > 0, // Прибыльность > 0
-      11: !resources.some((r) => faucetDrain[r.name]?.faucet === 0 && faucetDrain[r.name]?.drain === 0), // No deadlock
-      12: simResult.aggregated.runaway_frequency < 0.5, // No runaway
+      11: !resources.some((r) => faucetDrain[r.name]?.faucet === 0 && faucetDrain[r.name]?.drain === 0 && !faucetDrain[r.name]?.is_fallback), // No deadlock (real resources with no flows)
+      12: effectiveRunawayFreq < 0.5, // No runaway (worst of single-pool + graph)
     };
     const checklistPassed = Object.values(checklist).filter(Boolean).length;
 
@@ -1035,7 +1107,10 @@ export async function POST(request: NextRequest) {
         monetizationType: resolvedMonetization,
         openness: resolvedOpenness,
         pathologies: pathologies.map((p) => p.name),
-        stabilityIndex: simResult.aggregated.stability_index,
+        // R-AUDIT-FIX (#2): AI enrichment now sees the worst-case stability
+        // across both simulations, not just the single-pool model. This
+        // gives the LLM a more honest picture of economy health.
+        stabilityIndex: effectiveStability,
         avgProfitability: conversionGraph.avg_profitability,
         dominantLoop: classification.dominant_loop,
       });

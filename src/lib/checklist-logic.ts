@@ -887,12 +887,28 @@ export async function runChecklistValidation(
 ): Promise<ChecklistResult> {
   const startedAt = Date.now();
   const depth = options.depth || "standard";
+
+  // R-AUDIT-FIX: action normalization. Was `action.replace(/-check$/, "").replace(/s$/, "")`
+  // which corrupts names: `lens-check` → `lens` → `len` (ALL_CHECKLISTS has
+  // `lenses`, not `len`), `shell_filters-check` → `shell_filters` → `shell_filter`
+  // (ALL_CHECKLISTS has `shell_filters`, not `shell_filter`). Both resulted in
+  // empty `activeChecklists` → all checks silently skipped.
+  // Now: strip the `-check` suffix, then try exact match against ALL_CHECKLISTS;
+  // if no exact match, try the legacy singular→plural fallback for the 5
+  // original checks (lens → lenses).
+  const normalizeAction = (a: string): string => {
+    const stripped = a.replace(/-check$/, "");
+    if (ALL_CHECKLISTS.includes(stripped)) return stripped;
+    if (stripped === "lens") return "lenses";
+    return stripped;
+  };
+
   const requestedTypes =
     options.checklistTypes && options.checklistTypes.length > 0
       ? options.checklistTypes
       : action === "validate"
         ? ALL_CHECKLISTS
-        : [action.replace(/-check$/, "").replace(/s$/, "")];
+        : [normalizeAction(action)];
 
   const activeChecklists = requestedTypes.filter((t) =>
     ALL_CHECKLISTS.includes(t)

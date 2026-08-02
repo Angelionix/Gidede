@@ -66,7 +66,9 @@ const VALID_STAGES = [
 ];
 
 // Section catalogue per format
-const FORMAT_SECTIONS: Record<string, string[]> = {
+// R-AUDIT-FIX: exported so /gdd/format route can read the canonical section
+// list instead of maintaining a parallel (drifting) copy.
+export const FORMAT_SECTIONS: Record<string, string[]> = {
   one_sheet: [
     "title",
     "logline",
@@ -1274,13 +1276,18 @@ export async function POST(request: NextRequest) {
         auto_filled: filled.source === "auto_fill",
         requires_review: filled.requires_review,
         source_artifact: sourceArtifact?.artifact ?? null,
+        // R-AUDIT-FIX: was `profile?.artifact?.version` — ArtifactEnvelope has
+        // no `version` field (only `artifactId` + `schemaVersion`), so this
+        // always returned null and stale-detection silently never fired.
+        // Now uses `artifactId` (a UUID that changes whenever the upstream
+        // stage re-runs) as the canonical "version" for stale comparison.
         source_artifact_version: sourceArtifact?.artifact ?? null
           ? (() => {
               const artifactRecord = (proj as unknown as Record<string, { fullProfile?: string } | null>)[sourceArtifact.artifact];
               if (!artifactRecord?.fullProfile) return null;
               try {
                 const profile = JSON.parse(artifactRecord.fullProfile);
-                return profile?.artifact?.version ?? null;
+                return profile?.artifact?.artifactId ?? null;
               } catch { return null; }
             })()
           : null,

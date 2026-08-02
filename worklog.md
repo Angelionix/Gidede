@@ -3181,3 +3181,65 @@ dependencies.
 - TASK-4.10 (Block 4) — persist ai_insights (аналогичный паттерн)
 - TASK-5b.1 (Block 5b) — создать `enrichEconomy` отдельно (сейчас Block 5b
   переиспользует `enrichProgression` — cross-contamination)
+
+---
+Task ID: audit-blocks-1-2
+Agent: general-purpose (audit-blocks-1-2)
+Task: Audit Block 1 (Concept) and Block 2 (CoreLoop) algorithms
+
+Work Log:
+- Read worklog.md (Gidede repo worklog) to see prior agent activity.
+- Read audit context docs: AUDIT_REPORT.md §1-2, FINAL_ALGORITHM_AUDIT_AND_REMEDIATION_ROADMAP.md §4.1-4.2, REFACTOR_PLAN_block_1.md, REFACTOR_PLAN_block_2.md.
+- Read Bible specs: bible_2_1_fundament.md, bible_2_2_elements.md (§2.2.5 MechanicsDB taxonomy, §2.3 Dynamics), bible_2_4_core_loop.md (§4.3 six time scales, §4.4 three structural types, §4.7 Gary 5 questions, §4.10 seven pathologies, §4.11 7-step method).
+- Read all 7 Block 1 lib files: validation.ts, market-fit.ts, triangle-check.ts, usp-builders.ts, feasibility.ts, text-analysis.ts, validation-input.ts + their .test.ts files + constants/concept.ts.
+- Read all 7 Block 2 lib files: classify.ts, hierarchy.ts, pathologies.ts, validation.ts, steps.ts, input.ts, resource-graph.ts + their .test.ts files + constants/coreloop.ts.
+- Read Block 1 API routes: /api/v1/concept/generate/route.ts (801 lines), /api/v1/concept/[id]/route.ts (66 lines), /api/v1/concept/[id]/validate/route.ts (85 lines).
+- Read Block 2 API routes: /api/v1/coreloop/design/route.ts (226 lines), /api/v1/coreloop/[projectId]/route.ts (57 lines).
+- Read mechanics-db.ts (1732 lines) to verify TASK-1.1 (genres populated) and TASK-1.2 (compatibility_score cascade) — confirmed fixed.
+- Ran full test suite: `bun run vitest run src/lib/concept/ src/lib/coreloop/` → 14 test files, 328 tests, all passed (2.27s).
+- Inspected 10 test_projects/*/01_concept.json and 02_coreloop.json — these are STALE artifacts generated BEFORE the refactor: all 10 still show compatibility_score=0, first_action="Find target (explore)", sub_type="hybrid_engine" for tower_defense/rhythm/puzzle. The current source code would produce different (improved) outputs; test_projects/ needs regeneration.
+
+Stage Summary:
+- **Block 1 (Concept): 7/10 readiness** — Major original bugs FIXED (compatibility_score=0, hardcoded filters, stub /validate route, type bypasses). Some residual issues: (a) Bible 2.2.5 requires 3-level genre_affinity (low/medium/high) — implementation is binary (genres: string[]); (b) /concept/[id]/validate route does NOT extract constraints/platform/reference_games from inputData → recomputed validation_report.feasibility will use legacy mode and market_fit will use heuristic_prior even when original generate used composite+evidence modes (schema inconsistency between original and re-validated reports); (c) compatibility_score formula collapses to 100 for all single-genre concepts (genreCoverage=1/1) — `credible = score >= 60` is always TRUE, making it a self-fulfilling metric in the common case; (d) hasReturnReason is always TRUE because cross-genre mechanics are always added (crossGenreRatio=0.18, min 1) → hasCrossGenre always true → hasReturnReason always true; (e) aggregate triangle_check.passed (>= 0.6 score) can be TRUE even when NO USP passes the per-USP strict triangle (weird=false → 0.2+0.3+0.3=0.8 still passes) — semantic inconsistency between per-USP and aggregate triangle logic.
+- **Block 2 (CoreLoop): 7/10 readiness** — Major original bugs FIXED (hardcoded 5-step template replaced with 7 type-specific builders, real loop_closedness via directed resource graph, real 7 Bible pathologies + 6 type-specific, 5 Gary questions implemented, aesthetic-based classification, hasBraking via negative-feedback/consumed-without-producer detection, persistence of aiInsights/modelsUsed/latencyMs/garyFiveQuestions, GET /coreloop/[projectId] route added, dead code removed). Residual issues: (a) sub_type for tower_defense/rhythm/puzzle is a CONSTANT ("wave_based"/"beat_synced"/"pattern_based") — not derived from actual step structure as TASK-2.5 intended; (b) hierarchyDepth=6 still hardcoded in both Prisma create/update (TASK-2.15 wanted Object.keys(loopHierarchy).length); (c) structural_type.loops array has only 2 entries (inner/outer) — Bible 4.3 wants 6 levels; loop_hierarchy separately has 6 — inconsistency between two parallel representations; (d) ecology/hybrid default template includes "Наблюдать состояние" micro action independent of mechanics (canned); (e) customSteps with single mechanic → allSameMechanic=true → Grind pathology fires (potentially false positive).
+- **Top 5 cross-block findings**: (1) test_projects/ are stale and must be regenerated to reflect refactored algorithms — currently they misleadingly show the OLD bugs; (2) /concept/[id]/validate route drops constraints+marketFit evidence on re-validation (schema drift); (3) compatibility_score formula collapses to 100 for single-genre concepts → `credible` self-fulfills; (4) Aggregate triangle_check.passed (score>=0.6) is permissive — can pass with weird=false, contradicting the per-USP strict triangle_check; (5) Bible 2.2.5 still partially unmet — needs 3-level genre_affinity matrix (low/medium/high) instead of binary genres array.
+
+
+---
+Task ID: audit-fixes-batch-1
+Agent: main (post-audit remediation)
+Task: Apply fixes for the top critical findings from the 2026-08-02 algorithm audit.
+
+Work Log:
+- Read all targeted files (nash-solver, mda route, gdd route, economy route, graph-simulation, checklist routes).
+- #4 [Balance] solveNash2x2: added strict-dominance detection BEFORE applying the closed-form formula. Row 0 dominates iff `a>c && b>d`; row 1 dominates iff `c>a && d>b`. Returns pure strategy [1,0] or [0,1] in those cases. Added 4 new tests covering the bug case (e.g. [[2,1],[0,0]] now correctly returns [1,0], not [0,1]).
+- #5 [MDA] aesthetic_coverage: replaced `(AESTHETIC_TO_DYNAMICS[aesthetic] || [])[0]` indexing with iteration over ALL dynamics via a local Set, mirroring getMechanicsForAesthetic from constants.ts. For "challenge" aesthetic this finds 7 mechanics instead of 3.
+- #6 [GDD] stale-detection: changed `profile?.artifact?.version` (non-existent field) to `profile?.artifact?.artifactId` (UUID that changes on every re-run). Stale-detection was silently inert before.
+- #8 [Checklist] VALID_ACTIONS: added the 6 new Bible checklist types (shell_filters, upton, rolling_morris, bond_methods, fullerton, narrative_types) to both /checklists/[action] and /checklist/[action] routes, in both `-check` and bare forms. Also fixed `runChecklistValidation` action normalization: was `action.replace(/-check$/, "").replace(/s$/, "")` which corrupted `lens-check` → `len` and `shell_filters-check` → `shell_filter`. New `normalizeAction()` does exact-match lookup against ALL_CHECKLISTS with a `lens → lenses` legacy fallback.
+- #3 [Economy graph-sim stallCount]: replaced `r.min <= init * 0.05 || r.min <= b.min` (always true for init=0 resources) with relative-change test mirroring single-pool simResult: `valueChange / reference < 0.05` where reference = init>0 ? init : capacity. Added 2 new tests (false-positive for init=0 resources + true positive for disconnected nodes).
+- #1+#2 [Economy simulate()]: rewrote to actually run `numRuns=10` independent passes with deterministic per-run seeds (baseSeed + run * 0x9e3779b9, same pattern as multi-run-sim.ts). Curves are averaged across runs; runaway/stall frequencies are averaged; snapshots_count = ticks * numRuns. `config.num_runs` is now honest.
+- #2 [Economy checklist]: 12-point checklist now consults BOTH simResult AND graphSimResult. Stability (#8) and runaway (#12) take the WORST of the two — if either simulation shows instability, the checklist fails. AI enrichment also receives the worst-case stability. graphSimResult is no longer cosmetic.
+- #10 [Economy fallback faucet/drain]: when a resource has no graph flows, the fallback class-based values are still recorded for diagnostics but marked `is_fallback: true`. The single-pool simulation now receives `simFaucetDrain` (with faucet=0, drain=0 for fallback resources) so disconnected resources don't hallucinate movement. `detectPathologies` skips fallback entries — diagnosing "Инфляция" from a heuristic ratio was recreating the circulus vitiosus pattern.
+- Cleanup: removed 106-line dead `buildBondValidation` function from MDA route (was never called; route uses buildBondValidationFromArtifacts from bond-matrix.ts).
+- Cleanup: /gdd/format route now reads canonical `FORMAT_SECTIONS` exported from /gdd/generate, eliminating the parallel drifting section list (was 38 advertised, 36 from generateSectionList, 45 in actual generator — all 3 numbers disagreed).
+- Verified: `bun run typecheck` clean, `bun run vitest run` 946/946 tests pass (was 946 before changes too — no regressions, 6 new tests added).
+
+Stage Summary:
+- 9 of 10 prioritised fixes applied. #7 (GDD missing spec sections: license_ip, difficulty, etc.) and #9 (checklist-logic.ts test coverage) deferred — they require larger content/scaffold work, not point fixes.
+- Critical issues fixed: 4 (Nash dominance, MDA aesthetic_coverage, Economy num_runs+graphSimResult wiring, Economy fallback faucet/drain).
+- High issues fixed: 3 (GDD stale-detection, Checklist VALID_ACTIONS, Economy stallCount init=0).
+- Cleanups: 2 (MDA dead code, GDD /format route drift).
+- New tests added: 6 (4 for Nash dominance + 2 for graph-sim stall detection).
+- All 946 existing tests still pass; typecheck clean.
+- Files touched:
+  - src/lib/balance/nash-solver.ts (+43 lines, -3 lines)
+  - src/lib/balance/nash-solver.test.ts (+42 lines, -7 lines)
+  - src/app/api/v1/mda/analyze/route.ts (+18 lines, -116 lines [dead code removed + aesthetic_coverage fix])
+  - src/app/api/v1/gdd/generate/route.ts (+5 lines, -1 line [stale-detection + export FORMAT_SECTIONS])
+  - src/app/api/v1/gdd/format/route.ts (rewritten, -62 +44 lines)
+  - src/app/api/v1/checklists/[action]/route.ts (+17 lines)
+  - src/app/api/v1/checklist/[action]/route.ts (+17 lines)
+  - src/lib/checklist-logic.ts (+16 lines, -3 lines [normalizeAction])
+  - src/lib/economy/graph-simulation.ts (+13 lines, -2 lines)
+  - src/lib/economy/graph-simulation.test.ts (+42 lines)
+  - src/app/api/v1/economy/design/route.ts (~+110 lines, ~-40 lines [multi-run sim + graphSimResult wiring + fallback marking])

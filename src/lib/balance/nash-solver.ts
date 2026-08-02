@@ -36,17 +36,30 @@ export interface NashResult {
 }
 
 /**
- * Solve the mixed-strategy Nash equilibrium for a 2×2 zero-sum game.
+ * Solve the Nash equilibrium for a 2×2 zero-sum game.
  *
  * Row payoff matrix:
  *   [[a, b],
  *    [c, d]]
  *
- * The row player's optimal mixed strategy (probability of playing row 0) is:
- *   p* = (d - c) / (a - b - c + d)
+ * Two cases must be handled explicitly:
  *
- * Returns the full strategy vector [p*, 1-p*]. When the denominator is 0
- * (degenerate game), falls back to uniform [0.5, 0.5].
+ * 1. Pure-strategy (boundary) equilibrium via strict dominance.
+ *    If row 0 strictly dominates row 1 (`a > c && b > d`), the row player
+ *    plays row 0 with probability 1 (strategy [1, 0]).
+ *    If row 1 strictly dominates row 0 (`c > a && d > b`), the row player
+ *    plays row 1 with probability 1 (strategy [0, 1]).
+ *    The closed-form mixed-strategy formula `p* = (d-c)/(a-b-c+d)` does NOT
+ *    detect dominance — it would return a valid-looking but wrong mixed
+ *    strategy in this case (e.g. [[2,1],[0,0]] → p*=0 → strategy [0,1],
+ *    when the correct answer is [1,0]).
+ *
+ * 2. Interior mixed-strategy equilibrium (no dominance).
+ *    p* = (d - c) / (a - b - c + d)  — probability of playing row 0.
+ *    Returns the full strategy vector [p*, 1-p*].
+ *
+ * When the denominator is 0 (degenerate game without strict dominance),
+ * falls back to uniform [0.5, 0.5].
  */
 export function solveNash2x2(payoffMatrix: number[][]): NashResult {
   if (payoffMatrix.length !== 2 || !payoffMatrix[0] || payoffMatrix[0].length !== 2
@@ -54,15 +67,36 @@ export function solveNash2x2(payoffMatrix: number[][]): NashResult {
     throw new Error("solveNash2x2 requires a 2×2 matrix");
   }
   const [[a, b], [c, d]] = payoffMatrix;
+
+  // Case 1a: row 0 strictly dominates row 1 — pure-strategy equilibrium [1, 0].
+  if (a > c && b > d) {
+    return {
+      strategy: [1, 0],
+      method: "closed_form_2x2",
+      source: "solver",
+      reason: `2×2 closed-form: row 0 strictly dominates row 1 (${a}>${c} && ${b}>${d}) → pure strategy [1, 0]`,
+    };
+  }
+  // Case 1b: row 1 strictly dominates row 0 — pure-strategy equilibrium [0, 1].
+  if (c > a && d > b) {
+    return {
+      strategy: [0, 1],
+      method: "closed_form_2x2",
+      source: "solver",
+      reason: `2×2 closed-form: row 1 strictly dominates row 0 (${c}>${a} && ${d}>${b}) → pure strategy [0, 1]`,
+    };
+  }
+
+  // Case 2: interior mixed-strategy equilibrium.
   const denominator = a - b - c + d;
 
   if (Math.abs(denominator) < 1e-9) {
-    // Degenerate game — uniform.
+    // Degenerate game without strict dominance — uniform.
     return {
       strategy: [0.5, 0.5],
       method: "closed_form_2x2",
       source: "solver",
-      reason: "2×2 closed-form: degenerate game (denominator ≈ 0), uniform [0.5, 0.5]",
+      reason: "2×2 closed-form: degenerate game (denominator ≈ 0, no strict dominance), uniform [0.5, 0.5]",
     };
   }
 
@@ -130,13 +164,17 @@ export function solveNash(
   if (n === 1) {
     return {
       strategy: [1],
-      method: "closed_form_2x2",
+      method: "uniform_non_dominated",
       source: "solver",
       reason: "Single strategy — trivial equilibrium [1.0]",
     };
   }
   if (n === 2) {
     try {
+      // Pass dominatedStrategies for completeness — solveNash2x2 detects
+      // strict dominance internally via payoff comparison, but the parameter
+      // is kept for symmetry with the heuristic fallback signature.
+      void dominatedStrategies;
       return solveNash2x2(payoffMatrix);
     } catch {
       return uniformOverNonDominated(payoffMatrix, dominatedStrategies);

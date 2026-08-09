@@ -16,7 +16,9 @@
     "db:migrate:deploy": "prisma migrate deploy",
     "db:migrate:status": "prisma migrate status",
     "db:migrate:resolve": "prisma migrate resolve",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "ontology:build": "bun run scripts/ontology/build-ontology.ts",
+    "ontology:download": "bash scripts/ontology/download-books.sh"
   },
   "dependencies": {
     "@dnd-kit/core": "^6.3.1",

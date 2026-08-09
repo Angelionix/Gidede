@@ -558,3 +558,51 @@ model PrototypeGraph {
   @@index([isPublic])
   @@map("prototype_graphs")
 }
+
+// ============================================================
+// ONTOLOGY — Knowledge graph extracted from books and GDDs
+// ============================================================
+
+model OntologyEntity {
+  id          String   @id @default(cuid())
+  entityId    String   @unique  // "global:mechanic:locomotion"
+  scope       String             // "global" | "project"
+  projectId   String?            // null for global, project ID for project-scoped
+  type        String             // "Mechanic" | "Genre" | "Aesthetic" | ...
+  name        String
+  description String
+  sourceRefs  String             // JSON: string[] — ["schell:ch3:p47", "adams:ch2:p31"]
+  bookCount   Int      @default(1)
+  weight      Float    @default(0.7)  // 0-1, confidence
+  metadata    String?             // JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  relationsFrom OntologyRelation[] @relation("fromEntity")
+  relationsTo   OntologyRelation[] @relation("toEntity")
+
+  @@index([scope, projectId])
+  @@index([type])
+  @@index([name])
+  @@map("ontology_entities")
+}
+
+model OntologyRelation {
+  id            String   @id @default(cuid())
+  fromEntityId  String
+  toEntityId    String
+  relationType  String   // "REQUIRES_MECHANIC" | "PRODUCES_DYNAMIC" | ...
+  weight        Float    @default(0.7)
+  sourceRefs    String             // JSON: string[]
+  bookCount     Int      @default(1)
+  metadata      String?             // JSON
+  createdAt     DateTime @default(now())
+
+  fromEntity OntologyEntity @relation("fromEntity", fields: [fromEntityId], references: [id], onDelete: Cascade)
+  toEntity   OntologyEntity @relation("toEntity", fields: [toEntityId], references: [id], onDelete: Cascade)
+
+  @@index([fromEntityId, relationType])
+  @@index([toEntityId, relationType])
+  @@index([relationType])
+  @@map("ontology_relations")
+}

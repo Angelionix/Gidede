@@ -66,6 +66,13 @@ download/
 start-dev.sh
 run_pipeline_adapted.sh
 test_pipeline_run/
+
+# Ontology: raw books (LFS, too large for git)
+docs/books/*.pdf
+docs/books/*.txt
+# Ontology: extraction cache (large, regenerated)
+docs/ontology/text-cache/
+docs/ontology/extractions/
 pipeline_test_output.log
 
 # Skills (external)
